@@ -12,6 +12,8 @@
 //                  Contents read/write on GITHUB_REPO only
 //   GITHUB_REPO    "owner/name"
 //   GITHUB_BRANCH  default "main"
+//   EXCLUDE        folders wr1t3r must never list, read or write, comma
+//                  separated, e.g. "_includes/"; paths as the page sees them
 //
 // Routes (all need "Authorization: Bearer <WR1T3R_TOKEN>"). Paths are relative
 // to the vault root; every note has a version (R2 etag or git blob sha) that
@@ -43,7 +45,7 @@ export default {
 		if (!(await authorized(request, env))) return json({ error: "Unauthorized" }, 401);
 		try {
 			if (url.pathname === "/api/fetch" && request.method === "GET") return await proxyFetch(url.searchParams.get("url"), env);
-		return (await api(request, backend(env), url)) || json({ error: "Not found" }, 404);
+			return (await api(request, backend(env), url, excluded(env))) || json({ error: "Not found" }, 404);
 		} catch (err) {
 			if (err instanceof HttpError) return json({ error: err.message, ...err.extra }, err.status);
 			return json({ error: String(err?.message || err) }, 500);
@@ -58,6 +60,17 @@ function backend(env) {
 	return r2Backend(env.VAULT, prefix);
 }
 
+// Returns a test for paths inside an EXCLUDE folder. Matching ignores case,
+// since some devices' file systems do too.
+function excluded(env) {
+	const folders = (env.EXCLUDE || "")
+		.split(",")
+		.map((f) => f.trim().replace(/^\/+/, "").toLowerCase())
+		.filter(Boolean)
+		.map((f) => (f.endsWith("/") ? f : f + "/"));
+	return (path) => folders.some((f) => path.toLowerCase().startsWith(f));
+}
+
 async function authorized(request, env) {
 	if (!env.WR1T3R_TOKEN) return false;
 	const given = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
@@ -70,12 +83,15 @@ async function authorized(request, env) {
 	return crypto.subtle.timingSafeEqual(a, b);
 }
 
-async function api(request, store, url) {
+async function api(request, store, url, isExcluded) {
+	const checkPath = (path) => {
+		if (!isNotePath(path) || isExcluded(path)) throw new HttpError(400, "Not a note path: " + String(path).slice(0, 200));
+	};
 	const m = request.method;
 	const p = url.pathname;
 
 	if (p === "/api/files" && m === "GET") {
-		const files = (await store.list()).filter((f) => isNotePath(f.path));
+		const files = (await store.list()).filter((f) => isNotePath(f.path) && !isExcluded(f.path));
 		files.sort((a, b) => (a.path < b.path ? -1 : 1));
 		return json({ files });
 	}
@@ -116,10 +132,6 @@ async function api(request, store, url) {
 		}
 	}
 	return null;
-}
-
-function checkPath(path) {
-	if (!isNotePath(path)) throw new HttpError(400, "Not a note path: " + String(path).slice(0, 200));
 }
 
 function unquote(v) {

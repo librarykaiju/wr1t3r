@@ -16,6 +16,8 @@ binding = "ASSETS"
 BACKEND = "r2"
 # The bucket mirrors the whole Obsidian vault (content/ and _includes/snippets/).
 VAULT_PREFIX = ""
+# Site templates live here; wr1t3r never lists, reads or writes them.
+EXCLUDE = "_includes/"
 
 # The bucket Remotely Save syncs Obsidian with. wr1t3r reads and writes it
 # directly, so an edit reaches every device on its next Remotely Save sync,
