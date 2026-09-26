@@ -16,6 +16,8 @@ Source mode (CodeMirror 6): headings, emphasis, links, `[[wikilinks]]`, `==highl
 
 **Upload** turns files into notes in `content/_uploads/` (a `content/_*` folder, so the site build skips it), with a small frontmatter block naming the source file. Word (`.docx`), PDF, HTML and text files are converted in the browser, so this works offline too. Headings, lists, links, bold/italic and tables come across; images are left out. PDFs give their text layer only, with paragraphs and headings guessed from the layout, so a scanned PDF comes out empty.
 
+**Aa** in the header sets the theme (Auto, Light, Dark, Sepia) and text size, with the same colors and choices as Reader. Both are kept per device.
+
 Rename a note by editing its path in the header and pressing Enter. Folders are made by putting a `/` in a name.
 
 Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped. Folders named in `EXCLUDE` in `wrangler.toml` (for now `_includes/`, the site templates) are refused by the Worker itself: never listed, read, written or deleted. Images and other attachments aren't shown (source mode doesn't render them).
