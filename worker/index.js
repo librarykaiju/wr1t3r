@@ -26,9 +26,12 @@
 //                                  If-None-Match: * to create -> {"version"}
 //                                  412 {"error", "version"} if the note has moved on
 //   DELETE /api/file?path=         header If-Match: <version> -> 204, 412 as above
+//   GET    /api/fetch?url=         a public web page for the clipper -> its body and
+//                                  Content-Type, and X-Final-URL after redirects
 
 import { r2Backend } from "./r2.js";
 import { githubBackend } from "./github.js";
+import { proxyFetch } from "./fetch.js";
 import { HttpError, toBase64 } from "./util.js";
 import { isNotePath } from "../src/paths.js";
 
@@ -41,6 +44,7 @@ export default {
 		if (!url.pathname.startsWith("/api/")) return env.ASSETS ? env.ASSETS.fetch(request) : json({ error: "Not found" }, 404);
 		if (!(await authorized(request, env))) return json({ error: "Unauthorized" }, 401);
 		try {
+			if (url.pathname === "/api/fetch" && request.method === "GET") return await proxyFetch(url.searchParams.get("url"), env);
 			return (await api(request, backend(env), url, excluded(env))) || json({ error: "Not found" }, 404);
 		} catch (err) {
 			if (err instanceof HttpError) return json({ error: err.message, ...err.extra }, err.status);

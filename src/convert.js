@@ -66,12 +66,28 @@ function turndown() {
 
 function fromHtml(html, notes = []) {
 	const doc = new DOMParser().parseFromString(html, "text/html");
-	const images = doc.querySelectorAll("img, svg, picture").length;
-	doc.querySelectorAll("img, svg, picture").forEach((el) => el.remove());
-	if (images) notes.push(`${images} image${images === 1 ? "" : "s"} left out`);
+	const title = doc.querySelector("title")?.textContent.trim();
+	let markdown = htmlToMarkdown(doc.body || doc.documentElement, { notes });
+	if (title && !markdown.startsWith("# ")) markdown = `# ${title}\n\n` + markdown;
+	return { markdown, notes };
+}
+
+// HTML (an element or a document's body) -> markdown. Images are dropped,
+// unless keepImages, when those with an absolute web address stay, linked to
+// where they are (clippings; Obsidian shows them when online).
+export function htmlToMarkdown(root, { keepImages = false, notes = [] } = {}) {
+	const doc = root.ownerDocument || root;
+	root.querySelectorAll("svg, source").forEach((el) => el.remove());
+	let dropped = 0;
+	for (const img of root.querySelectorAll("img")) {
+		if (keepImages && /^https?:/i.test(img.getAttribute("src") || "")) continue;
+		img.remove();
+		dropped++;
+	}
+	if (dropped) notes.push(`${dropped} image${dropped === 1 ? "" : "s"} left out`);
 	// GFM tables need a header row and single-line cells. Word tables have
 	// neither, so the first row becomes the header and cell paragraphs are joined.
-	for (const table of doc.querySelectorAll("table")) {
+	for (const table of root.querySelectorAll("table")) {
 		for (const cell of table.querySelectorAll("td, th")) {
 			const ps = cell.querySelectorAll("p");
 			if (ps.length) cell.innerHTML = [...ps].map((p) => p.innerHTML).join(" ");
@@ -85,10 +101,7 @@ function fromHtml(html, notes = []) {
 			}
 		}
 	}
-	const title = doc.querySelector("title")?.textContent.trim();
-	let markdown = turndown().turndown(doc.body || doc.documentElement).trim() + "\n";
-	if (title && !markdown.startsWith("# ")) markdown = `# ${title}\n\n` + markdown;
-	return { markdown, notes };
+	return turndown().turndown(root).trim() + "\n";
 }
 
 async function fromDocx(buf) {

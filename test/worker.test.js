@@ -56,3 +56,12 @@ test("other notes still work, and the token is required", async () => {
 	const put = await call(e, "/api/file?path=content%2Fa.md", { method: "PUT", headers: { "If-Match": '"e-content/a.md"' }, body: "A2" });
 	assert.equal(put.status, 200);
 });
+
+test("the clipper's fetch refuses private addresses and needs the token", async () => {
+	const e = env();
+	for (const u of ["http://127.0.0.1/", "http://169.254.169.254/latest", "http://[::1]/", "file:///etc/passwd"]) {
+		const r = await call(e, "/api/fetch?url=" + encodeURIComponent(u));
+		assert.ok(r.status === 403 || r.status === 400, u + " -> " + r.status);
+	}
+	assert.equal((await call(e, "/api/fetch?url=https%3A%2F%2Fexample.com", { headers: { Authorization: "Bearer nope" } })).status, 401);
+});
