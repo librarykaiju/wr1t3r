@@ -1,40 +1,40 @@
+/* Colors, fonts and themes follow Reader's (librarykaiju/reader): Auto follows
+   the system, and Light, Dark and Sepia set data-theme on <html> (public/theme.js). */
 :root {
-	--bg: #f7f6f2;
-	--panel: #efede7;
-	--text: #1f1f1d;
-	--muted: #6d6a63;
-	--line: #dcd8cf;
-	--accent: #2f6f5e;
-	--mark: #9a958a;
-	--hl: #fbe9a6;
-	--code-bg: #e9e6de;
-	--danger: #a2362b;
-	--sel: #cfe3dc;
-	--font: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-	--ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+	--bg: #fbfaf7; --fg: #1d1c1a; --muted: #6d6a64; --line: #e4e1da; --card: #ffffff; --sel: #ecefe9;
+	--accent: #2f5fd0; --bad: #b3261e; --hl: #fbe38a;
+	--panel: #f4f2ed; --mark: #a3a097; --code-bg: #efece5;
+	--serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
+	--sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
 	--mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	--editor-size: 19px;
 	color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-	:root {
-		--bg: #1b1b1d;
-		--panel: #232326;
-		--text: #e7e4dd;
-		--muted: #9a978f;
-		--line: #34343a;
-		--accent: #7cc4ad;
-		--mark: #6f6c66;
-		--hl: #5a4c17;
-		--code-bg: #2a2a2e;
-		--danger: #e0786c;
-		--sel: #2c4a41;
+	:root:not([data-theme]) {
+		--bg: #141414; --fg: #e7e4de; --muted: #9b978f; --line: #2d2c2a; --card: #1c1c1b; --sel: #2a2a28;
+		--accent: #8fb0ff; --bad: #ff8a80; --hl: #5c4a12;
+		--panel: #1a1a19; --mark: #6b6862; --code-bg: #232321;
 		color-scheme: dark;
 	}
+}
+:root[data-theme=dark] {
+	--bg: #141414; --fg: #e7e4de; --muted: #9b978f; --line: #2d2c2a; --card: #1c1c1b; --sel: #2a2a28;
+	--accent: #8fb0ff; --bad: #ff8a80; --hl: #5c4a12;
+	--panel: #1a1a19; --mark: #6b6862; --code-bg: #232321;
+	color-scheme: dark;
+}
+:root[data-theme=sepia] {
+	--bg: #f4ecd8; --fg: #3b3024; --muted: #7b6c58; --line: #e2d6bb; --card: #f9f2e2; --sel: #eadfc4;
+	--accent: #8a4b14; --bad: #a3261e; --hl: #f0d27a;
+	--panel: #efe5cd; --mark: #a8987f; --code-bg: #eadfc4;
+	color-scheme: light;
 }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--text); font: 15px/1.4 var(--ui); }
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.4 var(--sans); }
 button, input { font: inherit; color: inherit; }
 button {
 	background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
@@ -48,10 +48,10 @@ input {
 }
 input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 [hidden] { display: none !important; }
-.error { color: var(--danger); }
+.error { color: var(--bad); }
 
 #login { max-width: 360px; margin: 18vh auto 0; padding: 0 16px; display: grid; gap: 10px; }
-#login h1 { font: 600 28px var(--font); margin: 0; }
+#login h1 { font: 600 28px var(--serif); margin: 0; }
 #login p { margin: 0; color: var(--muted); }
 
 #app { display: flex; height: 100%; }
@@ -85,9 +85,25 @@ header {
 }
 #menu { display: none; }
 #path { flex: 1; border-color: transparent; background: none; color: var(--muted); }
-#path:focus { border-color: var(--line); background: var(--bg); color: var(--text); }
+#path:focus { border-color: var(--line); background: var(--bg); color: var(--fg); }
 #status { font-size: 13px; color: var(--muted); background: none; border-color: transparent; white-space: nowrap; }
-#status.warn { color: var(--danger); }
+#status.warn { color: var(--bad); }
+
+.pop {
+	position: fixed; z-index: 30; right: 16px; top: calc(env(safe-area-inset-top) + 52px); width: min(320px, calc(100vw - 32px));
+	background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
+}
+.pop h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 8px; }
+.pop h2 + * { margin-bottom: 14px; }
+.pop > :last-child { margin-bottom: 0; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { flex: 1; border: 0; border-radius: 0; background: none; padding: 9px 4px; font-size: 14px; min-width: 0; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed=true] { background: var(--sel); font-weight: 600; }
+.seg .val {
+	flex: 0 0 56px; display: grid; place-items: center; font-variant-numeric: tabular-nums;
+	border-left: 1px solid var(--line); border-right: 1px solid var(--line); font-size: 14px;
+}
 
 #editor { flex: 1; min-height: 0; }
 #empty { flex: 1; display: grid; place-items: center; color: var(--muted); }
@@ -96,7 +112,7 @@ main:not(.has-note) #editor { display: none; }
 
 #editor .cm-editor { height: 100%; background: var(--bg); }
 #editor .cm-editor.cm-focused { outline: none; }
-#editor .cm-scroller { font: 17px/1.65 var(--font); padding: 24px 16px 40vh; }
+#editor .cm-scroller { font: var(--editor-size)/1.65 var(--serif); padding: 24px 16px 40vh; }
 .cm-content { max-width: 720px; margin: 0 auto; caret-color: var(--accent); }
 #editor .cm-cursor { border-left-color: var(--accent) !important; }
 #editor .cm-activeLine { background: transparent; }
@@ -117,16 +133,16 @@ main:not(.has-note) #editor { display: none; }
 
 #editor .cm-tooltip.cm-tooltip-autocomplete {
 	background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
-	font: 14px var(--ui); box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+	font: 14px var(--sans); box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
 }
 #editor .cm-tooltip-autocomplete > ul { max-height: 16em !important; }
 #editor .cm-tooltip-autocomplete > ul > li { padding: 5px 12px !important; }
-#editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--sel) !important; color: var(--text) !important; }
-#editor .cm-panels { background: var(--panel); color: var(--text); border-color: var(--line); }
+#editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--sel) !important; color: var(--fg) !important; }
+#editor .cm-panels { background: var(--panel); color: var(--fg); border-color: var(--line); }
 
 #toast {
 	position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
-	background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 8px; max-width: calc(100% - 32px);
+	background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 8px; max-width: calc(100% - 32px);
 	font-size: 14px;
 }
 

@@ -310,9 +310,63 @@ async function signOut(message) {
 	location.replace(location.pathname);
 }
 
+// ---- display settings (same choices and storage keys style as Reader) -----------
+
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+let fontSize = clamp(Number(readRaw("wr1t3rFontSize")) || 19, 14, 30);
+
+function readRaw(key) {
+	try { return localStorage.getItem(key); } catch { return null; }
+}
+function storeRaw(key, value) {
+	try { value == null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch {}
+}
+
+function applyTheme(t) {
+	const root = document.documentElement;
+	if (t === "light" || t === "dark" || t === "sepia") root.setAttribute("data-theme", t);
+	else { root.removeAttribute("data-theme"); t = "auto"; }
+	document.querySelectorAll("#themes button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.theme === t)));
+	const meta = document.querySelector("meta[name=theme-color]");
+	if (meta) meta.content = getComputedStyle(root).getPropertyValue("--bg").trim();
+}
+
+function applySize(px) {
+	fontSize = clamp(px, 14, 30);
+	document.documentElement.style.setProperty("--editor-size", fontSize + "px");
+	$("sizeVal").textContent = fontSize;
+	editor?.view.requestMeasure();
+}
+
+function openSettings(on) {
+	$("settings").hidden = !on;
+	$("settingsBtn").setAttribute("aria-expanded", String(on));
+}
+
+function setupSettings() {
+	applyTheme(readRaw("wr1t3rTheme"));
+	applySize(fontSize);
+	// Auto follows the system, so the browser bar color has to follow it too.
+	matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(readRaw("wr1t3rTheme")));
+	$("settingsBtn").addEventListener("click", (e) => { e.stopPropagation(); openSettings($("settings").hidden); });
+	$("themes").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b) return;
+		storeRaw("wr1t3rTheme", b.dataset.theme === "auto" ? null : b.dataset.theme);
+		applyTheme(b.dataset.theme);
+	});
+	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
+	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });
+	document.addEventListener("click", (e) => {
+		if (!$("settings").hidden && !e.target.closest("#settings, #settingsBtn")) openSettings(false);
+	});
+	document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("settings").hidden) openSettings(false); });
+}
+
 // ---- start -------------------------------------------------------------------------
 
 function showLogin(message = "") {
+	applyTheme(readRaw("wr1t3rTheme"));
 	$("login").hidden = false;
 	$("login-error").textContent = message;
 	$("token").focus();
@@ -333,6 +387,7 @@ function showLogin(message = "") {
 async function start() {
 	$("app").hidden = false;
 	editor = createEditor($("editor"), { onChange: onEdit });
+	setupSettings();
 	for (const n of await local.all()) notes.set(n.path, n);
 	persist();
 

@@ -3,14 +3,15 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-	<meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)">
-	<meta name="theme-color" content="#1b1b1d" media="(prefers-color-scheme: dark)">
+	<meta name="color-scheme" content="light dark">
+	<meta name="theme-color" content="#fbfaf7">
 	<meta name="apple-mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-title" content="wr1t3r">
 	<link rel="manifest" href="/manifest.webmanifest">
 	<link rel="icon" href="/icon.svg" type="image/svg+xml">
 	<link rel="apple-touch-icon" href="/icon-180.png">
 	<title>wr1t3r</title>
+	<script src="/theme.js"></script>
 	<link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
@@ -41,11 +42,27 @@
 				<button id="menu" type="button" aria-label="Notes">☰</button>
 				<input id="path" aria-label="Note path (edit and press Enter to rename)" spellcheck="false" disabled>
 				<button id="status" type="button" title="Sync now"></button>
+				<button id="settingsBtn" type="button" class="quiet" aria-label="Display settings" aria-expanded="false" aria-controls="settings">Aa</button>
 				<button id="delete" type="button" class="quiet" title="Delete note" disabled>Delete</button>
 			</header>
 			<div id="editor"></div>
 			<div id="empty">Pick a note, or make a new one.</div>
 		</main>
+		<div id="settings" class="pop" hidden>
+			<h2>Theme</h2>
+			<div class="seg" id="themes">
+				<button type="button" data-theme="auto">Auto</button>
+				<button type="button" data-theme="light">Light</button>
+				<button type="button" data-theme="dark">Dark</button>
+				<button type="button" data-theme="sepia">Sepia</button>
+			</div>
+			<h2>Text size</h2>
+			<div class="seg">
+				<button id="smaller" type="button" aria-label="Smaller text">A&minus;</button>
+				<span id="sizeVal" class="val">19</span>
+				<button id="larger" type="button" aria-label="Larger text">A+</button>
+			</div>
+		</div>
 		<div id="toast" role="status" hidden></div>
 	</div>
 	<script type="module" src="/src/main.js"></script>
