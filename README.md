@@ -14,6 +14,8 @@ A markdown editor for an Obsidian vault, in the browser. Live at https://wr1t3r.
 
 Source mode (CodeMirror 6): headings, emphasis, links, `[[wikilinks]]`, `==highlights==`, footnotes and YAML frontmatter are styled but stay as text. Type `/` at the start of a line or after a space for the formatting menu (tables, tasks, callouts, code blocks and so on); keep typing to filter. The list is in `src/slash.js`.
 
+**Upload** turns files into notes in `content/_uploads/` (a `content/_*` folder, so the site build skips it), with a small frontmatter block naming the source file. Word (`.docx`), PDF, HTML and text files are converted in the browser, so this works offline too. Headings, lists, links, bold/italic and tables come across; images are left out. PDFs give their text layer only, with paragraphs and headings guessed from the layout, so a scanned PDF comes out empty.
+
 Rename a note by editing its path in the header and pressing Enter. Folders are made by putting a `/` in a name.
 
 Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped. Images and other attachments aren't shown (source mode doesn't render them).

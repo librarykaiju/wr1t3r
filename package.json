@@ -18,7 +18,11 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.13",
     "@lezer/highlight": "^1.2.4",
-    "@lezer/markdown": "^1.7.2"
+    "@lezer/markdown": "^1.7.2",
+    "mammoth": "^1.12.3",
+    "pdfjs-dist": "^6.3.289",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2"
   },
   "devDependencies": {
     "vite": "^8.3.1",

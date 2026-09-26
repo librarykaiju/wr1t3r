@@ -249,6 +249,48 @@ async function renameNote(from, input) {
 	scheduleSync(0);
 }
 
+// ---- uploads -------------------------------------------------------------------
+
+// Uploaded files become notes here. content/_* folders stay out of the site build.
+const UPLOAD_FOLDER = "content/_uploads/";
+
+async function upload(files) {
+	if (!files.length) return;
+	toast(`Converting ${files.length} file${files.length === 1 ? "" : "s"}…`, 60000);
+	let convert;
+	try {
+		convert = await import("./convert.js");
+	} catch {
+		return toast("The converter isn't on this device yet. Try again once you're online.");
+	}
+	const done = [], failed = [];
+	for (const file of files) {
+		try {
+			const { markdown, notes } = await convert.toMarkdown(file);
+			const base = UPLOAD_FOLDER + convert.noteName(file.name);
+			let path = base + ".md";
+			for (let n = 2; taken(path); n++) path = `${base} ${n}.md`;
+			const text = convert.withFrontmatter(markdown, file.name);
+			await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+			done.push({ path, notes });
+		} catch (e) {
+			failed.push(`${file.name}: ${e.message}`);
+		}
+	}
+	const parts = [];
+	if (done.length) parts.push(`Added ${done.length} note${done.length === 1 ? "" : "s"} to _uploads.`);
+	for (const d of done) if (d.notes.length) parts.push(`${name(d.path)}: ${d.notes.join(", ")}.`);
+	if (failed.length) parts.push(`Couldn't convert ${failed.join("; ")}.`);
+	toast(parts.join(" "), failed.length ? 10000 : 6000);
+	if (done.length) {
+		openFolders.add("content/").add(UPLOAD_FOLDER);
+		writeJSON(OPEN_KEY, [...openFolders]);
+		openNote(done[done.length - 1].path);
+		renderStatus();
+		scheduleSync(0);
+	}
+}
+
 // ---- small things ----------------------------------------------------------------
 
 let toastTimer;
@@ -296,6 +338,17 @@ async function start() {
 
 	$("filter").addEventListener("input", renderTree);
 	$("new").addEventListener("click", newNote);
+	// Keep this in step with ACCEPT in src/convert.js. It's set here, not
+	// imported, because Safari only opens the picker straight from the tap.
+	$("upload-input").accept = ".md,.markdown,.txt,.html,.htm,.docx,.pdf";
+	$("upload").addEventListener("click", () => $("upload-input").click());
+	$("upload-input").addEventListener("change", (e) => {
+		const files = [...e.target.files];
+		e.target.value = "";
+		upload(files);
+	});
+	// Fetch the converters in the background so uploads work offline later.
+	(window.requestIdleCallback || setTimeout)(() => navigator.onLine && import("./convert.js").then((m) => m.warm()).catch(() => {}));
 	$("status").addEventListener("click", () => runSync());
 	$("delete").addEventListener("click", () => editor.path && removeNote(editor.path));
 	$("signout").addEventListener("click", () => signOut());
