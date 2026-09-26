@@ -16,7 +16,7 @@ Source mode (CodeMirror 6): headings, emphasis, links, `[[wikilinks]]`, `==highl
 
 Rename a note by editing its path in the header and pressing Enter. Folders are made by putting a `/` in a name.
 
-Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped. Images and other attachments aren't shown (source mode doesn't render them).
+Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped. Folders named in `EXCLUDE` in `wrangler.toml` (for now `_includes/`, the site templates) are refused by the Worker itself: never listed, read, written or deleted. Images and other attachments aren't shown (source mode doesn't render them).
 
 ## Setup
 
