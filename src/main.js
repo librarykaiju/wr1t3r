@@ -251,8 +251,26 @@ async function renameNote(from, input) {
 
 // ---- uploads -------------------------------------------------------------------
 
-// Uploaded files become notes here. content/_* folders stay out of the site build.
+// Uploads and clippings become notes here. content/_* folders stay out of the site build.
 const UPLOAD_FOLDER = "content/_uploads/";
+const CLIP_FOLDER = "content/_clippings/";
+
+// Saves a new note under folder, numbering the name if it's taken.
+async function addNote(folder, noteName, text) {
+	const base = folder + noteName;
+	let path = base + ".md";
+	for (let n = 2; taken(path); n++) path = `${base} ${n}.md`;
+	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	return path;
+}
+
+function showAdded(folder, path) {
+	openFolders.add("content/").add(folder);
+	writeJSON(OPEN_KEY, [...openFolders]);
+	openNote(path);
+	renderStatus();
+	scheduleSync(0);
+}
 
 async function upload(files) {
 	if (!files.length) return;
@@ -267,11 +285,7 @@ async function upload(files) {
 	for (const file of files) {
 		try {
 			const { markdown, notes } = await convert.toMarkdown(file);
-			const base = UPLOAD_FOLDER + convert.noteName(file.name);
-			let path = base + ".md";
-			for (let n = 2; taken(path); n++) path = `${base} ${n}.md`;
-			const text = convert.withFrontmatter(markdown, file.name);
-			await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+			const path = await addNote(UPLOAD_FOLDER, convert.noteName(file.name), convert.withFrontmatter(markdown, file.name));
 			done.push({ path, notes });
 		} catch (e) {
 			failed.push(`${file.name}: ${e.message}`);
@@ -282,13 +296,34 @@ async function upload(files) {
 	for (const d of done) if (d.notes.length) parts.push(`${name(d.path)}: ${d.notes.join(", ")}.`);
 	if (failed.length) parts.push(`Couldn't convert ${failed.join("; ")}.`);
 	toast(parts.join(" "), failed.length ? 10000 : 6000);
-	if (done.length) {
-		openFolders.add("content/").add(UPLOAD_FOLDER);
-		writeJSON(OPEN_KEY, [...openFolders]);
-		openNote(done[done.length - 1].path);
-		renderStatus();
-		scheduleSync(0);
+	if (done.length) showAdded(UPLOAD_FOLDER, done[done.length - 1].path);
+}
+
+async function clipPage(url) {
+	url = (url || "").trim();
+	if (!url) return;
+	if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+	if (!navigator.onLine) return toast("Clipping needs a connection.");
+	toast("Clipping…", 60000);
+	try {
+		const [{ clip }, { noteName }] = await Promise.all([import("./clip.js"), import("./convert-text.js")]);
+		const c = await clip(url);
+		const path = await addNote(CLIP_FOLDER, noteName(c.title), c.text);
+		toast(`Clipped “${name(path)}” to _clippings.`);
+		showAdded(CLIP_FOLDER, path);
+	} catch (e) {
+		if (e instanceof AuthError) return signOut("That token no longer works.");
+		toast("Couldn't clip that: " + e.message, 8000);
 	}
+}
+
+// The bookmarklet (see the Aa panel) opens wr1t3r at #clip=<page address>.
+function clipFromHash() {
+	const m = location.hash.match(/^#clip=(.+)$/);
+	if (!m) return false;
+	history.replaceState(null, "", location.pathname);
+	clipPage(decodeURIComponent(m[1]));
+	return true;
 }
 
 // ---- small things ----------------------------------------------------------------
@@ -397,6 +432,8 @@ async function start() {
 	// imported, because Safari only opens the picker straight from the tap.
 	$("upload-input").accept = ".md,.markdown,.txt,.html,.htm,.docx,.pdf";
 	$("upload").addEventListener("click", () => $("upload-input").click());
+	$("clip").addEventListener("click", () => clipPage(prompt("Web page to clip:") || ""));
+	$("bookmarklet").href = `javascript:location.href=${JSON.stringify(location.origin + "/#clip=")}+encodeURIComponent(location.href)`;
 	$("upload-input").addEventListener("change", (e) => {
 		const files = [...e.target.files];
 		e.target.value = "";
@@ -421,6 +458,7 @@ async function start() {
 		openNote(decodeURIComponent(a.hash.slice(1)));
 	});
 	window.addEventListener("hashchange", () => {
+		if (clipFromHash()) return;
 		const p = decodeURIComponent(location.hash.slice(1));
 		if (p && p !== editor.path) openNote(p);
 	});
@@ -434,7 +472,7 @@ async function start() {
 	});
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);
 
-	openNote(decodeURIComponent(location.hash.slice(1)) || null);
+	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || null);
 	renderStatus();
 	runSync();
 }

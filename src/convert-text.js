@@ -64,5 +64,10 @@ export function noteName(fileName) {
 export function withFrontmatter(markdown, fileName, date = new Date()) {
 	if (/^---\r?\n/.test(markdown)) return markdown;
 	const day = date.toLocaleDateString("en-CA");
-	return `---\nsource: ${JSON.stringify(fileName)}\nuploaded: ${day}\n---\n\n${markdown.replace(/^\s+/, "")}`;
+	return `---\nsource: ${yamlString(fileName)}\nuploaded: ${day}\n---\n\n${markdown.replace(/^\s+/, "")}`;
+}
+
+// A YAML double-quoted string (a JSON string is one).
+export function yamlString(s) {
+	return JSON.stringify(String(s));
 }
