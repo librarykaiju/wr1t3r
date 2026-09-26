@@ -1,0 +1,63 @@
+// The slash menu: type "/" at the start of a line or after a space, then a few
+// letters to filter. Each command is plain data so the list can later be made
+// editable. In templates, ${} marks where the cursor lands and ${name} a
+// placeholder you can Tab to (CodeMirror snippet syntax).
+
+import { snippet } from "@codemirror/autocomplete";
+
+const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
+
+export const COMMANDS = [
+	{ label: "Heading 1", template: "# ${}" , keywords: "h1 title" },
+	{ label: "Heading 2", template: "## ${}", keywords: "h2" },
+	{ label: "Heading 3", template: "### ${}", keywords: "h3" },
+	{ label: "Bullet list", template: "- ${}", keywords: "ul unordered" },
+	{ label: "Numbered list", template: "1. ${}", keywords: "ol ordered" },
+	{ label: "Task", template: "- [ ] ${}", keywords: "todo checkbox" },
+	{ label: "Quote", template: "> ${}", keywords: "blockquote" },
+	{ label: "Callout", template: "> [!${note}] ${title}\n> ${}", keywords: "admonition note warning tip" },
+	{ label: "Code block", template: "```${lang}\n${}\n```", keywords: "fence pre" },
+	{ label: "Table", template: "| ${Column} | Column |\n| --- | --- |\n| ${} |  |", keywords: "grid" },
+	{ label: "Divider", template: "---\n${}", keywords: "hr rule line" },
+	{ label: "Link", template: "[${text}](${url})", keywords: "url href" },
+	{ label: "Wikilink", template: "[[${}]]", keywords: "internal note" },
+	{ label: "Image", template: "![${alt}](${url})", keywords: "picture img" },
+	{ label: "Footnote", template: "[^${1}]", keywords: "reference note" },
+	{ label: "Bold", template: "**${}**", keywords: "strong" },
+	{ label: "Italic", template: "*${}*", keywords: "emphasis" },
+	{ label: "Strikethrough", template: "~~${}~~", keywords: "strike delete" },
+	{ label: "Highlight", template: "==${}==", keywords: "mark" },
+	{ label: "Inline code", template: "`${}`", keywords: "code" },
+	{ label: "Frontmatter", template: "---\n${key}: ${}\n---\n", keywords: "yaml properties", docStart: true },
+	{ label: "Date", template: () => today() + "${}", keywords: "today" },
+];
+
+// Matches "/filter" at the start of a line or after whitespace, ending at the cursor.
+const TRIGGER = /(?:^|\s)\/([\w-]*)$/;
+
+export function slashSource(commands = COMMANDS) {
+	return (context) => {
+		const line = context.state.doc.lineAt(context.pos);
+		const before = line.text.slice(0, context.pos - line.from);
+		const m = before.match(TRIGGER);
+		if (!m) return null;
+		const slashAt = context.pos - m[1].length - 1;
+		const q = m[1].toLowerCase();
+		const atDocStart = slashAt === 0;
+		const options = commands
+			.filter((c) => !c.docStart || atDocStart)
+			.filter((c) => !q || c.label.toLowerCase().includes(q) || (c.keywords || "").includes(q))
+			.map((c, i) => ({
+				label: c.label,
+				// Prefix matches first, then list order.
+				boost: c.label.toLowerCase().startsWith(q) ? 50 - i : -i,
+				apply: (view, completion, from, to) => {
+					const t = typeof c.template === "function" ? c.template() : c.template;
+					snippet(t)(view, completion, slashAt, to); // replaces the "/filter" too
+				},
+			}));
+		if (!options.length) return null;
+		// filter: false -- we filtered already, and the typed text includes the "/".
+		return { from: slashAt + 1, options, filter: false };
+	};
+}

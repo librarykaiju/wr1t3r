@@ -1,0 +1,37 @@
+name = "wr1t3r"
+main = "worker/index.js"
+compatibility_date = "2026-09-01"
+
+# A markdown editor for the Obsidian vault at https://wr1t3r.brandonj.ink (add
+# that as a Custom Domain on the Worker). Everything under /api/ needs
+# WR1T3R_TOKEN; the page itself holds no data.
+
+# The page, built by `npm run build` into dist/. Anything that isn't a file
+# there (all of /api/) goes to the Worker.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+[vars]
+BACKEND = "r2"
+# The bucket mirrors the whole Obsidian vault (content/ and _includes/snippets/).
+VAULT_PREFIX = ""
+
+# The bucket Remotely Save syncs Obsidian with. wr1t3r reads and writes it
+# directly, so an edit reaches every device on its next Remotely Save sync,
+# and the vault-sync workflow in librarykaiju/w3bz1n3 carries it into git.
+[[r2_buckets]]
+binding = "VAULT"
+bucket_name = "w3bz1n3-vault"
+
+# Secret (not stored here) -- set with `npx wrangler secret put WR1T3R_TOKEN`:
+#   WR1T3R_TOKEN  -- any long random string; the page asks for it once per
+#                    device and sends it as a Bearer token
+#
+# To use a GitHub repo instead of R2 (for example in a fork), set
+#   BACKEND = "github"
+#   GITHUB_REPO = "owner/vault-repo"
+#   GITHUB_BRANCH = "main"
+#   VAULT_PREFIX = ""            # or "notes/" if the vault is a subfolder
+# and `npx wrangler secret put GITHUB_TOKEN` with a fine-grained token that has
+# Contents read/write on that one repo. The R2 binding can then be removed.
