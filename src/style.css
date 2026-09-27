@@ -287,3 +287,5 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 	accent-color: var(--accent); cursor: pointer;
 }
 #editor .md-task-done { color: var(--muted); text-decoration: line-through; }
+#editor .md-callout-icon { color: var(--co); font-weight: 700; }
+#editor .md-callout-icon svg { width: 1.05em; height: 1.05em; vertical-align: -0.16em; margin-right: 0.4em; }

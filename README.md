@@ -14,7 +14,7 @@ A markdown editor for an Obsidian vault, in the browser. Live at https://wr1t3r.
 
 Source mode (CodeMirror 6): headings, emphasis, links, `[[wikilinks]]`, `==highlights==`, footnotes and YAML frontmatter are styled but stay as text. Type `/` at the start of a line or after a space for the formatting menu (tables, tasks, callouts, code blocks and so on); keep typing to filter. The list is in `src/slash.js`.
 
-Blocks are drawn like what they are, with the markdown still showing (`src/blocks.js`): task boxes are real checkboxes (clicking one flips `[ ]` / `[x]` in the text, and done tasks are struck through), callouts get a colored box in Obsidian's color for their type, quotes a side bar, code blocks a shaded box, and `---` a rule.
+Blocks are drawn like what they are, with the markdown still showing (`src/blocks.js`): task boxes are real checkboxes (clicking one flips `[ ]` / `[x]` in the text, and done tasks are struck through), callouts get a colored box in Obsidian's color for their type with its icon in place of `[!type]`, quotes a side bar (the `>` markers are hidden except on the line you're editing), code blocks a shaded box, and `---` a rule.
 
 **Upload** turns files into notes in `content/_uploads/` (a `content/_*` folder, so the site build skips it), with a small frontmatter block naming the source file. Word (`.docx`), PDF, HTML and text files are converted in the browser, so this works offline too. Headings, lists, links, bold/italic and tables come across; images are left out. PDFs give their text layer only, with paragraphs and headings guessed from the layout, so a scanned PDF comes out empty.
 
