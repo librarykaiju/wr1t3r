@@ -48,6 +48,13 @@
 			</header>
 			<div id="editor"></div>
 			<div id="empty">Pick a note, or make a new one.</div>
+			<footer id="bar">
+				<span class="pomo">
+					<button id="pomo" type="button" class="quiet"></button>
+					<button id="pomoReset" type="button" class="quiet" aria-label="Reset timer" title="Reset timer" hidden>↺</button>
+				</span>
+				<button id="count" type="button" class="quiet" title="Switch between words and characters"></button>
+			</footer>
 		</main>
 		<div id="settings" class="pop" hidden>
 			<h2>Theme</h2>
@@ -62,6 +69,18 @@
 				<button id="smaller" type="button" aria-label="Smaller text">A&minus;</button>
 				<span id="sizeVal" class="val">19</span>
 				<button id="larger" type="button" aria-label="Larger text">A+</button>
+			</div>
+			<h2>Focus length</h2>
+			<div class="seg">
+				<button id="workLess" type="button" aria-label="Shorter focus blocks">&minus;</button>
+				<span id="workVal" class="val"></span>
+				<button id="workMore" type="button" aria-label="Longer focus blocks">+</button>
+			</div>
+			<h2>Break length</h2>
+			<div class="seg">
+				<button id="breakLess" type="button" aria-label="Shorter breaks">&minus;</button>
+				<span id="breakVal" class="val"></span>
+				<button id="breakMore" type="button" aria-label="Longer breaks">+</button>
 			</div>
 			<h2>Clip from any page</h2>
 			<p class="hint">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page. On iPhone, see the README for adding it to Safari.</p>

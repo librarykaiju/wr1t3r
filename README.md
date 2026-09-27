@@ -26,6 +26,10 @@ javascript:location.href="https://wr1t3r.brandonj.ink/#clip="+encodeURIComponent
 
 **Aa** in the header sets the theme (Auto, Light, Dark, Sepia) and text size, with the same colors and choices as Reader. Both are kept per device.
 
+The bar under the editor shows the note's word count, leaving out frontmatter. Tap it to switch to characters. When text is selected, it counts the selection.
+
+The bar also has a pomodoro timer. Tap it to start or pause, and tap ↺ to reset. By default a focus block is 25 minutes and a break is 5; change the lengths in **Aa**. When a block ends, wr1t3r plays a chime and tells you how many words you wrote during it. It shows a notification too if you allow them. On iPhone, notifications only work once wr1t3r is added to the Home Screen. The timer keeps its place when you switch notes or reload. While the phone is locked, it only catches up once you come back.
+
 Rename a note by editing its path in the header and pressing Enter. Folders are made by putting a `/` in a name.
 
 Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped. Folders named in `EXCLUDE` in `wrangler.toml` (for now `_includes/`, the site templates) are refused by the Worker itself: never listed, read, written or deleted. Images and other attachments aren't shown (source mode doesn't render them).

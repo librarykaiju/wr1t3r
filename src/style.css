@@ -142,8 +142,19 @@ main:not(.has-note) #editor { display: none; }
 #editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--sel) !important; color: var(--fg) !important; }
 #editor .cm-panels { background: var(--panel); color: var(--fg); border-color: var(--line); }
 
+#bar {
+	display: flex; justify-content: space-between; align-items: center; gap: 8px;
+	border-top: 1px solid var(--line); padding: 2px 6px max(2px, env(safe-area-inset-bottom));
+	font-size: 13px; color: var(--muted);
+}
+#bar button { font-size: 13px; padding: 4px 8px; font-variant-numeric: tabular-nums; }
+#bar .pomo { display: flex; align-items: center; }
+#pomo.running { color: var(--accent); }
+#pomo.done { color: var(--bad); }
+main:not(.has-note) #count { visibility: hidden; }
+
 #toast {
-	position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+	position: fixed; left: 50%; bottom: calc(max(4px, env(safe-area-inset-bottom)) + 40px); transform: translateX(-50%);
 	background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 8px; max-width: calc(100% - 32px);
 	font-size: 14px;
 }
