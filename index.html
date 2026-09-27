@@ -43,6 +43,10 @@
 				<button id="menu" type="button" aria-label="Notes">☰</button>
 				<input id="path" aria-label="Note path (edit and press Enter to rename)" spellcheck="false" disabled>
 				<button id="status" type="button" title="Sync now"></button>
+				<button id="calBtn" type="button" class="quiet" aria-label="Agenda" aria-expanded="false" aria-controls="agenda">
+					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+					<span id="calNext"></span>
+				</button>
 				<button id="settingsBtn" type="button" class="quiet" aria-label="Display settings" aria-expanded="false" aria-controls="settings">Aa</button>
 				<button id="delete" type="button" class="quiet" title="Delete note" disabled>Delete</button>
 			</header>
@@ -84,6 +88,45 @@
 			</div>
 			<h2>Clip from any page</h2>
 			<p class="hint">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page. On iPhone, see the README for adding it to Safari.</p>
+		</div>
+		<div id="agenda" class="pop" hidden>
+			<div class="agenda-top">
+				<h2>Agenda</h2>
+				<button id="addEventBtn" type="button">+ Add event</button>
+			</div>
+			<form id="addEvent" hidden>
+				<input id="evTitle" placeholder="Title" required maxlength="500" aria-label="Event title">
+				<label class="check"><input id="evAllDay" type="checkbox"> All day</label>
+				<div class="row">
+					<input id="evDate" type="date" required aria-label="Date">
+					<input id="evEndDate" type="date" aria-label="Last day" hidden>
+				</div>
+				<div class="row" id="evTimes">
+					<input id="evStart" type="time" required aria-label="Starts">
+					<span>to</span>
+					<input id="evEnd" type="time" required aria-label="Ends">
+				</div>
+				<input id="evLocation" placeholder="Location (optional)" maxlength="1000" aria-label="Location">
+				<label class="row">Reminder
+					<select id="evReminder" aria-label="Reminder">
+						<option value="">Calendar default</option>
+						<option value="0">At start</option>
+						<option value="5">5 min before</option>
+						<option value="10">10 min before</option>
+						<option value="30">30 min before</option>
+						<option value="60">1 hour before</option>
+						<option value="1440">1 day before</option>
+						<option value="none">None</option>
+					</select>
+				</label>
+				<div class="row end">
+					<button id="evCancel" type="button" class="quiet">Cancel</button>
+					<button type="submit">Add to Google Calendar</button>
+				</div>
+				<p id="evError" class="error" role="alert"></p>
+			</form>
+			<div id="agendaList"></div>
+			<p id="agendaNote" class="hint"></p>
 		</div>
 		<div id="toast" role="status" hidden></div>
 	</div>

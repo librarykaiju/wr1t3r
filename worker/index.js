@@ -28,10 +28,12 @@
 //   DELETE /api/file?path=         header If-Match: <version> -> 204, 412 as above
 //   GET    /api/fetch?url=         a public web page for the clipper -> its body and
 //                                  Content-Type, and X-Final-URL after redirects
+//   /api/calendar/...              Google Calendar agenda; see worker/calendar.js
 
 import { r2Backend } from "./r2.js";
 import { githubBackend } from "./github.js";
 import { proxyFetch } from "./fetch.js";
+import { calendarApi } from "./calendar.js";
 import { HttpError, toBase64 } from "./util.js";
 import { isNotePath } from "../src/paths.js";
 
@@ -45,6 +47,8 @@ export default {
 		if (!(await authorized(request, env))) return json({ error: "Unauthorized" }, 401);
 		try {
 			if (url.pathname === "/api/fetch" && request.method === "GET") return await proxyFetch(url.searchParams.get("url"), env);
+			const cal = await calendarApi(request, env, url);
+			if (cal) return json(cal);
 			return (await api(request, backend(env), url, excluded(env))) || json({ error: "Not found" }, 404);
 		} catch (err) {
 			if (err instanceof HttpError) return json({ error: err.message, ...err.extra }, err.status);

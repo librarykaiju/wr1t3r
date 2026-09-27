@@ -25,7 +25,7 @@ async function call(path, init = {}) {
 
 async function jsonOrThrow(res) {
 	const body = await res.json().catch(() => ({}));
-	if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+	if (!res.ok) throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { status: res.status, body });
 	return body;
 }
 
@@ -67,6 +67,18 @@ export const api = {
 		});
 		if (res.status === 412) return { ok: false, version: (await res.json().catch(() => ({}))).version ?? null };
 		return { ok: true, version: (await jsonOrThrow(res)).version };
+	},
+	async events(from, to) {
+		const qs = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+		return jsonOrThrow(await call("/api/calendar/events?" + qs));
+	},
+	async addEvent(event) {
+		const res = await call("/api/calendar/events", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(event),
+		});
+		return (await jsonOrThrow(res)).event;
 	},
 	async remove(path, expected) {
 		const res = await call(q(path), { method: "DELETE", headers: { "If-Match": `"${expected}"` } });

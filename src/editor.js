@@ -15,6 +15,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { tags as t } from "@lezer/highlight";
 import { slashSource } from "./slash.js";
+import { stripFrontmatter } from "./count.js";
 
 const fromSync = Annotation.define();
 
@@ -121,6 +122,20 @@ export function createEditor(parent, { onChange, onUpdate }) {
 		},
 		text() {
 			return view.state.sliceDoc();
+		},
+		// A line of text at the cursor, as if typed there: on its own line, and
+		// never inside the frontmatter (a cursor that hasn't moved sits at the
+		// very top, which would push the frontmatter down and break it).
+		insert(line) {
+			const { state } = view;
+			const doc = state.sliceDoc();
+			const fmEnd = doc.length - stripFrontmatter(doc).length;
+			let { from, to } = state.selection.main;
+			if (from < fmEnd) from = to = fmEnd;
+			const nl = state.lineBreak;
+			const insert = state.doc.lineAt(from).from === from ? line + nl : nl + line;
+			view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length }, scrollIntoView: true });
+			view.focus();
 		},
 		selected() {
 			const { state } = view;

@@ -1,0 +1,98 @@
+// The agenda panel's date handling, kept apart from the page for testing.
+// Events come from worker/calendar.js: start/end are RFC 3339 times, or
+// YYYY-MM-DD dates for all-day events (end is the day after, as Google has it).
+
+export const DAYS = 8; // today plus the next week
+
+export function dayKey(d) {
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function startOfDay(d) {
+	return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+export function addDays(d, n) {
+	return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
+
+// All-day dates are days on the wall calendar, not moments.
+export function eventStart(e) {
+	return e.allDay ? localDate(e.start) : new Date(e.start);
+}
+function localDate(s) {
+	const [y, m, d] = s.split("-").map(Number);
+	return new Date(y, m - 1, d);
+}
+
+// [{key, date, events}] for each day from `from`, in order. All-day events
+// show on every day they cover; timed ones on the day they start.
+export function byDay(events, from, days = DAYS) {
+	const out = [];
+	for (let i = 0; i < days; i++) {
+		const date = addDays(startOfDay(from), i), key = dayKey(date);
+		const list = events.filter((e) => (e.allDay ? e.start <= key && key < e.end : dayKey(new Date(e.start)) === key));
+		list.sort((a, b) => (a.allDay !== b.allDay ? (a.allDay ? -1 : 1) : eventStart(a) - eventStart(b)));
+		out.push({ key, date, events: list });
+	}
+	return out;
+}
+
+export function dayLabel(date, today) {
+	const diff = Math.round((startOfDay(date) - startOfDay(today)) / 864e5);
+	if (diff === 0) return "Today";
+	if (diff === 1) return "Tomorrow";
+	return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+}
+
+export function timeLabel(e) {
+	if (e.allDay) return "All day";
+	const t = (s) => new Date(s).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+	return `${t(e.start)}–${t(e.end)}`;
+}
+
+// The next timed event that hasn't ended, for the header button.
+export function nextEvent(events, now) {
+	return events.find((e) => !e.allDay && new Date(e.end) > now) || null;
+}
+
+// Reminders due in (since, now]: [{event, at, minutes}]. Ones more than 15
+// minutes late (the page was closed) are skipped rather than shown stale.
+export function dueAlerts(events, since, now) {
+	const due = [];
+	for (const e of events) {
+		for (const minutes of e.alerts || []) {
+			const at = eventStart(e).getTime() - minutes * 60000;
+			if (at > since && at <= now && now - at < 15 * 60000) due.push({ event: e, at, minutes });
+		}
+	}
+	return due.sort((a, b) => a.at - b.at);
+}
+
+export function alertText({ event, minutes }) {
+	if (event.allDay) return `${event.title} (all day)`;
+	if (minutes === 0) return `${event.title} is starting`;
+	const h = minutes / 60;
+	const lead = minutes < 60 ? `${minutes} min` : Number.isInteger(h) ? `${h} hour${h === 1 ? "" : "s"}` : `${minutes} min`;
+	return `${event.title} starts in ${lead}`;
+}
+
+// The line put into a note for an event.
+export function noteLine(e, today = new Date()) {
+	const when = e.allDay ? dayLabel(eventStart(e), today) : `${eventStart(e).toLocaleDateString([], { month: "short", day: "numeric" })}, ${timeLabel(e)}`;
+	return `- ${when}: ${e.title}${e.location ? ` (${e.location})` : ""}`;
+}
+
+// The add-event form's fields -> the body worker/calendar.js expects.
+export function formEvent({ title, allDay, date, endDate, startTime, endTime, reminder, location }, timeZone) {
+	const body = { title: title.trim(), allDay: !!allDay, location: location?.trim() || "" };
+	if (allDay) Object.assign(body, { start: date, end: endDate || date });
+	else {
+		let end = `${date}T${endTime}`;
+		if (endTime <= startTime) end = `${dayKey(addDays(localDate(date), 1))}T${endTime}`; // past midnight
+		Object.assign(body, { start: `${date}T${startTime}`, end, timeZone });
+	}
+	if (reminder === "none") body.reminder = "none";
+	else if (reminder !== "" && reminder != null) body.reminder = Number(reminder);
+	return body;
+}

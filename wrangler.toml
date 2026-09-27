@@ -29,6 +29,9 @@ bucket_name = "w3bz1n3-vault"
 # Secret (not stored here) -- set with `npx wrangler secret put WR1T3R_TOKEN`:
 #   WR1T3R_TOKEN  -- any long random string; the page asks for it once per
 #                    device and sends it as a Bearer token
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
+#                 -- optional, for the agenda; `npm run google-auth` sets all
+#                    three (see README, "Google Calendar")
 #
 # To use a GitHub repo instead of R2 (for example in a fork), set
 #   BACKEND = "github"
