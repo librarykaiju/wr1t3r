@@ -9,6 +9,7 @@ import { sync } from "./sync.js";
 import { isNotePath } from "./paths.js";
 import { counts, countWords } from "./count.js";
 import * as pomo from "./pomodoro.js";
+import * as agenda from "./agenda.js";
 
 const $ = (id) => document.getElementById(id);
 const notes = new Map(); // path -> note, mirrors IndexedDB
@@ -383,6 +384,7 @@ function applySize(px) {
 }
 
 function openSettings(on) {
+	if (on && !$("agenda").hidden) openAgenda(false);
 	$("settings").hidden = !on;
 	$("settingsBtn").setAttribute("aria-expanded", String(on));
 }
@@ -512,17 +514,22 @@ function timerDone(phase) {
 	const text = phase === "work"
 		? `Focus block done.${words} Tap ▶\uFE0E for a ${lengths.brk}-minute break.`
 		: "Break's over. Tap ▶\uFE0E to start the next focus block.";
-	toast(text, 15000);
-	chime();
-	navigator.vibrate?.([200, 100, 200]);
-	if (document.visibilityState !== "visible" && window.Notification?.permission === "granted") {
-		try { new Notification(phase === "work" ? "Focus block done" : "Break's over", { body: text, icon: "/icon-180.png" }); } catch {}
-	}
+	alertUser(phase === "work" ? "Focus block done" : "Break's over", text);
 	$("pomo").classList.add("done");
 	setTimeout(() => $("pomo").classList.remove("done"), 15000);
 }
 
-// Browsers only allow sound after a tap, so the Start tap readies it.
+// Toast, chime and buzz; and a system notification when wr1t3r isn't in front.
+function alertUser(title, text) {
+	toast(text, 15000);
+	chime();
+	navigator.vibrate?.([200, 100, 200]);
+	if (document.visibilityState !== "visible" && window.Notification?.permission === "granted") {
+		try { new Notification(title, { body: text, icon: "/icon-180.png" }); } catch {}
+	}
+}
+
+// Browsers only allow sound after a tap, so the first tap readies it.
 function unlockSound() {
 	try {
 		audio ??= new (window.AudioContext || window.webkitAudioContext)();
@@ -591,6 +598,211 @@ function setupFocusTools() {
 	runTicker();
 }
 
+// ---- agenda (Google Calendar) ------------------------------------------------------------
+
+const AGENDA_KEY = "wr1t3rAgenda", ALERTED_KEY = "wr1t3rAlertedAt";
+let cal = readJSON(AGENDA_KEY, null); // {at, events} -- the last agenda, for offline
+let calState = "ok"; // ok | setup | error | offline
+let calError = "", calLoading = false, openEvent = null;
+
+async function loadAgenda() {
+	if (calLoading) return;
+	if (!navigator.onLine) { calState = "offline"; renderAgenda(); return; }
+	calLoading = true;
+	const from = agenda.startOfDay(new Date());
+	try {
+		const r = await api.events(from, agenda.addDays(from, agenda.DAYS));
+		cal = { at: Date.now(), events: r.events };
+		writeJSON(AGENDA_KEY, cal);
+		calState = "ok";
+	} catch (e) {
+		if (e instanceof AuthError) return signOut("That token no longer works.");
+		calState = e.body?.setup ? "setup" : e instanceof TypeError ? "offline" : "error";
+		calError = e.message;
+	} finally {
+		calLoading = false;
+		renderAgenda();
+	}
+}
+
+function renderAgenda() {
+	const now = new Date();
+	const events = cal?.events || [];
+	const next = agenda.nextEvent(events, now);
+	$("calNext").textContent = next && agenda.startOfDay(new Date(next.start)).getTime() === agenda.startOfDay(now).getTime()
+		? `${new Date(next.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} ${next.title}` : "";
+	$("addEventBtn").hidden = calState === "setup";
+	const note = $("agendaNote");
+	if (calState === "setup") note.textContent = "Google Calendar isn't connected yet. The README's “Google Calendar” section has the steps.";
+	else if (calState === "offline") note.textContent = cal ? `Offline. Showing the agenda from ${new Date(cal.at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}.` : "Offline.";
+	else if (calState === "error") note.textContent = "Couldn't load the agenda: " + calError;
+	else note.textContent = "";
+	if ($("agenda").hidden) return;
+
+	const list = $("agendaList");
+	list.textContent = "";
+	if (calState === "setup") return;
+	for (const day of agenda.byDay(events, now)) {
+		const sec = document.createElement("section");
+		sec.className = "day";
+		const h = document.createElement("h3");
+		h.textContent = agenda.dayLabel(day.date, now);
+		sec.append(h);
+		if (!day.events.length) {
+			const p = document.createElement("p");
+			p.className = "none";
+			p.textContent = "Nothing scheduled";
+			sec.append(p);
+		}
+		for (const e of day.events) sec.append(eventRow(e, now));
+		list.append(sec);
+	}
+}
+
+function eventRow(e, now) {
+	const key = e.calendar + "/" + e.id;
+	const row = document.createElement("div");
+	row.className = "ev";
+	row.classList.toggle("past", !e.allDay && new Date(e.end) < now);
+	row.classList.toggle("open", openEvent === key);
+	const b = document.createElement("button");
+	b.type = "button";
+	b.setAttribute("aria-expanded", String(openEvent === key));
+	const dot = document.createElement("span");
+	dot.className = "dot";
+	if (/^#[0-9a-f]{3,8}$/i.test(e.color)) dot.style.background = e.color;
+	const when = document.createElement("span");
+	when.className = "when";
+	when.textContent = agenda.timeLabel(e) + (e.location ? " · " + e.location : "");
+	const title = document.createElement("span");
+	title.className = "title";
+	title.textContent = e.title;
+	b.append(dot, when, title);
+	b.addEventListener("click", () => { openEvent = openEvent === key ? null : key; renderAgenda(); });
+	row.append(b);
+	if (openEvent === key) {
+		const acts = document.createElement("div");
+		acts.className = "acts";
+		const ins = document.createElement("button");
+		ins.type = "button";
+		ins.textContent = "Insert in note";
+		ins.disabled = !editor.path || notes.get(editor.path)?.binary;
+		ins.addEventListener("click", () => { editor.insert(agenda.noteLine(e)); openAgenda(false); });
+		acts.append(ins);
+		if (/^https:\/\/(www\.)?google\.com\//.test(e.link)) {
+			const a = document.createElement("a");
+			a.href = e.link;
+			a.target = "_blank";
+			a.rel = "noopener";
+			a.textContent = "Open in Google";
+			acts.append(a);
+		}
+		row.append(acts);
+	}
+	return row;
+}
+
+function openAgenda(on) {
+	$("agenda").hidden = !on;
+	$("calBtn").setAttribute("aria-expanded", String(on));
+	if (on) {
+		openSettings(false);
+		unlockSound();
+		askToNotify();
+		renderAgenda();
+		if (!cal || Date.now() - cal.at > 60000) loadAgenda();
+	} else {
+		openEvent = null;
+		showAddEvent(false);
+	}
+}
+
+function showAddEvent(on) {
+	$("addEvent").hidden = !on;
+	$("evError").textContent = "";
+	if (!on) return;
+	const now = new Date();
+	const start = new Date(Math.ceil(now.getTime() / 1800000) * 1800000); // next half hour
+	const hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+	$("addEvent").reset();
+	$("evDate").value = agenda.dayKey(start);
+	$("evStart").value = hm(start);
+	$("evEnd").value = hm(new Date(start.getTime() + 3600000));
+	allDayFields();
+	$("evTitle").focus();
+}
+
+function allDayFields() {
+	const all = $("evAllDay").checked;
+	$("evTimes").hidden = all;
+	$("evStart").required = $("evEnd").required = !all;
+	$("evEndDate").hidden = !all;
+	if (all && !$("evEndDate").value) $("evEndDate").value = $("evDate").value;
+}
+
+async function addEvent(e) {
+	e.preventDefault();
+	if (!navigator.onLine) { $("evError").textContent = "Adding events needs a connection."; return; }
+	const all = $("evAllDay").checked;
+	if (all && $("evEndDate").value && $("evEndDate").value < $("evDate").value) { $("evError").textContent = "The last day is before the first."; return; }
+	const submit = $("addEvent").querySelector("[type=submit]");
+	submit.disabled = true;
+	try {
+		const body = agenda.formEvent({
+			title: $("evTitle").value, allDay: all, date: $("evDate").value, endDate: $("evEndDate").value,
+			startTime: $("evStart").value, endTime: $("evEnd").value, reminder: $("evReminder").value, location: $("evLocation").value,
+		}, Intl.DateTimeFormat().resolvedOptions().timeZone);
+		await api.addEvent(body);
+		showAddEvent(false);
+		toast(`Added “${body.title}” to Google Calendar.`);
+		cal = cal && { ...cal, at: 0 };
+		await loadAgenda();
+	} catch (err) {
+		if (err instanceof AuthError) return signOut("That token no longer works.");
+		$("evError").textContent = "Couldn't add it: " + err.message;
+	} finally {
+		submit.disabled = false;
+	}
+}
+
+// Reminders from Google Calendar, while wr1t3r is open. Google's own app
+// still handles them when it isn't.
+function checkAlerts() {
+	const events = cal?.events;
+	const now = Date.now();
+	const since = Number(readRaw(ALERTED_KEY)) || now;
+	storeRaw(ALERTED_KEY, now);
+	if (!events) return;
+	for (const due of agenda.dueAlerts(events, since, now)) alertUser(due.event.title, agenda.alertText(due));
+}
+
+function setupAgenda() {
+	$("calBtn").addEventListener("click", (e) => { e.stopPropagation(); openAgenda($("agenda").hidden); });
+	$("addEventBtn").addEventListener("click", () => showAddEvent($("addEvent").hidden));
+	$("evCancel").addEventListener("click", () => showAddEvent(false));
+	$("evAllDay").addEventListener("change", allDayFields);
+	$("evDate").addEventListener("change", () => { if ($("evEndDate").value < $("evDate").value) $("evEndDate").value = $("evDate").value; });
+	$("addEvent").addEventListener("submit", addEvent);
+	document.addEventListener("click", (e) => {
+		// The list redraws on each tap, so a tapped row may already be gone.
+		if (!$("agenda").hidden && e.target.isConnected && !e.target.closest("#agenda, #calBtn")) openAgenda(false);
+	});
+	document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("agenda").hidden) openAgenda(false); });
+	document.addEventListener("pointerdown", unlockSound, { once: true });
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState !== "visible") return;
+		checkAlerts();
+		if (!cal || Date.now() - cal.at > 5 * 60000) loadAgenda();
+	});
+	window.addEventListener("online", loadAgenda);
+	setInterval(checkAlerts, 20000);
+	setInterval(() => document.visibilityState === "visible" && loadAgenda(), 10 * 60000);
+	setInterval(renderAgenda, 60000); // "past" styling and the next-event label
+	renderAgenda();
+	checkAlerts();
+	loadAgenda();
+}
+
 // ---- start -------------------------------------------------------------------------
 
 function showLogin(message = "") {
@@ -617,6 +829,7 @@ async function start() {
 	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => refreshCount() });
 	setupSettings();
 	setupFocusTools();
+	setupAgenda();
 	for (const n of await local.all()) notes.set(n.path, n);
 	persist();
 

@@ -30,6 +30,14 @@ The bar under the editor shows the note's word count, leaving out frontmatter. T
 
 The bar also has a pomodoro timer. Tap it to start or pause, and tap ↺ to reset. By default a focus block is 25 minutes and a break is 5; change the lengths in **Aa**. When a block ends, wr1t3r plays a chime and tells you how many words you wrote during it. It shows a notification too if you allow them. On iPhone, notifications only work once wr1t3r is added to the Home Screen. The timer keeps its place when you switch notes or reload. While the phone is locked, it only catches up once you come back.
 
+The calendar button in the top right opens your Google Calendar agenda: today and the next week, from every calendar ticked in Google Calendar. The header also shows today's next event.
+- Tap an event to put it in the open note as a line. Tap **Open in Google** to edit it there.
+- **+ Add event** adds one to your main calendar, with a reminder you pick. The default reminder is the calendar's own.
+- Reminders pop up with a chime while wr1t3r is open, and as a notification if you allow them. When wr1t3r is closed, Google Calendar's own app does the reminding.
+- Offline, it shows the last agenda it loaded.
+
+Setting it up is covered under [Google Calendar](#google-calendar) below.
+
 Rename a note by editing its path in the header and pressing Enter. Folders are made by putting a `/` in a name.
 
 Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped. Folders named in `EXCLUDE` in `wrangler.toml` (for now `_includes/`, the site templates) are refused by the Worker itself: never listed, read, written or deleted. Images and other attachments aren't shown (source mode doesn't render them).
@@ -45,6 +53,29 @@ Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped.
    ```
 3. Cloudflare dashboard → **Workers & Pages** → `wr1t3r` → **Settings** → **Domains & Routes** → **Add** → **Custom domain** → `wr1t3r.brandonj.ink`.
 4. Open it, paste the token. On iPhone, **Share** → **Add to Home Screen**; otherwise Safari may clear the offline copy after about a week without use.
+
+## Google Calendar
+
+This is a one-time setup, done in a browser and a terminal on your computer.
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a project, for example `wr1t3r`.
+2. **APIs & Services** → **Library** → **Google Calendar API** → **Enable**.
+3. **Google Auth Platform** (it may be labeled **OAuth consent screen**) → **Get started**:
+   - App name `wr1t3r`, with your email as the support email.
+   - Audience **External**, with your email as the contact email.
+   - Create it.
+4. **Audience** → **Publish app**, so it's "In production". Otherwise Google ends the sign-in after 7 days. The app doesn't need Google's verification because you're its only user.
+5. **Clients** → **Create client** → Application type **Desktop app** → **Create**. Keep the page with the client ID and secret open.
+6. In the wr1t3r folder, run:
+   ```sh
+   npm run google-auth
+   ```
+   - Paste the client ID and secret when it asks.
+   - Sign in on the page that opens. Google warns that the app isn't verified; choose **Advanced** → **Go to wr1t3r**, then allow calendar access.
+   - The script saves `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REFRESH_TOKEN` as Worker secrets. Nothing is saved on disk.
+7. Reload wr1t3r.
+
+If the agenda ever says the Google sign-in has expired, run `npm run google-auth` again. To cut wr1t3r off, remove it at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
 The first sync downloads every note (a few MB for this vault).
 

@@ -6,7 +6,8 @@
     "dev": "vite build && wrangler dev",
     "build": "vite build",
     "test": "node --test test/*.test.js",
-    "deploy": "vite build && wrangler deploy"
+    "deploy": "vite build && wrangler deploy",
+    "google-auth": "node scripts/google-auth.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
