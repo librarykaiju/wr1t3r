@@ -2,7 +2,7 @@
 // the text written back is exactly what's in the editor, with the note's own
 // line endings (CRLF notes stay CRLF).
 
-import { EditorState, Transaction, Annotation } from "@codemirror/state";
+import { EditorState, Transaction, Annotation, Prec } from "@codemirror/state";
 import {
 	EditorView, keymap, drawSelection, highlightActiveLine, placeholder,
 	MatchDecorator, ViewPlugin, Decoration,
@@ -16,6 +16,7 @@ import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { tags as t } from "@lezer/highlight";
 import { slashSource } from "./slash.js";
 import { stripFrontmatter } from "./count.js";
+import { tableKeymap, tableStyle } from "./table.js";
 
 const fromSync = Annotation.define();
 
@@ -61,6 +62,8 @@ export function createEditor(parent, { onChange, onUpdate }) {
 		highlightSelectionMatches(),
 		EditorView.lineWrapping,
 		indentUnit.of("\t"),
+		Prec.high(keymap.of(tableKeymap)),
+		tableStyle,
 		yamlFrontmatter({ content: markdown({ base: markdownLanguage }) }),
 		syntaxHighlighting(style),
 		marks(/\[\[[^\]\n]+\]\]/g, "md-wikilink"),

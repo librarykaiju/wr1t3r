@@ -203,6 +203,39 @@ main:not(.has-note) #count { visibility: hidden; }
 #addEvent .error:empty { display: none; }
 #agendaNote:empty { display: none; }
 
+#tocBtn { display: inline-flex; align-items: center; gap: 5px; }
+main:not(.has-note) #tocBtn { visibility: hidden; }
+#toc {
+	top: auto; bottom: calc(max(4px, env(safe-area-inset-bottom)) + 40px); width: min(300px, calc(100vw - 32px));
+	max-height: min(65vh, 560px); display: flex; flex-direction: column; padding: 12px 8px 8px;
+}
+#toc[hidden] { display: none; }
+.toc-top { display: flex; align-items: center; gap: 4px; padding: 0 6px 8px; }
+.toc-top h2 { margin: 0 !important; flex: 1; }
+.toc-top button { padding: 2px 8px; font-size: 14px; }
+.toc-progress { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#tocList { list-style: none; margin: 0; padding: 0; overflow: auto; }
+#tocList li { display: flex; align-items: flex-start; }
+#tocList .fold { flex: none; width: 20px; padding: 3px 0; border: 0; background: none; color: var(--mark); font-size: 11px; }
+#tocList .fold.shut { transform: rotate(-90deg); }
+#tocList .go {
+	flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 4px 8px; border-radius: 6px;
+	font-size: 14px; line-height: 1.3; color: var(--muted); border-left: 2px solid transparent;
+}
+#tocList .go:hover { background: var(--panel); color: var(--fg); }
+#tocList .lvl0 .go { color: var(--fg); font-weight: 600; }
+#tocList li.active .go { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
+#tocEmpty { padding: 0 6px 6px; }
+/* On a wide screen the contents sit beside the note and stay open while you write. */
+@media (min-width: 1180px) {
+	#toc.docked { top: calc(env(safe-area-inset-top) + 60px); bottom: 48px; right: 12px; max-height: none; box-shadow: none; }
+	#app.toc-docked #editor .cm-scroller { padding-right: 320px; }
+}
+#editor .md-table { font-family: var(--mono); font-size: 0.8em; line-height: 1.6; white-space: pre; }
+#editor .cm-lineWrapping .md-table { white-space: pre; overflow-wrap: normal; }
+#editor .md-table-head { background: var(--code-bg); }
+#editor .md-table-delim { color: var(--mark); }
+
 #toast {
 	position: fixed; left: 50%; bottom: calc(max(4px, env(safe-area-inset-bottom)) + 40px); transform: translateX(-50%);
 	background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 8px; max-width: calc(100% - 32px);

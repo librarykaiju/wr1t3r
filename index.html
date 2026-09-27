@@ -57,6 +57,10 @@
 					<button id="pomo" type="button" class="quiet"></button>
 					<button id="pomoReset" type="button" class="quiet" aria-label="Reset timer" title="Reset timer" hidden>↺</button>
 				</span>
+				<button id="tocBtn" type="button" class="quiet" aria-expanded="false" aria-controls="toc" title="Table of contents">
+					<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M8 12h12M8 18h12"/></svg>
+					Contents
+				</button>
 				<button id="count" type="button" class="quiet" title="Switch between words and characters"></button>
 			</footer>
 		</main>
@@ -89,6 +93,16 @@
 			<h2>Clip from any page</h2>
 			<p class="hint">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page. On iPhone, see the README for adding it to Safari.</p>
 		</div>
+		<nav id="toc" class="pop" aria-label="Table of contents" hidden>
+			<div class="toc-top">
+				<h2>Contents</h2>
+				<span id="tocProgress" class="toc-progress" title="How far down the note you are"></span>
+				<button id="tocTop" type="button" class="quiet" title="Back to the top" aria-label="Back to the top">↑</button>
+				<button id="tocClose" type="button" class="quiet" aria-label="Close contents">✕</button>
+			</div>
+			<ol id="tocList"></ol>
+			<p id="tocEmpty" class="hint">No headings in this note yet. Lines starting with # show up here.</p>
+		</nav>
 		<div id="agenda" class="pop" hidden>
 			<div class="agenda-top">
 				<h2>Agenda</h2>
