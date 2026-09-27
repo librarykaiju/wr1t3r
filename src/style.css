@@ -256,3 +256,34 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 	#calNext { display: none; }
 	main.has-note #delete { display: inline-block; }
 }
+
+/* Blocks (src/blocks.js): consecutive lines share a background, so a run of
+   lines reads as one box; md-first / md-last round its ends. */
+#editor .md-bq, #editor .md-callout, #editor .md-codeblock { padding-left: 14px; padding-right: 10px; }
+#editor .md-first { border-top-left-radius: 6px; border-top-right-radius: 6px; padding-top: 4px; }
+#editor .md-last { border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding-bottom: 4px; }
+#editor .md-bq { box-shadow: inset 3px 0 0 var(--line); color: var(--muted); }
+#editor .md-bq.md-first, #editor .md-bq.md-last { border-radius: 0; }
+
+#editor .md-callout { --co: #448aff; background: color-mix(in srgb, var(--co) 10%, var(--bg)); box-shadow: inset 3px 0 0 var(--co); }
+#editor .md-callout .md-quote { color: var(--fg); }
+#editor .md-callout.md-first, #editor .md-callout.md-last { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+#editor .md-callout-title, #editor .md-callout-title .md-quote { color: var(--co); font-weight: 700; }
+#editor .md-co-cyan { --co: #00b8d4; }
+#editor .md-co-green { --co: #08b94e; }
+#editor .md-co-yellow { --co: #e0a800; }
+#editor .md-co-orange { --co: #f57c00; }
+#editor .md-co-red { --co: #e5484d; }
+#editor .md-co-purple { --co: #7c4dff; }
+#editor .md-co-gray { --co: #9e9e9e; }
+
+#editor .md-codeblock { background: var(--code-bg); font-family: var(--mono); font-size: 0.82em; }
+#editor .md-codeblock .md-code { background: none; font-size: 1em; }
+
+#editor .md-hr { background: linear-gradient(var(--line), var(--line)) no-repeat center / 100% 1px; color: var(--mark); }
+
+#editor .md-task-box {
+	width: 1.05em; height: 1.05em; margin: 0 0.15em 0 0; vertical-align: -0.12em;
+	accent-color: var(--accent); cursor: pointer;
+}
+#editor .md-task-done { color: var(--muted); text-decoration: line-through; }

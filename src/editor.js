@@ -17,6 +17,7 @@ import { tags as t } from "@lezer/highlight";
 import { slashSource } from "./slash.js";
 import { stripFrontmatter } from "./count.js";
 import { tableKeymap, tableStyle } from "./table.js";
+import { blockStyle } from "./blocks.js";
 
 const fromSync = Annotation.define();
 
@@ -64,6 +65,7 @@ export function createEditor(parent, { onChange, onUpdate }) {
 		indentUnit.of("\t"),
 		Prec.high(keymap.of(tableKeymap)),
 		tableStyle,
+		blockStyle,
 		yamlFrontmatter({ content: markdown({ base: markdownLanguage }) }),
 		syntaxHighlighting(style),
 		marks(/\[\[[^\]\n]+\]\]/g, "md-wikilink"),

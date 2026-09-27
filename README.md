@@ -14,6 +14,8 @@ A markdown editor for an Obsidian vault, in the browser. Live at https://wr1t3r.
 
 Source mode (CodeMirror 6): headings, emphasis, links, `[[wikilinks]]`, `==highlights==`, footnotes and YAML frontmatter are styled but stay as text. Type `/` at the start of a line or after a space for the formatting menu (tables, tasks, callouts, code blocks and so on); keep typing to filter. The list is in `src/slash.js`.
 
+Blocks are drawn like what they are, with the markdown still showing (`src/blocks.js`): task boxes are real checkboxes (clicking one flips `[ ]` / `[x]` in the text, and done tasks are struck through), callouts get a colored box in Obsidian's color for their type, quotes a side bar, code blocks a shaded box, and `---` a rule.
+
 **Upload** turns files into notes in `content/_uploads/` (a `content/_*` folder, so the site build skips it), with a small frontmatter block naming the source file. Word (`.docx`), PDF, HTML and text files are converted in the browser, so this works offline too. Headings, lists, links, bold/italic and tables come across; images are left out. PDFs give their text layer only, with paragraphs and headings guessed from the layout, so a scanned PDF comes out empty.
 
 **Clip** saves a web page as a note in `content/_clippings/`. The Worker fetches the page (Reader's `/api/fetch` rules: public http(s) addresses only, 5 MB, 15 s, token required), Mozilla's Readability picks out the article, and it's stored as markdown with Obsidian Web Clipper-style frontmatter (`title`, `source`, `author`, `published`, `created`, `description`, `tags: clippings`). Links and images point at the original site. Clipping needs a connection, and pages behind a login or built entirely by JavaScript may come out thin.
