@@ -42,7 +42,8 @@ const code = await new Promise((resolve, reject) => {
 			code_challenge: b64url(createHash("sha256").update(verifier).digest()), code_challenge_method: "S256",
 		});
 		console.log("\nOpen this page to sign in to Google (it should open by itself):\n\n" + auth + "\n");
-		const opener = process.platform === "win32" ? ["cmd", ["/c", "start", "", auth]] : process.platform === "darwin" ? ["open", [auth]] : ["xdg-open", [auth]];
+		// Not "cmd /c start": cmd cuts the link at the first "&".
+		const opener = process.platform === "win32" ? ["rundll32", ["url.dll,FileProtocolHandler", auth]] : process.platform === "darwin" ? ["open", [auth]] : ["xdg-open", [auth]];
 		spawn(opener[0], opener[1], { stdio: "ignore", detached: true }).on("error", () => {}).unref();
 	});
 });
