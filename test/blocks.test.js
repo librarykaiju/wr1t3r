@@ -4,7 +4,10 @@ import { EditorState } from "@codemirror/state";
 import { calloutOf, toggleTask } from "../src/blocks.js";
 
 test("callout types and aliases map to Obsidian's colors", () => {
-	assert.deepEqual(calloutOf("> [!warning]- Careful"), { type: "warning", color: "orange", fold: "-" });
+	assert.deepEqual(calloutOf("> [!warning]- Careful"), { type: "warning", color: "orange", icon: "alert", fold: "-", tag: [2, 14], title: "Careful" });
+	assert.deepEqual(calloutOf("> [!note]").tag, [2, 9]);
+	assert.equal(calloutOf("> [!note]").title, "");
+	assert.equal(calloutOf("> [!mystery]").icon, "pencil");
 	assert.equal(calloutOf(">[!TIP] x").color, "cyan");
 	assert.equal(calloutOf("> [!faq]").color, "yellow");
 	assert.equal(calloutOf("> [!mystery]").color, "blue");
