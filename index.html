@@ -94,6 +94,7 @@
 				<h2>Agenda</h2>
 				<button id="addEventBtn" type="button">+ Add event</button>
 			</div>
+			<div id="calFilters" role="group" aria-label="Calendars to show"></div>
 			<form id="addEvent" hidden>
 				<input id="evTitle" placeholder="Title" required maxlength="500" aria-label="Event title">
 				<label class="check"><input id="evAllDay" type="checkbox"> All day</label>
@@ -106,6 +107,9 @@
 					<span>to</span>
 					<input id="evEnd" type="time" required aria-label="Ends">
 				</div>
+				<label class="row" id="evCalendarRow">Calendar
+					<select id="evCalendar" aria-label="Calendar"></select>
+				</label>
 				<input id="evLocation" placeholder="Location (optional)" maxlength="1000" aria-label="Location">
 				<label class="row">Reminder
 					<select id="evReminder" aria-label="Reminder">

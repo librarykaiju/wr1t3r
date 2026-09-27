@@ -600,19 +600,42 @@ function setupFocusTools() {
 
 // ---- agenda (Google Calendar) ------------------------------------------------------------
 
-const AGENDA_KEY = "wr1t3rAgenda", ALERTED_KEY = "wr1t3rAlertedAt";
+const AGENDA_KEY = "wr1t3rAgenda", ALERTED_KEY = "wr1t3rAlertedAt", FILTER_KEY = "wr1t3rCalShow";
 let cal = readJSON(AGENDA_KEY, null); // {at, events} -- the last agenda, for offline
 let calState = "ok"; // ok | setup | error | offline
 let calError = "", calLoading = false, openEvent = null;
 
-async function loadAgenda() {
-	if (calLoading) return;
+// Which calendars the agenda shows: your own pick (the chips in the panel),
+// or until you make one, the calendars ticked in Google Calendar.
+function shownIds() {
+	const picked = readJSON(FILTER_KEY, null);
+	if (Array.isArray(picked)) return new Set(picked);
+	return new Set((cal?.calendars || []).filter((c) => c.shown).map((c) => c.id));
+}
+
+function visibleEvents() {
+	const ids = shownIds();
+	return (cal?.events || []).filter((e) => ids.has(e.calendar));
+}
+
+function toggleCalendar(id) {
+	const ids = shownIds();
+	ids.has(id) ? ids.delete(id) : ids.add(id);
+	writeJSON(FILTER_KEY, [...ids]);
+	renderAgenda();
+	if (ids.has(id) && !cal?.fetched?.includes(id)) loadAgenda(true);
+}
+
+async function loadAgenda(force = false) {
+	if (calLoading && !force) return;
 	if (!navigator.onLine) { calState = "offline"; renderAgenda(); return; }
 	calLoading = true;
 	const from = agenda.startOfDay(new Date());
 	try {
-		const r = await api.events(from, agenda.addDays(from, agenda.DAYS));
-		cal = { at: Date.now(), events: r.events };
+		const picked = readJSON(FILTER_KEY, null);
+		const r = await api.events(from, agenda.addDays(from, agenda.DAYS), Array.isArray(picked) ? picked : null);
+		const fetched = Array.isArray(picked) ? picked : r.calendars.filter((c) => c.shown).map((c) => c.id);
+		cal = { at: Date.now(), events: r.events, calendars: r.calendars, fetched };
 		writeJSON(AGENDA_KEY, cal);
 		calState = "ok";
 	} catch (e) {
@@ -627,7 +650,7 @@ async function loadAgenda() {
 
 function renderAgenda() {
 	const now = new Date();
-	const events = cal?.events || [];
+	const events = visibleEvents();
 	const next = agenda.nextEvent(events, now);
 	$("calNext").textContent = next && agenda.startOfDay(new Date(next.start)).getTime() === agenda.startOfDay(now).getTime()
 		? `${new Date(next.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} ${next.title}` : "";
@@ -639,9 +662,17 @@ function renderAgenda() {
 	else note.textContent = "";
 	if ($("agenda").hidden) return;
 
+	renderFilters();
 	const list = $("agendaList");
 	list.textContent = "";
 	if (calState === "setup") return;
+	if (cal?.calendars?.length && !shownIds().size) {
+		const p = document.createElement("p");
+		p.className = "hint";
+		p.textContent = "No calendars picked. Tap one above to show it.";
+		list.append(p);
+		return;
+	}
 	for (const day of agenda.byDay(events, now)) {
 		const sec = document.createElement("section");
 		sec.className = "day";
@@ -656,6 +687,27 @@ function renderAgenda() {
 		}
 		for (const e of day.events) sec.append(eventRow(e, now));
 		list.append(sec);
+	}
+}
+
+function renderFilters() {
+	const box = $("calFilters");
+	box.textContent = "";
+	const list = calState === "setup" ? [] : cal?.calendars || [];
+	if (list.length < 2) return;
+	const ids = shownIds();
+	for (const c of [...list].sort((a, b) => b.primary - a.primary)) {
+		const b = document.createElement("button");
+		b.type = "button";
+		b.setAttribute("aria-pressed", String(ids.has(c.id)));
+		const dot = document.createElement("span");
+		dot.className = "dot";
+		if (/^#[0-9a-f]{3,8}$/i.test(c.color)) dot.style.background = c.color;
+		const name = document.createElement("span");
+		name.textContent = c.name;
+		b.append(dot, name);
+		b.addEventListener("click", () => toggleCalendar(c.id));
+		box.append(b);
 	}
 }
 
@@ -725,11 +777,23 @@ function showAddEvent(on) {
 	const start = new Date(Math.ceil(now.getTime() / 1800000) * 1800000); // next half hour
 	const hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 	$("addEvent").reset();
+	fillCalendars();
 	$("evDate").value = agenda.dayKey(start);
 	$("evStart").value = hm(start);
 	$("evEnd").value = hm(new Date(start.getTime() + 3600000));
 	allDayFields();
 	$("evTitle").focus();
+}
+
+// Calendars you can add to, main one first; the last one used is picked.
+function fillCalendars() {
+	const list = (cal?.calendars || []).filter((c) => c.writable).sort((a, b) => b.primary - a.primary);
+	const sel = $("evCalendar");
+	sel.textContent = "";
+	for (const c of list) sel.append(new Option(c.primary ? `${c.name} (main)` : c.name, c.id));
+	const last = readRaw("wr1t3rEventCal");
+	if (list.some((c) => c.id === last)) sel.value = last;
+	$("evCalendarRow").hidden = list.length < 2;
 }
 
 function allDayFields() {
@@ -752,9 +816,12 @@ async function addEvent(e) {
 			title: $("evTitle").value, allDay: all, date: $("evDate").value, endDate: $("evEndDate").value,
 			startTime: $("evStart").value, endTime: $("evEnd").value, reminder: $("evReminder").value, location: $("evLocation").value,
 		}, Intl.DateTimeFormat().resolvedOptions().timeZone);
+		const calendarId = $("evCalendar").value;
+		if (calendarId) { body.calendarId = calendarId; storeRaw("wr1t3rEventCal", calendarId); }
 		await api.addEvent(body);
 		showAddEvent(false);
-		toast(`Added “${body.title}” to Google Calendar.`);
+		const where = cal?.calendars?.find((c) => c.id === calendarId);
+		toast(`Added “${body.title}” to ${where && !where.primary ? where.name : "Google Calendar"}.`);
 		cal = cal && { ...cal, at: 0 };
 		await loadAgenda();
 	} catch (err) {
@@ -768,7 +835,7 @@ async function addEvent(e) {
 // Reminders from Google Calendar, while wr1t3r is open. Google's own app
 // still handles them when it isn't.
 function checkAlerts() {
-	const events = cal?.events;
+	const events = cal ? visibleEvents() : null;
 	const now = Date.now();
 	const since = Number(readRaw(ALERTED_KEY)) || now;
 	storeRaw(ALERTED_KEY, now);
@@ -794,7 +861,7 @@ function setupAgenda() {
 		checkAlerts();
 		if (!cal || Date.now() - cal.at > 5 * 60000) loadAgenda();
 	});
-	window.addEventListener("online", loadAgenda);
+	window.addEventListener("online", () => loadAgenda());
 	setInterval(checkAlerts, 20000);
 	setInterval(() => document.visibilityState === "visible" && loadAgenda(), 10 * 60000);
 	setInterval(renderAgenda, 60000); // "past" styling and the next-event label

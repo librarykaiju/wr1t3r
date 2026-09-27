@@ -161,6 +161,16 @@ main:not(.has-note) #count { visibility: hidden; }
 .agenda-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .agenda-top h2 { margin: 0 !important; }
 .agenda-top button { font-size: 13px; }
+#calFilters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+#calFilters:empty { display: none; }
+#calFilters button {
+	display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 999px;
+	background: none; color: var(--muted); max-width: 100%;
+}
+#calFilters button span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#calFilters button[aria-pressed=true] { background: var(--panel); color: var(--fg); border-color: var(--mark); }
+#calFilters .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+#calFilters button[aria-pressed=false] .dot { opacity: 0.35; }
 .day { margin: 0 0 12px; }
 .day h3 { font-size: 13px; font-weight: 600; margin: 0 0 4px; }
 .day .none { font-size: 13px; color: var(--muted); margin: 0; }

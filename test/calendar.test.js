@@ -22,9 +22,9 @@ function fakeGoogle() {
 		const j = (d, s = 200) => new Response(JSON.stringify(d), { status: s });
 		if (u.pathname === "/token") return j({ access_token: "a1", expires_in: 3600 });
 		if (u.pathname === "/api/users/me/calendarList") return j({ items: [
-			{ id: "me@x", primary: true, selected: true, summary: "Me", backgroundColor: "#f00", defaultReminders: [{ method: "popup", minutes: 10 }] },
-			{ id: "hidden", summary: "Hidden", selected: false },
-			{ id: "fam", summary: "Family", selected: true },
+			{ id: "me@x", primary: true, selected: true, summary: "Me", backgroundColor: "#f00", accessRole: "owner", defaultReminders: [{ method: "popup", minutes: 10 }] },
+			{ id: "hidden", summary: "Hidden", selected: false, accessRole: "reader" },
+			{ id: "fam", summary: "Family", selected: true, accessRole: "writer" },
 		] });
 		if (u.pathname === "/api/calendars/me%40x/events") return j({ items: [
 			{ id: "b", summary: "Later", start: { dateTime: "2026-09-28T15:00:00Z" }, end: { dateTime: "2026-09-28T16:00:00Z" }, reminders: { useDefault: true } },
@@ -33,7 +33,7 @@ function fakeGoogle() {
 		if (u.pathname === "/api/calendars/fam/events") return j({ items: [
 			{ id: "a", summary: "Earlier", start: { date: "2026-09-28" }, end: { date: "2026-09-29" }, reminders: { useDefault: false, overrides: [{ method: "email", minutes: 60 }] } },
 		] });
-		if (u.pathname === "/api/calendars/primary/events" && init.method === "POST") return j({ id: "new", ...JSON.parse(init.body) });
+		if (init.method === "POST" && /^\/api\/calendars\/[^/]+\/events$/.test(u.pathname)) return j({ id: "new", ...JSON.parse(init.body) });
 		return j({ error: { message: "nope" } }, 404);
 	};
 	return { seen, restore: () => (globalThis.fetch = real) };
@@ -45,16 +45,24 @@ test("events come from shown calendars only, merged in order, with alert minutes
 		const r = await call(env, "/api/calendar/events?from=2026-09-28T00:00:00Z&to=2026-09-30T00:00:00Z");
 		const body = await r.json();
 		assert.equal(r.status, 200);
-		assert.deepEqual(body.calendars.map((c) => c.name), ["Me", "Family"]);
+		assert.deepEqual(body.calendars.map((c) => [c.name, c.shown, c.writable]), [["Me", true, true], ["Hidden", false, false], ["Family", true, true]]);
 		assert.deepEqual(body.events.map((e) => [e.id, e.alerts]), [["a", []], ["b", [10]]]);
 		assert.equal(g.seen.filter((s) => s.url.endsWith("/token")).length, 1);
 		await call(env, "/api/calendar/events?from=2026-09-28T00:00:00Z&to=2026-09-30T00:00:00Z");
 		assert.equal(g.seen.filter((s) => s.url.endsWith("/token")).length, 1, "access token is reused");
+		const only = await (await call(env, "/api/calendar/events?from=2026-09-28T00:00:00Z&to=2026-09-30T00:00:00Z&calendars=fam,nope")).json();
+		assert.deepEqual(only.events.map((e) => e.id), ["a"], "only the asked-for calendars, and only real ones");
+		assert.equal(only.calendars.length, 3);
 		const add = await call(env, "/api/calendar/events", { method: "POST", body: JSON.stringify({ title: "Lunch", start: "2026-09-28T12:00", end: "2026-09-28T13:00", timeZone: "America/Chicago", reminder: 15 }) });
 		assert.equal(add.status, 200);
 		const sent = JSON.parse(g.seen.at(-1).init.body);
 		assert.deepEqual(sent.start, { dateTime: "2026-09-28T12:00:00", timeZone: "America/Chicago" });
 		assert.deepEqual(sent.reminders, { useDefault: false, overrides: [{ method: "popup", minutes: 15 }] });
+		assert.ok(g.seen.at(-1).url.endsWith("/api/calendars/primary/events"));
+		const fam = await call(env, "/api/calendar/events", { method: "POST", body: JSON.stringify({ title: "Picnic", allDay: true, start: "2026-10-03", calendarId: "fam" }) });
+		assert.equal(fam.status, 200);
+		assert.equal((await fam.json()).event.calendar, "fam");
+		assert.ok(g.seen.at(-1).url.endsWith("/api/calendars/fam/events"));
 	} finally { g.restore(); }
 });
 
