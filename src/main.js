@@ -7,6 +7,8 @@ import { local, persist } from "./store.js";
 import { api, token, setToken, AuthError } from "./api.js";
 import { sync } from "./sync.js";
 import { isNotePath } from "./paths.js";
+import { counts, countWords } from "./count.js";
+import * as pomo from "./pomodoro.js";
 
 const $ = (id) => document.getElementById(id);
 const notes = new Map(); // path -> note, mirrors IndexedDB
@@ -67,7 +69,7 @@ function onNote(path, note) {
 	if (!note || note.deleted) {
 		toast(`${name(path)} was deleted elsewhere.`);
 		openNote(null);
-	} else if (!note.dirty) editor.replace(note);
+	} else if (!note.dirty) { editor.replace(note); refreshCount(true); }
 }
 
 function pending() {
@@ -177,17 +179,24 @@ function openNote(path) {
 	$("path").value = has ? editor.path : "";
 	$("path").disabled = !has || note.binary;
 	$("delete").disabled = !has;
-	document.title = has ? name(editor.path) + " · wr1t3r" : "wr1t3r";
+	renderTitle();
 	if (has && location.hash !== "#" + encodeURIComponent(path)) history.replaceState(null, "", "#" + encodeURIComponent(path));
 	if (!has && location.hash) history.replaceState(null, "", location.pathname);
 	$("app").classList.remove("menu-open");
 	renderTree();
+	refreshCount(true);
+}
+
+function renderTitle() {
+	const base = editor.path ? name(editor.path) + " · wr1t3r" : "wr1t3r";
+	document.title = timer.running ? `${pomo.format(pomo.remaining(timer, Date.now()))} · ${base}` : base;
 }
 
 function onEdit(path, text) {
 	const note = notes.get(path);
 	if (!note || note.binary) return;
 	const wasDirty = note.dirty;
+	typed = true;
 	notes.set(path, { ...note, text, dirty: true });
 	change(path, (cur) => (cur ? { ...cur, text, dirty: true, deleted: false } : { path, text, base: null, dirty: true, deleted: false }));
 	if (!wasDirty) { renderStatus(); renderTree(); }
@@ -398,6 +407,190 @@ function setupSettings() {
 	document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("settings").hidden) openSettings(false); });
 }
 
+// ---- word count ----------------------------------------------------------------------
+
+let countMode = readRaw("wr1t3rCount") === "chars" ? "chars" : "words";
+let countTimer, typed = false, lastWords = null; // lastWords: {path, words}, for the words-written tally
+const fmt = (n) => n.toLocaleString();
+
+// Counting a long note on every keystroke would lag, so it waits for a pause.
+// fresh: a different note or a synced version was loaded, so any change in
+// the count isn't writing.
+function refreshCount(fresh = false) {
+	clearTimeout(countTimer);
+	if (fresh) { typed = false; lastWords = null; }
+	countTimer = setTimeout(renderCount, fresh ? 0 : 250);
+}
+
+function renderCount() {
+	const b = $("count");
+	if (!editor.path) { b.textContent = ""; lastWords = null; return; }
+	const all = counts(editor.text());
+	if (typed && lastWords?.path === editor.path && timer.running && timer.phase === "work") {
+		written += all.words - lastWords.words;
+		saveTimer();
+	}
+	typed = false;
+	lastWords = { path: editor.path, words: all.words };
+	const sel = editor.selected();
+	const unit = countMode === "chars" ? "character" : "word";
+	const total = countMode === "chars" ? all.chars : all.words;
+	const part = sel ? (countMode === "chars" ? [...sel.replace(/\r?\n/g, "")].length : countWords(sel)) : null;
+	b.textContent = part == null
+		? `${fmt(total)} ${unit}${total === 1 ? "" : "s"}`
+		: `${fmt(part)} of ${fmt(total)} ${unit}s`;
+}
+
+// ---- pomodoro timer --------------------------------------------------------------------
+
+const TIMER_KEY = "wr1t3rPomodoro";
+let lengths = {
+	work: clamp(Number(readRaw("wr1t3rFocusMin")) || 25, pomo.WORK_RANGE[0], pomo.WORK_RANGE[1]),
+	brk: clamp(Number(readRaw("wr1t3rBreakMin")) || 5, pomo.BREAK_RANGE[0], pomo.BREAK_RANGE[1]),
+};
+const savedTimer = readJSON(TIMER_KEY, null);
+let timer = pomo.restore(savedTimer, lengths);
+let written = Number(savedTimer?.written) || 0; // words written in this focus block
+let ticker, audio;
+
+function saveTimer() {
+	writeJSON(TIMER_KEY, { ...timer, written });
+}
+
+function renderTimer() {
+	const b = $("pomo");
+	const left = pomo.format(pomo.remaining(timer, Date.now()));
+	const label = timer.phase === "work" ? "focus" : "break";
+	b.textContent = `${timer.running ? "❚❚" : "▶\uFE0E"} ${left} ${label}`;
+	b.setAttribute("aria-label", `${timer.running ? "Pause" : "Start"} ${label} timer, ${left} left`);
+	b.classList.toggle("running", timer.running);
+	const fresh = !timer.running && timer.left === pomo.minutes(lengths, timer.phase);
+	$("pomoReset").hidden = fresh && timer.phase === "work";
+	renderTitle();
+}
+
+function tickTimer() {
+	const { state, ended } = pomo.tick(timer, lengths, Date.now());
+	if (ended) {
+		timer = state;
+		timerDone(ended);
+		written = 0;
+		saveTimer();
+		clearInterval(ticker);
+	}
+	renderTimer();
+}
+
+function runTicker() {
+	clearInterval(ticker);
+	if (timer.running) ticker = setInterval(tickTimer, 1000);
+}
+
+function toggleTimer() {
+	unlockSound();
+	askToNotify();
+	if (timer.running) timer = pomo.pause(timer, Date.now());
+	else {
+		if (timer.phase === "work" && timer.left === pomo.minutes(lengths, "work")) written = 0;
+		timer = pomo.start(timer, Date.now());
+	}
+	saveTimer();
+	runTicker();
+	renderTimer();
+}
+
+function resetTimer() {
+	timer = pomo.idle(lengths);
+	written = 0;
+	saveTimer();
+	runTicker();
+	renderTimer();
+}
+
+function timerDone(phase) {
+	const words = phase === "work" && written > 0 ? ` You wrote ${fmt(written)} word${written === 1 ? "" : "s"}.` : "";
+	const text = phase === "work"
+		? `Focus block done.${words} Tap ▶\uFE0E for a ${lengths.brk}-minute break.`
+		: "Break's over. Tap ▶\uFE0E to start the next focus block.";
+	toast(text, 15000);
+	chime();
+	navigator.vibrate?.([200, 100, 200]);
+	if (document.visibilityState !== "visible" && window.Notification?.permission === "granted") {
+		try { new Notification(phase === "work" ? "Focus block done" : "Break's over", { body: text, icon: "/icon-180.png" }); } catch {}
+	}
+	$("pomo").classList.add("done");
+	setTimeout(() => $("pomo").classList.remove("done"), 15000);
+}
+
+// Browsers only allow sound after a tap, so the Start tap readies it.
+function unlockSound() {
+	try {
+		audio ??= new (window.AudioContext || window.webkitAudioContext)();
+		if (audio.state === "suspended") audio.resume();
+	} catch {}
+}
+
+function chime() {
+	if (!audio) return;
+	try {
+		const t = audio.currentTime;
+		[0, 0.35, 0.7].forEach((d, i) => {
+			const osc = audio.createOscillator(), gain = audio.createGain();
+			osc.frequency.value = i === 2 ? 880 : 660;
+			gain.gain.setValueAtTime(0.0001, t + d);
+			gain.gain.exponentialRampToValueAtTime(0.25, t + d + 0.02);
+			gain.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.3);
+			osc.connect(gain).connect(audio.destination);
+			osc.start(t + d);
+			osc.stop(t + d + 0.32);
+		});
+	} catch {}
+}
+
+// Ask once, on the first Start, so an alert can show while another tab or
+// app is in front. On iPhone this only exists when wr1t3r is on the Home Screen.
+function askToNotify() {
+	if (window.Notification?.permission === "default" && !readRaw("wr1t3rAskedNotify")) {
+		storeRaw("wr1t3rAskedNotify", "1");
+		Notification.requestPermission().catch(() => {});
+	}
+}
+
+function setLength(kind, step) {
+	const [lo, hi, by] = kind === "work" ? pomo.WORK_RANGE : pomo.BREAK_RANGE;
+	const before = lengths;
+	lengths = { ...lengths, [kind]: clamp(lengths[kind] + step * by, lo, hi) };
+	storeRaw(kind === "work" ? "wr1t3rFocusMin" : "wr1t3rBreakMin", lengths[kind]);
+	timer = pomo.resize(timer, before, lengths);
+	saveTimer();
+	renderLengths();
+	renderTimer();
+}
+
+function renderLengths() {
+	$("workVal").textContent = lengths.work + " min";
+	$("breakVal").textContent = lengths.brk + " min";
+}
+
+function setupFocusTools() {
+	$("count").addEventListener("click", () => {
+		countMode = countMode === "words" ? "chars" : "words";
+		storeRaw("wr1t3rCount", countMode === "chars" ? "chars" : null);
+		renderCount();
+	});
+	$("pomo").addEventListener("click", toggleTimer);
+	$("pomoReset").addEventListener("click", resetTimer);
+	$("workLess").addEventListener("click", () => setLength("work", -1));
+	$("workMore").addEventListener("click", () => setLength("work", 1));
+	$("breakLess").addEventListener("click", () => setLength("brk", -1));
+	$("breakMore").addEventListener("click", () => setLength("brk", 1));
+	// Timers stop while the phone is locked; catch up as soon as it's back.
+	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && tickTimer());
+	renderLengths();
+	tickTimer();
+	runTicker();
+}
+
 // ---- start -------------------------------------------------------------------------
 
 function showLogin(message = "") {
@@ -421,8 +614,9 @@ function showLogin(message = "") {
 
 async function start() {
 	$("app").hidden = false;
-	editor = createEditor($("editor"), { onChange: onEdit });
+	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => refreshCount() });
 	setupSettings();
+	setupFocusTools();
 	for (const n of await local.all()) notes.set(n.path, n);
 	persist();
 

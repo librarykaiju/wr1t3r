@@ -49,7 +49,7 @@ function lineSeparatorFor(text) {
 	return text.includes("\r\n") && !/(^|[^\r])\n/.test(text) ? "\r\n" : undefined;
 }
 
-export function createEditor(parent, { onChange }) {
+export function createEditor(parent, { onChange, onUpdate }) {
 	let current = null; // path shown
 	const states = new Map(); // path -> EditorState, so undo history survives switching notes
 
@@ -69,6 +69,7 @@ export function createEditor(parent, { onChange }) {
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 		placeholder("Type / for formatting"),
 		EditorView.updateListener.of((u) => {
+			if (u.docChanged || u.selectionSet) onUpdate?.();
 			if (!u.docChanged || !current) return;
 			if (u.transactions.some((tr) => tr.annotation(fromSync))) return;
 			onChange(current, u.state.sliceDoc());
@@ -120,6 +121,10 @@ export function createEditor(parent, { onChange }) {
 		},
 		text() {
 			return view.state.sliceDoc();
+		},
+		selected() {
+			const { state } = view;
+			return state.selection.ranges.filter((r) => !r.empty).map((r) => state.sliceDoc(r.from, r.to)).join("\n");
 		},
 	};
 }
