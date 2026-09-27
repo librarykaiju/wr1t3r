@@ -2,11 +2,15 @@
 // the owner's Google account (made once with `npm run google-auth`) and trades
 // it for short-lived access tokens; the page never sees any Google token.
 //
-//   GET  /api/calendar/events?from=&to=   events in [from, to) from every
-//                                          calendar shown in Google Calendar ->
+//   GET  /api/calendar/events?from=&to=[&calendars=id,id]
+//                                          events in [from, to) from the named
+//                                          calendars, or from every calendar
+//                                          shown in Google Calendar ->
 //                                          {calendars: [...], events: [...]}
 //   POST /api/calendar/events              {title, start, end, allDay, location,
-//                                          description, reminder} -> {event}
+//                                          description, reminder, calendarId}
+//                                          -> {event}; calendarId defaults to
+//                                          the main calendar
 //
 // Settings: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
 // (secrets). GOOGLE_TOKEN_URL and GOOGLE_API are only for testing.
@@ -65,7 +69,10 @@ export async function calendarApi(request, env, url) {
 			throw new HttpError(400, `from and to: a range of up to ${MAX_RANGE_DAYS} days`);
 		}
 		const list = await google(env, "/users/me/calendarList?minAccessRole=reader&maxResults=250");
-		const calendars = (list.items || []).filter((c) => c.selected || c.primary);
+		const all = list.items || [];
+		const asked = url.searchParams.get("calendars");
+		const wanted = asked == null ? null : new Set(asked.split(",").filter(Boolean));
+		const calendars = all.filter((c) => (wanted ? wanted.has(c.id) : c.selected || c.primary));
 		const perCalendar = await Promise.all(calendars.map(async (c) => {
 			const q = new URLSearchParams({
 				timeMin: from.toISOString(), timeMax: to.toISOString(),
@@ -76,7 +83,11 @@ export async function calendarApi(request, env, url) {
 		}));
 		const events = perCalendar.flat().sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
 		return {
-			calendars: calendars.map((c) => ({ id: c.id, name: c.summaryOverride || c.summary, color: c.backgroundColor, primary: !!c.primary })),
+			// Every calendar, so events can be added to one that's hidden in the agenda.
+			calendars: all.map((c) => ({
+				id: c.id, name: c.summaryOverride || c.summary, color: c.backgroundColor, primary: !!c.primary,
+				shown: !!(c.selected || c.primary), writable: c.accessRole === "owner" || c.accessRole === "writer",
+			})),
 			events,
 		};
 	}
@@ -84,8 +95,11 @@ export async function calendarApi(request, env, url) {
 	if (url.pathname === "/api/calendar/events" && request.method === "POST") {
 		const body = await request.json().catch(() => null);
 		const event = eventBody(body);
-		const made = await google(env, "/calendars/primary/events", { method: "POST", body: JSON.stringify(event) });
-		return { event: slimEvent(made, { id: "primary", primary: true }) };
+		const id = body.calendarId == null || body.calendarId === "" ? "primary" : body.calendarId;
+		if (typeof id !== "string" || id.length > 300) throw new HttpError(400, "Bad calendarId");
+		// Google itself refuses calendars you can't write to.
+		const made = await google(env, `/calendars/${encodeURIComponent(id)}/events`, { method: "POST", body: JSON.stringify(event) });
+		return { event: slimEvent(made, { id }) };
 	}
 	return null;
 }

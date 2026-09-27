@@ -32,7 +32,8 @@ The bar also has a pomodoro timer. Tap it to start or pause, and tap ↺ to rese
 
 The calendar button in the top right opens your Google Calendar agenda: today and the next week, from every calendar ticked in Google Calendar. The header also shows today's next event.
 - Tap an event to put it in the open note as a line. Tap **Open in Google** to edit it there.
-- **+ Add event** adds one to your main calendar, with a reminder you pick. The default reminder is the calendar's own.
+- The chips at the top pick which calendars show. Until you change them, they follow the calendars ticked in Google Calendar.
+- **+ Add event** adds an event to the calendar you pick (it remembers your last choice), with a reminder you pick. The default reminder is the calendar's own.
 - Reminders pop up with a chime while wr1t3r is open, and as a notification if you allow them. When wr1t3r is closed, Google Calendar's own app does the reminding.
 - Offline, it shows the last agenda it loaded.
 

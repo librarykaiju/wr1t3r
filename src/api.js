@@ -68,8 +68,9 @@ export const api = {
 		if (res.status === 412) return { ok: false, version: (await res.json().catch(() => ({}))).version ?? null };
 		return { ok: true, version: (await jsonOrThrow(res)).version };
 	},
-	async events(from, to) {
+	async events(from, to, calendars) {
 		const qs = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+		if (calendars) qs.set("calendars", calendars.join(","));
 		return jsonOrThrow(await call("/api/calendar/events?" + qs));
 	},
 	async addEvent(event) {
