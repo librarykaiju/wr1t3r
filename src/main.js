@@ -720,16 +720,14 @@ function eventRow(e, now) {
 	const b = document.createElement("button");
 	b.type = "button";
 	b.setAttribute("aria-expanded", String(openEvent === key));
-	const dot = document.createElement("span");
-	dot.className = "dot";
-	if (/^#[0-9a-f]{3,8}$/i.test(e.color)) dot.style.background = e.color;
+	if (/^#[0-9a-f]{3,8}$/i.test(e.color)) row.style.setProperty("--c", e.color);
 	const when = document.createElement("span");
 	when.className = "when";
 	when.textContent = agenda.timeLabel(e) + (e.location ? " · " + e.location : "");
 	const title = document.createElement("span");
 	title.className = "title";
 	title.textContent = e.title;
-	b.append(dot, when, title);
+	b.append(when, title);
 	b.addEventListener("click", () => { openEvent = openEvent === key ? null : key; renderAgenda(); });
 	row.append(b);
 	if (openEvent === key) {
@@ -794,6 +792,31 @@ function fillCalendars() {
 	const last = readRaw("wr1t3rEventCal");
 	if (list.some((c) => c.id === last)) sel.value = last;
 	$("evCalendarRow").hidden = list.length < 2;
+	pickColor("");
+}
+
+// Swatches: the calendar's own color (the default), then Google's event colors.
+let eventColor = "";
+function pickColor(id) {
+	eventColor = id;
+	const box = $("evColors");
+	const calColor = cal?.calendars?.find((c) => c.id === ($("evCalendar").value || cal.calendars.find((x) => x.primary)?.id))?.color;
+	box.textContent = "";
+	const swatch = (value, color, label) => {
+		const b = document.createElement("button");
+		b.type = "button";
+		b.setAttribute("role", "radio");
+		b.setAttribute("aria-checked", String(value === id));
+		b.setAttribute("aria-label", label);
+		b.title = label;
+		if (/^#[0-9a-f]{3,8}$/i.test(color || "")) b.style.setProperty("--sw", color);
+		b.addEventListener("click", () => pickColor(value));
+		return b;
+	};
+	const def = swatch("", calColor, "Calendar color");
+	def.classList.add("cal");
+	box.append(def);
+	for (const [value, [label, color]] of Object.entries(agenda.EVENT_COLORS)) box.append(swatch(value, color, label));
 }
 
 function allDayFields() {
@@ -815,6 +838,7 @@ async function addEvent(e) {
 		const body = agenda.formEvent({
 			title: $("evTitle").value, allDay: all, date: $("evDate").value, endDate: $("evEndDate").value,
 			startTime: $("evStart").value, endTime: $("evEnd").value, reminder: $("evReminder").value, location: $("evLocation").value,
+			colorId: eventColor,
 		}, Intl.DateTimeFormat().resolvedOptions().timeZone);
 		const calendarId = $("evCalendar").value;
 		if (calendarId) { body.calendarId = calendarId; storeRaw("wr1t3rEventCal", calendarId); }
@@ -848,6 +872,7 @@ function setupAgenda() {
 	$("addEventBtn").addEventListener("click", () => showAddEvent($("addEvent").hidden));
 	$("evCancel").addEventListener("click", () => showAddEvent(false));
 	$("evAllDay").addEventListener("change", allDayFields);
+	$("evCalendar").addEventListener("change", () => pickColor(eventColor));
 	$("evDate").addEventListener("change", () => { if ($("evEndDate").value < $("evDate").value) $("evEndDate").value = $("evDate").value; });
 	$("addEvent").addEventListener("submit", addEvent);
 	document.addEventListener("click", (e) => {

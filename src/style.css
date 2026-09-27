@@ -174,17 +174,23 @@ main:not(.has-note) #count { visibility: hidden; }
 .day { margin: 0 0 12px; }
 .day h3 { font-size: 13px; font-weight: 600; margin: 0 0 4px; }
 .day .none { font-size: 13px; color: var(--muted); margin: 0; }
-.ev { border-radius: 8px; }
+.ev { --c: var(--accent); border-radius: 8px; margin-bottom: 4px; background: color-mix(in srgb, var(--c) 9%, transparent); }
 .ev > button {
-	display: grid; grid-template-columns: 10px 1fr; column-gap: 8px; width: 100%; text-align: left;
-	background: none; border: 0; padding: 5px 6px; font-size: 14px;
+	display: grid; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px;
+	box-shadow: inset 4px 0 var(--c); padding: 5px 8px 5px 14px; font-size: 14px;
 }
-.ev > button:hover, .ev.open { background: var(--panel); }
-.ev .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-top: 6px; }
-.ev .when { grid-column: 2; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.ev .title { grid-column: 2; }
+.ev > button:hover, .ev.open { background: color-mix(in srgb, var(--c) 16%, transparent); }
+.ev .when { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ev.past { opacity: 0.55; }
-.ev .acts { display: flex; gap: 6px; padding: 0 6px 6px 24px; }
+.ev .acts { display: flex; gap: 6px; padding: 0 8px 8px 14px; }
+#evColors { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; }
+#evColors button {
+	width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid transparent;
+	background: var(--sw); box-shadow: inset 0 0 0 2px var(--card);
+}
+#evColors button[aria-checked=true] { border-color: var(--fg); }
+#evColors button.cal { background: none; box-shadow: none; border: 2px dashed var(--sw); font-size: 11px; color: var(--muted); }
+#evColors button.cal[aria-checked=true] { border-style: solid; border-color: var(--fg); background: var(--sw); }
 .ev .acts button, .ev .acts a { font-size: 13px; }
 .ev .acts a { padding: 5px 10px; }
 #addEvent { display: grid; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
