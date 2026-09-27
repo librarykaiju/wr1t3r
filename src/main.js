@@ -10,6 +10,8 @@ import { isNotePath } from "./paths.js";
 import { counts, countWords } from "./count.js";
 import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
+import * as toc from "./toc.js";
+import { EditorView } from "@codemirror/view";
 
 const $ = (id) => document.getElementById(id);
 const notes = new Map(); // path -> note, mirrors IndexedDB
@@ -434,6 +436,7 @@ function renderCount() {
 	}
 	typed = false;
 	lastWords = { path: editor.path, words: all.words };
+	renderToc();
 	const sel = editor.selected();
 	const unit = countMode === "chars" ? "character" : "word";
 	const total = countMode === "chars" ? all.chars : all.words;
@@ -441,6 +444,102 @@ function renderCount() {
 	b.textContent = part == null
 		? `${fmt(total)} ${unit}${total === 1 ? "" : "s"}`
 		: `${fmt(part)} of ${fmt(total)} ${unit}s`;
+}
+
+// ---- table of contents ----------------------------------------------------------------
+
+const TOC_KEY = "wr1t3rToc";
+const wide = matchMedia("(min-width: 1180px)");
+let tocItems = [], tocCollapsed = new Set(), tocScrollQueued = false;
+
+function tocOpen() { return !$("toc").hidden; }
+
+function openToc(on) {
+	$("toc").hidden = !on;
+	$("tocBtn").setAttribute("aria-expanded", String(on));
+	$("app").classList.toggle("toc-docked", on && wide.matches);
+	// Remembered only on wide screens, where it stays docked beside the note.
+	if (wide.matches) storeRaw(TOC_KEY, on ? "1" : null);
+	if (on) { openSettings(false); openAgenda(false); renderToc(); }
+}
+
+function renderToc() {
+	$("toc").classList.toggle("docked", wide.matches);
+	if (!tocOpen() || !editor.path) return;
+	tocItems = toc.outline(toc.headings(editor.view.state));
+	const list = $("tocList");
+	list.textContent = "";
+	$("tocEmpty").hidden = tocItems.length > 0;
+	tocItems.forEach((h, i) => {
+		if (toc.hidden(tocItems, i, tocCollapsed)) return;
+		const li = document.createElement("li");
+		li.className = "lvl" + h.depth;
+		li.dataset.i = i;
+		li.style.paddingLeft = h.depth * 14 + "px";
+		const fold = document.createElement("button");
+		fold.type = "button";
+		fold.className = "fold";
+		if (h.hasKids) {
+			const shut = tocCollapsed.has(toc.key(h));
+			fold.textContent = "▾";
+			fold.classList.toggle("shut", shut);
+			fold.setAttribute("aria-label", (shut ? "Show" : "Hide") + " the parts under " + h.text);
+			fold.setAttribute("aria-expanded", String(!shut));
+			fold.addEventListener("click", () => {
+				shut ? tocCollapsed.delete(toc.key(h)) : tocCollapsed.add(toc.key(h));
+				renderToc();
+			});
+		} else fold.tabIndex = -1;
+		const go = document.createElement("button");
+		go.type = "button";
+		go.className = "go";
+		go.textContent = h.text;
+		go.addEventListener("click", () => jumpTo(h.from));
+		li.append(fold, go);
+		list.append(li);
+	});
+	markActive();
+}
+
+function jumpTo(pos) {
+	const { view } = editor;
+	view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: "start", yMargin: 16 }) });
+	view.focus();
+	if (!wide.matches) openToc(false);
+}
+
+// The heading you're reading: the last one above the top of the screen (or
+// the cursor's, if you're typing). Plus how far down the note you are.
+function markActive(fromScroll = false) {
+	if (!tocOpen() || !editor.path) return;
+	const { view } = editor;
+	const sd = view.scrollDOM;
+	const top = view.lineBlockAtHeight(sd.getBoundingClientRect().top - view.documentTop + 8).from;
+	const pos = view.hasFocus && !fromScroll ? view.state.selection.main.head : top;
+	const active = toc.activeIndex(tocItems, pos);
+	let shown = active;
+	while (shown > -1 && toc.hidden(tocItems, shown, tocCollapsed)) shown = tocItems[shown].parent;
+	for (const li of $("tocList").children) li.classList.toggle("active", Number(li.dataset.i) === shown);
+	$("tocList").querySelector("li.active")?.scrollIntoView({ block: "nearest" });
+	const max = sd.scrollHeight - sd.clientHeight;
+	$("tocProgress").textContent = max > 0 ? Math.round((sd.scrollTop / max) * 100) + "%" : "";
+}
+
+function setupToc() {
+	$("tocBtn").addEventListener("click", (e) => { e.stopPropagation(); openToc(!tocOpen()); });
+	$("tocClose").addEventListener("click", () => openToc(false));
+	$("tocTop").addEventListener("click", () => jumpTo(0));
+	editor.view.scrollDOM.addEventListener("scroll", () => {
+		if (tocScrollQueued || !tocOpen()) return;
+		tocScrollQueued = true;
+		requestAnimationFrame(() => { tocScrollQueued = false; markActive(true); });
+	}, { passive: true });
+	document.addEventListener("click", (e) => {
+		if (tocOpen() && !wide.matches && e.target.isConnected && !e.target.closest("#toc, #tocBtn")) openToc(false);
+	});
+	document.addEventListener("keydown", (e) => { if (e.key === "Escape" && tocOpen() && !wide.matches) openToc(false); });
+	wide.addEventListener("change", () => { openToc(wide.matches && readRaw(TOC_KEY) === "1"); });
+	if (wide.matches && readRaw(TOC_KEY) === "1") openToc(true);
 }
 
 // ---- pomodoro timer --------------------------------------------------------------------
@@ -757,6 +856,7 @@ function openAgenda(on) {
 	$("calBtn").setAttribute("aria-expanded", String(on));
 	if (on) {
 		openSettings(false);
+		if (!wide.matches) $("toc").hidden = true;
 		unlockSound();
 		askToNotify();
 		renderAgenda();
@@ -922,6 +1022,7 @@ async function start() {
 	setupSettings();
 	setupFocusTools();
 	setupAgenda();
+	setupToc();
 	for (const n of await local.all()) notes.set(n.path, n);
 	persist();
 

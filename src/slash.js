@@ -4,6 +4,7 @@
 // placeholder you can Tab to (CodeMirror snippet syntax).
 
 import { snippet } from "@codemirror/autocomplete";
+import { inTable, addRow, addColumn, deleteRow, deleteColumn, formatTable } from "./table.js";
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
 
@@ -30,6 +31,12 @@ export const COMMANDS = [
 	{ label: "Inline code", template: "`${}`", keywords: "code" },
 	{ label: "Frontmatter", template: "---\n${key}: ${}\n---\n", keywords: "yaml properties", docStart: true },
 	{ label: "Date", template: () => today() + "${}", keywords: "today" },
+	// Only offered with the cursor in a table.
+	{ label: "Add row below", run: addRow, keywords: "table insert", table: true },
+	{ label: "Add column after", run: addColumn, keywords: "table insert col", table: true },
+	{ label: "Delete row", run: deleteRow, keywords: "table remove", table: true },
+	{ label: "Delete column", run: deleteColumn, keywords: "table remove col", table: true },
+	{ label: "Format table", run: formatTable, keywords: "table align tidy", table: true },
 ];
 
 // Matches "/filter" at the start of a line or after whitespace, ending at the cursor.
@@ -44,14 +51,21 @@ export function slashSource(commands = COMMANDS) {
 		const slashAt = context.pos - m[1].length - 1;
 		const q = m[1].toLowerCase();
 		const atDocStart = slashAt === 0;
+		const table = inTable(context.state);
 		const options = commands
 			.filter((c) => !c.docStart || atDocStart)
+			.filter((c) => !c.table || table)
 			.filter((c) => !q || c.label.toLowerCase().includes(q) || (c.keywords || "").includes(q))
 			.map((c, i) => ({
 				label: c.label,
 				// Prefix matches first, then list order.
-				boost: c.label.toLowerCase().startsWith(q) ? 50 - i : -i,
+				boost: (c.table ? 100 : 0) + (c.label.toLowerCase().startsWith(q) ? 50 - i : -i),
 				apply: (view, completion, from, to) => {
+					if (c.run) {
+						view.dispatch({ changes: { from: slashAt, to }, selection: { anchor: slashAt } });
+						c.run(view);
+						return;
+					}
 					const t = typeof c.template === "function" ? c.template() : c.template;
 					snippet(t)(view, completion, slashAt, to); // replaces the "/filter" too
 				},
