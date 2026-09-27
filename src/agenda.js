@@ -4,6 +4,14 @@
 
 export const DAYS = 8; // today plus the next week
 
+// Google Calendar's event colors (colorId -> name and the color its web app
+// shows). An event without one takes its calendar's color.
+export const EVENT_COLORS = {
+	1: ["Lavender", "#7986cb"], 2: ["Sage", "#33b679"], 3: ["Grape", "#8e24aa"], 4: ["Flamingo", "#e67c73"],
+	5: ["Banana", "#f6bf26"], 6: ["Tangerine", "#f4511e"], 7: ["Peacock", "#039be5"], 8: ["Graphite", "#616161"],
+	9: ["Blueberry", "#3f51b5"], 10: ["Basil", "#0b8043"], 11: ["Tomato", "#d50000"],
+};
+
 export function dayKey(d) {
 	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -84,7 +92,7 @@ export function noteLine(e, today = new Date()) {
 }
 
 // The add-event form's fields -> the body worker/calendar.js expects.
-export function formEvent({ title, allDay, date, endDate, startTime, endTime, reminder, location }, timeZone) {
+export function formEvent({ title, allDay, date, endDate, startTime, endTime, reminder, location, colorId }, timeZone) {
 	const body = { title: title.trim(), allDay: !!allDay, location: location?.trim() || "" };
 	if (allDay) Object.assign(body, { start: date, end: endDate || date });
 	else {
@@ -92,6 +100,7 @@ export function formEvent({ title, allDay, date, endDate, startTime, endTime, re
 		if (endTime <= startTime) end = `${dayKey(addDays(localDate(date), 1))}T${endTime}`; // past midnight
 		Object.assign(body, { start: `${date}T${startTime}`, end, timeZone });
 	}
+	if (colorId) body.colorId = String(colorId);
 	if (reminder === "none") body.reminder = "none";
 	else if (reminder !== "" && reminder != null) body.reminder = Number(reminder);
 	return body;

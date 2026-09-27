@@ -82,6 +82,10 @@ test("event bodies: all-day end is the day after, bad input is refused", () => {
 		assert.throws(() => eventBody(bad));
 	}
 	assert.deepEqual(slimEvent({ id: "1", start: { date: "2026-10-01" }, end: { date: "2026-10-02" } }, { id: "c" }).alerts, []);
+	assert.equal(slimEvent({ id: "1", colorId: "11", start: { date: "2026-10-01" }, end: { date: "2026-10-02" } }, { id: "c", backgroundColor: "#123456" }).color, "#d50000");
+	assert.equal(slimEvent({ id: "1", start: { date: "2026-10-01" }, end: { date: "2026-10-02" } }, { id: "c", backgroundColor: "#123456" }).color, "#123456");
+	assert.equal(eventBody({ title: "x", allDay: true, start: "2026-10-01", colorId: "5" }).colorId, "5");
+	assert.throws(() => eventBody({ title: "x", allDay: true, start: "2026-10-01", colorId: "99" }));
 });
 
 test("agenda: days, all-day spans, alerts and form fields", () => {

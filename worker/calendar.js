@@ -16,6 +16,7 @@
 // (secrets). GOOGLE_TOKEN_URL and GOOGLE_API are only for testing.
 
 import { HttpError } from "./util.js";
+import { EVENT_COLORS } from "../src/agenda.js";
 
 const MAX_RANGE_DAYS = 62;
 let cached = null; // {key, token, expires} -- lives as long as the isolate
@@ -117,7 +118,7 @@ export function slimEvent(e, cal) {
 		end: e.end?.dateTime || e.end?.date,
 		location: e.location || "",
 		link: e.htmlLink || "",
-		color: cal.backgroundColor || "",
+		color: EVENT_COLORS[e.colorId]?.[1] || cal.backgroundColor || "",
 		alerts: reminders.filter((r) => r.method === "popup").map((r) => r.minutes),
 	};
 }
@@ -144,6 +145,10 @@ export function eventBody(b) {
 		const sec = (t) => (t.length === 16 ? t + ":00" : t);
 		out.start = { dateTime: sec(b.start), timeZone: b.timeZone };
 		out.end = { dateTime: sec(b.end), timeZone: b.timeZone };
+	}
+	if (b.colorId != null && b.colorId !== "") {
+		if (!EVENT_COLORS[b.colorId]) throw new HttpError(400, "Unknown event color");
+		out.colorId = String(b.colorId);
 	}
 	if (b.location) out.location = String(b.location).slice(0, 1000);
 	if (b.description) out.description = String(b.description).slice(0, 8000);
