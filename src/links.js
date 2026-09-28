@@ -7,6 +7,7 @@
 import { EditorView, ViewPlugin, Decoration } from "@codemirror/view";
 import { RangeSetBuilder, Facet } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
+import { vaultHost, notePath, vaultChanged } from "./vault.js";
 
 // What opens a link (the app's handler), for widgets that draw their own links.
 export const linkOpener = Facet.define({ combine: (v) => v[0] || null });
@@ -175,14 +176,20 @@ export function headingFor(list, want) {
 }
 
 const linkMark = Decoration.mark({ class: "md-a" });
+const missingMark = Decoration.mark({ class: "md-a md-unresolved", attributes: { title: "No note with this name yet" } });
 
+// Links to notes that don't exist are drawn fainter, as in Obsidian.
 function build(view) {
 	const b = new RangeSetBuilder();
+	const host = view.state.facet(vaultHost);
+	const here = view.state.facet(notePath);
+	const paths = host ? host.paths() : null;
 	let last = -1;
 	for (const { from, to } of view.visibleRanges) {
 		for (const l of linksIn(view.state, from, to)) {
 			if (l.from < last) continue;
-			b.add(l.from, l.to, linkMark);
+			const missing = paths?.length && l.note != null && l.note.trim() && !resolveNote(l, here, paths);
+			b.add(l.from, l.to, missing ? missingMark : linkMark);
 			last = l.to;
 		}
 	}
@@ -216,7 +223,7 @@ export function linkClicks(openLink) {
 	return ViewPlugin.define((view) => ({
 		decorations: build(view),
 		update(u) {
-			if (u.docChanged || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state)) this.decorations = build(u.view);
+			if (u.docChanged || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state) || u.transactions.some((tr) => tr.effects.some((e) => e.is(vaultChanged)))) this.decorations = build(u.view);
 		},
 	}), {
 		decorations: (v) => v.decorations,
