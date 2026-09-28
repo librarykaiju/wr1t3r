@@ -4,6 +4,7 @@
 // placeholder you can Tab to (CodeMirror snippet syntax).
 
 import { snippet } from "@codemirror/autocomplete";
+import { addProperty } from "./frontmatter.js";
 import { inTable, addRow, addColumn, deleteRow, deleteColumn, formatTable } from "./table.js";
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
@@ -29,7 +30,7 @@ export const COMMANDS = [
 	{ label: "Strikethrough", template: "~~${}~~", keywords: "strike delete" },
 	{ label: "Highlight", template: "==${}==", keywords: "mark" },
 	{ label: "Inline code", template: "`${}`", keywords: "code" },
-	{ label: "Frontmatter", template: "---\n${key}: ${}\n---\n", keywords: "yaml properties", docStart: true },
+	{ label: "Add property", run: addProperty, keywords: "frontmatter yaml properties metadata tags" },
 	{ label: "Date", template: () => today() + "${}", keywords: "today" },
 	// Only offered with the cursor in a table.
 	{ label: "Add row below", run: addRow, keywords: "table insert", table: true },

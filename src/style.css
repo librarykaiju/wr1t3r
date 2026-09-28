@@ -262,10 +262,10 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 #editor .md-bq, #editor .md-callout, #editor .md-codeblock { padding-left: 14px; padding-right: 10px; }
 #editor .md-first { border-top-left-radius: 6px; border-top-right-radius: 6px; padding-top: 4px; }
 #editor .md-last { border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding-bottom: 4px; }
-#editor .md-bq { box-shadow: inset 3px 0 0 var(--line); color: var(--muted); }
+#editor .md-bq { box-shadow: inset 4px 0 0 var(--muted); color: var(--muted); }
 #editor .md-bq.md-first, #editor .md-bq.md-last { border-radius: 0; }
 
-#editor .md-callout { --co: #448aff; background: color-mix(in srgb, var(--co) 10%, var(--bg)); box-shadow: inset 3px 0 0 var(--co); }
+#editor .md-callout { --co: #448aff; background: color-mix(in srgb, var(--co) 10%, var(--bg)); box-shadow: inset 4px 0 0 color-mix(in srgb, var(--co) 70%, #000); }
 #editor .md-callout .md-quote { color: var(--fg); }
 #editor .md-callout.md-first, #editor .md-callout.md-last { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 #editor .md-callout-title, #editor .md-callout-title .md-quote { color: var(--co); font-weight: 700; }
@@ -289,3 +289,22 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 #editor .md-task-done { color: var(--muted); text-decoration: line-through; }
 #editor .md-callout-icon { color: var(--co); font-weight: 700; }
 #editor .md-callout-icon svg { width: 1.05em; height: 1.05em; vertical-align: -0.16em; margin-right: 0.4em; }
+
+/* Frontmatter as a Properties box (src/frontmatter.js). */
+#editor .md-fm { background: var(--panel); box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line); font: 0.78em/1.9 var(--sans); padding-left: 14px; padding-right: 10px; }
+#editor .md-fm .md-key { font-family: var(--sans); font-size: 1em; color: var(--muted); }
+#editor .md-fm .md-value { font-family: var(--sans); font-size: 1em; }
+#editor .md-fm.md-first { border-top-left-radius: 8px; border-top-right-radius: 8px; padding-top: 4px; box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line), inset 0 1px 0 var(--line); }
+#editor .md-fm.md-last { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; padding-bottom: 4px; margin-bottom: 0.6em; box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line); }
+#editor .md-fm.md-first.md-last { box-shadow: inset 0 0 0 1px var(--line); }
+#editor .md-fm-fence { color: var(--mark); }
+#editor .md-fm-toggle, #editor .md-fm-add {
+	background: none; border: 0; padding: 0; font: 600 1em var(--sans); color: var(--muted); cursor: pointer;
+}
+#editor .md-fm-toggle { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.92em; }
+#editor .md-fm-add { font-weight: 400; color: var(--accent); }
+#editor .md-fm-toggle:hover, #editor .md-fm-add:hover { color: var(--fg); }
+#editor .md-nested {
+	padding-left: 26px;
+	background-image: linear-gradient(var(--mark), var(--mark)); background-size: 3px 100%; background-position: 13px 0; background-repeat: no-repeat;
+}

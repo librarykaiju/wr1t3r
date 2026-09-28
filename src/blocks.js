@@ -2,9 +2,9 @@
 // the thing it is, while the markdown stays visible and byte-for-byte as typed.
 // Task boxes become real checkboxes (clicking one flips the [ ] / [x] in the
 // text), callouts and quotes get a boxed container, code blocks a shaded one,
-// and dividers a rule. Quote markers (">") are hidden and a callout's "[!type]"
-// becomes its icon, except on the lines the cursor is on, where the markdown
-// shows so it can be edited. Only decorations: nothing here rewrites the note
+// and dividers a rule. Quote markers (">") are hidden, with the box's darker
+// left edge in their place, and a callout's "[!type]" becomes its icon except
+// on the line the cursor is on, where it shows so it can be edited. Only decorations: nothing here rewrites the note
 // except the checkbox click.
 
 import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
@@ -125,11 +125,11 @@ function build(view) {
 		for (let n = doc.lineAt(r.from).number, last = doc.lineAt(r.to).number; n <= last; n++) editing.add(n);
 	}
 	const raw = (pos) => editing.has(doc.lineAt(pos).number);
-	const addLine = (from, to, cls) => {
+	const addLine = (from, to, cls, ends = true) => {
 		for (let n = doc.lineAt(from).number, last = doc.lineAt(to).number; n <= last; n++) {
 			const at = doc.line(n).from;
-			const pos = n === doc.lineAt(from).number ? " md-first" : "";
-			const end = n === last ? " md-last" : "";
+			const pos = ends && n === doc.lineAt(from).number ? " md-first" : "";
+			const end = ends && n === last ? " md-last" : "";
 			lines.set(at, (lines.get(at) ? lines.get(at) + " " : "") + cls + pos + end);
 		}
 	};
@@ -140,7 +140,10 @@ function build(view) {
 			enter(node) {
 				switch (node.name) {
 				case "Blockquote": {
-					if (node.node.parent?.name === "Blockquote") return; // inner quote: the outer box covers it
+					if (node.node.parent?.name === "Blockquote" || node.node.parent?.parent?.name === "Blockquote") {
+						addLine(node.from, node.to, "md-nested", false); // inner quote: a second edge inside the outer box
+						return;
+					}
 					const first = doc.lineAt(node.from);
 					const c = calloutOf(first.text);
 					if (c) {
@@ -158,10 +161,8 @@ function build(view) {
 					return;
 				}
 				case "QuoteMark": {
-					// Only the outer marker: a nested "> >" keeps its inner ">" so the nesting shows.
-					let depth = 0;
-					for (let p = node.node.parent; p; p = p.parent) if (p.name === "Blockquote") depth++;
-					if (raw(node.from) || depth > 1) return false;
+					// Always hidden; the box's darker left edge stands in for it. Backspace
+					// at the start of a line still deletes it.
 					const space = state.sliceDoc(node.to, node.to + 1) === " " ? 1 : 0;
 					marks.push([node.from, node.to + space, hide]);
 					return false;
