@@ -45,3 +45,16 @@ test("notes resolve like Obsidian: relative, from the root, then by name", () =>
 	assert.equal(resolveNote({ note: "Draft.md" }, "writing/ideas/x.md", paths), "writing/ideas/Draft.md");
 	assert.equal(resolveNote({ note: "Missing", wiki: true }, null, paths), null);
 });
+
+test("footnotes jump between the reference and its definition", async () => {
+	const { footnoteJump } = await import("../src/links.js");
+	const doc = "Text with a note.[^1] More[^long].\n\n[^1]: The note.\n[^long]:Other";
+	const s = state(doc);
+	const fns = linksIn(s).filter((l) => l.footnote);
+	assert.deepEqual(fns.map((l) => [l.footnote, l.def]), [["1", false], ["long", false], ["1", true], ["long", true]]);
+	assert.equal(linksIn(s).filter((l) => !l.footnote).length, 0); // not taken for a note link
+	assert.equal(footnoteJump(s, fns[0]), doc.indexOf("The note."));
+	assert.equal(footnoteJump(s, fns[1]), doc.indexOf("Other"));
+	assert.equal(footnoteJump(s, fns[2]), doc.indexOf("[^1]"));
+	assert.equal(footnoteJump(s, { footnote: "none", def: false }), null);
+});
