@@ -4,6 +4,7 @@
 
 import { createEditor } from "./editor.js";
 import { setupKeyboardBar } from "./kbbar.js";
+import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags } from "./frontmatter.js";
 import { EditorView } from "@codemirror/view";
@@ -280,6 +281,32 @@ async function newNote(suggestion = currentFolder() + "Untitled.md") {
 	// Focus goes back to the New button once the name prompt closes; take it
 	// back so typing lands in the note (a space would press New again).
 	requestAnimationFrame(() => editor.view.focus());
+	scheduleSync();
+}
+
+// Today's note in _daily, from _templates/Daily.md (and its companion notes,
+// like "<date> Health"), or the existing one. Made the way Obsidian would, so
+// both apps produce the same file.
+async function openDaily() {
+	const paths = visible().map((n) => n.path);
+	const tmpl = findTemplate(paths);
+	if (!tmpl) return toast("There's no _templates/Daily.md in the vault.");
+	const date = new Date();
+	const title = isoDate(date);
+	const folder = tmpl.root + DAILY_FOLDER;
+	const path = folder + title + ".md";
+	const existing = paths.find((p) => p.toLowerCase() === path.toLowerCase());
+	if (existing) return openNote(existing);
+	const { text, companion } = renderTemplate(notes.get(tmpl.path).text, { title, date });
+	for (const c of companion) {
+		const cPath = folder + c.name + ".md";
+		const t = findTemplate(paths, c.template.replace(/\.md$/i, "") + ".md");
+		if (taken(cPath) || !t) continue;
+		const ct = renderTemplate(notes.get(t.path).text, { title: c.name, date }).text;
+		await change(cPath, (cur) => ({ path: cPath, text: ct, base: cur?.base ?? null, dirty: true, deleted: false }));
+	}
+	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	openNote(path);
 	scheduleSync();
 }
 
@@ -1110,6 +1137,7 @@ async function start() {
 
 	$("filter").addEventListener("input", renderTree);
 	$("new").addEventListener("click", () => newNote());
+	$("today").addEventListener("click", () => openDaily());
 	// Keep this in step with ACCEPT in src/convert.js. It's set here, not
 	// imported, because Safari only opens the picker straight from the tap.
 	$("upload-input").accept = ".md,.markdown,.txt,.html,.htm,.docx,.pdf";
