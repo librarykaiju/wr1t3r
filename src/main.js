@@ -3,6 +3,7 @@
 // the background and whenever the connection comes back.
 
 import { createEditor } from "./editor.js";
+import { setupKeyboardBar } from "./kbbar.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags } from "./frontmatter.js";
 import { EditorView } from "@codemirror/view";
@@ -1099,6 +1100,7 @@ async function start() {
 	setupFocusTools();
 	setupAgenda();
 	setupToc();
+	setupKeyboardBar($("app"), () => editor.view);
 	renderQuote();
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
