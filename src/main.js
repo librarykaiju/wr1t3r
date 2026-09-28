@@ -127,6 +127,12 @@ function link(note, label) {
 	return a;
 }
 
+// The folder every note is in ("content/"), or "".
+function commonFolder(list) {
+	let base = list[0]?.path.includes("/") ? list[0].path.slice(0, list[0].path.indexOf("/") + 1) : "";
+	return base && list.every((n) => n.path.startsWith(base)) ? base : "";
+}
+
 function renderTree() {
 	const tree = $("tree");
 	const q = $("filter").value.trim().toLowerCase();
@@ -137,7 +143,8 @@ function renderTree() {
 		const tag = /^#[^\s#]+$/.test(q) ? q.slice(1) : null;
 		const hasTag = (n) => !n.binary && noteTags(n.text).some((t) => t.toLowerCase() === tag || t.toLowerCase().startsWith(tag + "/"));
 		const hits = list.filter((n) => (tag && hasTag(n)) || n.path.toLowerCase().includes(q) || (!n.binary && n.text.toLowerCase().includes(q)));
-		for (const n of hits.slice(0, 300)) tree.append(link(n, n.path.replace(/\.md$/i, "")));
+		const base = commonFolder(list);
+		for (const n of hits.slice(0, 300)) tree.append(link(n, n.path.slice(base.length).replace(/\.md$/i, "")));
 		if (!hits.length) tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: "No matches." }));
 		return;
 	}
@@ -155,6 +162,13 @@ function renderTree() {
 			node = node.folders.get(dir);
 		}
 		node.notes.push(n);
+	}
+	// The vault's one top folder ("content/") isn't shown; its contents are the top level.
+	let top = root, base = "";
+	while (!top.notes.length && top.folders.size === 1) {
+		const [dir, child] = [...top.folders][0];
+		base += dir + "/";
+		top = child;
 	}
 	const current = editor.path || "";
 	(function draw(node, into, prefix) {
@@ -176,17 +190,25 @@ function renderTree() {
 			into.append(d);
 		}
 		for (const n of node.notes) into.append(link(n, name(n.path)));
-	})(root, tree, "");
+	})(top, tree, base);
 }
 
 // ---- notes ---------------------------------------------------------------------
+
+// The tab shows the note's name; while you're editing it, its full path.
+function showPath() {
+	const input = $("path"), p = editor.path;
+	input.value = !p ? "" : document.activeElement === input ? p : name(p);
+	input.size = Math.max(4, input.value.length + 1);
+	$("tab").hidden = !p;
+}
 
 function openNote(path) {
 	const note = path ? notes.get(path) : null;
 	editor.open(note && !note.deleted ? note : null);
 	const has = !!editor.path;
 	document.querySelector("main").classList.toggle("has-note", has);
-	$("path").value = has ? editor.path : "";
+	showPath();
 	$("path").disabled = !has || note.binary;
 	$("delete").disabled = !has;
 	renderTitle();
@@ -1105,8 +1127,11 @@ async function start() {
 	$("path").addEventListener("keydown", (e) => {
 		if (e.key === "Enter") { e.preventDefault(); renameNote(editor.path, $("path").value); $("path").blur(); }
 		if (e.key === "Escape") { $("path").value = editor.path; $("path").blur(); }
+		if (e.key !== "Enter" && e.key !== "Escape") requestAnimationFrame(() => { $("path").size = Math.max(4, $("path").value.length + 1); });
 	});
-	$("path").addEventListener("blur", () => { if (editor.path) $("path").value = editor.path; });
+	$("path").addEventListener("blur", showPath);
+	$("path").addEventListener("focus", () => { showPath(); $("path").select(); });
+	$("closeNote").addEventListener("click", () => openNote(null));
 	$("tree").addEventListener("click", (e) => {
 		const a = e.target.closest("a");
 		if (!a) return;

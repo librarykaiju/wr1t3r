@@ -12,6 +12,8 @@ A markdown editor for an Obsidian vault, in the browser. Live at https://wr1t3r.
 
 ## Editing
 
+The open note shows as a tab in the header: its name, and × to close it. Click the name to rename or move the note (the full path shows while you edit; Enter saves, Esc cancels). The sidebar lists what's inside the vault's single top folder (`content/`) as the top level.
+
 Source mode (CodeMirror 6): headings, emphasis, links, `[[wikilinks]]`, `==highlights==`, footnotes and YAML frontmatter are styled but stay as text. Type `/` at the start of a line or after a space for the formatting menu (tables, tasks, callouts, code blocks and so on); keep typing to filter. The list is in `src/slash.js`.
 
 Links are clickable (`src/links.js`). Web links, bare URLs and `<autolinks>` open in a new tab; `[[wikilinks]]` and markdown links to `.md` files open that note, found the way Obsidian finds it (relative path, then any note with that name), and Back returns. A `[[link]]` to a note that doesn't exist offers to create it next to the current note. Clicking a link the cursor is already in just places the cursor, so the first tap opens and the next one edits the text; Ctrl/Cmd-click always opens. Only `http`, `https` and `mailto` links leave the app. Footnotes work too: clicking `[^1]` jumps to its `[^1]:` definition, and clicking the definition's marker jumps back. Links to a heading (`[[Note#Heading]]`, `[[#Heading]]`, `[text](#heading)`) scroll to that heading.
