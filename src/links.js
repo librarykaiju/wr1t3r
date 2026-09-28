@@ -12,8 +12,16 @@ import { syntaxTree } from "@codemirror/language";
 export const linkOpener = Facet.define({ combine: (v) => v[0] || null });
 
 const WIKILINK = /(!?)\[\[([^\]\n]+)\]\]/g;
+export const HASHTAG = /(?<=^|\s)#[\p{L}_][\p{L}\p{N}_\/-]*/gu;
 const FOOTNOTE = /\[\^([^\]\s]+)\](:?)/g;
 const CODE = /^(InlineCode|CodeText|FencedCode|CodeBlock|Comment)$/;
+
+// Whether line n is inside the note's frontmatter (its tags are drawn as pills there).
+function inFrontmatter(doc, n) {
+	if (doc.lines < 2 || !/^---[ \t]*$/.test(doc.line(1).text)) return false;
+	for (let i = 2; i <= doc.lines; i++) if (/^(?:---|\.\.\.)[ \t]*$/.test(doc.line(i).text)) return n <= i;
+	return false;
+}
 
 function inCode(state, pos) {
 	for (let n = syntaxTree(state).resolveInner(pos, 1); n; n = n.parent) if (CODE.test(n.name)) return true;
@@ -69,6 +77,13 @@ export function linksIn(state, from = 0, to = state.doc.length) {
 			if (m[1] || inCode(state, a)) continue; // ![[embeds]] are attachments
 			const t = wikiTarget(m[2]);
 			if (t) out.push({ from: a, to: b, ...t });
+		}
+		// #tags in the text (not headings, which need a space after the #).
+		for (const m of line.text.matchAll(HASHTAG)) {
+			const a = line.from + m.index, b = a + m[0].length;
+			if (inCode(state, a) || inFrontmatter(doc, n)) continue;
+			wikis.push([a, b]);
+			out.push({ from: a, to: b, tag: m[0].slice(1) });
 		}
 		// Footnotes: "[^1]" in the text and its "[^1]: ..." definition.
 		for (const m of line.text.matchAll(FOOTNOTE)) {
@@ -136,6 +151,18 @@ export function resolveNote(link, fromPath, paths) {
 	return hits.sort((a, b) => a.length - b.length || a.localeCompare(b))[0] || null;
 }
 
+// The line ending in a block id ("... ^quote-1"), for [[Note#^quote-1]] links.
+export function blockFor(state, id) {
+	const want = id.replace(/^\^/, "");
+	if (!want) return null;
+	const re = new RegExp("(^|\\s)\\^" + want.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*$");
+	for (let n = 1; n <= state.doc.lines; n++) {
+		const line = state.doc.line(n);
+		if (re.test(line.text)) return line.from;
+	}
+	return null;
+}
+
 // The heading a link's "#part" names, from toc.headings(): matched the way both
 // Obsidian ("#My Heading") and web-style anchors ("#my-heading") write it.
 // Block references ("#^id") aren't headings.
@@ -196,8 +223,12 @@ export function linkClicks(openLink) {
 		eventHandlers: {
 			mousedown(e, view) {
 				down = null;
-				if (e.button !== 0 || e.shiftKey || e.altKey || !e.target.closest?.(".md-a")) return false;
-				const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+				const span = e.target.closest?.(".md-a");
+				if (e.button !== 0 || e.shiftKey || e.altKey || !span) return false;
+				// From the clicked element, not the coordinates: widgets above (images,
+				// the properties box) can leave the editor's height estimates stale.
+				let pos = null;
+				try { pos = view.posAtDOM(span); } catch {}
 				const link = pos == null ? null : linkAt(view.state, pos);
 				if (!link) return false;
 				if (e.metaKey || e.ctrlKey) {

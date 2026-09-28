@@ -70,3 +70,12 @@ test("heading links: same-note anchors and Obsidian or web-style heading names",
 	assert.equal(headingFor(hs, "^block1"), null);
 	assert.equal(headingFor(hs, "Missing"), null);
 });
+
+test("#tags in the text are links; frontmatter, headings and code aren't", async () => {
+	const { blockFor } = await import("../src/links.js");
+	const doc = "---\ntags: [x]\n#nope: 1\n---\n# Heading\nSome #draft and #tag/sub, `#code` a#b\n\nA quote. ^quote-1";
+	const s = state(doc);
+	assert.deepEqual(linksIn(s).filter((l) => l.tag).map((l) => l.tag), ["draft", "tag/sub"]);
+	assert.equal(blockFor(s, "^quote-1"), doc.indexOf("A quote."));
+	assert.equal(blockFor(s, "^missing"), null);
+});

@@ -22,6 +22,7 @@ import { frontmatterStyle, tagHue } from "./frontmatter.js";
 import { linkClicks, linkOpener } from "./links.js";
 import { tableGrid } from "./tablegrid.js";
 import { calloutFolds } from "./callouts.js";
+import { webImages } from "./images.js";
 
 const fromSync = Annotation.define();
 
@@ -108,12 +109,16 @@ export function createEditor(parent, { onChange, onUpdate, onLink }) {
 		marks(/\[\[[^\]\n]+\]\]/g, "md-wikilink"),
 		marks(/==[^=\n]+==/g, "md-highlight"),
 		marks(/\[\^[^\]\s]+\]:?/g, "md-footnote"),
+		marks(/\^\[[^\]\n]*\]/g, "md-footnote md-inline-note"), // ^[inline footnote]
+		marks(/(?<=\s)\^[A-Za-z0-9-]+$/gm, "md-blockid"), // "... ^block-id" at a line's end
+		marks(/<\/?[a-zA-Z][\w-]*(?:\s[^<>\n]*)?\/?>/g, "md-html"), // raw HTML tags
 		hashtags,
 		comments,
 		linkClicks((link) => onLink?.(link)),
 		linkOpener.of((link) => onLink?.(link)),
 		tableGrid,
 		calloutFolds,
+		webImages,
 		autocompletion({ override: [slashSource()], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 		placeholder("Type / for formatting"),
