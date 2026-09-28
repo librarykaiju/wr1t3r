@@ -26,6 +26,9 @@
 //                                  If-None-Match: * to create -> {"version"}
 //                                  412 {"error", "version"} if the note has moved on
 //   DELETE /api/file?path=         header If-Match: <version> -> 204, 412 as above
+//   GET    /api/attachments        -> {"files": [{path, version, size}]} for images,
+//                                  PDFs, audio and video (read-only in wr1t3r)
+//   GET    /api/attachment?path=   that file's bytes, with its Content-Type
 //   GET    /api/fetch?url=         a public web page for the clipper -> its body and
 //                                  Content-Type, and X-Final-URL after redirects
 //   /api/calendar/...              Google Calendar agenda; see worker/calendar.js
@@ -35,7 +38,7 @@ import { githubBackend } from "./github.js";
 import { proxyFetch } from "./fetch.js";
 import { calendarApi } from "./calendar.js";
 import { HttpError, toBase64 } from "./util.js";
-import { isNotePath } from "../src/paths.js";
+import { isNotePath, isAttachmentPath, attachmentType } from "../src/paths.js";
 
 // Matches READ_BATCH in src/sync.js.
 const READ_BATCH = 25;
@@ -98,6 +101,29 @@ async function api(request, store, url, isExcluded) {
 		const files = (await store.list()).filter((f) => isNotePath(f.path) && !isExcluded(f.path));
 		files.sort((a, b) => (a.path < b.path ? -1 : 1));
 		return json({ files });
+	}
+
+	if (p === "/api/attachments" && m === "GET") {
+		const files = (await store.list()).filter((f) => isAttachmentPath(f.path) && !isExcluded(f.path));
+		files.sort((a, b) => (a.path < b.path ? -1 : 1));
+		return json({ files });
+	}
+
+	if (p === "/api/attachment" && m === "GET") {
+		const path = url.searchParams.get("path") || "";
+		if (!isAttachmentPath(path) || isExcluded(path)) throw new HttpError(400, "Not an attachment path: " + String(path).slice(0, 200));
+		const f = await store.read(path);
+		if (!f) throw new HttpError(404, "No such attachment");
+		return new Response(f.bytes, {
+			headers: {
+				"Content-Type": attachmentType(path),
+				ETag: `"${f.version}"`,
+				"Cache-Control": "no-store",
+				"X-Content-Type-Options": "nosniff",
+				// An SVG opened on its own can't run scripts on this origin.
+				"Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox",
+			},
+		});
 	}
 
 	if (p === "/api/files/read" && m === "POST") {

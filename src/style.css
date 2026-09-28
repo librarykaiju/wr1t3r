@@ -78,6 +78,8 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 #tree a.current { background: var(--sel); }
 #tree a.dirty::after { content: " •"; color: var(--accent); }
 #tree .hint { color: var(--muted); padding: 6px; }
+#tree a .snippet { display: block; margin-top: 1px; color: var(--muted); font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; }
+#tree a .snippet mark { background: var(--sel); color: inherit; border-radius: 2px; }
 
 main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 header {
@@ -88,7 +90,7 @@ header {
 .spacer { flex: 1; }
 /* The open note, as a tab: its name (click to rename or move; the full path
    shows while editing) and a close button. */
-#tab { display: flex; align-items: center; min-width: 0; max-width: 60%; background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 0 2px 0 2px; }
+#tab { flex: 0 0 auto; display: flex; align-items: center; min-width: 0; max-width: 24em; background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 0 2px 0 2px; }
 #tab[hidden] { display: none; }
 #path { min-width: 0; max-width: 100%; border-color: transparent; background: none; color: var(--fg); font-weight: 500; text-overflow: ellipsis; padding-right: 2px; }
 #path:focus { border-color: var(--line); background: var(--bg); font-weight: 400; }
@@ -115,7 +117,38 @@ header {
 	border-left: 1px solid var(--line); border-right: 1px solid var(--line); font-size: 14px;
 }
 
-#editor { flex: 1; min-height: 0; }
+#panes { flex: 1; min-height: 0; display: flex; }
+#editor { flex: 1; min-height: 0; min-width: 0; }
+/* The reference pane: another note, read-only, beside the one being edited (wide screens). */
+#ref { flex: 0 0 42%; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--bg); }
+#ref[hidden] { display: none; }
+.ref-top { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+#refPick { flex: 1; min-width: 0; font: 14px var(--sans); }
+#refClose { font-size: 18px; line-height: 1; padding: 4px 8px; }
+#refView { flex: 1; min-height: 0; }
+#refView .cm-editor { height: 100%; }
+#refView .md-fm-add, #refView .md-tag-input, #refView .md-tag-x { display: none; }
+#refView .cm-scroller { font-size: calc(var(--editor-size) * 0.9); padding-bottom: 24px; }
+#refBtn { display: none; }
+@media (min-width: 900px) { #refBtn { display: inline-flex; } }
+@media (max-width: 899px) { #ref { display: none !important; } }
+#refBtn[aria-expanded=true] { color: var(--accent); }
+/* Open notes as tabs; the current one is #tab (click its name to rename). */
+#tabs { display: flex; gap: 4px; align-items: center; min-width: 0; flex: 0 1 auto; overflow-x: auto; scrollbar-width: none; }
+#tabs::-webkit-scrollbar { display: none; }
+#tabs .other { flex: 0 1 auto; display: flex; align-items: center; max-width: 11em; min-width: 3.5em; border: 1px solid transparent; border-radius: 9px; background: none; color: var(--muted); padding: 0; }
+#tabs .other:hover { background: var(--card); color: var(--fg); }
+#tabs .other .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 2px 6px 10px; font-size: 14px; text-align: left; }
+#tabs .other .x { flex: none; padding: 4px 8px; color: var(--muted); font-size: 16px; line-height: 1; border-radius: 6px; }
+#tabs .other .x:hover { background: var(--sel); color: var(--fg); }
+/* Phones: only the current tab shows; the count opens a list of the others. */
+#tabPickWrap { position: relative; flex: none; display: none; place-items: center; min-width: 30px; height: 30px; padding: 0 6px; border: 1.5px solid var(--muted); border-radius: 7px; color: var(--muted); font: 600 13px var(--sans); }
+#tabPick { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+@media (max-width: 760px) {
+	#tabs .other { display: none; }
+	#tabPickWrap:not([hidden]) { display: grid; }
+}
+#tabs .other.dirty .name::after { content: " •"; color: var(--accent); }
 #empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 24px; color: var(--muted); }
 #empty .quote { margin: 0; max-width: 34em; text-align: center; }
 #empty blockquote { margin: 0; font: italic 1.45em/1.5 var(--serif); color: var(--fg); white-space: pre-line; text-wrap: balance; }
@@ -123,18 +156,21 @@ header {
 #empty figcaption cite { font-style: italic; }
 #empty .prompt { margin: 0; max-width: 30em; padding: 10px 16px; border: 0; border-radius: 10px; background: none; color: var(--muted); font: 1.05em/1.5 var(--sans); text-align: center; text-wrap: balance; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 #empty .prompt:focus:not(:focus-visible) { outline: none; }
+#empty .prompt-row { display: flex; align-items: center; gap: 4px; }
+#empty .prompt-next { flex: none; padding: 6px 10px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-size: 1.1em; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+@media (hover: hover) { #empty .prompt-next:hover { color: var(--fg); background: var(--card); } }
 @media (hover: hover) { #empty .prompt:hover { color: var(--fg); background: var(--card); } }
 main.has-note #empty { display: none; }
-main:not(.has-note) #editor { display: none; }
+main:not(.has-note) #panes { display: none; }
 
-#editor .cm-editor { height: 100%; background: var(--bg); }
-#editor .cm-editor.cm-focused { outline: none; }
-#editor .cm-scroller { font: var(--editor-size)/1.65 var(--serif); padding: 24px 16px 40vh; }
+:is(#editor, #refView) .cm-editor { height: 100%; background: var(--bg); }
+:is(#editor, #refView) .cm-editor.cm-focused { outline: none; }
+:is(#editor, #refView) .cm-scroller { font: var(--editor-size)/1.65 var(--serif); padding: 24px 16px 40vh; }
 .cm-content { max-width: 720px; margin: 0 auto; caret-color: var(--accent); }
-#editor .cm-cursor { border-left-color: var(--accent) !important; }
-#editor .cm-activeLine { background: transparent; }
-#editor .cm-selectionBackground, #editor .cm-focused .cm-selectionBackground { background: var(--sel) !important; }
-#editor .cm-placeholder { color: var(--mark); }
+:is(#editor, #refView) .cm-cursor { border-left-color: var(--accent) !important; }
+:is(#editor, #refView) .cm-activeLine { background: transparent; }
+:is(#editor, #refView) .cm-selectionBackground, :is(#editor, #refView) .cm-focused .cm-selectionBackground { background: var(--sel) !important; }
+:is(#editor, #refView) .cm-placeholder { color: var(--mark); }
 .md-h1 { font-size: 1.6em; font-weight: 700; }
 .md-h2 { font-size: 1.35em; font-weight: 700; }
 .md-h3 { font-size: 1.15em; font-weight: 700; }
@@ -147,31 +183,31 @@ main:not(.has-note) #editor { display: none; }
 .md-quote { color: var(--muted); }
 .md-highlight { background: var(--hl); border-radius: 2px; }
 .md-comment, .md-comment * { color: var(--mark) !important; font-style: italic; }
-#editor .md-callout-fold { border: 0; background: none; color: inherit; font: inherit; font-size: 1.1em; line-height: 1; padding: 0 0.3em; margin-left: 0.4em; cursor: pointer;
+:is(#editor, #refView) .md-callout-fold { border: 0; background: none; color: inherit; font: inherit; font-size: 1.1em; line-height: 1; padding: 0 0.3em; margin-left: 0.4em; cursor: pointer;
 	display: inline-block; transform: rotate(90deg); transition: transform .15s; opacity: .7; }
-#editor .md-callout-fold.folded { transform: rotate(0deg); }
-#editor .md-callout-fold:hover { opacity: 1; }
-#editor .md-callout-more { color: var(--mark); margin-left: 0.3em; }
-#editor .md-image { margin: 0.4em 0 0.8em; }
-#editor .md-image img { display: block; max-width: 100%; height: auto; border-radius: 6px; }
-#editor .md-image.broken { font-family: var(--sans, sans-serif); font-size: 0.8em; color: var(--mark); border: 1px dashed var(--mark); border-radius: 6px; padding: 0.6em 0.8em; display: inline-block; }
+:is(#editor, #refView) .md-callout-fold.folded { transform: rotate(0deg); }
+:is(#editor, #refView) .md-callout-fold:hover { opacity: 1; }
+:is(#editor, #refView) .md-callout-more { color: var(--mark); margin-left: 0.3em; }
+:is(#editor, #refView) .md-image { margin: 0.4em 0 0.8em; }
+:is(#editor, #refView) .md-image img { display: block; max-width: 100%; height: auto; border-radius: 6px; }
+:is(#editor, #refView) .md-image.broken { font-family: var(--sans, sans-serif); font-size: 0.8em; color: var(--mark); border: 1px dashed var(--mark); border-radius: 6px; padding: 0.6em 0.8em; display: inline-block; }
 .md-inline-note { font-size: 0.9em !important; }
 .md-blockid { color: var(--mark); font-family: var(--mono); font-size: 0.75em; }
 .md-html { color: var(--mark); font-family: var(--mono); font-size: 0.85em; }
-#editor .md-a:has(> .md-hashtag), #editor .md-hashtag .md-a { text-decoration: none; }
-#editor .md-tag { cursor: pointer; }
+:is(#editor, #refView) .md-a:has(> .md-hashtag), :is(#editor, #refView) .md-hashtag .md-a { text-decoration: none; }
+:is(#editor, #refView) .md-tag { cursor: pointer; }
 .md-footnote { color: var(--accent); font-size: 0.85em; }
 .md-key { color: var(--accent); font-family: var(--mono); font-size: 0.9em; }
 .md-value { font-family: var(--mono); font-size: 0.9em; }
 
-#editor .cm-tooltip.cm-tooltip-autocomplete {
+:is(#editor, #refView) .cm-tooltip.cm-tooltip-autocomplete {
 	background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
 	font: 14px var(--sans); box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
 }
-#editor .cm-tooltip-autocomplete > ul { max-height: 16em !important; }
-#editor .cm-tooltip-autocomplete > ul > li { padding: 5px 12px !important; }
-#editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--sel) !important; color: var(--fg) !important; }
-#editor .cm-panels { background: var(--panel); color: var(--fg); border-color: var(--line); }
+:is(#editor, #refView) .cm-tooltip-autocomplete > ul { max-height: 16em !important; }
+:is(#editor, #refView) .cm-tooltip-autocomplete > ul > li { padding: 5px 12px !important; }
+:is(#editor, #refView) .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--sel) !important; color: var(--fg) !important; }
+:is(#editor, #refView) .cm-panels { background: var(--panel); color: var(--fg); border-color: var(--line); }
 
 #bar {
 	display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -260,22 +296,22 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 /* On a wide screen the contents sit beside the note and stay open while you write. */
 @media (min-width: 1180px) {
 	#toc.docked { top: calc(env(safe-area-inset-top) + 60px); bottom: 48px; right: 12px; max-height: none; box-shadow: none; }
-	#app.toc-docked #editor .cm-scroller { padding-right: 320px; }
+	#app.toc-docked :is(#editor, #refView) .cm-scroller { padding-right: 320px; }
 }
-#editor .md-table { font-family: var(--mono); font-size: 0.8em; line-height: 1.6; white-space: pre; }
-#editor .cm-lineWrapping .md-table { white-space: pre; overflow-wrap: normal; }
-#editor .md-table-head { background: var(--code-bg); }
-#editor .md-table-delim { color: var(--mark); }
-#editor .md-grid-wrap { overflow-x: auto; margin: 0.4em 0; cursor: text; }
-#editor .md-grid { border-collapse: collapse; font-size: 0.9em; line-height: 1.45; }
-#editor .md-grid th, #editor .md-grid td { border: 1px solid var(--line, var(--mark)); padding: 0.35em 0.7em; vertical-align: top; text-align: left;
+:is(#editor, #refView) .md-table { font-family: var(--mono); font-size: 0.8em; line-height: 1.6; white-space: pre; }
+:is(#editor, #refView) .cm-lineWrapping .md-table { white-space: pre; overflow-wrap: normal; }
+:is(#editor, #refView) .md-table-head { background: var(--code-bg); }
+:is(#editor, #refView) .md-table-delim { color: var(--mark); }
+:is(#editor, #refView) .md-grid-wrap { overflow-x: auto; margin: 0.4em 0; cursor: text; }
+:is(#editor, #refView) .md-grid { border-collapse: collapse; font-size: 0.9em; line-height: 1.45; }
+:is(#editor, #refView) .md-grid th, :is(#editor, #refView) .md-grid td { border: 1px solid var(--line, var(--mark)); padding: 0.35em 0.7em; vertical-align: top; text-align: left;
 	min-width: 5em; max-width: 26em; white-space: normal; word-break: normal; overflow-wrap: break-word; hyphens: manual; }
-#editor .md-grid td:has(> :only-child), #editor .md-grid th { overflow-wrap: normal; }
-#editor .md-grid th { background: var(--code-bg); font-weight: 600; }
-#editor .md-grid tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--code-bg) 45%, transparent); }
-#editor .md-grid code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); border-radius: 3px; padding: 0 0.2em; }
-#editor .md-grid mark { background: var(--hl); color: inherit; }
-#editor .md-grid a { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); cursor: pointer; }
+:is(#editor, #refView) .md-grid td:has(> :only-child), :is(#editor, #refView) .md-grid th { overflow-wrap: normal; }
+:is(#editor, #refView) .md-grid th { background: var(--code-bg); font-weight: 600; }
+:is(#editor, #refView) .md-grid tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--code-bg) 45%, transparent); }
+:is(#editor, #refView) .md-grid code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); border-radius: 3px; padding: 0 0.2em; }
+:is(#editor, #refView) .md-grid mark { background: var(--hl); color: inherit; }
+:is(#editor, #refView) .md-grid a { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); cursor: pointer; }
 
 #toast {
 	position: fixed; left: 50%; bottom: calc(max(4px, env(safe-area-inset-bottom)) + 40px); transform: translateX(-50%);
@@ -286,7 +322,8 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 #scrim { display: none; }
 /* Phones: the tab takes the free space, so the name isn't squeezed. */
 @media (max-width: 760px) {
-	#tab { flex: 1 1 auto; max-width: none; min-width: 40%; }
+	#tabs { flex: 1 1 auto; min-width: 33%; }
+	#tab { flex: 1 1 auto; max-width: none; min-width: 0; }
 	#status { white-space: normal; font-size: 11px; line-height: 1.15; text-align: right; padding-inline: 4px; }
 	#tab #path { flex: 1; }
 	header .spacer { display: none; }
@@ -306,7 +343,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 	}
 	#app.menu-open #sidebar { transform: none; }
 	#app.menu-open #scrim { display: block; position: fixed; inset: 0; background: rgb(0 0 0 / 0.3); z-index: 10; }
-	#editor .cm-scroller { padding: 16px 16px 40vh; }
+	:is(#editor, #refView) .cm-scroller { padding: 16px 16px 40vh; }
 	#delete { display: none; }
 	#calNext { display: none; }
 	main.has-note #delete { display: inline-block; }
@@ -314,73 +351,77 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 
 /* Blocks (src/blocks.js): consecutive lines share a background, so a run of
    lines reads as one box; md-first / md-last round its ends. */
-#editor .md-bq, #editor .md-callout, #editor .md-codeblock { padding-left: 14px; padding-right: 10px; }
-#editor .md-first { border-top-left-radius: 6px; border-top-right-radius: 6px; padding-top: 4px; }
-#editor .md-last { border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding-bottom: 4px; }
-#editor .md-bq { box-shadow: inset 4px 0 0 var(--muted); color: var(--muted); }
-#editor .md-bq.md-first, #editor .md-bq.md-last { border-radius: 0; }
+:is(#editor, #refView) .md-bq, :is(#editor, #refView) .md-callout, :is(#editor, #refView) .md-codeblock { padding-left: 14px; padding-right: 10px; }
+:is(#editor, #refView) .md-first { border-top-left-radius: 6px; border-top-right-radius: 6px; padding-top: 4px; }
+:is(#editor, #refView) .md-last { border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding-bottom: 4px; }
+:is(#editor, #refView) .md-bq { box-shadow: inset 4px 0 0 var(--muted); color: var(--muted); }
+:is(#editor, #refView) .md-bq.md-first, :is(#editor, #refView) .md-bq.md-last { border-radius: 0; }
 
-#editor .md-callout { --co: #448aff; background: color-mix(in srgb, var(--co) 10%, var(--bg)); box-shadow: inset 4px 0 0 color-mix(in srgb, var(--co) 70%, #000); }
-#editor .md-callout .md-quote { color: var(--fg); }
-#editor .md-callout.md-first, #editor .md-callout.md-last { border-top-left-radius: 0; border-bottom-left-radius: 0; }
-#editor .md-callout-title, #editor .md-callout-title .md-quote { color: var(--co); font-weight: 700; }
-#editor .md-co-cyan { --co: #00b8d4; }
-#editor .md-co-green { --co: #08b94e; }
-#editor .md-co-yellow { --co: #e0a800; }
-#editor .md-co-orange { --co: #f57c00; }
-#editor .md-co-red { --co: #e5484d; }
-#editor .md-co-purple { --co: #7c4dff; }
-#editor .md-co-gray { --co: #9e9e9e; }
+:is(#editor, #refView) .md-callout { --co: #448aff; background: color-mix(in srgb, var(--co) 10%, var(--bg)); box-shadow: inset 4px 0 0 color-mix(in srgb, var(--co) 70%, #000); }
+:is(#editor, #refView) .md-callout .md-quote { color: var(--fg); }
+:is(#editor, #refView) .md-callout.md-first, :is(#editor, #refView) .md-callout.md-last { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+:is(#editor, #refView) .md-callout-title, :is(#editor, #refView) .md-callout-title .md-quote { color: var(--co); font-weight: 700; }
+:is(#editor, #refView) .md-co-cyan { --co: #00b8d4; }
+:is(#editor, #refView) .md-co-green { --co: #08b94e; }
+:is(#editor, #refView) .md-co-yellow { --co: #e0a800; }
+:is(#editor, #refView) .md-co-orange { --co: #f57c00; }
+:is(#editor, #refView) .md-co-red { --co: #e5484d; }
+:is(#editor, #refView) .md-co-purple { --co: #7c4dff; }
+:is(#editor, #refView) .md-co-gray { --co: #9e9e9e; }
 
-#editor .md-codeblock { background: var(--code-bg); font-family: var(--mono); font-size: 0.82em; }
-#editor .md-codeblock .md-code { background: none; font-size: 1em; }
+:is(#editor, #refView) .md-codeblock { background: var(--code-bg); font-family: var(--mono); font-size: 0.82em; }
+:is(#editor, #refView) .md-codeblock .md-code { background: none; font-size: 1em; }
 
-#editor .md-hr { background: linear-gradient(var(--line), var(--line)) no-repeat center / 100% 1px; color: var(--mark); }
+:is(#editor, #refView) .md-hr { background: linear-gradient(var(--line), var(--line)) no-repeat center / 100% 1px; color: var(--mark); }
 
-#editor .md-task-box {
+:is(#editor, #refView) .md-task-box {
 	width: 1.05em; height: 1.05em; margin: 0 0.15em 0 0; vertical-align: -0.12em;
 	accent-color: var(--accent); cursor: pointer;
 }
-#editor .md-task-done { color: var(--muted); text-decoration: line-through; }
-#editor .md-callout-icon { color: var(--co); font-weight: 700; }
-#editor .md-callout-icon svg { width: 1.05em; height: 1.05em; vertical-align: -0.16em; margin-right: 0.4em; }
+:is(#editor, #refView) .md-task-done { color: var(--muted); text-decoration: line-through; }
+:is(#editor, #refView) .md-callout-icon { color: var(--co); font-weight: 700; }
+:is(#editor, #refView) .md-callout-icon svg { width: 1.05em; height: 1.05em; vertical-align: -0.16em; margin-right: 0.4em; }
 
 /* Frontmatter as a Properties box (src/frontmatter.js). */
-#editor .md-fm { background: var(--panel); box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line); font: 0.78em/1.9 var(--sans); padding-left: 14px; padding-right: 10px; }
-#editor .md-fm .md-key { font-family: var(--sans); font-size: 1em; color: var(--muted); }
-#editor .md-fm .md-value { font-family: var(--sans); font-size: 1em; }
-#editor .md-fm.md-first { border-top-left-radius: 8px; border-top-right-radius: 8px; padding-top: 4px; box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line), inset 0 1px 0 var(--line); }
-#editor .md-fm.md-last { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; padding-bottom: 4px; margin-bottom: 0.6em; box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line); }
-#editor .md-fm.md-first.md-last { box-shadow: inset 0 0 0 1px var(--line); }
-#editor .md-fm-fence { color: var(--mark); }
-#editor .md-fm-toggle, #editor .md-fm-add {
+:is(#editor, #refView) .md-fm { background: var(--panel); box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line); font: 0.78em/1.9 var(--sans); padding-left: 14px; padding-right: 10px; }
+:is(#editor, #refView) .md-fm .md-key { font-family: var(--sans); font-size: 1em; color: var(--muted); }
+:is(#editor, #refView) .md-fm .md-value { font-family: var(--sans); font-size: 1em; }
+:is(#editor, #refView) .md-fm.md-first { border-top-left-radius: 8px; border-top-right-radius: 8px; padding-top: 4px; box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line), inset 0 1px 0 var(--line); }
+:is(#editor, #refView) .md-fm.md-last { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; padding-bottom: 4px; margin-bottom: 0.6em; box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line); }
+:is(#editor, #refView) .md-fm.md-first.md-last { box-shadow: inset 0 0 0 1px var(--line); }
+:is(#editor, #refView) .md-fm-fence { color: var(--mark); }
+:is(#editor, #refView) .md-fm-toggle, :is(#editor, #refView) .md-fm-add {
 	background: none; border: 0; padding: 0; font: 600 1em var(--sans); color: var(--muted); cursor: pointer;
 }
-#editor .md-fm-toggle { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.92em; }
-#editor .md-fm-add { font-weight: 400; color: var(--accent); }
-#editor .md-fm-toggle:hover, #editor .md-fm-add:hover { color: var(--fg); }
-#editor .md-nested {
+:is(#editor, #refView) .md-fm-toggle { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.92em; }
+:is(#editor, #refView) .md-fm-add { font-weight: 400; color: var(--accent); }
+:is(#editor, #refView) .md-fm-toggle:hover, :is(#editor, #refView) .md-fm-add:hover { color: var(--fg); }
+:is(#editor, #refView) .md-nested {
 	padding-left: 26px;
 	background-image: linear-gradient(var(--mark), var(--mark)); background-size: 3px 100%; background-position: 13px 0; background-repeat: no-repeat;
 }
-#editor .md-tags { margin-left: 0.4em; display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; cursor: text; }
-#editor .md-tag, #editor .md-hashtag {
+:is(#editor, #refView) .md-tags { margin-left: 0.4em; display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; cursor: text; }
+:is(#editor, #refView) .md-tag, :is(#editor, #refView) .md-hashtag {
 	--t: #448aff; background: color-mix(in srgb, var(--t) 16%, var(--bg)); color: color-mix(in srgb, var(--t) 75%, var(--fg));
 	border-radius: 999px; padding: 0 0.6em; font: 500 0.95em/1.6 var(--sans);
 }
-#editor .md-hashtag { font-size: 0.8em; padding: 0.05em 0.55em; }
-#editor .md-tag-0 { --t: #448aff; } #editor .md-tag-1 { --t: #08b94e; } #editor .md-tag-2 { --t: #e0a800; } #editor .md-tag-3 { --t: #f57c00; }
-#editor .md-tag-4 { --t: #e5484d; } #editor .md-tag-5 { --t: #7c4dff; } #editor .md-tag-6 { --t: #00b8d4; } #editor .md-tag-7 { --t: #d63384; }
-#editor .md-tag { display: inline-flex; align-items: center; gap: 0.2em; }
-#editor .md-tag-x {
+:is(#editor, #refView) .md-hashtag { font-size: 0.8em; padding: 0.05em 0.55em; }
+:is(#editor, #refView) .md-tag-0 { --t: #448aff; } :is(#editor, #refView) .md-tag-1 { --t: #08b94e; } :is(#editor, #refView) .md-tag-2 { --t: #e0a800; } :is(#editor, #refView) .md-tag-3 { --t: #f57c00; }
+:is(#editor, #refView) .md-tag-4 { --t: #e5484d; } :is(#editor, #refView) .md-tag-5 { --t: #7c4dff; } :is(#editor, #refView) .md-tag-6 { --t: #00b8d4; } :is(#editor, #refView) .md-tag-7 { --t: #d63384; }
+:is(#editor, #refView) .md-tag { display: inline-flex; align-items: center; gap: 0.2em; }
+:is(#editor, #refView) .md-tag-x {
 	background: none; border: 0; padding: 0 0 0 0.1em; margin: 0; font: inherit; line-height: 1; color: inherit; opacity: 0.55; cursor: pointer;
 }
-#editor .md-tag-x:hover { opacity: 1; }
-#editor .md-tag-input {
+:is(#editor, #refView) .md-tag-x:hover { opacity: 1; }
+:is(#editor, #refView) .md-tag-input {
 	background: none; border: 1px dashed var(--line); border-radius: 999px; padding: 0 0.6em; min-width: 0;
 	font: 0.95em/1.6 var(--sans); color: var(--fg); width: 6em;
 }
-#editor .md-tag-input:focus { outline: none; border-color: var(--accent); border-style: solid; }
+:is(#editor, #refView) .md-item { --t: var(--muted); }
+:is(#editor, #refView) .md-prop-check { width: 1.05em; height: 1.05em; margin: 0 0 0 2px; vertical-align: -0.15em; accent-color: var(--accent); cursor: pointer; }
+:is(#editor, #refView) .md-prop-date { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; min-height: 0; line-height: 1.6; color-scheme: light dark; }
+:is(#editor, #refView) .md-prop-date:focus { outline: none; border-color: var(--accent); }
+:is(#editor, #refView) .md-tag-input:focus { outline: none; border-color: var(--accent); border-style: solid; }
 
 /* The bar above the phone keyboard. */
 #kbbar { position: fixed; left: 0; right: 0; z-index: 40; display: flex; gap: 4px; padding: 5px 8px; background: var(--panel, var(--bg)); border-top: 1px solid var(--line); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
@@ -393,7 +434,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 #kbbar button.s { text-decoration: line-through; }
 #kbbar button:active { background: var(--sel); }
 #app.kb-open #menu { display: none; }
-#app.kb-open #editor .cm-scroller { padding-bottom: 60px; }
+#app.kb-open :is(#editor, #refView) .cm-scroller { padding-bottom: 60px; }
 
 /* dataviewjs output (src/dataview.js) */
 .md-dv { position: relative; margin: 4px 0; }
@@ -401,14 +442,69 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 .md-dv-edit { position: absolute; top: 0; right: 0; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); opacity: 0; cursor: pointer; }
 .md-dv:hover .md-dv-edit, .md-dv-edit:focus-visible { opacity: 1; }
 @media (hover: none) { .md-dv-edit { opacity: 0.6; } }
+/* ![[Note]] embeds (src/embeds.js) */
+.md-embed { position: relative; margin: 6px 0; padding: 6px 12px 8px; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--card); }
+.md-embed-top { display: flex; align-items: center; gap: 8px; font: 13px/1.5 var(--sans); }
+.md-embed-title { color: var(--muted); text-decoration: none; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-embed-title:hover { color: var(--accent); }
+.md-embed-edit { margin-left: auto; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font-size: 12px; opacity: 0; cursor: pointer; }
+.md-embed:hover .md-embed-edit, .md-embed-edit:focus-visible { opacity: 1; }
+@media (hover: none) { .md-embed-edit { opacity: 0.6; } }
+:is(#editor, #refView) .md-embed .cm-editor { height: auto; background: transparent; }
+:is(#editor, #refView) .md-embed .cm-scroller { padding: 0; max-height: 70vh; overflow: auto; }
+.md-embed .cm-content { padding: 2px 0; caret-color: transparent; }
+.md-embed.missing { border-left-color: var(--line); }
+.md-embed-missing { color: var(--muted); font: italic 14px/1.5 var(--sans); }
 
 /* Links to notes that don't exist yet (src/links.js) */
 .md-unresolved, .md-unresolved * { opacity: 0.6; text-decoration-style: dashed; }
 
 /* "Linked from" under the note (src/backlinks.js) */
 .md-backlinks { margin: 48px 0 24px; padding-top: 14px; border-top: 1px solid var(--line); font-family: var(--sans); font-size: 14px; }
-.md-backlinks h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.md-backlinks details + details { margin-top: 12px; }
+.md-backlinks summary { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; list-style-position: inside; }
+.md-backlink.md-unresolved { opacity: 1; border: 0; }
+.md-backlink.md-unresolved .md-backlink-name { opacity: 0.6; text-decoration: underline dashed; text-underline-offset: 3px; }
 .md-backlink { display: block; padding: 6px 8px; margin: 0 -8px; border-radius: 6px; color: inherit; text-decoration: none; }
 .md-backlink:hover { background: var(--card); }
 .md-backlink-name { display: block; color: var(--accent); }
 .md-backlink-line { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Quick switcher, command palette, template list (src/palette.js) */
+.palette { position: fixed; inset: 0; z-index: 60; display: flex; justify-content: center; align-items: flex-start; padding: max(10vh, env(safe-area-inset-top)) 12px 12px; background: rgb(0 0 0 / 0.25); }
+.palette-box { width: min(560px, 100%); max-height: 70vh; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 40px rgb(0 0 0 / 0.25); overflow: hidden; }
+.palette-box input { margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 14px 16px; font-size: 16px; background: none; color: var(--fg); }
+.palette-box input:focus { outline: none; }
+.palette-box ul { list-style: none; margin: 0; padding: 6px; overflow-y: auto; }
+.palette-box li { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.palette-box li[aria-selected=true] { background: var(--sel); }
+.palette-box li .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-box li .detail { flex: none; max-width: 45%; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-box li.none { color: var(--muted); cursor: default; }
+#palette { font-size: 17px; }
+#bookmark { flex: none; background: none; border: 0; color: var(--muted); font-size: 16px; line-height: 1; padding: 4px 4px; border-radius: 6px; min-height: 0; }
+#bookmark.on { color: var(--accent); }
+#bookmark:hover { background: var(--sel); color: var(--fg); }
+/* Bookmarks and tags above the folders */
+#tree .side-section > summary { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+#tree .side-section { margin-bottom: 6px; }
+#tree .tag-list { max-height: 40vh; overflow-y: auto; }
+#tree .tag-row { display: flex; gap: 6px; }
+#tree .tag-row .count { margin-left: auto; color: var(--muted); font-size: 0.85em; }
+
+/* ```dataview query results */
+.md-dql table { border-collapse: collapse; width: 100%; font-size: 0.92em; }
+.md-dql th, .md-dql td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
+.md-dql th { color: var(--muted); font-weight: 600; }
+.md-dql ul { margin: 4px 0; padding-left: 1.4em; }
+.md-dql-tasks { list-style: none; padding-left: 0.4em; }
+.md-dql-group { font-weight: 600; margin-top: 6px; }
+.md-dql-count { color: var(--muted); font-size: 0.8em; margin-top: 2px; }
+.md-dql-error { color: var(--muted); font: 0.85em var(--mono); }
+.md-dql-link { color: var(--accent); text-decoration: none; cursor: pointer; }
+
+/* vault attachments */
+:is(#editor, #refView) .md-attachment audio { display: block; width: min(100%, 420px); }
+:is(#editor, #refView) .md-attachment video { display: block; max-width: 100%; height: auto; border-radius: 6px; }
+:is(#editor, #refView) .md-pdf { font: 0.9em var(--sans, sans-serif); padding: 0.5em 0.9em; border: 1px solid var(--line); border-radius: 8px; background: var(--card, var(--bg)); color: var(--fg); cursor: pointer; }
+:is(#editor, #refView) .md-pdf:hover { border-color: var(--accent); }

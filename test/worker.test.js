@@ -25,7 +25,7 @@ const call = (env, path, init = {}) =>
 const env = () => ({
 	WR1T3R_TOKEN: "t",
 	EXCLUDE: "_includes/",
-	VAULT: fakeBucket({ "content/a.md": "A", "_includes/snippets/marquee.md": "M", "_Includes/x.md": "X" }),
+	VAULT: fakeBucket({ "content/a.md": "A", "_includes/snippets/marquee.md": "M", "_Includes/x.md": "X", "content/img/p.png": "PNG", "_includes/i.png": "I", ".obsidian/icon.png": "O", "content/x.exe": "E" }),
 });
 
 test("excluded folders are left out of the list, whatever their case", async () => {
@@ -64,4 +64,20 @@ test("the clipper's fetch refuses private addresses and needs the token", async 
 		assert.ok(r.status === 403 || r.status === 400, u + " -> " + r.status);
 	}
 	assert.equal((await call(e, "/api/fetch?url=https%3A%2F%2Fexample.com", { headers: { Authorization: "Bearer nope" } })).status, 401);
+});
+
+test("attachments are listed and read with their type, never excluded or hidden ones", async () => {
+	const e = env();
+	const list = await (await call(e, "/api/attachments")).json();
+	assert.deepEqual(list.files.map((f) => f.path), ["content/img/p.png"]);
+	const r = await call(e, "/api/attachment?path=content%2Fimg%2Fp.png");
+	assert.equal(r.status, 200);
+	assert.equal(r.headers.get("Content-Type"), "image/png");
+	assert.match(r.headers.get("Content-Security-Policy"), /sandbox/);
+	assert.equal(await r.text(), "PNG");
+	for (const p of ["_includes/i.png", ".obsidian/icon.png", "content/x.exe", "content/a.md", "content/../x.png"]) {
+		assert.equal((await call(e, "/api/attachment?path=" + encodeURIComponent(p))).status, 400, p);
+	}
+	assert.equal((await call(e, "/api/attachment?path=content%2Fnope.png")).status, 404);
+	assert.equal((await call(e, "/api/attachments", { headers: { Authorization: "Bearer nope" } })).status, 401);
 });

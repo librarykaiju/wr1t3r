@@ -25,8 +25,9 @@ export function formatDate(fmt, d = new Date()) {
 
 // One <% %> expression's value, for the few forms templates use. Unknown
 // expressions become empty, as a failed Templater command would.
-function expression(expr, { title, date }) {
+function expression(expr, { title, date, aliases = [] }) {
 	expr = expr.trim();
+	if (aliases.includes(expr)) return title;
 	let m = expr.match(/^tp\.date\.now\(\s*(?:"([^"]*)"|'([^']*)')?\s*\)$/);
 	if (m) return formatDate(m[1] ?? m[2] ?? "YYYY-MM-DD", date);
 	if (expr === "tp.file.title") return title;
@@ -58,6 +59,8 @@ function script(code, { title }) {
 // "-%>" drops the newline after a tag and "<%-" the one before, as in Templater.
 export function renderTemplate(template, { title, date = new Date() }) {
 	const companion = [];
+	// Script variables set from the title ("let t = tp.file.title;"), used later as <% t %>.
+	const aliases = [...template.matchAll(/<%\*[\s\S]*?%>/g)].flatMap((b) => [...b[0].matchAll(/(?:let|const|var)\s+(\w+)\s*=\s*tp\.file\.title\s*[;\n]/g)].map((m) => m[1]));
 	const text = template.replace(/(\r?\n)?<%([*_-]?)([\s\S]*?)([_-]?)%>(\r?\n)?/g, (all, before = "", open, body, close, after = "") => {
 		const trimBefore = open === "-" || open === "_";
 		let value;
@@ -65,10 +68,24 @@ export function renderTemplate(template, { title, date = new Date() }) {
 			const r = script(body, { title });
 			companion.push(...r.companion);
 			value = r.out;
-		} else value = expression(body, { title, date });
+		} else value = expression(body, { title, date, aliases });
 		return (trimBefore ? "" : before) + value + (close ? "" : after);
 	});
-	return { text, companion };
+	return { text: coreTemplate(text, { title, date }), companion };
+}
+
+// Obsidian's core Templates syntax: {{title}}, {{date}}, {{time}},
+// {{date:YYYY-MM-DD}}, {{time:HH:mm}}. Other {{...}} fields (like the Book
+// Search plugin's {{LIST:author}}) are left empty, since only their plugin
+// can fill them.
+function coreTemplate(text, { title, date }) {
+	return text.replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (all, field) => {
+		const [name, fmt] = [field.split(":")[0].trim().toLowerCase(), field.includes(":") ? field.slice(field.indexOf(":") + 1).trim() : null];
+		if (name === "title") return title;
+		if (name === "date") return formatDate(fmt || "YYYY-MM-DD", date);
+		if (name === "time") return formatDate(fmt || "HH:mm", date);
+		return "";
+	});
 }
 
 // The template's path in the vault (case doesn't matter), and the vault root it sits in.

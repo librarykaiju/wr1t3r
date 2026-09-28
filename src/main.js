@@ -9,9 +9,18 @@ import { promptFor } from "./prompts.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags } from "./frontmatter.js";
 import { vaultChanged } from "./vault.js";
+import { setLivePreview } from "./livepreview.js";
+import { parseQuery, matches, snippet } from "./search.js";
+import { openPalette } from "./palette.js";
+import { templatesIn, insertTemplate } from "./templates.js";
+import { COMMANDS } from "./slash.js";
+import { runCommand } from "./kbbar.js";
+import { inTable } from "./table.js";
 import { renameEdits, applyChanges } from "./vaultlinks.js";
 import { EditorView } from "@codemirror/view";
-import { local, persist } from "./store.js";
+import { openSearchPanel } from "@codemirror/search";
+import { local, meta, persist } from "./store.js";
+import { resolveAttachment, attachmentURL } from "./attachments.js";
 import { api, token, setToken, AuthError } from "./api.js";
 import { sync } from "./sync.js";
 import { isNotePath } from "./paths.js";
@@ -59,6 +68,7 @@ async function runSync() {
 	try {
 		await writing;
 		const r = await sync({ local, api, onNote });
+		refreshAttachments();
 		lastSynced = new Date();
 		lastError = null;
 		for (const c of r.conflicts) {
@@ -80,7 +90,7 @@ function onNote(path, note) {
 	if (editor.path !== path) return;
 	if (!note || note.deleted) {
 		toast(`${name(path)} was deleted elsewhere.`);
-		openNote(null);
+		closeTab(path);
 	} else if (!note.dirty) { editor.replace(note); refreshCount(true); }
 }
 
@@ -144,21 +154,34 @@ let vaultTimer;
 function vaultTouched() {
 	clearTimeout(vaultTimer);
 	vaultTimer = setTimeout(() => editor?.view.dispatch({ effects: vaultChanged.of(null) }), 400);
+	refTouched();
 }
 
 function renderTree() {
 	vaultTouched();
 	const tree = $("tree");
-	const q = $("filter").value.trim().toLowerCase();
+	const q = $("filter").value.trim();
 	tree.replaceChildren();
 	const list = visible();
 	if (q) {
-		// "#tag" finds notes with that tag (or a nested one, like #tag/sub), in the properties or the text.
-		const tag = /^#[^\s#]+$/.test(q) ? q.slice(1) : null;
-		const hasTag = (n) => !n.binary && noteTags(n.text).some((t) => t.toLowerCase() === tag || t.toLowerCase().startsWith(tag + "/"));
-		const hits = list.filter((n) => (tag && hasTag(n)) || n.path.toLowerCase().includes(q) || (!n.binary && n.text.toLowerCase().includes(q)));
+		// Words, "phrases", path:, file:, tag:/#tag and -word (src/search.js).
+		const terms = parseQuery(q);
+		const hits = list.filter((n) => matches(n.binary ? { path: n.path, text: "" } : n, terms, noteTags));
 		const base = commonFolder(list);
-		for (const n of hits.slice(0, 300)) tree.append(link(n, n.path.slice(base.length).replace(/\.md$/i, "")));
+		for (const n of hits.slice(0, 300)) {
+			const a = link(n, n.path.slice(base.length).replace(/\.md$/i, ""));
+			const s = n.binary ? null : snippet(n.text, terms);
+			if (s) {
+				a.classList.add("hit");
+				const line = document.createElement("span");
+				line.className = "snippet";
+				const mark = document.createElement("mark");
+				mark.textContent = s.match;
+				line.append(s.before, mark, s.after);
+				a.append(line);
+			}
+			tree.append(a);
+		}
 		if (!hits.length) tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: "No matches." }));
 		return;
 	}
@@ -166,6 +189,8 @@ function renderTree() {
 		tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: lastSynced ? "The vault is empty." : "Loading the vault…" }));
 		return;
 	}
+	drawBookmarks(tree);
+	drawTags(tree, list);
 	// Folders first, then notes, like Obsidian.
 	const root = { folders: new Map(), notes: [] };
 	for (const n of list) {
@@ -207,6 +232,81 @@ function renderTree() {
 	})(top, tree, base);
 }
 
+// Bookmarked notes, and every tag with its count, above the folders. Both
+// fold, and stay folded or open on this device.
+const BOOKMARKS_KEY = "wr1t3r-bookmarks";
+let bookmarks = readJSON(BOOKMARKS_KEY, []);
+const SECTIONS_KEY = "wr1t3r-side-sections";
+const sections = readJSON(SECTIONS_KEY, { bookmarks: true, tags: false });
+
+function sideSection(key, title, into) {
+	const d = document.createElement("details");
+	d.className = "side-section";
+	d.open = !!sections[key];
+	const sum = document.createElement("summary");
+	sum.textContent = title;
+	const kids = document.createElement("div");
+	kids.className = "kids";
+	d.append(sum, kids);
+	d.addEventListener("toggle", () => { sections[key] = d.open; writeJSON(SECTIONS_KEY, sections); });
+	into.append(d);
+	return kids;
+}
+
+function drawBookmarks(tree) {
+	const marked = bookmarks.filter(isOpenable);
+	if (!marked.length) return;
+	const kids = sideSection("bookmarks", `Bookmarks`, tree);
+	for (const p of marked) kids.append(link(notes.get(p), name(p)));
+}
+
+function toggleBookmark(path = editor.path) {
+	if (!path) return;
+	bookmarks = bookmarks.includes(path) ? bookmarks.filter((p) => p !== path) : [...bookmarks, path];
+	writeJSON(BOOKMARKS_KEY, bookmarks);
+	renderBookmarkButton();
+	renderTree();
+}
+
+function renderBookmarkButton() {
+	const on = !!editor.path && bookmarks.includes(editor.path);
+	const b = $("bookmark");
+	b.textContent = on ? "★" : "☆";
+	b.classList.toggle("on", on);
+	b.setAttribute("aria-pressed", String(on));
+	b.title = on ? "Remove bookmark" : "Bookmark this note";
+}
+
+// Tags per note, kept while the note's text is the same.
+const tagCache = new Map();
+function tagsOfNote(n) {
+	const hit = tagCache.get(n.path);
+	if (hit && hit.text === n.text) return hit.tags;
+	const tags = n.binary ? [] : [...new Set(noteTags(n.text).map((t) => t.toLowerCase()))];
+	tagCache.set(n.path, { text: n.text, tags });
+	return tags;
+}
+
+function drawTags(tree, list) {
+	const counts = new Map();
+	for (const n of list) for (const t of tagsOfNote(n)) counts.set(t, (counts.get(t) || 0) + 1);
+	if (!counts.size) return;
+	const kids = sideSection("tags", `Tags`, tree);
+	kids.classList.add("tag-list");
+	for (const [t, c] of [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))) {
+		const a = document.createElement("a");
+		a.href = "#";
+		a.className = "tag-row";
+		a.textContent = "#" + t;
+		const n = document.createElement("span");
+		n.className = "count";
+		n.textContent = c;
+		a.append(n);
+		a.addEventListener("click", (e) => { e.preventDefault(); showTag(t); });
+		kids.append(a);
+	}
+}
+
 // ---- notes ---------------------------------------------------------------------
 
 // The tab shows the note's name; while you're editing it, its full path.
@@ -217,8 +317,78 @@ function showPath() {
 	$("tab").hidden = !p;
 }
 
-function openNote(path) {
+// ---- tabs ----------------------------------------------------------------------
+
+// Open notes, in tab order, remembered on this device. Opening a note from the
+// sidebar (or New, Today, a search) gives it a tab; following a link opens it
+// in the current tab, as Obsidian does.
+const TABS_KEY = "wr1t3r-tabs";
+const MAX_TABS = 12;
+let tabs = readJSON(TABS_KEY, []);
+const saveTabs = () => writeJSON(TABS_KEY, tabs);
+const isOpenable = (p) => { const n = notes.get(p); return !!n && !n.deleted; };
+
+function addTab(path, replace) {
+	if (tabs.includes(path)) return;
+	const at = tabs.indexOf(editor.path);
+	if (replace && at >= 0) tabs[at] = path;
+	else tabs.splice(at >= 0 ? at + 1 : tabs.length, 0, path);
+	while (tabs.length > MAX_TABS) tabs.splice(tabs.findIndex((p) => p !== path), 1);
+	saveTabs();
+}
+
+function closeTab(path) {
+	const at = tabs.indexOf(path);
+	if (at >= 0) { tabs.splice(at, 1); saveTabs(); }
+	if (path !== editor.path) return renderTabs();
+	const next = tabs.slice(Math.max(0, at)).concat(tabs.slice(0, Math.max(0, at)).reverse()).find(isOpenable);
+	openNote(next || null, { tab: false });
+}
+
+function renderTabs() {
+	const strip = $("tabs"), current = $("tab");
+	const shown = tabs.filter((p) => isOpenable(p) || p === editor.path);
+	strip.replaceChildren();
+	for (const p of shown) {
+		if (p === editor.path) { strip.append(current); continue; }
+		const t = document.createElement("div");
+		t.className = "other" + (notes.get(p)?.dirty ? " dirty" : "");
+		t.setAttribute("role", "tab");
+		t.setAttribute("aria-selected", "false");
+		t.title = p;
+		const b = document.createElement("button");
+		b.type = "button";
+		b.className = "name quiet";
+		b.textContent = name(p);
+		b.addEventListener("click", () => openNote(p, { tab: false }));
+		const x = document.createElement("button");
+		x.type = "button";
+		x.className = "x quiet";
+		x.textContent = "×";
+		x.setAttribute("aria-label", `Close ${name(p)}`);
+		x.addEventListener("click", () => closeTab(p));
+		t.addEventListener("auxclick", (e) => { if (e.button === 1) { e.preventDefault(); closeTab(p); } });
+		t.append(b, x);
+		strip.append(t);
+	}
+	if (!shown.includes(editor.path)) strip.append(current);
+	const pick = $("tabPick");
+	$("tabPickWrap").hidden = shown.length < 2;
+	$("tabCount").textContent = shown.length;
+	pick.replaceChildren(...shown.map((p) => Object.assign(document.createElement("option"), { value: p, textContent: name(p), selected: p === editor.path })));
+	requestAnimationFrame(() => current.scrollIntoView?.({ block: "nearest", inline: "nearest" }));
+	renderRefPick();
+}
+
+// opts.replace: show it in the current tab (links); opts.tab: false to leave the tabs as they are.
+// Recently opened notes, newest first, for the quick switcher.
+const RECENT_KEY = "wr1t3r-recent";
+let recent = readJSON(RECENT_KEY, []);
+
+function openNote(path, { replace = false, tab = true } = {}) {
 	const note = path ? notes.get(path) : null;
+	if (tab && note && !note.deleted) addTab(path, replace);
+	if (note && !note.deleted) { recent = [path, ...recent.filter((p) => p !== path)].slice(0, 50); writeJSON(RECENT_KEY, recent); }
 	editor.open(note && !note.deleted ? note : null);
 	const has = !!editor.path;
 	document.querySelector("main").classList.toggle("has-note", has);
@@ -230,15 +400,168 @@ function openNote(path) {
 	if (!has && location.hash) history.replaceState(null, "", location.pathname);
 	$("app").classList.remove("menu-open");
 	renderTree();
+	renderTabs();
+	renderBookmarkButton();
 	refreshCount(true);
+}
+
+// ---- quick switcher, command palette, templates ----------------------------------
+
+const folderOf = (p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")).replace(/^content(\/|$)/, "") : "");
+
+// Ctrl/Cmd+O: jump to a note by name, recent ones first; Enter on a name
+// that isn't a note offers to make it.
+function quickSwitcher() {
+	const all = visible().filter((n) => !n.binary).map((n) => n.path);
+	const set = new Set(all);
+	const order = [...recent.filter((p) => set.has(p) && p !== editor.path), ...all.filter((p) => !recent.includes(p))];
+	openPalette({
+		placeholder: "Open a note…",
+		items: order.map((p) => ({ label: name(p), detail: folderOf(p), keywords: folderOf(p), run: () => openNote(p) })),
+		empty: (q) => ({ label: `Create “${q}”`, detail: "new note", run: () => newNote(currentFolder() + normalise(q)) }),
+	});
+}
+
+// Rendering a template for a note called title.
+function renderFor(tmplPath, title) {
+	return renderTemplate(notes.get(tmplPath)?.text || "", { title, date: new Date() }).text;
+}
+
+function templateItems(run) {
+	return templatesIn(visible().map((n) => n.path)).map((t) => ({ label: t.name, detail: "template", run: () => run(t) }));
+}
+
+// A new note from any template, named first (in the current note's folder).
+function newFromTemplate() {
+	const items = templateItems((t) => newNote(currentFolder() + "Untitled.md", (path) => renderFor(t.path, name(path))));
+	if (!items.length) return toast("There's no _templates folder in the vault.");
+	openPalette({ placeholder: "New note from template…", items });
+}
+
+// The template at the cursor; its properties join the note's without changing any.
+function insertFromTemplate() {
+	const view = editor.view;
+	if (!editor.path || view.state.readOnly) return toast("Open a note first.");
+	const items = templateItems((t) => {
+		const text = view.state.sliceDoc();
+		const changes = insertTemplate(text, renderFor(t.path, name(editor.path)), view.state.selection.main.head);
+		const body = changes[changes.length - 1];
+		view.dispatch({ changes, selection: body ? { anchor: view.state.changes(changes).mapPos(body.from, 1) } : undefined, scrollIntoView: true, userEvent: "input.template" });
+		view.focus();
+	});
+	if (!items.length) return toast("There's no _templates folder in the vault.");
+	openPalette({ placeholder: "Insert template…", items });
+}
+
+// Ctrl/Cmd+P: every command, app and formatting alike.
+function commandPalette() {
+	const has = !!editor.path;
+	const view = editor.view;
+	const app = [
+		["Open a note", quickSwitcher, "quick switcher go to find"],
+		["New note", () => newNote(), "create"],
+		["New note from template", newFromTemplate, "templater"],
+		["Insert template", insertFromTemplate, "templater", true],
+		["Open today's daily note", openDaily, "today journal daily"],
+		["Search notes", () => { $("app").classList.add("menu-open"); $("filter").focus(); $("filter").select(); }, "find sidebar"],
+		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
+		["Rename this note", () => { $("path").focus(); }, "move", true],
+		["Delete this note", () => removeNote(editor.path), "remove", true],
+		["Close this tab", () => closeTab(editor.path), "close", true],
+		["Show reference pane", () => showRef(!ref.on), "split side", true],
+		["Contents", () => openToc(!tocOpen()), "outline headings toc", true],
+		["Toggle Live Preview", () => { const live = readRaw("wr1t3rMode") !== "live"; storeRaw("wr1t3rMode", live ? "live" : null); applyMode(live ? "live" : "source"); }, "markdown symbols hide"],
+		["Upload files", () => $("upload-input").click(), "import docx pdf"],
+		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],
+		["Sync now", () => runSync(), "save"],
+		["Start or pause the focus timer", () => toggleTimer(), "pomodoro"],
+		["Find in note", () => { view.focus(); openSearchPanel(view); }, "search replace", true],
+	].filter(([, , , needsNote]) => !needsNote || has).map(([label, run, keywords]) => ({ label, run, keywords }));
+	const format = has && !view.state.readOnly
+		? COMMANDS.filter((c) => !c.table || inTable(view.state)).map((c) => ({ label: c.label, detail: "insert", keywords: c.keywords, run: () => { view.focus(); runCommand(view, c); } }))
+		: [];
+	openPalette({ placeholder: "Run a command…", items: [...app, ...format] });
+}
+
+// ---- reference pane ------------------------------------------------------------
+
+// Another note, read-only, beside the one being edited (wide screens). Links in
+// it open in the pane; Edit swaps it into the editor.
+const REF_KEY = "wr1t3r-ref";
+let reader = null;
+let ref = readJSON(REF_KEY, { on: false, path: null });
+const saveRef = () => writeJSON(REF_KEY, ref);
+
+function showRef(on, path = ref.path) {
+	if (on && (!path || !isOpenable(path))) path = [...tabs].reverse().find((p) => p !== editor.path && isOpenable(p)) || editor.path;
+	ref = { on: !!on && !!path, path: path || ref.path };
+	saveRef();
+	$("ref").hidden = !ref.on;
+	$("refBtn").setAttribute("aria-expanded", String(ref.on));
+	if (ref.on) {
+		reader ??= editor.reader($("refView"), followRefLink);
+		reader.show(notes.get(ref.path));
+	}
+	renderRefPick();
+}
+
+function renderRefPick() {
+	if (!ref.on) return;
+	const pick = $("refPick");
+	const list = [...new Set([ref.path, ...tabs])].filter(isOpenable);
+	pick.replaceChildren(...list.map((p) => Object.assign(document.createElement("option"), { value: p, textContent: name(p), selected: p === ref.path })));
+}
+
+function followRefLink(link) {
+	if (link.url || link.tag) return followLink(link);
+	const path = resolveNote(link, ref.path, visible().map((n) => n.path));
+	if (!path) return toast(`There's no note at “${link.note}”.`);
+	if (path !== ref.path) showRef(true, path);
+	const { state } = reader.view;
+	const at = link.heading.startsWith("^") ? blockFor(state, link.heading) : headingFor(toc.headings(state), link.heading)?.from;
+	if (at != null) reader.view.dispatch({ effects: EditorView.scrollIntoView(at, { y: "start", yMargin: 24 }) });
+}
+
+// The pane keeps up with edits and syncs (after a pause).
+let refTimer;
+function refTouched() {
+	if (!ref.on || !reader) return;
+	clearTimeout(refTimer);
+	refTimer = setTimeout(() => {
+		if (!isOpenable(ref.path)) return showRef(false);
+		reader.show(notes.get(ref.path));
+		reader.refresh();
+	}, 400);
 }
 
 // The empty screen's quote of the day. Checked again whenever wr1t3r comes back
 // into view, so a tab left open overnight shows the new day's quote.
-// Today's writing prompt; a tap moves on to the next one.
+// Today's writing prompt; a tap starts a note titled with it, the arrow shows another.
 let promptStep = 0;
 function renderPrompt() {
 	$("writingPrompt").textContent = promptFor(new Date(), promptStep);
+}
+
+// A prompt as a note name: without the characters Obsidian won't allow in one.
+function promptFileName(text) {
+	const n = text.replace(/[*"\\/<>:|?#^\[\]]/g, "").replace(/\s+/g, " ").trim();
+	return (n.length > 80 ? n.slice(0, 80).replace(/\s+\S*$/, "") : n) || "Untitled";
+}
+
+// A journal entry for a prompt: in journal/, with the prompt as its title and
+// the rest of the frontmatter from _templates/Journal.md, filled in the way
+// Templater would. Without that template, the usual new-note properties.
+const JOURNAL_TEMPLATE = "_templates/journal.md";
+function newPromptNote(question) {
+	const paths = visible().map((n) => n.path);
+	const tmpl = findTemplate(paths, JOURNAL_TEMPLATE);
+	const folder = (tmpl ? tmpl.root : commonFolder(visible())) + "journal/";
+	const title = question.replaceAll('"', "'");
+	newNote(folder + promptFileName(question) + ".md", () => {
+		const date = new Date();
+		if (!tmpl) return newNoteFrontmatter(title, date.toLocaleDateString("en-CA"));
+		return renderTemplate(notes.get(tmpl.path).text, { title, date }).text;
+	});
 }
 
 function renderQuote() {
@@ -264,6 +587,7 @@ function onEdit(path, text) {
 	notes.set(path, { ...note, text, dirty: true });
 	change(path, (cur) => (cur ? { ...cur, text, dirty: true, deleted: false } : { path, text, base: null, dirty: true, deleted: false }));
 	if (!wasDirty) { renderStatus(); renderTree(); }
+	if (path === ref.path) refTouched();
 	scheduleSync();
 }
 
@@ -284,7 +608,7 @@ function normalise(input) {
 	return p;
 }
 
-async function newNote(suggestion = currentFolder() + "Untitled.md") {
+async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = null) {
 	const input = prompt("New note (folders with /):", suggestion);
 	if (input == null) return;
 	const path = normalise(input);
@@ -294,7 +618,7 @@ async function newNote(suggestion = currentFolder() + "Untitled.md") {
 	// note replaces it in the vault.
 	// Notes that could be published start with the Note template's properties,
 	// including today's date; "_" folders never publish, so they start empty.
-	const text = /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"));
+	const text = makeText ? makeText(path) : /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"));
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	// Focus goes back to the New button once the name prompt closes; take it
@@ -339,7 +663,7 @@ function followLink(link) {
 	if (path) {
 		if (path !== editor.path) {
 			history.pushState(null, "", "#" + encodeURIComponent(path));
-			openNote(path);
+			openNote(path, { replace: true });
 		}
 		const { state } = editor.view;
 		const at = link.heading.startsWith("^") ? blockFor(state, link.heading) : headingFor(toc.headings(state), link.heading)?.from;
@@ -365,7 +689,7 @@ async function removeNote(path) {
 	if (!note || !confirm(`Delete “${name(path)}”? It's removed from the vault on every device.`)) return;
 	await change(path, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
 	editor.forget(path);
-	openNote(null);
+	closeTab(path);
 	renderStatus();
 	scheduleSync(0);
 }
@@ -398,6 +722,9 @@ async function renameNote(from, input) {
 	await change(to, (cur) => ({ path: to, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	await change(from, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
 	editor.forget(from);
+	tabs = tabs.map((p) => (p === from ? to : p));
+	saveTabs();
+	if (ref.path === from) ref.path = to;
 	openNote(to);
 	scheduleSync(0);
 }
@@ -526,6 +853,13 @@ function applySize(px) {
 	editor?.view.requestMeasure();
 }
 
+// Live Preview hides markdown symbols off the cursor line (off unless chosen).
+function applyMode(mode) {
+	const live = mode === "live";
+	setLivePreview(editor?.view, live);
+	document.querySelectorAll("#modes button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.mode === "live") === live)));
+}
+
 function openSettings(on) {
 	if (on && !$("agenda").hidden) openAgenda(false);
 	$("settings").hidden = !on;
@@ -543,6 +877,13 @@ function setupSettings() {
 		if (!b) return;
 		storeRaw("wr1t3rTheme", b.dataset.theme === "auto" ? null : b.dataset.theme);
 		applyTheme(b.dataset.theme);
+	});
+	applyMode(readRaw("wr1t3rMode"));
+	$("modes").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b) return;
+		storeRaw("wr1t3rMode", b.dataset.mode === "live" ? "live" : null);
+		applyMode(b.dataset.mode);
 	});
 	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
 	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });
@@ -1159,11 +1500,36 @@ function showLogin(message = "") {
 
 let refreshKeyboardBar = null;
 
+// Vault attachments (images, PDFs, audio, video): the list, kept for offline
+// use; the files themselves are fetched when shown (src/attachments.js).
+let attachments = [];
+let attachmentsLoaded = false;
+async function loadAttachments() {
+	try { attachments = (await meta.get("attachments")) || []; } catch {}
+	if (attachments.length) { attachmentsLoaded = true; vaultTouched(); }
+}
+async function refreshAttachments() {
+	try {
+		const list = await api.attachments();
+		const changed = JSON.stringify(list) !== JSON.stringify(attachments);
+		attachments = list;
+		attachmentsLoaded = true;
+		if (changed) { meta.set("attachments", list).catch(() => {}); vaultTouched(); }
+	} catch {}
+}
+
 // What dataviewjs blocks (src/dataview.js) may read: notes on this device, and
 // public web pages through the Worker, as the clipper fetches them.
 const dataviewVault = {
 	paths: () => visible().filter((n) => !n.binary).map((n) => n.path),
 	text: (path) => { const n = notes.get(path); return n && !n.deleted && !n.binary ? n.text : null; },
+	attachments: () => attachments,
+	attachmentsLoaded: () => attachmentsLoaded,
+	resolveAttachment: (name, from) => resolveAttachment(name, from, attachments.map((f) => f.path)),
+	attachmentURL(path) {
+		const file = attachments.find((f) => f.path === path);
+		return file ? attachmentURL(file, (p) => api.attachment(p)) : Promise.reject(new Error("No such attachment"));
+	},
 	async fetch(url) {
 		const res = await fetch("/api/fetch?url=" + encodeURIComponent(url), { headers: { Authorization: "Bearer " + token() }, cache: "no-store" });
 		if (res.ok) return { status: 200, text: await res.text() };
@@ -1181,9 +1547,11 @@ async function start() {
 	setupToc();
 	refreshKeyboardBar = setupKeyboardBar($("app"), () => editor.view);
 	renderQuote();
-	$("writingPrompt").addEventListener("click", () => { promptStep++; renderPrompt(); });
+	$("writingPrompt").addEventListener("click", () => newPromptNote($("writingPrompt").textContent));
+	$("promptNext").addEventListener("click", () => { promptStep++; renderPrompt(); });
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
+	loadAttachments();
 	persist();
 
 	$("filter").addEventListener("input", renderTree);
@@ -1214,7 +1582,17 @@ async function start() {
 	});
 	$("path").addEventListener("blur", showPath);
 	$("path").addEventListener("focus", () => { showPath(); $("path").select(); });
-	$("closeNote").addEventListener("click", () => openNote(null));
+	$("closeNote").addEventListener("click", () => editor.path ? closeTab(editor.path) : openNote(null));
+	$("tabPick").addEventListener("change", () => openNote($("tabPick").value, { tab: false }));
+	$("refBtn").addEventListener("click", () => showRef(!ref.on));
+	$("refClose").addEventListener("click", () => showRef(false));
+	$("refPick").addEventListener("change", () => showRef(true, $("refPick").value));
+	$("refOpen").addEventListener("click", () => {
+		const was = editor.path, p = ref.path;
+		if (!p || p === was) return;
+		openNote(p);
+		if (was) showRef(true, was); // swap: the note you were editing moves to the pane
+	});
 	$("tree").addEventListener("click", (e) => {
 		const a = e.target.closest("a");
 		if (!a) return;
@@ -1232,11 +1610,18 @@ async function start() {
 		if (document.visibilityState === "visible") runSync();
 	});
 	document.addEventListener("keydown", (e) => {
-		if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); runSync(); }
+		if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+		const k = e.key.toLowerCase();
+		if (k === "s") { e.preventDefault(); runSync(); }
+		else if (k === "o" && !e.shiftKey) { e.preventDefault(); quickSwitcher(); }
+		else if (k === "p" && !e.shiftKey) { e.preventDefault(); commandPalette(); }
 	});
+	$("bookmark").addEventListener("click", () => toggleBookmark());
+	$("palette").addEventListener("click", () => commandPalette());
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);
 
-	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || null);
+	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || tabs.find(isOpenable) || null);
+	if (ref.on) showRef(true);
 	renderStatus();
 	runSync();
 }

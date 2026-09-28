@@ -45,6 +45,14 @@ export const api = {
 	async list() {
 		return (await jsonOrThrow(await call("/api/files"))).files;
 	},
+	async attachments() {
+		return (await jsonOrThrow(await call("/api/attachments"))).files;
+	},
+	async attachment(path) {
+		const res = await call("/api/attachment?path=" + encodeURIComponent(path));
+		if (!res.ok) await jsonOrThrow(res);
+		return res.blob();
+	},
 	async read(paths) {
 		const out = [];
 		for (let i = 0; i < paths.length; i += READ_BATCH) {
