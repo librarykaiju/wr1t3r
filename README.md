@@ -28,6 +28,10 @@ A line holding just `![[Note]]` shows that note in a box, as Obsidian does (`src
 
 **Live Preview** (Aa panel > Markdown symbols, off by default) hides `**`, `##`, `[text](url)` parts, `[[`/`]]` and `==` on every line except the one the cursor is on, like Obsidian's Live Preview (`src/livepreview.js`). Code blocks, tables and the properties box are left as they are. The note's text never changes.
 
+**Tabs:** every note opened from the sidebar (or New, Today, a search) gets a tab across the top; following a link opens it in the current tab, as Obsidian does. Close a tab with × (or a middle-click). Open tabs are remembered on the device. On a phone only the current tab shows, and the number beside it lists the others.
+
+**Reference pane** (wide screens): the split-square button in the header shows another note, read-only, beside the one you're editing. Pick it from the list at the top (your open tabs); links clicked in it open in the pane; **Edit** swaps it with the note in the editor.
+
 The search box takes Obsidian-style operators (`src/search.js`): words (all must appear), `"a phrase"`, `path:folder`, `file:name`, `tag:x` or `#x` (nested tags count), and `-word` to leave notes out. Results show the first matching line with the match marked.
 
 Typing `[[` lists notes to link to, filtered as you type (`src/linkcomplete.js`); picking one writes the shortest name that finds it, as Obsidian does, and `#` after a name lists that note's headings (`[[#` this note's). Links to notes that don't exist yet are drawn fainter. Under a note, a links panel (`src/backlinks.js`) has three parts that fold: **Linked from** (notes that link to it, with the line each link is on), **Links to** (notes it links to, faded when they don't exist yet) and **Unlinked mentions** (notes that name it in plain text without linking it; folded at first). It's built from the notes on the device, so it works offline. Renaming a note (edit the name in its tab) rewrites the links to it in other notes after asking, changing only the name part of each link and keeping its headings, aliases and style (`src/vaultlinks.js`).

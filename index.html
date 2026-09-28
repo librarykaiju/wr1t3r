@@ -43,9 +43,12 @@
 		<main>
 			<header>
 				<button id="menu" type="button" aria-label="Notes">☰</button>
-				<div id="tab" class="tab" hidden>
-					<input id="path" aria-label="Note path (edit and press Enter to rename)" title="Click to rename or move" spellcheck="false" disabled>
-					<button id="closeNote" type="button" aria-label="Close note" title="Close note">×</button>
+				<label id="tabPickWrap" title="Open notes" hidden><span id="tabCount"></span><select id="tabPick" aria-label="Switch to an open note"></select></label>
+				<div id="tabs" role="tablist" aria-label="Open notes">
+					<div id="tab" class="tab" role="tab" aria-selected="true" hidden>
+						<input id="path" aria-label="Note path (edit and press Enter to rename)" title="Click to rename or move" spellcheck="false" disabled>
+						<button id="closeNote" type="button" aria-label="Close note" title="Close note">×</button>
+					</div>
 				</div>
 				<span class="spacer"></span>
 				<button id="status" type="button" title="Sync now"></button>
@@ -53,10 +56,23 @@
 					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
 					<span id="calNext"></span>
 				</button>
+				<button id="refBtn" type="button" class="quiet" aria-label="Reference pane" aria-expanded="false" aria-controls="ref" title="Show another note beside this one">
+					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M12 4.5v15"/></svg>
+				</button>
 				<button id="settingsBtn" type="button" class="quiet" aria-label="Display settings" aria-expanded="false" aria-controls="settings">Aa</button>
 				<button id="delete" type="button" class="quiet" title="Delete note" disabled>Delete</button>
 			</header>
-			<div id="editor"></div>
+			<div id="panes">
+				<div id="editor"></div>
+				<aside id="ref" aria-label="Reference note" hidden>
+					<div class="ref-top">
+						<select id="refPick" aria-label="Note to show"></select>
+						<button id="refOpen" type="button" class="quiet" title="Open this note for editing">Edit</button>
+						<button id="refClose" type="button" class="quiet" aria-label="Close reference pane" title="Close">×</button>
+					</div>
+					<div id="refView"></div>
+				</aside>
+			</div>
 			<div id="empty">
 				<figure class="quote">
 					<blockquote id="quoteText"></blockquote>

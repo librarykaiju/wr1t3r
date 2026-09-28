@@ -82,7 +82,7 @@ function onNote(path, note) {
 	if (editor.path !== path) return;
 	if (!note || note.deleted) {
 		toast(`${name(path)} was deleted elsewhere.`);
-		openNote(null);
+		closeTab(path);
 	} else if (!note.dirty) { editor.replace(note); refreshCount(true); }
 }
 
@@ -146,6 +146,7 @@ let vaultTimer;
 function vaultTouched() {
 	clearTimeout(vaultTimer);
 	vaultTimer = setTimeout(() => editor?.view.dispatch({ effects: vaultChanged.of(null) }), 400);
+	refTouched();
 }
 
 function renderTree() {
@@ -231,8 +232,73 @@ function showPath() {
 	$("tab").hidden = !p;
 }
 
-function openNote(path) {
+// ---- tabs ----------------------------------------------------------------------
+
+// Open notes, in tab order, remembered on this device. Opening a note from the
+// sidebar (or New, Today, a search) gives it a tab; following a link opens it
+// in the current tab, as Obsidian does.
+const TABS_KEY = "wr1t3r-tabs";
+const MAX_TABS = 12;
+let tabs = readJSON(TABS_KEY, []);
+const saveTabs = () => writeJSON(TABS_KEY, tabs);
+const isOpenable = (p) => { const n = notes.get(p); return !!n && !n.deleted; };
+
+function addTab(path, replace) {
+	if (tabs.includes(path)) return;
+	const at = tabs.indexOf(editor.path);
+	if (replace && at >= 0) tabs[at] = path;
+	else tabs.splice(at >= 0 ? at + 1 : tabs.length, 0, path);
+	while (tabs.length > MAX_TABS) tabs.splice(tabs.findIndex((p) => p !== path), 1);
+	saveTabs();
+}
+
+function closeTab(path) {
+	const at = tabs.indexOf(path);
+	if (at >= 0) { tabs.splice(at, 1); saveTabs(); }
+	if (path !== editor.path) return renderTabs();
+	const next = tabs.slice(Math.max(0, at)).concat(tabs.slice(0, Math.max(0, at)).reverse()).find(isOpenable);
+	openNote(next || null, { tab: false });
+}
+
+function renderTabs() {
+	const strip = $("tabs"), current = $("tab");
+	const shown = tabs.filter((p) => isOpenable(p) || p === editor.path);
+	strip.replaceChildren();
+	for (const p of shown) {
+		if (p === editor.path) { strip.append(current); continue; }
+		const t = document.createElement("div");
+		t.className = "other" + (notes.get(p)?.dirty ? " dirty" : "");
+		t.setAttribute("role", "tab");
+		t.setAttribute("aria-selected", "false");
+		t.title = p;
+		const b = document.createElement("button");
+		b.type = "button";
+		b.className = "name quiet";
+		b.textContent = name(p);
+		b.addEventListener("click", () => openNote(p, { tab: false }));
+		const x = document.createElement("button");
+		x.type = "button";
+		x.className = "x quiet";
+		x.textContent = "×";
+		x.setAttribute("aria-label", `Close ${name(p)}`);
+		x.addEventListener("click", () => closeTab(p));
+		t.addEventListener("auxclick", (e) => { if (e.button === 1) { e.preventDefault(); closeTab(p); } });
+		t.append(b, x);
+		strip.append(t);
+	}
+	if (!shown.includes(editor.path)) strip.append(current);
+	const pick = $("tabPick");
+	$("tabPickWrap").hidden = shown.length < 2;
+	$("tabCount").textContent = shown.length;
+	pick.replaceChildren(...shown.map((p) => Object.assign(document.createElement("option"), { value: p, textContent: name(p), selected: p === editor.path })));
+	requestAnimationFrame(() => current.scrollIntoView?.({ block: "nearest", inline: "nearest" }));
+	renderRefPick();
+}
+
+// opts.replace: show it in the current tab (links); opts.tab: false to leave the tabs as they are.
+function openNote(path, { replace = false, tab = true } = {}) {
 	const note = path ? notes.get(path) : null;
+	if (tab && note && !note.deleted) addTab(path, replace);
 	editor.open(note && !note.deleted ? note : null);
 	const has = !!editor.path;
 	document.querySelector("main").classList.toggle("has-note", has);
@@ -244,7 +310,59 @@ function openNote(path) {
 	if (!has && location.hash) history.replaceState(null, "", location.pathname);
 	$("app").classList.remove("menu-open");
 	renderTree();
+	renderTabs();
 	refreshCount(true);
+}
+
+// ---- reference pane ------------------------------------------------------------
+
+// Another note, read-only, beside the one being edited (wide screens). Links in
+// it open in the pane; Edit swaps it into the editor.
+const REF_KEY = "wr1t3r-ref";
+let reader = null;
+let ref = readJSON(REF_KEY, { on: false, path: null });
+const saveRef = () => writeJSON(REF_KEY, ref);
+
+function showRef(on, path = ref.path) {
+	if (on && (!path || !isOpenable(path))) path = [...tabs].reverse().find((p) => p !== editor.path && isOpenable(p)) || editor.path;
+	ref = { on: !!on && !!path, path: path || ref.path };
+	saveRef();
+	$("ref").hidden = !ref.on;
+	$("refBtn").setAttribute("aria-expanded", String(ref.on));
+	if (ref.on) {
+		reader ??= editor.reader($("refView"), followRefLink);
+		reader.show(notes.get(ref.path));
+	}
+	renderRefPick();
+}
+
+function renderRefPick() {
+	if (!ref.on) return;
+	const pick = $("refPick");
+	const list = [...new Set([ref.path, ...tabs])].filter(isOpenable);
+	pick.replaceChildren(...list.map((p) => Object.assign(document.createElement("option"), { value: p, textContent: name(p), selected: p === ref.path })));
+}
+
+function followRefLink(link) {
+	if (link.url || link.tag) return followLink(link);
+	const path = resolveNote(link, ref.path, visible().map((n) => n.path));
+	if (!path) return toast(`There's no note at “${link.note}”.`);
+	if (path !== ref.path) showRef(true, path);
+	const { state } = reader.view;
+	const at = link.heading.startsWith("^") ? blockFor(state, link.heading) : headingFor(toc.headings(state), link.heading)?.from;
+	if (at != null) reader.view.dispatch({ effects: EditorView.scrollIntoView(at, { y: "start", yMargin: 24 }) });
+}
+
+// The pane keeps up with edits and syncs (after a pause).
+let refTimer;
+function refTouched() {
+	if (!ref.on || !reader) return;
+	clearTimeout(refTimer);
+	refTimer = setTimeout(() => {
+		if (!isOpenable(ref.path)) return showRef(false);
+		reader.show(notes.get(ref.path));
+		reader.refresh();
+	}, 400);
 }
 
 // The empty screen's quote of the day. Checked again whenever wr1t3r comes back
@@ -278,6 +396,7 @@ function onEdit(path, text) {
 	notes.set(path, { ...note, text, dirty: true });
 	change(path, (cur) => (cur ? { ...cur, text, dirty: true, deleted: false } : { path, text, base: null, dirty: true, deleted: false }));
 	if (!wasDirty) { renderStatus(); renderTree(); }
+	if (path === ref.path) refTouched();
 	scheduleSync();
 }
 
@@ -353,7 +472,7 @@ function followLink(link) {
 	if (path) {
 		if (path !== editor.path) {
 			history.pushState(null, "", "#" + encodeURIComponent(path));
-			openNote(path);
+			openNote(path, { replace: true });
 		}
 		const { state } = editor.view;
 		const at = link.heading.startsWith("^") ? blockFor(state, link.heading) : headingFor(toc.headings(state), link.heading)?.from;
@@ -379,7 +498,7 @@ async function removeNote(path) {
 	if (!note || !confirm(`Delete “${name(path)}”? It's removed from the vault on every device.`)) return;
 	await change(path, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
 	editor.forget(path);
-	openNote(null);
+	closeTab(path);
 	renderStatus();
 	scheduleSync(0);
 }
@@ -412,6 +531,9 @@ async function renameNote(from, input) {
 	await change(to, (cur) => ({ path: to, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	await change(from, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
 	editor.forget(from);
+	tabs = tabs.map((p) => (p === from ? to : p));
+	saveTabs();
+	if (ref.path === from) ref.path = to;
 	openNote(to);
 	scheduleSync(0);
 }
@@ -1242,7 +1364,17 @@ async function start() {
 	});
 	$("path").addEventListener("blur", showPath);
 	$("path").addEventListener("focus", () => { showPath(); $("path").select(); });
-	$("closeNote").addEventListener("click", () => openNote(null));
+	$("closeNote").addEventListener("click", () => editor.path ? closeTab(editor.path) : openNote(null));
+	$("tabPick").addEventListener("change", () => openNote($("tabPick").value, { tab: false }));
+	$("refBtn").addEventListener("click", () => showRef(!ref.on));
+	$("refClose").addEventListener("click", () => showRef(false));
+	$("refPick").addEventListener("change", () => showRef(true, $("refPick").value));
+	$("refOpen").addEventListener("click", () => {
+		const was = editor.path, p = ref.path;
+		if (!p || p === was) return;
+		openNote(p);
+		if (was) showRef(true, was); // swap: the note you were editing moves to the pane
+	});
 	$("tree").addEventListener("click", (e) => {
 		const a = e.target.closest("a");
 		if (!a) return;
@@ -1264,7 +1396,8 @@ async function start() {
 	});
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);
 
-	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || null);
+	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || tabs.find(isOpenable) || null);
+	if (ref.on) showRef(true);
 	renderStatus();
 	runSync();
 }

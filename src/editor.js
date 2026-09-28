@@ -17,7 +17,7 @@ import { tags as t } from "@lezer/highlight";
 import { slashSource } from "./slash.js";
 import { stripFrontmatter } from "./count.js";
 import { dataviewJs } from "./dataview.js";
-import { vaultHost, notePath } from "./vault.js";
+import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { backlinks } from "./backlinks.js";
 import { linkSource } from "./linkcomplete.js";
 import { tableKeymap, tableStyle } from "./table.js";
@@ -99,8 +99,9 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 	let current = null; // path shown
 	const states = new Map(); // path -> EditorState, so undo history survives switching notes
 
-	// How markdown is drawn: shared by the editor and embedded notes' boxes.
-	const look = [
+	// How markdown is drawn: shared by the editor, embedded notes' boxes and
+	// the reference pane (which follows links with its own handler).
+	const lookFor = (follow) => [
 		EditorView.lineWrapping,
 		tableStyle,
 		blockStyle,
@@ -114,14 +115,15 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		marks(/<\/?[a-zA-Z][\w-]*(?:\s[^<>\n]*)?\/?>/g, "md-html"), // raw HTML tags
 		hashtags,
 		comments,
-		linkClicks((link) => onLink?.(link)),
-		linkOpener.of((link) => onLink?.(link)),
+		linkClicks((link) => follow?.(link)),
+		linkOpener.of((link) => follow?.(link)),
 		tableGrid,
 		calloutFolds,
 		webImages,
 		livePreview,
 		...(vault ? [vaultHost.of(vault)] : []),
 	];
+	const look = lookFor(onLink);
 
 	const base = [
 		history(),
@@ -165,6 +167,31 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 
 	return {
 		view,
+		// A read-only view of notes in parent (the reference pane). Links in it
+		// go to follow(link); its embeds work as in the editor.
+		reader(parent, follow) {
+			const ro = lookFor(follow);
+			const make = (note) => EditorState.create({
+				doc: note ? note.text : "",
+				extensions: [ro, frontmatterStyle, embedLook.of(() => ro), embeds, EditorState.readOnly.of(true), EditorView.editable.of(false), ...(note ? [notePath.of(note.path)] : [])],
+			});
+			const rv = new EditorView({ parent, state: make(null) });
+			let shown = null;
+			return {
+				view: rv,
+				get path() { return shown; },
+				show(note) {
+					if (note && shown === note.path && rv.state.sliceDoc() === note.text) return;
+					const same = note && shown === note.path;
+					const top = rv.scrollDOM.scrollTop;
+					shown = note?.path ?? null;
+					rv.setState(make(note && !note.binary ? note : null));
+					if (same) rv.scrollDOM.scrollTop = top;
+					else rv.scrollDOM.scrollTop = 0;
+				},
+				refresh() { rv.dispatch({ effects: vaultChanged.of(null) }); },
+			};
+		},
 		get path() { return current; },
 		open(note) {
 			if (current) states.set(current, view.state);
