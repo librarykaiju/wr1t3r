@@ -66,6 +66,8 @@ Rename a note by editing its path in the header and pressing Enter. Folders are 
 
 Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped. Folders named in `EXCLUDE` in `wrangler.toml` (for now `_includes/`, the site templates) are refused by the Worker itself: never listed, read, written or deleted. Images and other attachments aren't shown (source mode doesn't render them).
 
+`dataviewjs` blocks run and show their output in place of the code, as in Obsidian with the Dataview plugin (`src/dataview.js`); **</>** or moving the cursor into a block shows the script. Each block runs in `public/dv-sandbox.html`, loaded in a sandboxed iframe with its own opaque origin: it can't see the token, storage or the page, and its CSP allows no network. It gets its note's Dataview page (`src/dvpage.js`: frontmatter fields, `file.lists` with their headings, and so on) plus the pages of notes in the same folder or linked from it, and asks the app for anything else: `dv.io.load` and `app.vault.read` read notes on the device, and `requestUrl` fetches public pages through `/api/fetch`. Scripts can't write: `vault.modify` fails with a message and `processFrontMatter` does nothing, so notes only change when you edit them (Obsidian keeps doing those writes). `dv.pages()` queries and plain Dataview queries aren't supported yet. Blocks in `_clippings/` and `_uploads/` never run, since that text comes from outside the vault.
+
 With no note open, the main window shows a quote about writing or making art that changes at local midnight. The list is in `src/quotes.js` and ships with the app, so it works offline; add or remove lines there to change the rotation.
 
 ## Setup

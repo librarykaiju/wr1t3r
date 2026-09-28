@@ -16,6 +16,7 @@ import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { tags as t } from "@lezer/highlight";
 import { slashSource } from "./slash.js";
 import { stripFrontmatter } from "./count.js";
+import { dataviewJs, dvHost, notePath } from "./dataview.js";
 import { tableKeymap, tableStyle } from "./table.js";
 import { blockStyle } from "./blocks.js";
 import { frontmatterStyle, tagHue } from "./frontmatter.js";
@@ -89,7 +90,7 @@ function lineSeparatorFor(text) {
 	return text.includes("\r\n") && !/(^|[^\r])\n/.test(text) ? "\r\n" : undefined;
 }
 
-export function createEditor(parent, { onChange, onUpdate, onLink }) {
+export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 	let current = null; // path shown
 	const states = new Map(); // path -> EditorState, so undo history survives switching notes
 
@@ -119,6 +120,8 @@ export function createEditor(parent, { onChange, onUpdate, onLink }) {
 		tableGrid,
 		calloutFolds,
 		webImages,
+		dataviewJs,
+		...(vault ? [dvHost.of(vault)] : []),
 		autocompletion({ override: [slashSource()], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 		placeholder("Type / for formatting"),
@@ -142,7 +145,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink }) {
 		return EditorState.create({
 			selection: { anchor: start },
 			doc: note.binary ? "This note isn't valid UTF-8 text, so wr1t3r shows it read-only to keep its bytes intact." : text,
-			extensions: [...base, ...(sep ? [EditorState.lineSeparator.of(sep)] : []), EditorState.readOnly.of(!!note.binary)],
+			extensions: [...base, notePath.of(note.path), ...(sep ? [EditorState.lineSeparator.of(sep)] : []), EditorState.readOnly.of(!!note.binary)],
 		});
 	}
 

@@ -1095,9 +1095,22 @@ function showLogin(message = "") {
 
 let refreshKeyboardBar = null;
 
+// What dataviewjs blocks (src/dataview.js) may read: notes on this device, and
+// public web pages through the Worker, as the clipper fetches them.
+const dataviewVault = {
+	paths: () => visible().filter((n) => !n.binary).map((n) => n.path),
+	text: (path) => { const n = notes.get(path); return n && !n.deleted && !n.binary ? n.text : null; },
+	async fetch(url) {
+		const res = await fetch("/api/fetch?url=" + encodeURIComponent(url), { headers: { Authorization: "Bearer " + token() }, cache: "no-store" });
+		if (res.ok) return { status: 200, text: await res.text() };
+		const err = (await res.json().catch(() => ({}))).error || "";
+		return { status: Number((err.match(/answered (\d{3})/) || [])[1]) || res.status, text: err };
+	},
+};
+
 async function start() {
 	$("app").hidden = false;
-	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => { refreshCount(); refreshKeyboardBar?.(); }, onLink: followLink });
+	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => { refreshCount(); refreshKeyboardBar?.(); }, onLink: followLink, vault: dataviewVault });
 	setupSettings();
 	setupFocusTools();
 	setupAgenda();

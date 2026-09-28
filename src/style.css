@@ -391,3 +391,10 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 #kbbar button:active { background: var(--sel); }
 #app.kb-open #menu { display: none; }
 #app.kb-open #editor .cm-scroller { padding-bottom: 60px; }
+
+/* dataviewjs output (src/dataview.js) */
+.md-dv { position: relative; margin: 4px 0; }
+.md-dv iframe { display: block; width: 100%; height: 40px; border: 0; background: transparent; }
+.md-dv-edit { position: absolute; top: 0; right: 0; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); opacity: 0; cursor: pointer; }
+.md-dv:hover .md-dv-edit, .md-dv-edit:focus-visible { opacity: 1; }
+@media (hover: none) { .md-dv-edit { opacity: 0.6; } }

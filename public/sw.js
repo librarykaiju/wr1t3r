@@ -1,6 +1,7 @@
 // Keeps wr1t3r's page on this device so it opens with no connection. Notes
 // themselves live in IndexedDB (src/store.js); /api/ is never cached.
 const CACHE = "wr1t3r-shell";
+const SANDBOX = "/dv-sandbox"; // public/dv-sandbox.html, runs dataviewjs blocks (src/dataview.js)
 
 async function cacheShell() {
 	const cache = await caches.open(CACHE);
@@ -9,7 +10,7 @@ async function cacheShell() {
 	const html = await res.clone().text();
 	const assets = [...html.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((m) => m[1]);
 	await cache.put("/", res);
-	await Promise.all(assets.map((a) => cache.add(a).catch(() => {})));
+	await Promise.all([...assets, SANDBOX].map((a) => cache.add(a).catch(() => {})));
 }
 
 self.addEventListener("install", (e) => {
@@ -23,6 +24,19 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
 	const url = new URL(e.request.url);
 	if (e.request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
+
+	// The dataviewjs sandbox: fresh when online, cached otherwise.
+	if (url.pathname === SANDBOX) {
+		e.respondWith(
+			fetch(SANDBOX, { cache: "no-store" })
+				.then((res) => {
+					if (res.ok) { const copy = res.clone(); e.waitUntil(caches.open(CACHE).then((c) => c.put(SANDBOX, copy))); }
+					return res;
+				})
+				.catch(async () => (await caches.match(SANDBOX)) || Response.error()),
+		);
+		return;
+	}
 
 	// The page: fresh when online (and re-cache what it points at), cached otherwise.
 	if (e.request.mode === "navigate") {
