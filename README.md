@@ -82,7 +82,7 @@ Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped.
 
 **Today** opens today's daily note, `_daily/YYYY-MM-DD.md`, or makes it from `_templates/Daily.md` (`src/daily.js`). The template is filled in the way Obsidian's Templater does it (`tp.date.now`, `tp.file.title`), and its script block is read rather than run: it makes the companion `YYYY-MM-DD Health` note from `_templates/Daily Health.md` and writes the link to it, so the files match what Obsidian would create byte for byte. Nothing in a template is ever executed.
 
-With no note open, the main window shows a quote about writing or making art that changes at local midnight. The list is in `src/quotes.js` and ships with the app, so it works offline; add or remove lines there to change the rotation. Under it is a writing prompt question, also one a day (`src/prompts.js`, 60 of them); tap it for another.
+With no note open, the main window shows a quote about writing or making art that changes at local midnight. The list is in `src/quotes.js` and ships with the app, so it works offline; add or remove lines there to change the rotation. Under it is a writing prompt question, also one a day (`src/prompts.js`, 60 of them). Tap it to start a journal entry for it in `journal/`, titled with the prompt and with the frontmatter from `_templates/Journal.md` (you can change the name first), or tap ↻ for another prompt.
 
 ## Setup
 

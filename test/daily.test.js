@@ -39,3 +39,9 @@ test("finds the template and the vault root, ignoring case", () => {
 	assert.equal(findTemplate(["content/x.md"]), null);
 	assert.equal(findTemplate(["content/_templates/Daily Health.md"], "_templates/Daily Health.md").root, "content/");
 });
+
+test("renderTemplate fills script variables set from the title", () => {
+	const tmpl = '<%* let t = tp.file.title; if (t.startsWith("Untitled")) { t = (await tp.system.prompt("Title")) || t; await tp.file.rename(t); } -%>\n---\ntitle: "<% t %>"\npublish: false\ndate: "<% tp.date.now("YYYY-MM-DD") %>"\ntags:\n  - ""\n---\n\n';
+	const { text } = renderTemplate(tmpl, { title: "What's the best advice you ignored?", date: new Date(2026, 8, 28) });
+	assert.equal(text, '---\ntitle: "What\'s the best advice you ignored?"\npublish: false\ndate: "2026-09-28"\ntags:\n  - ""\n---\n\n');
+});
