@@ -19,7 +19,8 @@ import { stripFrontmatter } from "./count.js";
 import { tableKeymap, tableStyle } from "./table.js";
 import { blockStyle } from "./blocks.js";
 import { frontmatterStyle, tagHue } from "./frontmatter.js";
-import { linkClicks } from "./links.js";
+import { linkClicks, linkOpener } from "./links.js";
+import { tableGrid } from "./tablegrid.js";
 
 const fromSync = Annotation.define();
 
@@ -88,6 +89,8 @@ export function createEditor(parent, { onChange, onUpdate, onLink }) {
 		marks(/\[\^[^\]\s]+\]:?/g, "md-footnote"),
 		hashtags,
 		linkClicks((link) => onLink?.(link)),
+		linkOpener.of((link) => onLink?.(link)),
+		tableGrid,
 		autocompletion({ override: [slashSource()], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 		placeholder("Type / for formatting"),
