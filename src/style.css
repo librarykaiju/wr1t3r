@@ -502,3 +502,9 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 .md-dql-count { color: var(--muted); font-size: 0.8em; margin-top: 2px; }
 .md-dql-error { color: var(--muted); font: 0.85em var(--mono); }
 .md-dql-link { color: var(--accent); text-decoration: none; cursor: pointer; }
+
+/* vault attachments */
+:is(#editor, #refView) .md-attachment audio { display: block; width: min(100%, 420px); }
+:is(#editor, #refView) .md-attachment video { display: block; max-width: 100%; height: auto; border-radius: 6px; }
+:is(#editor, #refView) .md-pdf { font: 0.9em var(--sans, sans-serif); padding: 0.5em 0.9em; border: 1px solid var(--line); border-radius: 8px; background: var(--card, var(--bg)); color: var(--fg); cursor: pointer; }
+:is(#editor, #refView) .md-pdf:hover { border-color: var(--accent); }

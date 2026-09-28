@@ -19,7 +19,8 @@ import { inTable } from "./table.js";
 import { renameEdits, applyChanges } from "./vaultlinks.js";
 import { EditorView } from "@codemirror/view";
 import { openSearchPanel } from "@codemirror/search";
-import { local, persist } from "./store.js";
+import { local, meta, persist } from "./store.js";
+import { resolveAttachment, attachmentURL } from "./attachments.js";
 import { api, token, setToken, AuthError } from "./api.js";
 import { sync } from "./sync.js";
 import { isNotePath } from "./paths.js";
@@ -67,6 +68,7 @@ async function runSync() {
 	try {
 		await writing;
 		const r = await sync({ local, api, onNote });
+		refreshAttachments();
 		lastSynced = new Date();
 		lastError = null;
 		for (const c of r.conflicts) {
@@ -1498,11 +1500,36 @@ function showLogin(message = "") {
 
 let refreshKeyboardBar = null;
 
+// Vault attachments (images, PDFs, audio, video): the list, kept for offline
+// use; the files themselves are fetched when shown (src/attachments.js).
+let attachments = [];
+let attachmentsLoaded = false;
+async function loadAttachments() {
+	try { attachments = (await meta.get("attachments")) || []; } catch {}
+	if (attachments.length) { attachmentsLoaded = true; vaultTouched(); }
+}
+async function refreshAttachments() {
+	try {
+		const list = await api.attachments();
+		const changed = JSON.stringify(list) !== JSON.stringify(attachments);
+		attachments = list;
+		attachmentsLoaded = true;
+		if (changed) { meta.set("attachments", list).catch(() => {}); vaultTouched(); }
+	} catch {}
+}
+
 // What dataviewjs blocks (src/dataview.js) may read: notes on this device, and
 // public web pages through the Worker, as the clipper fetches them.
 const dataviewVault = {
 	paths: () => visible().filter((n) => !n.binary).map((n) => n.path),
 	text: (path) => { const n = notes.get(path); return n && !n.deleted && !n.binary ? n.text : null; },
+	attachments: () => attachments,
+	attachmentsLoaded: () => attachmentsLoaded,
+	resolveAttachment: (name, from) => resolveAttachment(name, from, attachments.map((f) => f.path)),
+	attachmentURL(path) {
+		const file = attachments.find((f) => f.path === path);
+		return file ? attachmentURL(file, (p) => api.attachment(p)) : Promise.reject(new Error("No such attachment"));
+	},
 	async fetch(url) {
 		const res = await fetch("/api/fetch?url=" + encodeURIComponent(url), { headers: { Authorization: "Bearer " + token() }, cache: "no-store" });
 		if (res.ok) return { status: 200, text: await res.text() };
@@ -1524,6 +1551,7 @@ async function start() {
 	$("promptNext").addEventListener("click", () => { promptStep++; renderPrompt(); });
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
+	loadAttachments();
 	persist();
 
 	$("filter").addEventListener("input", renderTree);
