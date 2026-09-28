@@ -84,8 +84,15 @@ header {
 	padding-top: max(8px, env(safe-area-inset-top));
 }
 #menu { display: none; }
-#path { flex: 1; border-color: transparent; background: none; color: var(--muted); }
-#path:focus { border-color: var(--line); background: var(--bg); color: var(--fg); }
+.spacer { flex: 1; }
+/* The open note, as a tab: its name (click to rename or move; the full path
+   shows while editing) and a close button. */
+#tab { display: flex; align-items: center; min-width: 0; max-width: 60%; background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 0 2px 0 2px; }
+#tab[hidden] { display: none; }
+#path { min-width: 0; max-width: 100%; border-color: transparent; background: none; color: var(--fg); font-weight: 500; text-overflow: ellipsis; padding-right: 2px; }
+#path:focus { border-color: var(--line); background: var(--bg); font-weight: 400; }
+#closeNote { flex: none; background: none; border: 0; color: var(--muted); font-size: 18px; line-height: 1; padding: 4px 8px; border-radius: 6px; min-height: 0; }
+#closeNote:hover, #closeNote:focus-visible { background: var(--sel); color: var(--fg); }
 #status { font-size: 13px; color: var(--muted); background: none; border-color: transparent; white-space: nowrap; }
 #status.warn { color: var(--bad); }
 
@@ -274,6 +281,13 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 }
 
 #scrim { display: none; }
+/* Phones: the tab takes the free space, so the name isn't squeezed. */
+@media (max-width: 760px) {
+	#tab { flex: 1 1 auto; max-width: none; min-width: 40%; }
+	#status { white-space: normal; font-size: 11px; line-height: 1.15; text-align: right; padding-inline: 4px; }
+	#tab #path { flex: 1; }
+	header .spacer { display: none; }
+}
 @media (max-width: 760px) {
 	/* The menu button floats bottom right, above the word-count bar, in thumb reach. */
 	#menu {
