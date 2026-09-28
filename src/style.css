@@ -120,7 +120,9 @@ header {
 #empty blockquote { margin: 0; font: italic 1.45em/1.5 var(--serif); color: var(--fg); white-space: pre-line; text-wrap: balance; }
 #empty figcaption { margin-top: 14px; font-size: 0.95em; }
 #empty figcaption cite { font-style: italic; }
-#empty .hint { margin: 0; font-size: 0.9em; }
+#empty .prompt { margin: 0; max-width: 30em; padding: 10px 16px; border: 0; border-radius: 10px; background: none; color: var(--muted); font: 1.05em/1.5 var(--sans); text-align: center; text-wrap: balance; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+#empty .prompt:focus:not(:focus-visible) { outline: none; }
+@media (hover: hover) { #empty .prompt:hover { color: var(--fg); background: var(--card); } }
 main.has-note #empty { display: none; }
 main:not(.has-note) #editor { display: none; }
 

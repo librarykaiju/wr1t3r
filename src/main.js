@@ -4,6 +4,8 @@
 
 import { createEditor } from "./editor.js";
 import { setupKeyboardBar } from "./kbbar.js";
+import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js";
+import { promptFor } from "./prompts.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags } from "./frontmatter.js";
 import { EditorView } from "@codemirror/view";
@@ -222,6 +224,12 @@ function openNote(path) {
 
 // The empty screen's quote of the day. Checked again whenever wr1t3r comes back
 // into view, so a tab left open overnight shows the new day's quote.
+// Today's writing prompt; a tap moves on to the next one.
+let promptStep = 0;
+function renderPrompt() {
+	$("writingPrompt").textContent = promptFor(new Date(), promptStep);
+}
+
 function renderQuote() {
 	const q = quoteFor();
 	$("quoteText").textContent = q.text.replaceAll(" / ", "\n");
@@ -229,6 +237,7 @@ function renderQuote() {
 	const cite = document.createElement("cite");
 	cite.textContent = q.work;
 	by.replaceChildren("— " + q.author + ", ", cite);
+	renderPrompt();
 }
 
 function renderTitle() {
@@ -280,6 +289,32 @@ async function newNote(suggestion = currentFolder() + "Untitled.md") {
 	// Focus goes back to the New button once the name prompt closes; take it
 	// back so typing lands in the note (a space would press New again).
 	requestAnimationFrame(() => editor.view.focus());
+	scheduleSync();
+}
+
+// Today's note in _daily, from _templates/Daily.md (and its companion notes,
+// like "<date> Health"), or the existing one. Made the way Obsidian would, so
+// both apps produce the same file.
+async function openDaily() {
+	const paths = visible().map((n) => n.path);
+	const tmpl = findTemplate(paths);
+	if (!tmpl) return toast("There's no _templates/Daily.md in the vault.");
+	const date = new Date();
+	const title = isoDate(date);
+	const folder = tmpl.root + DAILY_FOLDER;
+	const path = folder + title + ".md";
+	const existing = paths.find((p) => p.toLowerCase() === path.toLowerCase());
+	if (existing) return openNote(existing);
+	const { text, companion } = renderTemplate(notes.get(tmpl.path).text, { title, date });
+	for (const c of companion) {
+		const cPath = folder + c.name + ".md";
+		const t = findTemplate(paths, c.template.replace(/\.md$/i, "") + ".md");
+		if (taken(cPath) || !t) continue;
+		const ct = renderTemplate(notes.get(t.path).text, { title: c.name, date }).text;
+		await change(cPath, (cur) => ({ path: cPath, text: ct, base: cur?.base ?? null, dirty: true, deleted: false }));
+	}
+	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	openNote(path);
 	scheduleSync();
 }
 
@@ -1117,12 +1152,14 @@ async function start() {
 	setupToc();
 	refreshKeyboardBar = setupKeyboardBar($("app"), () => editor.view);
 	renderQuote();
+	$("writingPrompt").addEventListener("click", () => { promptStep++; renderPrompt(); });
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
 	persist();
 
 	$("filter").addEventListener("input", renderTree);
 	$("new").addEventListener("click", () => newNote());
+	$("today").addEventListener("click", () => openDaily());
 	// Keep this in step with ACCEPT in src/convert.js. It's set here, not
 	// imported, because Safari only opens the picker straight from the tap.
 	$("upload-input").accept = ".md,.markdown,.txt,.html,.htm,.docx,.pdf";

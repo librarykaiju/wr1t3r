@@ -28,6 +28,7 @@
 			<div class="side-top">
 				<input id="filter" type="search" placeholder="Search notes" aria-label="Search notes">
 				<button id="new" type="button" title="New note">New</button>
+				<button id="today" type="button" title="Open today's daily note">Today</button>
 				<button id="upload" type="button" title="Upload files as notes (Word, PDF, HTML, text)">Upload</button>
 				<button id="clip" type="button" title="Clip a web page as a note">Clip</button>
 				<input id="upload-input" type="file" multiple hidden>
@@ -60,7 +61,7 @@
 					<blockquote id="quoteText"></blockquote>
 					<figcaption id="quoteBy"></figcaption>
 				</figure>
-				<p class="hint">Pick a note, or make a new one.</p>
+				<button id="writingPrompt" type="button" class="prompt" title="Another prompt"></button>
 			</div>
 			<footer id="bar">
 				<span class="pomo">
