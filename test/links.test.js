@@ -33,7 +33,6 @@ test("only web and mail links open outside; other schemes never do", () => {
 	assert.equal(target("javascript:alert(1)"), null);
 	assert.equal(target("//evil.com"), null);
 	assert.deepEqual(target("Other%20Note.md#Top"), { note: "Other Note.md", heading: "Top" });
-	assert.equal(target("#Top"), null);
 });
 
 test("notes resolve like Obsidian: relative, from the root, then by name", () => {
@@ -44,4 +43,30 @@ test("notes resolve like Obsidian: relative, from the root, then by name", () =>
 	assert.equal(resolveNote({ note: "../notes/Plot.md" }, "writing/Draft.md", paths), "notes/Plot.md");
 	assert.equal(resolveNote({ note: "Draft.md" }, "writing/ideas/x.md", paths), "writing/ideas/Draft.md");
 	assert.equal(resolveNote({ note: "Missing", wiki: true }, null, paths), null);
+});
+
+test("footnotes jump between the reference and its definition", async () => {
+	const { footnoteJump } = await import("../src/links.js");
+	const doc = "Text with a note.[^1] More[^long].\n\n[^1]: The note.\n[^long]:Other";
+	const s = state(doc);
+	const fns = linksIn(s).filter((l) => l.footnote);
+	assert.deepEqual(fns.map((l) => [l.footnote, l.def]), [["1", false], ["long", false], ["1", true], ["long", true]]);
+	assert.equal(linksIn(s).filter((l) => !l.footnote).length, 0); // not taken for a note link
+	assert.equal(footnoteJump(s, fns[0]), doc.indexOf("The note."));
+	assert.equal(footnoteJump(s, fns[1]), doc.indexOf("Other"));
+	assert.equal(footnoteJump(s, fns[2]), doc.indexOf("[^1]"));
+	assert.equal(footnoteJump(s, { footnote: "none", def: false }), null);
+});
+
+test("heading links: same-note anchors and Obsidian or web-style heading names", async () => {
+	const { headingFor } = await import("../src/links.js");
+	assert.deepEqual(target("#Top"), { note: "", heading: "Top" });
+	assert.equal(resolveNote({ note: "", heading: "Top" }, "a/b.md", ["a/b.md"]), "a/b.md");
+	const hs = [{ text: "Getting Started", from: 5 }, { text: "Why it's hard", from: 40 }];
+	assert.equal(headingFor(hs, "Getting Started").from, 5);
+	assert.equal(headingFor(hs, "getting-started").from, 5);
+	assert.equal(headingFor(hs, "why-its-hard").from, 40);
+	assert.equal(headingFor(hs, "Why%20it's%20hard").from, 40);
+	assert.equal(headingFor(hs, "^block1"), null);
+	assert.equal(headingFor(hs, "Missing"), null);
 });

@@ -12,6 +12,7 @@ import { syntaxTree } from "@codemirror/language";
 export const linkOpener = Facet.define({ combine: (v) => v[0] || null });
 
 const WIKILINK = /(!?)\[\[([^\]\n]+)\]\]/g;
+const FOOTNOTE = /\[\^([^\]\s]+)\](:?)/g;
 const CODE = /^(InlineCode|CodeText|FencedCode|CodeBlock|Comment)$/;
 
 function inCode(state, pos) {
@@ -30,13 +31,13 @@ export function target(href) {
 	let path = href;
 	try { path = decodeURIComponent(href); } catch {}
 	const [note, heading = ""] = path.split("#");
-	return note ? { note, heading } : null;
+	return note || heading ? { note, heading } : null; // "#Heading" alone: this note
 }
 
 // "[[Note#Heading|shown text]]" -> { note: "Note", heading: "Heading" }.
 export function wikiTarget(inner) {
 	const [note, heading = ""] = inner.split("|")[0].split("#");
-	return note.trim() ? { note: note.trim(), heading: heading.trim(), wiki: true } : null;
+	return note.trim() || heading.trim() ? { note: note.trim(), heading: heading.trim(), wiki: true } : null;
 }
 
 // A reference link's definition: "[label]: url" anywhere in the note.
@@ -54,7 +55,8 @@ function reference(state, label) {
 	return found;
 }
 
-// The links in [from, to): [{ from, to, url } or { from, to, note, heading }], in order.
+// The links in [from, to): [{ from, to, url }, { from, to, note, heading } or
+// { from, to, footnote, def }], in order.
 export function linksIn(state, from = 0, to = state.doc.length) {
 	const out = [];
 	const doc = state.doc;
@@ -68,12 +70,21 @@ export function linksIn(state, from = 0, to = state.doc.length) {
 			const t = wikiTarget(m[2]);
 			if (t) out.push({ from: a, to: b, ...t });
 		}
+		// Footnotes: "[^1]" in the text and its "[^1]: ..." definition.
+		for (const m of line.text.matchAll(FOOTNOTE)) {
+			const a = line.from + m.index, b = a + m[0].length;
+			wikis.push([a, b]);
+			if (inCode(state, a)) continue;
+			const def = !!m[2] && !line.text.slice(0, m.index).trim();
+			out.push({ from: a, to: b, footnote: m[1], def });
+		}
 	}
 	const overlapsWiki = (a, b) => wikis.some(([f, t]) => a < t && b > f);
 	syntaxTree(state).iterate({
 		from, to,
 		enter(n) {
 			if (n.name === "Image") return false;
+			if (n.name === "LinkReference" && state.sliceDoc(n.from, n.from + 2) === "[^") return false; // a footnote definition
 			if (n.name !== "Link" && n.name !== "Autolink" && n.name !== "URL") return;
 			if (overlapsWiki(n.from, n.to)) return false;
 			let href = null;
@@ -106,6 +117,7 @@ export function linkAt(state, pos) {
 // the linking note's folder or the vault root, else any note with that name
 // (the one with the shortest path when several share it). Null when none.
 export function resolveNote(link, fromPath, paths) {
+	if (!link.note.trim()) return fromPath || null; // [[#Heading]] or [text](#heading)
 	let want = link.note.trim().replace(/^\.\//, "").replace(/^\/+/, "");
 	if (!want) return null;
 	if (!/\.md$/i.test(want)) want += ".md";
@@ -124,6 +136,17 @@ export function resolveNote(link, fromPath, paths) {
 	return hits.sort((a, b) => a.length - b.length || a.localeCompare(b))[0] || null;
 }
 
+// The heading a link's "#part" names, from toc.headings(): matched the way both
+// Obsidian ("#My Heading") and web-style anchors ("#my-heading") write it.
+// Block references ("#^id") aren't headings.
+const squash = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+export function headingFor(list, want) {
+	if (!want || want.startsWith("^")) return null;
+	let w = want;
+	try { w = decodeURIComponent(want); } catch {}
+	return list.find((h) => squash(h.text) === squash(w)) || null;
+}
+
 const linkMark = Decoration.mark({ class: "md-a" });
 
 function build(view) {
@@ -139,8 +162,29 @@ function build(view) {
 	return b.finish();
 }
 
-// open(link) is called with a link from linksIn when one is clicked.
-export function linkClicks(open) {
+// Where a footnote click goes: from "[^1]" to the start of its definition's
+// text, and from the definition back to the first "[^1]" in the note. Null
+// when there's nothing to go to.
+export function footnoteJump(state, link) {
+	for (const l of linksIn(state)) {
+		if (l.footnote !== link.footnote || l.def === link.def) continue;
+		if (!l.def) return l.from;
+		const line = state.doc.lineAt(l.to);
+		return l.to + (line.text.slice(l.to - line.from).length - line.text.slice(l.to - line.from).trimStart().length);
+	}
+	return null;
+}
+
+// open(link) is called with a link from linksIn when one is clicked; footnotes
+// are handled here, in the note itself.
+export function linkClicks(openLink) {
+	const open = (link, view) => {
+		if (!link.footnote) return openLink(link);
+		const pos = footnoteJump(view.state, link);
+		if (pos == null) return;
+		view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: "center" }) });
+		view.focus();
+	};
 	let down = null;
 	return ViewPlugin.define((view) => ({
 		decorations: build(view),
@@ -158,7 +202,7 @@ export function linkClicks(open) {
 				if (!link) return false;
 				if (e.metaKey || e.ctrlKey) {
 					e.preventDefault();
-					open(link);
+					open(link, view);
 					return true;
 				}
 				const { main } = view.state.selection;
@@ -171,7 +215,7 @@ export function linkClicks(open) {
 				down = null;
 				if (!link || !view.state.selection.main.empty) return false; // a drag selected text
 				e.preventDefault();
-				open(link);
+				open(link, view);
 				return true;
 			},
 		},

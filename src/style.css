@@ -136,6 +136,12 @@ main:not(.has-note) #editor { display: none; }
 .md-code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); border-radius: 3px; }
 .md-quote { color: var(--muted); }
 .md-highlight { background: var(--hl); border-radius: 2px; }
+.md-comment, .md-comment * { color: var(--mark) !important; font-style: italic; }
+#editor .md-callout-fold { border: 0; background: none; color: inherit; font: inherit; font-size: 1.1em; line-height: 1; padding: 0 0.3em; margin-left: 0.4em; cursor: pointer;
+	display: inline-block; transform: rotate(90deg); transition: transform .15s; opacity: .7; }
+#editor .md-callout-fold.folded { transform: rotate(0deg); }
+#editor .md-callout-fold:hover { opacity: 1; }
+#editor .md-callout-more { color: var(--mark); margin-left: 0.3em; }
 .md-footnote { color: var(--accent); font-size: 0.85em; }
 .md-key { color: var(--accent); font-family: var(--mono); font-size: 0.9em; }
 .md-value { font-family: var(--mono); font-size: 0.9em; }
