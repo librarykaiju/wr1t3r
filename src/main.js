@@ -3,7 +3,8 @@
 // the background and whenever the connection comes back.
 
 import { createEditor } from "./editor.js";
-import { resolveNote, headingFor } from "./links.js";
+import { resolveNote, headingFor, blockFor } from "./links.js";
+import { noteTags } from "./frontmatter.js";
 import { EditorView } from "@codemirror/view";
 import { local, persist } from "./store.js";
 import { api, token, setToken, AuthError } from "./api.js";
@@ -132,7 +133,10 @@ function renderTree() {
 	tree.replaceChildren();
 	const list = visible();
 	if (q) {
-		const hits = list.filter((n) => n.path.toLowerCase().includes(q) || (!n.binary && n.text.toLowerCase().includes(q)));
+		// "#tag" finds notes with that tag (or a nested one, like #tag/sub), in the properties or the text.
+		const tag = /^#[^\s#]+$/.test(q) ? q.slice(1) : null;
+		const hasTag = (n) => !n.binary && noteTags(n.text).some((t) => t.toLowerCase() === tag || t.toLowerCase().startsWith(tag + "/"));
+		const hits = list.filter((n) => (tag && hasTag(n)) || n.path.toLowerCase().includes(q) || (!n.binary && n.text.toLowerCase().includes(q)));
 		for (const n of hits.slice(0, 300)) tree.append(link(n, n.path.replace(/\.md$/i, "")));
 		if (!hits.length) tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: "No matches." }));
 		return;
@@ -261,21 +265,30 @@ async function newNote(suggestion = currentFolder() + "Untitled.md") {
 // create it next to this note, as Obsidian does.
 function followLink(link) {
 	if (link.url) return void window.open(link.url, "_blank", "noopener");
+	if (link.tag) return showTag(link.tag);
 	const path = resolveNote(link, editor.path, visible().map((n) => n.path));
 	if (path) {
 		if (path !== editor.path) {
 			history.pushState(null, "", "#" + encodeURIComponent(path));
 			openNote(path);
 		}
-		const h = headingFor(toc.headings(editor.view.state), link.heading);
-		if (h) {
-			editor.view.dispatch({ selection: { anchor: h.from }, effects: EditorView.scrollIntoView(h.from, { y: "start", yMargin: 24 }) });
+		const { state } = editor.view;
+		const at = link.heading.startsWith("^") ? blockFor(state, link.heading) : headingFor(toc.headings(state), link.heading)?.from;
+		if (at != null) {
+			editor.view.dispatch({ selection: { anchor: at }, effects: EditorView.scrollIntoView(at, { y: "start", yMargin: 24 }) });
 			editor.view.focus();
-		} else if (link.heading && !link.heading.startsWith("^")) toast(`No heading “${link.heading}” in ${name(path)}.`);
+		} else if (link.heading) toast(`No ${link.heading.startsWith("^") ? "block" : "heading"} “${link.heading}” in ${name(path)}.`);
 		return;
 	}
 	if (link.wiki) return newNote(currentFolder() + normalise(link.note));
 	toast(`There's no note at “${link.note}”.`);
+}
+
+// A clicked tag: list the notes that have it, in the sidebar (opened on a phone).
+function showTag(tag) {
+	$("filter").value = "#" + tag;
+	renderTree();
+	$("app").classList.add("menu-open");
 }
 
 async function removeNote(path) {

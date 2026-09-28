@@ -142,6 +142,14 @@ main:not(.has-note) #editor { display: none; }
 #editor .md-callout-fold.folded { transform: rotate(0deg); }
 #editor .md-callout-fold:hover { opacity: 1; }
 #editor .md-callout-more { color: var(--mark); margin-left: 0.3em; }
+#editor .md-image { margin: 0.4em 0 0.8em; }
+#editor .md-image img { display: block; max-width: 100%; height: auto; border-radius: 6px; }
+#editor .md-image.broken { font-family: var(--sans, sans-serif); font-size: 0.8em; color: var(--mark); border: 1px dashed var(--mark); border-radius: 6px; padding: 0.6em 0.8em; display: inline-block; }
+.md-inline-note { font-size: 0.9em !important; }
+.md-blockid { color: var(--mark); font-family: var(--mono); font-size: 0.75em; }
+.md-html { color: var(--mark); font-family: var(--mono); font-size: 0.85em; }
+#editor .md-a:has(> .md-hashtag), #editor .md-hashtag .md-a { text-decoration: none; }
+#editor .md-tag { cursor: pointer; }
 .md-footnote { color: var(--accent); font-size: 0.85em; }
 .md-key { color: var(--accent); font-family: var(--mono); font-size: 0.9em; }
 .md-value { font-family: var(--mono); font-size: 0.9em; }

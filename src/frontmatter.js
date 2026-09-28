@@ -4,8 +4,9 @@
 // untouched, and folding is display only.
 
 import { snippet } from "@codemirror/autocomplete";
-import { StateField, StateEffect, RangeSetBuilder, Prec } from "@codemirror/state";
+import { StateField, StateEffect, RangeSetBuilder, Prec, Text } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType, keymap } from "@codemirror/view";
+import { linkOpener } from "./links.js";
 
 const FENCE = /^---[ \t]*$/;
 const CLOSE = /^(?:---|\.\.\.)[ \t]*$/;
@@ -111,6 +112,17 @@ export function tagsIn(doc, fm) {
 	return null;
 }
 
+// All of a note's tags: the tags property plus #tags in the text (outside code).
+export function noteTags(text) {
+	const doc = Text.of(text.split(/\r?\n/));
+	const fm = frontmatterLines(doc);
+	const out = fm ? [...(tagsIn(doc, fm)?.tags || [])] : [];
+	const body = fm ? text.split(/\r?\n/).slice(fm.close).join("\n") : text;
+	const prose = body.replace(/^(```|~~~)[\s\S]*?^\1/gm, "").replace(/`[^`\n]*`/g, "");
+	for (const m of prose.matchAll(/(?<=^|\s)#([\p{L}_][\p{L}\p{N}_\/-]*)/gu)) out.push(m[1]);
+	return out;
+}
+
 // Flow values are rewritten in the shape they had: [a, b], "a, b" or "a b".
 function flowValue(old, tags) {
 	if (!tags.length) return "";
@@ -169,6 +181,12 @@ class TagsWidget extends WidgetType {
 			x.setAttribute("aria-label", `Remove tag ${t}`);
 			x.addEventListener("mousedown", (e) => { e.preventDefault(); apply((doc, tags) => tagRemoveEdit(doc, tags, i)); });
 			pill.append(x);
+			pill.title = `Notes tagged #${t}`;
+			pill.addEventListener("mousedown", (e) => {
+				if (e.target !== pill) return;
+				e.preventDefault();
+				view.state.facet(linkOpener)?.({ tag: t });
+			});
 			wrap.append(pill);
 		});
 		const input = document.createElement("input");
