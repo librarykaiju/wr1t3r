@@ -247,6 +247,22 @@ function promptFileName(text) {
 	return (n.length > 80 ? n.slice(0, 80).replace(/\s+\S*$/, "") : n) || "Untitled";
 }
 
+// A journal entry for a prompt: in journal/, with the prompt as its title and
+// the rest of the frontmatter from _templates/Journal.md, filled in the way
+// Templater would. Without that template, the usual new-note properties.
+const JOURNAL_TEMPLATE = "_templates/journal.md";
+function newPromptNote(question) {
+	const paths = visible().map((n) => n.path);
+	const tmpl = findTemplate(paths, JOURNAL_TEMPLATE);
+	const folder = (tmpl ? tmpl.root : commonFolder(visible())) + "journal/";
+	const title = question.replaceAll('"', "'");
+	newNote(folder + promptFileName(question) + ".md", () => {
+		const date = new Date();
+		if (!tmpl) return newNoteFrontmatter(title, date.toLocaleDateString("en-CA"));
+		return renderTemplate(notes.get(tmpl.path).text, { title, date }).text;
+	});
+}
+
 function renderQuote() {
 	const q = quoteFor();
 	$("quoteText").textContent = q.text.replaceAll(" / ", "\n");
@@ -290,7 +306,7 @@ function normalise(input) {
 	return p;
 }
 
-async function newNote(suggestion = currentFolder() + "Untitled.md", title = null) {
+async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = null) {
 	const input = prompt("New note (folders with /):", suggestion);
 	if (input == null) return;
 	const path = normalise(input);
@@ -300,7 +316,7 @@ async function newNote(suggestion = currentFolder() + "Untitled.md", title = nul
 	// note replaces it in the vault.
 	// Notes that could be published start with the Note template's properties,
 	// including today's date; "_" folders never publish, so they start empty.
-	const text = /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(title ?? name(path), new Date().toLocaleDateString("en-CA"));
+	const text = makeText ? makeText(path) : /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"));
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	// Focus goes back to the New button once the name prompt closes; take it
@@ -1187,7 +1203,7 @@ async function start() {
 	setupToc();
 	refreshKeyboardBar = setupKeyboardBar($("app"), () => editor.view);
 	renderQuote();
-	$("writingPrompt").addEventListener("click", () => newNote(commonFolder(visible()) + promptFileName($("writingPrompt").textContent) + ".md", $("writingPrompt").textContent));
+	$("writingPrompt").addEventListener("click", () => newPromptNote($("writingPrompt").textContent));
 	$("promptNext").addEventListener("click", () => { promptStep++; renderPrompt(); });
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
