@@ -60,6 +60,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 	display: flex; flex-direction: column; min-height: 0;
 }
 .side-top { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; padding-top: max(10px, env(safe-area-inset-top)); }
+.side-top .app-name { flex: 1 1 100%; margin: 2px 4px 4px; font: 700 26px/1.2 var(--serif); letter-spacing: 0.01em; color: var(--fg); }
 .side-top input[type=search] { flex: 1 1 100%; }
 .side-top button { flex: 1; }
 .side-bottom { padding: 8px 10px max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
