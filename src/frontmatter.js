@@ -46,12 +46,20 @@ export function addProperty(view) {
 //   tags:|           -> a list item under it
 //     - novel|       -> another list item
 //     - |            -> (empty item) replaced by a new "key: " line
+//   tags: <pills>|   -> a new "key: " line after the last tag
 export function propertyEnter(doc, pos) {
 	const fm = frontmatterLines(doc);
 	if (!fm) return null;
 	const line = doc.lineAt(pos);
-	if (line.number <= fm.open || line.number >= fm.close || pos !== line.to) return null;
+	if (line.number <= fm.open || line.number >= fm.close) return null;
+	const tagsLine = /^tags?:/.test(line.text);
+	if (pos !== line.to && !tagsLine) return null;
 	const t = line.text;
+	// The tags line: its items are drawn as pills, so the next property goes after them.
+	if (/^tags?:/.test(t)) {
+		const tags = tagsIn(doc, fm);
+		return { from: tags.to, to: tags.to, template: "\n${key}: ${}" };
+	}
 	if (/^\s+-\s*$/.test(t)) return { from: line.from, to: line.to, template: "${key}: ${}" };
 	// snippet() carries the line's own indentation onto new lines, so none here.
 	if (/^\s+- \S/.test(t)) return { from: pos, to: pos, template: "\n- ${}" };
@@ -70,36 +78,61 @@ function enter(view) {
 }
 
 // The tags property, in either YAML form:
-//   tags: [novel, draft]   (or "tags: novel, draft", or one bare tag)
-//   tags:
+//   tags:                  (form "list")
 //     - novel
-// -> { first, last } (its line numbers), the stretch to draw pills over
-// ({ from, to }: the value, or everything after "tags:" through the last
-// item), and the tags without quotes or "#". Null when there's no tags
-// property or it's empty.
+//   tags: [novel, draft]   (form "flow"; also "tags: novel, draft" or bare words)
+// -> { form, first, last } (its line numbers), the stretch the pills are drawn
+// over ({ from, to }: the value, or everything after "tags:" through the last
+// item), the tags without quotes or "#", and for lists each item's line.
+// Null when the note has no tags property.
+const cleanTag = (t) => t.trim().replace(/^["']|["']$/g, "").replace(/^#/, "").trim();
 export function tagsIn(doc, fm) {
 	for (let n = fm.open + 1; n < fm.close; n++) {
 		const l = doc.line(n);
 		const m = l.text.match(/^tags?:[ \t]*/);
 		if (!m) continue;
-		const clean = (t) => t.trim().replace(/^["']|["']$/g, "").replace(/^#/, "").trim();
-		const value = l.text.slice(m[0].length).replace(/\s+#.*$/, "");
+		const value = l.text.slice(m[0].length);
 		if (value.trim()) {
 			const inner = value.trim().replace(/^\[|\]$/g, "");
-			const tags = inner.split(inner.includes(",") ? "," : /\s+/).map(clean).filter(Boolean);
-			return tags.length ? { first: n, last: n, from: l.from + m[0].length, to: l.to, tags } : null;
+			const tags = inner.split(inner.includes(",") ? "," : /\s+/).map(cleanTag).filter(Boolean);
+			return { form: "flow", first: n, last: n, from: l.from + m[0].length, to: l.to, tags, value };
 		}
-		const tags = [];
-		let last = n;
+		const tags = [], items = [];
+		let last = n, indent = "  ";
 		for (let i = n + 1; i < fm.close; i++) {
-			const item = doc.line(i).text.match(/^\s+-\s*(.*)$/);
+			const item = doc.line(i).text.match(/^(\s+)-\s*(.*)$/);
 			if (!item) break;
-			if (clean(item[1])) tags.push(clean(item[1]));
+			indent = item[1];
+			if (cleanTag(item[2])) { tags.push(cleanTag(item[2])); items.push(i); }
 			last = i;
 		}
-		return tags.length ? { first: n, last, from: l.to, to: doc.line(last).to, tags } : null;
+		return { form: "list", first: n, last, from: l.to, to: doc.line(last).to, tags, items, indent };
 	}
 	return null;
+}
+
+// Flow values are rewritten in the shape they had: [a, b], "a, b" or "a b".
+function flowValue(old, tags) {
+	if (!tags.length) return "";
+	if (/^\s*\[/.test(old)) return "[" + tags.join(", ") + "]";
+	return tags.join(old.includes(",") ? ", " : " ");
+}
+
+// A tag as typed into the add box: no "#", no spaces (Obsidian tags can't have them).
+export const tagName = (s) => cleanTag(s).replace(/\s+/g, "-");
+
+// The edit that removes tag i, or adds a tag. For lists that's one item line;
+// for flow values, just that line's value.
+export function tagRemoveEdit(doc, t, i) {
+	if (t.form === "list") {
+		const line = doc.line(t.items[i]);
+		return { from: doc.line(t.items[i] - 1).to, to: line.to, insert: "" };
+	}
+	return { from: t.from, to: t.to, insert: flowValue(t.value, t.tags.filter((_, k) => k !== i)) };
+}
+export function tagAddEdit(doc, t, name) {
+	if (t.form === "list") return { from: t.to, to: t.to, insert: "\n" + t.indent + "- " + name };
+	return { from: t.from, to: t.to, insert: flowValue(t.value, [...t.tags, name]) };
 }
 
 // Same tag, same color, everywhere.
@@ -109,22 +142,57 @@ export function tagHue(tag) {
 	return h % 8;
 }
 
+// The tags as pills, each with a remove button, and a box to add one. Editing
+// happens here rather than in the text, so the pills stay while you work.
 class TagsWidget extends WidgetType {
-	constructor(tags, pos) { super(); this.tags = tags; this.pos = pos; }
-	eq(o) { return o.pos === this.pos && o.tags.join("\n") === this.tags.join("\n"); }
-	toDOM() {
+	constructor(tags) { super(); this.tags = tags; }
+	eq(o) { return o.tags.join("\n") === this.tags.join("\n"); }
+	toDOM(view) {
 		const wrap = document.createElement("span");
 		wrap.className = "md-tags";
-		wrap.dataset.pos = this.pos;
-		for (const t of this.tags) {
+		const apply = (edit) => {
+			const fm = frontmatterLines(view.state.doc);
+			const t = fm && tagsIn(view.state.doc, fm);
+			if (!t || view.state.readOnly) return;
+			view.dispatch({ changes: edit(view.state.doc, t), userEvent: "input.tags" });
+			// The pills are redrawn; put the typing back in the new add box.
+			requestAnimationFrame(() => view.dom.querySelector(".md-tag-input")?.focus());
+		};
+		this.tags.forEach((t, i) => {
 			const pill = document.createElement("span");
 			pill.className = `md-tag md-tag-${tagHue(t)}`;
 			pill.textContent = t;
+			const x = document.createElement("button");
+			x.type = "button";
+			x.className = "md-tag-x";
+			x.textContent = "×";
+			x.setAttribute("aria-label", `Remove tag ${t}`);
+			x.addEventListener("mousedown", (e) => { e.preventDefault(); apply((doc, tags) => tagRemoveEdit(doc, tags, i)); });
+			pill.append(x);
 			wrap.append(pill);
-		}
+		});
+		const input = document.createElement("input");
+		input.className = "md-tag-input";
+		input.placeholder = "+ tag";
+		input.setAttribute("aria-label", "Add a tag");
+		input.size = 6;
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Enter" || e.key === ",") {
+				e.preventDefault();
+				const name = tagName(input.value);
+				if (name) apply((doc, tags) => tagAddEdit(doc, tags, name));
+			} else if (e.key === "Backspace" && !input.value && this.tags.length) {
+				e.preventDefault();
+				apply((doc, tags) => tagRemoveEdit(doc, tags, tags.tags.length - 1));
+			} else if (e.key === "Escape") {
+				view.focus();
+			}
+		});
+		wrap.append(input);
 		return wrap;
 	}
-	ignoreEvent() { return false; }
+	// The pills handle their own clicks and typing.
+	ignoreEvent() { return true; }
 }
 
 // Top-level "key:" lines between the fences.
@@ -187,23 +255,17 @@ function decorate(state) {
 		b.add(open.from, close.to, Decoration.replace({ widget: new FmWidget("folded", propertyCount(doc, fm)), atomic: true }));
 		return b.finish();
 	}
-	// The fence lines show as "---" while the cursor is on them, so they can be edited.
-	const editing = new Set();
-	for (const r of state.selection.ranges) {
-		for (let n = doc.lineAt(r.from).number, last = doc.lineAt(r.to).number; n <= last; n++) editing.add(n);
-	}
-	// Tags show as pills unless the cursor is in them; tapping the pills opens them for editing.
-	const tags = tagsIn(doc, fm);
-	let pills = tags;
-	for (let n = tags?.first; pills && n <= tags.last; n++) if (editing.has(n)) pills = null;
+	// The styling stays put while editing: fences are always the header and
+	// the add button, and tags always pills (edited through the pills).
+	const pills = tagsIn(doc, fm);
 	for (let n = fm.open; n <= fm.close; n++) {
 		if (pills && n > pills.first && n <= pills.last) continue; // folded into the pills line
 		const l = doc.line(n);
 		const fence = n === fm.open || n === fm.close;
 		const cls = "md-fm" + (fence ? " md-fm-fence" : "") + (n === fm.open ? " md-first" : "") + (n === fm.close ? " md-last" : "");
 		b.add(l.from, l.from, Decoration.line({ class: cls }));
-		if (fence && !editing.has(n)) b.add(l.from, l.to, Decoration.replace({ widget: new FmWidget(n === fm.open ? "open" : "add"), atomic: true }));
-		if (pills && n === pills.first) b.add(pills.from, pills.to, Decoration.replace({ widget: new TagsWidget(pills.tags, pills.to), atomic: true }));
+		if (fence) b.add(l.from, l.to, Decoration.replace({ widget: new FmWidget(n === fm.open ? "open" : "add"), atomic: true }));
+		if (pills && n === pills.first) b.add(pills.from, pills.to, Decoration.replace({ widget: new TagsWidget(pills.tags), atomic: true }));
 	}
 	return b.finish();
 }
@@ -232,13 +294,6 @@ const clicks = EditorView.domEventHandlers({
 			const next = !view.state.field(folded);
 			remember(next);
 			view.dispatch({ effects: setFolded.of(next) });
-			return true;
-		}
-		const pills = t.closest?.(".md-tags");
-		if (pills) {
-			e.preventDefault();
-			view.dispatch({ selection: { anchor: Number(pills.dataset.pos) } });
-			view.focus();
 			return true;
 		}
 		if (t.classList?.contains("md-fm-add")) {
