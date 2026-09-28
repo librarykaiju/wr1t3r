@@ -308,3 +308,11 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 	padding-left: 26px;
 	background-image: linear-gradient(var(--mark), var(--mark)); background-size: 3px 100%; background-position: 13px 0; background-repeat: no-repeat;
 }
+#editor .md-tags { margin-left: 0.4em; display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; cursor: text; }
+#editor .md-tag, #editor .md-hashtag {
+	--t: #448aff; background: color-mix(in srgb, var(--t) 16%, var(--bg)); color: color-mix(in srgb, var(--t) 75%, var(--fg));
+	border-radius: 999px; padding: 0 0.6em; font: 500 0.95em/1.6 var(--sans);
+}
+#editor .md-hashtag { font-size: 0.8em; padding: 0.05em 0.55em; }
+#editor .md-tag-0 { --t: #448aff; } #editor .md-tag-1 { --t: #08b94e; } #editor .md-tag-2 { --t: #e0a800; } #editor .md-tag-3 { --t: #f57c00; }
+#editor .md-tag-4 { --t: #e5484d; } #editor .md-tag-5 { --t: #7c4dff; } #editor .md-tag-6 { --t: #00b8d4; } #editor .md-tag-7 { --t: #d63384; }

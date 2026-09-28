@@ -4,8 +4,8 @@
 // untouched, and folding is display only.
 
 import { snippet } from "@codemirror/autocomplete";
-import { StateField, StateEffect, RangeSetBuilder } from "@codemirror/state";
-import { EditorView, Decoration, WidgetType } from "@codemirror/view";
+import { StateField, StateEffect, RangeSetBuilder, Prec } from "@codemirror/state";
+import { EditorView, Decoration, WidgetType, keymap } from "@codemirror/view";
 
 const FENCE = /^---[ \t]*$/;
 const CLOSE = /^(?:---|\.\.\.)[ \t]*$/;
@@ -37,6 +37,94 @@ export function addProperty(view) {
 	snippet(text)(view, null, at, at);
 	view.focus();
 	return true;
+}
+
+// Enter at the end of a line inside the frontmatter: the edit that starts the
+// next property (or list item), as { from, to, template }, or null to let Enter
+// do what it normally does.
+//   title: A|        -> a new "key: " line
+//   tags:|           -> a list item under it
+//     - novel|       -> another list item
+//     - |            -> (empty item) replaced by a new "key: " line
+export function propertyEnter(doc, pos) {
+	const fm = frontmatterLines(doc);
+	if (!fm) return null;
+	const line = doc.lineAt(pos);
+	if (line.number <= fm.open || line.number >= fm.close || pos !== line.to) return null;
+	const t = line.text;
+	if (/^\s+-\s*$/.test(t)) return { from: line.from, to: line.to, template: "${key}: ${}" };
+	// snippet() carries the line's own indentation onto new lines, so none here.
+	if (/^\s+- \S/.test(t)) return { from: pos, to: pos, template: "\n- ${}" };
+	if (/^[^\s#-][^:]*:\s*$/.test(t)) return { from: pos, to: pos, template: "\n  - ${}" };
+	if (/^[^\s#-][^:]*:\s*\S/.test(t)) return { from: pos, to: pos, template: "\n${key}: ${}" };
+	return null;
+}
+
+function enter(view) {
+	const sel = view.state.selection;
+	if (view.state.readOnly || sel.ranges.length > 1 || !sel.main.empty) return false;
+	const e = propertyEnter(view.state.doc, sel.main.head);
+	if (!e) return false;
+	snippet(e.template)(view, null, e.from, e.to);
+	return true;
+}
+
+// The tags property, in either YAML form:
+//   tags: [novel, draft]   (or "tags: novel, draft", or one bare tag)
+//   tags:
+//     - novel
+// -> { first, last } (its line numbers), the stretch to draw pills over
+// ({ from, to }: the value, or everything after "tags:" through the last
+// item), and the tags without quotes or "#". Null when there's no tags
+// property or it's empty.
+export function tagsIn(doc, fm) {
+	for (let n = fm.open + 1; n < fm.close; n++) {
+		const l = doc.line(n);
+		const m = l.text.match(/^tags?:[ \t]*/);
+		if (!m) continue;
+		const clean = (t) => t.trim().replace(/^["']|["']$/g, "").replace(/^#/, "").trim();
+		const value = l.text.slice(m[0].length).replace(/\s+#.*$/, "");
+		if (value.trim()) {
+			const inner = value.trim().replace(/^\[|\]$/g, "");
+			const tags = inner.split(inner.includes(",") ? "," : /\s+/).map(clean).filter(Boolean);
+			return tags.length ? { first: n, last: n, from: l.from + m[0].length, to: l.to, tags } : null;
+		}
+		const tags = [];
+		let last = n;
+		for (let i = n + 1; i < fm.close; i++) {
+			const item = doc.line(i).text.match(/^\s+-\s*(.*)$/);
+			if (!item) break;
+			if (clean(item[1])) tags.push(clean(item[1]));
+			last = i;
+		}
+		return tags.length ? { first: n, last, from: l.to, to: doc.line(last).to, tags } : null;
+	}
+	return null;
+}
+
+// Same tag, same color, everywhere.
+export function tagHue(tag) {
+	let h = 0;
+	for (const c of tag.toLowerCase()) h = (h * 31 + c.codePointAt(0)) >>> 0;
+	return h % 8;
+}
+
+class TagsWidget extends WidgetType {
+	constructor(tags, pos) { super(); this.tags = tags; this.pos = pos; }
+	eq(o) { return o.pos === this.pos && o.tags.join("\n") === this.tags.join("\n"); }
+	toDOM() {
+		const wrap = document.createElement("span");
+		wrap.className = "md-tags";
+		wrap.dataset.pos = this.pos;
+		for (const t of this.tags) {
+			const pill = document.createElement("span");
+			pill.className = `md-tag md-tag-${tagHue(t)}`;
+			pill.textContent = t;
+			wrap.append(pill);
+		}
+		return wrap;
+	}
+	ignoreEvent() { return false; }
 }
 
 // Top-level "key:" lines between the fences.
@@ -104,12 +192,18 @@ function decorate(state) {
 	for (const r of state.selection.ranges) {
 		for (let n = doc.lineAt(r.from).number, last = doc.lineAt(r.to).number; n <= last; n++) editing.add(n);
 	}
+	// Tags show as pills unless the cursor is in them; tapping the pills opens them for editing.
+	const tags = tagsIn(doc, fm);
+	let pills = tags;
+	for (let n = tags?.first; pills && n <= tags.last; n++) if (editing.has(n)) pills = null;
 	for (let n = fm.open; n <= fm.close; n++) {
+		if (pills && n > pills.first && n <= pills.last) continue; // folded into the pills line
 		const l = doc.line(n);
 		const fence = n === fm.open || n === fm.close;
 		const cls = "md-fm" + (fence ? " md-fm-fence" : "") + (n === fm.open ? " md-first" : "") + (n === fm.close ? " md-last" : "");
 		b.add(l.from, l.from, Decoration.line({ class: cls }));
 		if (fence && !editing.has(n)) b.add(l.from, l.to, Decoration.replace({ widget: new FmWidget(n === fm.open ? "open" : "add"), atomic: true }));
+		if (pills && n === pills.first) b.add(pills.from, pills.to, Decoration.replace({ widget: new TagsWidget(pills.tags, pills.to), atomic: true }));
 	}
 	return b.finish();
 }
@@ -140,6 +234,13 @@ const clicks = EditorView.domEventHandlers({
 			view.dispatch({ effects: setFolded.of(next) });
 			return true;
 		}
+		const pills = t.closest?.(".md-tags");
+		if (pills) {
+			e.preventDefault();
+			view.dispatch({ selection: { anchor: Number(pills.dataset.pos) } });
+			view.focus();
+			return true;
+		}
 		if (t.classList?.contains("md-fm-add")) {
 			e.preventDefault();
 			addProperty(view);
@@ -149,4 +250,4 @@ const clicks = EditorView.domEventHandlers({
 	},
 });
 
-export const frontmatterStyle = [folded, decorations, clicks];
+export const frontmatterStyle = [folded, decorations, clicks, Prec.high(keymap.of([{ key: "Enter", run: enter }]))];
