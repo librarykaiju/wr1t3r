@@ -4,6 +4,7 @@
 
 import { createEditor } from "./editor.js";
 import { setupKeyboardBar } from "./kbbar.js";
+import { promptFor } from "./prompts.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags } from "./frontmatter.js";
 import { EditorView } from "@codemirror/view";
@@ -222,6 +223,12 @@ function openNote(path) {
 
 // The empty screen's quote of the day. Checked again whenever wr1t3r comes back
 // into view, so a tab left open overnight shows the new day's quote.
+// Today's writing prompt; a tap moves on to the next one.
+let promptStep = 0;
+function renderPrompt() {
+	$("writingPrompt").textContent = promptFor(new Date(), promptStep);
+}
+
 function renderQuote() {
 	const q = quoteFor();
 	$("quoteText").textContent = q.text.replaceAll(" / ", "\n");
@@ -229,6 +236,7 @@ function renderQuote() {
 	const cite = document.createElement("cite");
 	cite.textContent = q.work;
 	by.replaceChildren("— " + q.author + ", ", cite);
+	renderPrompt();
 }
 
 function renderTitle() {
@@ -1104,6 +1112,7 @@ async function start() {
 	setupToc();
 	refreshKeyboardBar = setupKeyboardBar($("app"), () => editor.view);
 	renderQuote();
+	$("writingPrompt").addEventListener("click", () => { promptStep++; renderPrompt(); });
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
 	persist();
