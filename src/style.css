@@ -78,6 +78,8 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 #tree a.current { background: var(--sel); }
 #tree a.dirty::after { content: " •"; color: var(--accent); }
 #tree .hint { color: var(--muted); padding: 6px; }
+#tree a .snippet { display: block; margin-top: 1px; color: var(--muted); font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; }
+#tree a .snippet mark { background: var(--sel); color: inherit; border-radius: 2px; }
 
 main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 header {
@@ -401,13 +403,29 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 .md-dv-edit { position: absolute; top: 0; right: 0; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); opacity: 0; cursor: pointer; }
 .md-dv:hover .md-dv-edit, .md-dv-edit:focus-visible { opacity: 1; }
 @media (hover: none) { .md-dv-edit { opacity: 0.6; } }
+/* ![[Note]] embeds (src/embeds.js) */
+.md-embed { position: relative; margin: 6px 0; padding: 6px 12px 8px; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--card); }
+.md-embed-top { display: flex; align-items: center; gap: 8px; font: 13px/1.5 var(--sans); }
+.md-embed-title { color: var(--muted); text-decoration: none; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-embed-title:hover { color: var(--accent); }
+.md-embed-edit { margin-left: auto; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font-size: 12px; opacity: 0; cursor: pointer; }
+.md-embed:hover .md-embed-edit, .md-embed-edit:focus-visible { opacity: 1; }
+@media (hover: none) { .md-embed-edit { opacity: 0.6; } }
+#editor .md-embed .cm-editor { height: auto; background: transparent; }
+#editor .md-embed .cm-scroller { padding: 0; max-height: 70vh; overflow: auto; }
+.md-embed .cm-content { padding: 2px 0; caret-color: transparent; }
+.md-embed.missing { border-left-color: var(--line); }
+.md-embed-missing { color: var(--muted); font: italic 14px/1.5 var(--sans); }
 
 /* Links to notes that don't exist yet (src/links.js) */
 .md-unresolved, .md-unresolved * { opacity: 0.6; text-decoration-style: dashed; }
 
 /* "Linked from" under the note (src/backlinks.js) */
 .md-backlinks { margin: 48px 0 24px; padding-top: 14px; border-top: 1px solid var(--line); font-family: var(--sans); font-size: 14px; }
-.md-backlinks h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.md-backlinks details + details { margin-top: 12px; }
+.md-backlinks summary { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; list-style-position: inside; }
+.md-backlink.md-unresolved { opacity: 1; border: 0; }
+.md-backlink.md-unresolved .md-backlink-name { opacity: 0.6; text-decoration: underline dashed; text-underline-offset: 3px; }
 .md-backlink { display: block; padding: 6px 8px; margin: 0 -8px; border-radius: 6px; color: inherit; text-decoration: none; }
 .md-backlink:hover { background: var(--card); }
 .md-backlink-name { display: block; color: var(--accent); }

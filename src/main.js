@@ -9,6 +9,8 @@ import { promptFor } from "./prompts.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags } from "./frontmatter.js";
 import { vaultChanged } from "./vault.js";
+import { setLivePreview } from "./livepreview.js";
+import { parseQuery, matches, snippet } from "./search.js";
 import { renameEdits, applyChanges } from "./vaultlinks.js";
 import { EditorView } from "@codemirror/view";
 import { local, persist } from "./store.js";
@@ -149,16 +151,28 @@ function vaultTouched() {
 function renderTree() {
 	vaultTouched();
 	const tree = $("tree");
-	const q = $("filter").value.trim().toLowerCase();
+	const q = $("filter").value.trim();
 	tree.replaceChildren();
 	const list = visible();
 	if (q) {
-		// "#tag" finds notes with that tag (or a nested one, like #tag/sub), in the properties or the text.
-		const tag = /^#[^\s#]+$/.test(q) ? q.slice(1) : null;
-		const hasTag = (n) => !n.binary && noteTags(n.text).some((t) => t.toLowerCase() === tag || t.toLowerCase().startsWith(tag + "/"));
-		const hits = list.filter((n) => (tag && hasTag(n)) || n.path.toLowerCase().includes(q) || (!n.binary && n.text.toLowerCase().includes(q)));
+		// Words, "phrases", path:, file:, tag:/#tag and -word (src/search.js).
+		const terms = parseQuery(q);
+		const hits = list.filter((n) => matches(n.binary ? { path: n.path, text: "" } : n, terms, noteTags));
 		const base = commonFolder(list);
-		for (const n of hits.slice(0, 300)) tree.append(link(n, n.path.slice(base.length).replace(/\.md$/i, "")));
+		for (const n of hits.slice(0, 300)) {
+			const a = link(n, n.path.slice(base.length).replace(/\.md$/i, ""));
+			const s = n.binary ? null : snippet(n.text, terms);
+			if (s) {
+				a.classList.add("hit");
+				const line = document.createElement("span");
+				line.className = "snippet";
+				const mark = document.createElement("mark");
+				mark.textContent = s.match;
+				line.append(s.before, mark, s.after);
+				a.append(line);
+			}
+			tree.append(a);
+		}
 		if (!hits.length) tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: "No matches." }));
 		return;
 	}
@@ -526,6 +540,13 @@ function applySize(px) {
 	editor?.view.requestMeasure();
 }
 
+// Live Preview hides markdown symbols off the cursor line (off unless chosen).
+function applyMode(mode) {
+	const live = mode === "live";
+	setLivePreview(editor?.view, live);
+	document.querySelectorAll("#modes button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.mode === "live") === live)));
+}
+
 function openSettings(on) {
 	if (on && !$("agenda").hidden) openAgenda(false);
 	$("settings").hidden = !on;
@@ -543,6 +564,13 @@ function setupSettings() {
 		if (!b) return;
 		storeRaw("wr1t3rTheme", b.dataset.theme === "auto" ? null : b.dataset.theme);
 		applyTheme(b.dataset.theme);
+	});
+	applyMode(readRaw("wr1t3rMode"));
+	$("modes").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b) return;
+		storeRaw("wr1t3rMode", b.dataset.mode === "live" ? "live" : null);
+		applyMode(b.dataset.mode);
 	});
 	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
 	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });

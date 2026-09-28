@@ -27,7 +27,7 @@
 		<aside id="sidebar">
 			<div class="side-top">
 				<h1 class="app-name">wr1t3r</h1>
-				<input id="filter" type="search" placeholder="Search notes" aria-label="Search notes">
+				<input id="filter" type="search" placeholder="Search notes" aria-label="Search notes" title="Words, &quot;a phrase&quot;, path:folder, file:name, tag:x or #x, -word to leave out">
 				<button id="new" type="button" title="New note">New</button>
 				<button id="today" type="button" title="Open today's daily note">Today</button>
 				<button id="upload" type="button" title="Upload files as notes (Word, PDF, HTML, text)">Upload</button>
@@ -83,6 +83,11 @@
 				<button type="button" data-theme="light">Light</button>
 				<button type="button" data-theme="dark">Dark</button>
 				<button type="button" data-theme="sepia">Sepia</button>
+			</div>
+			<h2>Markdown symbols</h2>
+			<div class="seg" id="modes" title="Live Preview hides symbols like ** and ## except on the line you're editing">
+				<button type="button" data-mode="source">Always show</button>
+				<button type="button" data-mode="live">Live Preview</button>
 			</div>
 			<h2>Text size</h2>
 			<div class="seg">

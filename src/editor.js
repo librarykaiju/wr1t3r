@@ -27,6 +27,8 @@ import { linkClicks, linkOpener } from "./links.js";
 import { tableGrid } from "./tablegrid.js";
 import { calloutFolds } from "./callouts.js";
 import { webImages } from "./images.js";
+import { embeds, embedLook } from "./embeds.js";
+import { livePreview } from "./livepreview.js";
 
 const fromSync = Annotation.define();
 
@@ -97,17 +99,11 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 	let current = null; // path shown
 	const states = new Map(); // path -> EditorState, so undo history survives switching notes
 
-	const base = [
-		history(),
-		drawSelection(),
-		highlightActiveLine(),
-		highlightSelectionMatches(),
+	// How markdown is drawn: shared by the editor and embedded notes' boxes.
+	const look = [
 		EditorView.lineWrapping,
-		indentUnit.of("\t"),
-		Prec.high(keymap.of(tableKeymap)),
 		tableStyle,
 		blockStyle,
-		frontmatterStyle,
 		yamlFrontmatter({ content: markdown({ base: markdownLanguage }) }),
 		syntaxHighlighting(style),
 		marks(/\[\[[^\]\n]+\]\]/g, "md-wikilink"),
@@ -123,9 +119,23 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		tableGrid,
 		calloutFolds,
 		webImages,
+		livePreview,
+		...(vault ? [vaultHost.of(vault)] : []),
+	];
+
+	const base = [
+		history(),
+		drawSelection(),
+		highlightActiveLine(),
+		highlightSelectionMatches(),
+		indentUnit.of("\t"),
+		Prec.high(keymap.of(tableKeymap)),
+		frontmatterStyle,
+		look,
+		embedLook.of(() => look),
+		embeds,
 		dataviewJs,
 		backlinks,
-		...(vault ? [vaultHost.of(vault)] : []),
 		autocompletion({ override: [slashSource(), linkSource], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 		placeholder("Type / for formatting"),

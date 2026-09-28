@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { noteLinks, backlinksTo, renameEdits, applyChanges, headingsOf } from "../src/vaultlinks.js";
+import { noteLinks, backlinksTo, renameEdits, applyChanges, headingsOf, embedSection, outgoingLinks, unlinkedMentions } from "../src/vaultlinks.js";
 import { linkText } from "../src/linkcomplete.js";
 
 const paths = ["content/Ideas.md", "content/drafts/Chapter One.md", "content/drafts/Plan.md", "content/_daily/2026-09-28.md", "content/other/Plan.md"];
@@ -47,4 +47,35 @@ test("completion writes the shortest name that finds the note", () => {
 
 test("headings", () => {
 	assert.deepEqual(headingsOf("# One\ntext\n## Two ##\n```\n# not\n```\n"), ["One", "Two"]);
+});
+
+test("embedSection picks the body, a heading's section or a block", () => {
+	const text = "---\ntitle: x\n---\n\nIntro\n\n## One\na\n### Sub\nb\n## Two\nc ^blk\nd\n\n- item\n- item 2\n\n^list\n";
+	assert.equal(embedSection(text), "Intro\n\n## One\na\n### Sub\nb\n## Two\nc ^blk\nd\n\n- item\n- item 2\n\n^list\n");
+	assert.equal(embedSection(text, "One"), "## One\na\n### Sub\nb");
+	assert.equal(embedSection(text, "sub"), "### Sub\nb");
+	assert.equal(embedSection(text, "^blk"), "c");
+	assert.equal(embedSection(text, "^list"), "- item\n- item 2");
+	assert.equal(embedSection(text, "Missing"), null);
+	assert.equal(embedSection(text, "^nope"), null);
+	assert.equal(embedSection("```\n# not\n```\n# Yes\nz", "not"), null);
+});
+
+test("outgoingLinks groups links by note, missing ones last", () => {
+	const text = "[[Plan]] and [[Ideas]] and [Ideas](../Ideas.md) and [[Ghost]] [[#Here]] ![[Chapter One]]";
+	assert.deepEqual(outgoingLinks(text, "content/drafts/Plan.md", paths), [
+		{ name: "Chapter One", path: "content/drafts/Chapter One.md", count: 1 },
+		{ name: "Ideas", path: "content/Ideas.md", count: 2 },
+		{ name: "Ghost", path: null, count: 1 },
+	]);
+});
+
+test("unlinkedMentions finds the name as plain text only", () => {
+	const notes = [
+		{ path: "content/a.md", text: "---\ntitle: Ideas\n---\nSome ideas here. [[Ideas]] `Ideas`" },
+		{ path: "content/b.md", text: "[[Ideas]] only" },
+		{ path: "content/c.md", text: "no Ideasmith match" },
+		{ path: "content/Ideas.md", text: "Ideas itself" },
+	];
+	assert.deepEqual(unlinkedMentions("content/Ideas.md", notes), [{ path: "content/a.md", count: 1, snippet: "Some ideas here. [[Ideas]] `Ideas`" }]);
 });

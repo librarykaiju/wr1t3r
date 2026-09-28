@@ -127,3 +127,85 @@ export function headingsOf(text) {
 	for (const m of masked.matchAll(/^#{1,6}[ \t]+(.+?)[ \t]*#*[ \t]*$/gm)) out.push(text.slice(m.index, m.index + m[0].length).replace(/^#{1,6}[ \t]+/, "").replace(/[ \t]+#*[ \t]*$/, "").trim());
 	return out;
 }
+
+// The part of a note an embed shows: ![[Note]] the body (no frontmatter),
+// ![[Note#Heading]] that heading's section (up to the next heading at the same
+// level or higher), ![[Note#^id]] the block ending in "^id" (its paragraph, or
+// the block just above a line holding only "^id"), without the id. Null when
+// the heading or block isn't there.
+export function embedSection(text, part = "") {
+	const body = text.replace(/^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/, "");
+	const lines = body.split(/\r?\n/);
+	const masked = maskCode(body).split(/\r?\n/);
+	part = part.trim();
+	if (!part) return body.replace(/^\s*\n/, "");
+	if (part.startsWith("^")) {
+		const id = part.slice(1);
+		const re = new RegExp("(^|\\s)\\^" + id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[ \\t]*$");
+		const at = masked.findIndex((l) => re.test(l));
+		if (at < 0 || !id) return null;
+		let end = at;
+		if (!lines[at].replace(re, "").trim()) {
+			end = at - 1;
+			while (end >= 0 && !lines[end].trim()) end--;
+			if (end < 0) return null;
+		}
+		let start = end;
+		while (start > 0 && lines[start - 1].trim() && !/^#{1,6}\s/.test(lines[start]) && !/^#{1,6}\s/.test(lines[start - 1])) start--;
+		const out = lines.slice(start, end + 1);
+		if (end === at) out[out.length - 1] = out[out.length - 1].replace(re, "");
+		return out.join("\n");
+	}
+	const squash = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+	const want = squash(part);
+	const heading = (l) => l.match(/^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/);
+	const at = masked.findIndex((l) => { const h = heading(l); return h && squash(h[2]) === want; });
+	if (at < 0) return null;
+	const level = heading(masked[at])[1].length;
+	let end = at + 1;
+	while (end < lines.length) { const h = heading(masked[end]); if (h && h[1].length <= level) break; end++; }
+	return lines.slice(at, end).join("\n").replace(/\s+$/, "");
+}
+
+// What a note links to: [{ name, path, count }], path null when no note has
+// that name yet. Links to itself ([[#Heading]]) aren't listed.
+export function outgoingLinks(text, fromPath, paths) {
+	const byKey = new Map();
+	for (const l of noteLinks(text)) {
+		if (!l.note) continue;
+		const path = resolve(l, fromPath, paths);
+		if (path === fromPath) continue;
+		const key = path || "?" + l.note.toLowerCase();
+		const hit = byKey.get(key);
+		if (hit) hit.count++;
+		else byKey.set(key, { name: path ? baseName(path) : l.note.replace(/\.md$/i, ""), path, count: 1 });
+	}
+	return [...byKey.values()].sort((a, b) => (!a.path - !b.path) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+}
+
+// Notes that name target in plain text without linking it (Obsidian's
+// "unlinked mentions"): [{ path, count, snippet }]. Code, links and
+// frontmatter don't count; names under three letters are skipped (too many
+// false hits).
+export function unlinkedMentions(target, notes, limit = 50) {
+	const name = baseName(target);
+	if (name.length < 3) return [];
+	const re = new RegExp("(?<![\\p{L}\\p{N}_])" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\p{L}\\p{N}_])", "giu");
+	const lowName = name.toLowerCase();
+	const out = [];
+	for (const { path, text } of notes) {
+		if (path === target || !text || !text.toLowerCase().includes(lowName)) continue;
+		let masked = maskCode(text).replace(/!?\[\[[^\]\n]*\]\]/g, (m) => " ".repeat(m.length)).replace(MD, (m) => " ".repeat(m.length));
+		const fm = text.match(/^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/);
+		if (fm) masked = " ".repeat(fm[0].length) + masked.slice(fm[0].length);
+		const hits = [...masked.matchAll(re)];
+		if (!hits.length) continue;
+		const at = hits[0].index;
+		const start = text.lastIndexOf("\n", at) + 1;
+		let end = text.indexOf("\n", at);
+		if (end < 0) end = text.length;
+		out.push({ path, count: hits.length, snippet: text.slice(start, end).trim().replace(/^([-*+]|\d+[.)]|#+|>)\s+/, "").slice(0, 160) });
+		if (out.length >= limit) break;
+	}
+	return out.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: "base" }));
+}
