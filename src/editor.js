@@ -21,6 +21,7 @@ import { blockStyle } from "./blocks.js";
 import { frontmatterStyle, tagHue } from "./frontmatter.js";
 import { linkClicks, linkOpener } from "./links.js";
 import { tableGrid } from "./tablegrid.js";
+import { calloutFolds } from "./callouts.js";
 
 const fromSync = Annotation.define();
 
@@ -62,6 +63,26 @@ const hashtags = (() => {
 	}), { decorations: (v) => v.decorations });
 })();
 
+// Obsidian comments: %% like this %%, on one line or across several. Shown
+// dimmed, since Obsidian and the site leave them out.
+const commentMark = Decoration.mark({ class: "md-comment" });
+export function commentRanges(text) {
+	const out = [];
+	for (const m of text.matchAll(/%%[\s\S]*?%%/g)) out.push([m.index, m.index + m[0].length]);
+	return out;
+}
+const comments = ViewPlugin.define((view) => {
+	const build = (state) => {
+		const text = state.sliceDoc();
+		if (!text.includes("%%")) return Decoration.none;
+		return Decoration.set(commentRanges(text).map(([f, t]) => commentMark.range(f, t)));
+	};
+	return {
+		decorations: build(view.state),
+		update(u) { if (u.docChanged) this.decorations = build(u.state); },
+	};
+}, { decorations: (v) => v.decorations });
+
 function lineSeparatorFor(text) {
 	// Only when every line break is CRLF; mixed files fall back to LF once edited.
 	return text.includes("\r\n") && !/(^|[^\r])\n/.test(text) ? "\r\n" : undefined;
@@ -88,9 +109,11 @@ export function createEditor(parent, { onChange, onUpdate, onLink }) {
 		marks(/==[^=\n]+==/g, "md-highlight"),
 		marks(/\[\^[^\]\s]+\]:?/g, "md-footnote"),
 		hashtags,
+		comments,
 		linkClicks((link) => onLink?.(link)),
 		linkOpener.of((link) => onLink?.(link)),
 		tableGrid,
+		calloutFolds,
 		autocompletion({ override: [slashSource()], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 		placeholder("Type / for formatting"),

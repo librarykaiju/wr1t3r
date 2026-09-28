@@ -3,7 +3,8 @@
 // the background and whenever the connection comes back.
 
 import { createEditor } from "./editor.js";
-import { resolveNote } from "./links.js";
+import { resolveNote, headingFor } from "./links.js";
+import { EditorView } from "@codemirror/view";
 import { local, persist } from "./store.js";
 import { api, token, setToken, AuthError } from "./api.js";
 import { sync } from "./sync.js";
@@ -14,7 +15,6 @@ import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
 import { newNoteFrontmatter } from "./frontmatter.js";
 import { quoteFor } from "./quotes.js";
-import { EditorView } from "@codemirror/view";
 
 const $ = (id) => document.getElementById(id);
 const notes = new Map(); // path -> note, mirrors IndexedDB
@@ -263,8 +263,16 @@ function followLink(link) {
 	if (link.url) return void window.open(link.url, "_blank", "noopener");
 	const path = resolveNote(link, editor.path, visible().map((n) => n.path));
 	if (path) {
-		if (path !== editor.path) history.pushState(null, "", "#" + encodeURIComponent(path));
-		return openNote(path);
+		if (path !== editor.path) {
+			history.pushState(null, "", "#" + encodeURIComponent(path));
+			openNote(path);
+		}
+		const h = headingFor(toc.headings(editor.view.state), link.heading);
+		if (h) {
+			editor.view.dispatch({ selection: { anchor: h.from }, effects: EditorView.scrollIntoView(h.from, { y: "start", yMargin: 24 }) });
+			editor.view.focus();
+		} else if (link.heading && !link.heading.startsWith("^")) toast(`No heading “${link.heading}” in ${name(path)}.`);
+		return;
 	}
 	if (link.wiki) return newNote(currentFolder() + normalise(link.note));
 	toast(`There's no note at “${link.note}”.`);

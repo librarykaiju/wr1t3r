@@ -31,13 +31,13 @@ export function target(href) {
 	let path = href;
 	try { path = decodeURIComponent(href); } catch {}
 	const [note, heading = ""] = path.split("#");
-	return note ? { note, heading } : null;
+	return note || heading ? { note, heading } : null; // "#Heading" alone: this note
 }
 
 // "[[Note#Heading|shown text]]" -> { note: "Note", heading: "Heading" }.
 export function wikiTarget(inner) {
 	const [note, heading = ""] = inner.split("|")[0].split("#");
-	return note.trim() ? { note: note.trim(), heading: heading.trim(), wiki: true } : null;
+	return note.trim() || heading.trim() ? { note: note.trim(), heading: heading.trim(), wiki: true } : null;
 }
 
 // A reference link's definition: "[label]: url" anywhere in the note.
@@ -117,6 +117,7 @@ export function linkAt(state, pos) {
 // the linking note's folder or the vault root, else any note with that name
 // (the one with the shortest path when several share it). Null when none.
 export function resolveNote(link, fromPath, paths) {
+	if (!link.note.trim()) return fromPath || null; // [[#Heading]] or [text](#heading)
 	let want = link.note.trim().replace(/^\.\//, "").replace(/^\/+/, "");
 	if (!want) return null;
 	if (!/\.md$/i.test(want)) want += ".md";
@@ -133,6 +134,17 @@ export function resolveNote(link, fromPath, paths) {
 	const tail = want.toLowerCase();
 	const hits = paths.filter((p) => p.toLowerCase() === tail || p.toLowerCase().endsWith("/" + tail));
 	return hits.sort((a, b) => a.length - b.length || a.localeCompare(b))[0] || null;
+}
+
+// The heading a link's "#part" names, from toc.headings(): matched the way both
+// Obsidian ("#My Heading") and web-style anchors ("#my-heading") write it.
+// Block references ("#^id") aren't headings.
+const squash = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+export function headingFor(list, want) {
+	if (!want || want.startsWith("^")) return null;
+	let w = want;
+	try { w = decodeURIComponent(want); } catch {}
+	return list.find((h) => squash(h.text) === squash(w)) || null;
 }
 
 const linkMark = Decoration.mark({ class: "md-a" });

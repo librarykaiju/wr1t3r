@@ -33,7 +33,6 @@ test("only web and mail links open outside; other schemes never do", () => {
 	assert.equal(target("javascript:alert(1)"), null);
 	assert.equal(target("//evil.com"), null);
 	assert.deepEqual(target("Other%20Note.md#Top"), { note: "Other Note.md", heading: "Top" });
-	assert.equal(target("#Top"), null);
 });
 
 test("notes resolve like Obsidian: relative, from the root, then by name", () => {
@@ -57,4 +56,17 @@ test("footnotes jump between the reference and its definition", async () => {
 	assert.equal(footnoteJump(s, fns[1]), doc.indexOf("Other"));
 	assert.equal(footnoteJump(s, fns[2]), doc.indexOf("[^1]"));
 	assert.equal(footnoteJump(s, { footnote: "none", def: false }), null);
+});
+
+test("heading links: same-note anchors and Obsidian or web-style heading names", async () => {
+	const { headingFor } = await import("../src/links.js");
+	assert.deepEqual(target("#Top"), { note: "", heading: "Top" });
+	assert.equal(resolveNote({ note: "", heading: "Top" }, "a/b.md", ["a/b.md"]), "a/b.md");
+	const hs = [{ text: "Getting Started", from: 5 }, { text: "Why it's hard", from: 40 }];
+	assert.equal(headingFor(hs, "Getting Started").from, 5);
+	assert.equal(headingFor(hs, "getting-started").from, 5);
+	assert.equal(headingFor(hs, "why-its-hard").from, 40);
+	assert.equal(headingFor(hs, "Why%20it's%20hard").from, 40);
+	assert.equal(headingFor(hs, "^block1"), null);
+	assert.equal(headingFor(hs, "Missing"), null);
 });
