@@ -3,6 +3,7 @@
 // the background and whenever the connection comes back.
 
 import { createEditor } from "./editor.js";
+import { resolveNote } from "./links.js";
 import { local, persist } from "./store.js";
 import { api, token, setToken, AuthError } from "./api.js";
 import { sync } from "./sync.js";
@@ -236,8 +237,7 @@ function normalise(input) {
 	return p;
 }
 
-async function newNote() {
-	const suggestion = currentFolder() + "Untitled.md";
+async function newNote(suggestion = currentFolder() + "Untitled.md") {
 	const input = prompt("New note (folders with /):", suggestion);
 	if (input == null) return;
 	const path = normalise(input);
@@ -254,6 +254,20 @@ async function newNote() {
 	// back so typing lands in the note (a space would press New again).
 	requestAnimationFrame(() => editor.view.focus());
 	scheduleSync();
+}
+
+// A clicked link: web links open in a new tab, links to notes open the note
+// (Back returns), and a [[link]] to a note that doesn't exist yet offers to
+// create it next to this note, as Obsidian does.
+function followLink(link) {
+	if (link.url) return void window.open(link.url, "_blank", "noopener");
+	const path = resolveNote(link, editor.path, visible().map((n) => n.path));
+	if (path) {
+		if (path !== editor.path) history.pushState(null, "", "#" + encodeURIComponent(path));
+		return openNote(path);
+	}
+	if (link.wiki) return newNote(currentFolder() + normalise(link.note));
+	toast(`There's no note at “${link.note}”.`);
 }
 
 async function removeNote(path) {
@@ -1037,7 +1051,7 @@ function showLogin(message = "") {
 
 async function start() {
 	$("app").hidden = false;
-	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => refreshCount() });
+	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => refreshCount(), onLink: followLink });
 	setupSettings();
 	setupFocusTools();
 	setupAgenda();
@@ -1048,7 +1062,7 @@ async function start() {
 	persist();
 
 	$("filter").addEventListener("input", renderTree);
-	$("new").addEventListener("click", newNote);
+	$("new").addEventListener("click", () => newNote());
 	// Keep this in step with ACCEPT in src/convert.js. It's set here, not
 	// imported, because Safari only opens the picker straight from the tap.
 	$("upload-input").accept = ".md,.markdown,.txt,.html,.htm,.docx,.pdf";
