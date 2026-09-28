@@ -66,6 +66,8 @@ Rename a note by editing its path in the header and pressing Enter. Folders are 
 
 Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped. Folders named in `EXCLUDE` in `wrangler.toml` (for now `_includes/`, the site templates) are refused by the Worker itself: never listed, read, written or deleted. Images and other attachments aren't shown (source mode doesn't render them).
 
+**Today** opens today's daily note, `_daily/YYYY-MM-DD.md`, or makes it from `_templates/Daily.md` (`src/daily.js`). The template is filled in the way Obsidian's Templater does it (`tp.date.now`, `tp.file.title`), and its script block is read rather than run: it makes the companion `YYYY-MM-DD Health` note from `_templates/Daily Health.md` and writes the link to it, so the files match what Obsidian would create byte for byte. Nothing in a template is ever executed.
+
 With no note open, the main window shows a quote about writing or making art that changes at local midnight. The list is in `src/quotes.js` and ships with the app, so it works offline; add or remove lines there to change the rotation. Under it is a writing prompt question, also one a day (`src/prompts.js`, 60 of them); tap it for another.
 
 ## Setup
