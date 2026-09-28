@@ -269,6 +269,19 @@ main:not(.has-note) #count { visibility: hidden; }
 #addEvent select { font: inherit; font-size: 14px; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px; flex: 1; }
 #addEvent .error:empty { display: none; }
 #agendaNote:empty { display: none; }
+.agenda-top { gap: 6px; }
+.agenda-top h2 { flex: 1; }
+#agendaPin { display: none; padding: 4px 6px; line-height: 0; color: var(--muted); }
+#agendaPin[aria-pressed=true] { color: var(--accent); }
+/* Pinned on a wide screen: docked beside the note like the contents, above them when both are open. */
+@media (min-width: 1180px) {
+	#agendaPin { display: inline-flex; }
+	#agenda.docked { top: calc(env(safe-area-inset-top) + 60px); bottom: 48px; right: 12px; width: 340px; max-height: none; box-shadow: none; z-index: 20; }
+	#app.agenda-docked :is(#editor, #refView) .cm-scroller { padding-right: 360px; }
+	#app.agenda-docked.toc-docked #agenda.docked { bottom: calc(50% + 4px); }
+	#app.agenda-docked.toc-docked :is(#editor, #refView) .cm-scroller { padding-right: 360px; }
+	#app.agenda-docked.toc-docked #toc.docked { top: calc(50% + 4px); width: 340px; }
+}
 
 #tocBtn { display: inline-flex; align-items: center; gap: 5px; }
 main:not(.has-note) #tocBtn { visibility: hidden; }

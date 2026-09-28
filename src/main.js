@@ -1285,7 +1285,7 @@ function renderFilters() {
 		dot.className = "dot";
 		if (/^#[0-9a-f]{3,8}$/i.test(c.color)) dot.style.background = c.color;
 		const name = document.createElement("span");
-		name.textContent = c.name;
+		name.textContent = agenda.calendarLabel(c);
 		b.append(dot, name);
 		b.addEventListener("click", () => toggleCalendar(c.id));
 		box.append(b);
@@ -1333,8 +1333,30 @@ function eventRow(e, now) {
 	return row;
 }
 
-function openAgenda(on) {
+// On a wide screen the agenda can be pinned: it docks beside the note (above
+// the contents when those are docked too) and stays open while you write.
+const AGENDA_PIN_KEY = "wr1t3r-agenda-pinned";
+function agendaPinned() { return wide.matches && readRaw(AGENDA_PIN_KEY) === "1"; }
+
+function pinAgenda(on) {
+	storeRaw(AGENDA_PIN_KEY, on ? "1" : null);
+	layoutAgenda();
+	if (on) openAgenda(true);
+}
+
+function layoutAgenda() {
+	const docked = agendaPinned() && !$("agenda").hidden;
+	$("agenda").classList.toggle("docked", docked);
+	$("app").classList.toggle("agenda-docked", docked);
+	const pin = $("agendaPin");
+	pin.setAttribute("aria-pressed", String(agendaPinned()));
+	pin.title = agendaPinned() ? "Unpin the agenda" : "Pin the agenda beside the note";
+}
+
+function openAgenda(on, force = false) {
+	if (!on && agendaPinned() && !force) return; // pinned: stays open
 	$("agenda").hidden = !on;
+	layoutAgenda();
 	$("calBtn").setAttribute("aria-expanded", String(on));
 	if (on) {
 		openSettings(false);
@@ -1370,7 +1392,7 @@ function fillCalendars() {
 	const list = (cal?.calendars || []).filter((c) => c.writable).sort((a, b) => b.primary - a.primary);
 	const sel = $("evCalendar");
 	sel.textContent = "";
-	for (const c of list) sel.append(new Option(c.primary ? `${c.name} (main)` : c.name, c.id));
+	for (const c of list) sel.append(new Option(c.primary && agenda.calendarLabel(c) !== "Main" ? `${agenda.calendarLabel(c)} (main)` : agenda.calendarLabel(c), c.id));
 	const last = readRaw("wr1t3rEventCal");
 	if (list.some((c) => c.id === last)) sel.value = last;
 	$("evCalendarRow").hidden = list.length < 2;
@@ -1427,7 +1449,7 @@ async function addEvent(e) {
 		await api.addEvent(body);
 		showAddEvent(false);
 		const where = cal?.calendars?.find((c) => c.id === calendarId);
-		toast(`Added “${body.title}” to ${where && !where.primary ? where.name : "Google Calendar"}.`);
+		toast(`Added “${body.title}” to ${where && !where.primary ? agenda.calendarLabel(where) : "Google Calendar"}.`);
 		cal = cal && { ...cal, at: 0 };
 		await loadAgenda();
 	} catch (err) {
@@ -1450,7 +1472,14 @@ function checkAlerts() {
 }
 
 function setupAgenda() {
-	$("calBtn").addEventListener("click", (e) => { e.stopPropagation(); openAgenda($("agenda").hidden); });
+	$("calBtn").addEventListener("click", (e) => {
+		e.stopPropagation();
+		if (agendaPinned() && !$("agenda").hidden) { pinAgenda(false); openAgenda(false); return; }
+		openAgenda($("agenda").hidden);
+	});
+	$("agendaPin").addEventListener("click", () => pinAgenda(!agendaPinned()));
+	wide.addEventListener("change", () => { if (agendaPinned()) openAgenda(true); else layoutAgenda(); });
+	if (agendaPinned()) openAgenda(true);
 	$("addEventBtn").addEventListener("click", () => showAddEvent($("addEvent").hidden));
 	$("evCancel").addEventListener("click", () => showAddEvent(false));
 	$("evAllDay").addEventListener("change", allDayFields);

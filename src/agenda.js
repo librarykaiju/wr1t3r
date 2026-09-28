@@ -105,3 +105,13 @@ export function formEvent({ title, allDay, date, endDate, startTime, endTime, re
 	else if (reminder !== "" && reminder != null) body.reminder = Number(reminder);
 	return body;
 }
+
+// A calendar's name as the agenda shows it. Google names your main calendar
+// after your email address, so an address is never shown: the main calendar
+// reads "Main", any other one "b•••@gmail.com".
+export function calendarLabel(c) {
+	const name = String(c?.name || "");
+	const m = name.match(/^([^@\s])[^@\s]*@([^@\s]+)$/);
+	if (!m) return name;
+	return c.primary ? "Main" : `${m[1]}•••@${m[2]}`;
+}
