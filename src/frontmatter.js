@@ -195,6 +195,25 @@ class TagsWidget extends WidgetType {
 	ignoreEvent() { return true; }
 }
 
+// A new note's frontmatter, matching the vault's Note template
+// (content/_templates/Note.md) so the site reads it the same way. The date is
+// written once, when the note is made: without one, the site falls back to
+// the file's creation time, which is new on every build.
+export function newNoteFrontmatter(title, date) {
+	return [
+		"---",
+		`title: ${JSON.stringify(title)}`,
+		"publish: false",
+		"tags:",
+		"status: seed",
+		`date: "${date}"`,
+		"sticky: false",
+		"callout:",
+		"---",
+		"",
+	].join("\n");
+}
+
 // Top-level "key:" lines between the fences.
 export function propertyCount(doc, fm) {
 	let n = 0;

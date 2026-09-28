@@ -11,6 +11,7 @@ import { counts, countWords } from "./count.js";
 import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
+import { newNoteFrontmatter } from "./frontmatter.js";
 import { EditorView } from "@codemirror/view";
 
 const $ = (id) => document.getElementById(id);
@@ -232,8 +233,14 @@ async function newNote() {
 	if (taken(path)) return openNote([...notes.keys()].find((p) => p.toLowerCase() === path.toLowerCase() && !notes.get(p).deleted));
 	// A tombstone of a deleted note with this name keeps its base, so the new
 	// note replaces it in the vault.
-	await change(path, (cur) => ({ path, text: "", base: cur?.base ?? null, dirty: true, deleted: false }));
+	// Notes that could be published start with the Note template's properties,
+	// including today's date; "_" folders never publish, so they start empty.
+	const text = /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"));
+	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
+	// Focus goes back to the New button once the name prompt closes; take it
+	// back so typing lands in the note (a space would press New again).
+	requestAnimationFrame(() => editor.view.focus());
 	scheduleSync();
 }
 

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Text } from "@codemirror/state";
-import { frontmatterLines, propertyEdit, propertyCount, propertyEnter, tagsIn, tagHue, tagAddEdit, tagRemoveEdit, tagName } from "../src/frontmatter.js";
+import { frontmatterLines, propertyEdit, propertyCount, propertyEnter, tagsIn, tagHue, tagAddEdit, tagRemoveEdit, tagName, newNoteFrontmatter } from "../src/frontmatter.js";
 
 const doc = (s) => Text.of(s.split("\n"));
 
@@ -63,4 +63,10 @@ test("adding and removing tags edits only that property", () => {
 	assert.equal(run("---\ntags: a, b\n---", (d, t) => tagRemoveEdit(d, t, 0)), "---\ntags: b\n---");
 	assert.equal(run("---\ntags: a b\n---", (d, t) => tagAddEdit(d, t, "c")), "---\ntags: a b c\n---");
 	assert.equal(tagName(" #big idea "), "big-idea");
+});
+
+test("new notes get the Note template's properties with a fixed date", () => {
+	const fm = newNoteFrontmatter('Say "hi"', "2026-09-28");
+	assert.equal(fm, '---\ntitle: "Say \\"hi\\""\npublish: false\ntags:\nstatus: seed\ndate: "2026-09-28"\nsticky: false\ncallout:\n---\n');
+	assert.deepEqual(frontmatterLines(doc(fm)), { open: 1, close: 9 });
 });
