@@ -44,7 +44,7 @@ test("Enter at the end of a property line starts the next one", () => {
 test("reads tags in list, flow and bare forms", () => {
 	const t = (s) => { const d = doc(s); return tagsIn(d, frontmatterLines(d)); };
 	assert.deepEqual(t("---\ntitle: A\ntags:\n  - novel\n  - \"draft\"\nx: 1\n---").tags, ["novel", "draft"]);
-	assert.deepEqual(t("---\ntags:\n  - novel\n  - draft\n---"), { form: "list", first: 2, last: 4, from: 9, to: 29, tags: ["novel", "draft"], items: [3, 4], indent: "  " });
+	assert.deepEqual(t("---\ntags:\n  - novel\n  - draft\n---"), { form: "list", first: 2, last: 4, from: 9, to: 29, tags: ["novel", "draft"], items: [3, 4], indent: "  ", blank: null });
 	assert.deepEqual(t("---\ntags: [novel, '#draft']\n---").tags, ["novel", "draft"]);
 	assert.deepEqual(t("---\ntags: novel draft\n---").tags, ["novel", "draft"]);
 	assert.deepEqual(t("---\ntags:\n---").tags, []);

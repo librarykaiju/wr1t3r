@@ -89,27 +89,40 @@ function enter(view) {
 const cleanTag = (t) => t.trim().replace(/^["']|["']$/g, "").replace(/^#/, "").trim();
 export function tagsIn(doc, fm) {
 	for (let n = fm.open + 1; n < fm.close; n++) {
-		const l = doc.line(n);
-		const m = l.text.match(/^tags?:[ \t]*/);
-		if (!m) continue;
-		const value = l.text.slice(m[0].length);
-		if (value.trim()) {
-			const inner = value.trim().replace(/^\[|\]$/g, "");
-			const tags = inner.split(inner.includes(",") ? "," : /\s+/).map(cleanTag).filter(Boolean);
-			return { form: "flow", first: n, last: n, from: l.from + m[0].length, to: l.to, tags, value };
-		}
-		const tags = [], items = [];
-		let last = n, indent = "  ";
-		for (let i = n + 1; i < fm.close; i++) {
-			const item = doc.line(i).text.match(/^(\s+)-\s*(.*)$/);
-			if (!item) break;
-			indent = item[1];
-			if (cleanTag(item[2])) { tags.push(cleanTag(item[2])); items.push(i); }
-			last = i;
-		}
-		return { form: "list", first: n, last, from: l.to, to: doc.line(last).to, tags, items, indent };
+		if (/^tags?:/.test(doc.line(n).text)) return listAt(doc, n, { loose: true, clean: cleanTag });
 	}
 	return null;
+}
+
+// The list property whose "key:" is on line n, in the same shape as tagsIn
+// (items as "values"-free "tags"), plus blank: the first "- " item with nothing
+// in it (templates leave '- ""'), which adding fills in. loose: a bare value
+// like "a, b" or "a b" counts as a list (only for tags); otherwise only
+// [a, b] or "- " items do. Null when the property isn't a list.
+const cleanItem = (t) => t.trim().replace(/^"(.*)"$|^'(.*)'$/, "$1$2").trim();
+export function listAt(doc, n, { loose = false, clean = cleanItem } = {}) {
+	const l = doc.line(n);
+	const m = l.text.match(/^[^\s#-][^:]*:[ \t]*/);
+	if (!m) return null;
+	const value = l.text.slice(m[0].length);
+	if (value.trim()) {
+		if (!loose && !/^\[.*\]\s*$/.test(value.trim())) return null;
+		const inner = value.trim().replace(/^\[|\]$/g, "");
+		const tags = inner.split(inner.includes(",") || !loose ? "," : /\s+/).map(clean).filter(Boolean);
+		return { form: "flow", first: n, last: n, from: l.from + m[0].length, to: l.to, tags, value };
+	}
+	const tags = [], items = [];
+	let last = n, indent = "  ", blank = null;
+	for (let i = n + 1; i <= doc.lines; i++) {
+		const item = doc.line(i).text.match(/^(\s+)-(?:\s+(.*))?$/);
+		if (!item) break;
+		indent = item[1];
+		if (clean(item[2] || "")) { tags.push(clean(item[2])); items.push(i); }
+		else if (blank == null) blank = i;
+		last = i;
+	}
+	if (!loose && last === n) return null;
+	return { form: "list", first: n, last, from: l.to, to: doc.line(last).to, tags, items, indent, blank };
 }
 
 // All of a note's tags: the tags property plus #tags in the text (outside code).
@@ -143,6 +156,7 @@ export function tagRemoveEdit(doc, t, i) {
 	return { from: t.from, to: t.to, insert: flowValue(t.value, t.tags.filter((_, k) => k !== i)) };
 }
 export function tagAddEdit(doc, t, name) {
+	if (t.form === "list" && t.blank != null) { const b = doc.line(t.blank); return { from: b.from, to: b.to, insert: t.indent + "- " + name }; }
 	if (t.form === "list") return { from: t.to, to: t.to, insert: "\n" + t.indent + "- " + name };
 	return { from: t.from, to: t.to, insert: flowValue(t.value, [...t.tags, name]) };
 }
