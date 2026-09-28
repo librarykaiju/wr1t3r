@@ -56,7 +56,7 @@ Rename a note by editing its path in the header and pressing Enter. Folders are 
 
 Only `.md` files are listed; hidden folders (`.obsidian`, `.trash`) are skipped. Folders named in `EXCLUDE` in `wrangler.toml` (for now `_includes/`, the site templates) are refused by the Worker itself: never listed, read, written or deleted. Images and other attachments aren't shown (source mode doesn't render them).
 
-With no note open, the main window shows a literary quote that changes at local midnight. The list is in `src/quotes.js` and ships with the app, so it works offline; add or remove lines there to change the rotation.
+With no note open, the main window shows a quote about writing or making art that changes at local midnight. The list is in `src/quotes.js` and ships with the app, so it works offline; add or remove lines there to change the rotation.
 
 ## Setup
 
