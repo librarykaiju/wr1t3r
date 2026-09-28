@@ -115,3 +115,21 @@ export function calendarLabel(c) {
 	if (!m) return name;
 	return c.primary ? "Main" : `${m[1]}•••@${m[2]}`;
 }
+
+// The month calendar above the agenda (desktop): six weeks of days starting on
+// the Sunday on or before the 1st, so every month fits the same grid.
+export const GRID_DAYS = 42;
+export function startOfMonth(d) {
+	return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+export function addMonths(d, n) {
+	return new Date(d.getFullYear(), d.getMonth() + n, 1);
+}
+export function gridStart(month) {
+	const first = startOfMonth(month);
+	return addDays(first, -first.getDay());
+}
+export function monthGrid(month) {
+	const start = gridStart(month);
+	return Array.from({ length: GRID_DAYS }, (_, i) => addDays(start, i));
+}

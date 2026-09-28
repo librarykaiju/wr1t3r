@@ -269,6 +269,22 @@ main:not(.has-note) #count { visibility: hidden; }
 #addEvent select { font: inherit; font-size: 14px; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px; flex: 1; }
 #addEvent .error:empty { display: none; }
 #agendaNote:empty { display: none; }
+/* Month calendar above the agenda (desktop) */
+#calMonth { margin: 0 0 14px; }
+#calMonth[hidden] { display: none; }
+.month-top { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
+.month-top h3 { flex: 1; margin: 0; font-size: 14px; font-weight: 600; text-align: center; }
+.month-top button { font-size: 13px; padding: 2px 8px; }
+#monthPrev, #monthNext { font-size: 17px; line-height: 1; padding: 2px 9px; }
+#monthGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+#monthGrid .wd { font-size: 11px; color: var(--muted); text-align: center; padding: 2px 0 4px; }
+#monthGrid .md { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0 3px; border: 1px solid transparent; border-radius: 8px; background: none; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--fg); min-height: 36px; }
+#monthGrid .md:hover { background: var(--panel); }
+#monthGrid .md.out { color: var(--muted); opacity: 0.6; }
+#monthGrid .md.today span:first-child { color: var(--accent); font-weight: 700; }
+#monthGrid .md.picked { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+#monthGrid .dots { display: flex; gap: 2px; height: 5px; }
+#monthGrid .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .agenda-top { gap: 6px; }
 .agenda-top h2 { flex: 1; }
 #agendaPin { display: none; padding: 4px 6px; line-height: 0; color: var(--muted); }
