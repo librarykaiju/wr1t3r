@@ -96,7 +96,7 @@ const BUTTONS = [
 	["/", "Formatting menu", (view) => { view.dispatch(slashEdit(view.state), { userEvent: "input.type" }); startCompletion(view); }],
 	["☐", "Task box", (view) => view.dispatch(taskEdit(view.state), { userEvent: "input" })],
 	["H", "Heading level", (view) => view.dispatch(headingEdit(view.state), { userEvent: "input" })],
-	["[[", "Link to a note", (view) => view.dispatch(wikiEdit(view.state), { userEvent: "input" })],
+	["[[", "Link to a note", (view) => { view.dispatch(wikiEdit(view.state), { userEvent: "input" }); startCompletion(view); }],
 	["↶", "Undo", (view) => undo(view)],
 ];
 

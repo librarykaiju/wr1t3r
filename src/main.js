@@ -8,6 +8,8 @@ import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js"
 import { promptFor } from "./prompts.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags } from "./frontmatter.js";
+import { vaultChanged } from "./vault.js";
+import { renameEdits, applyChanges } from "./vaultlinks.js";
 import { EditorView } from "@codemirror/view";
 import { local, persist } from "./store.js";
 import { api, token, setToken, AuthError } from "./api.js";
@@ -136,7 +138,16 @@ function commonFolder(list) {
 	return base && list.every((n) => n.path.startsWith(base)) ? base : "";
 }
 
+// Tells the editor other notes changed (backlinks, faded links to missing
+// notes), after a pause so a burst of changes redraws once.
+let vaultTimer;
+function vaultTouched() {
+	clearTimeout(vaultTimer);
+	vaultTimer = setTimeout(() => editor?.view.dispatch({ effects: vaultChanged.of(null) }), 400);
+}
+
 function renderTree() {
+	vaultTouched();
 	const tree = $("tree");
 	const q = $("filter").value.trim().toLowerCase();
 	tree.replaceChildren();
@@ -364,7 +375,25 @@ async function renameNote(from, input) {
 	if (to === from) return;
 	if (!isNotePath(to)) { $("path").value = from; return toast("That isn't a usable note name."); }
 	if (taken(to) && to.toLowerCase() !== from.toLowerCase()) { $("path").value = from; return toast("A note with that name already exists."); }
-	const text = editor.text();
+	const paths = visible().map((n) => n.path);
+	// Links to the note in other notes (and in itself) are rewritten to the new name.
+	const edits = [];
+	for (const p of paths) {
+		const t = p === from ? editor.text() : notes.get(p)?.text;
+		if (!t || notes.get(p)?.binary || (!t.includes("[[") && !t.includes("]("))) continue;
+		const ch = renameEdits(t, p, from, to, paths);
+		if (ch.length) edits.push({ path: p, text: applyChanges(t, ch), count: ch.length });
+	}
+	const others = edits.filter((e) => e.path !== from);
+	const n = others.reduce((a, e) => a + e.count, 0);
+	const update = others.length && confirm(`Update ${n} link${n === 1 ? "" : "s"} to this note in ${others.length} other note${others.length === 1 ? "" : "s"}?`);
+	const text = edits.find((e) => e.path === from)?.text ?? editor.text();
+	if (update) {
+		for (const e of others) {
+			await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
+			editor.forget(e.path);
+		}
+	}
 	// A rename is a new note plus a delete of the old one; the vault has no moves.
 	await change(to, (cur) => ({ path: to, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	await change(from, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));

@@ -16,7 +16,10 @@ import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { tags as t } from "@lezer/highlight";
 import { slashSource } from "./slash.js";
 import { stripFrontmatter } from "./count.js";
-import { dataviewJs, dvHost, notePath } from "./dataview.js";
+import { dataviewJs } from "./dataview.js";
+import { vaultHost, notePath } from "./vault.js";
+import { backlinks } from "./backlinks.js";
+import { linkSource } from "./linkcomplete.js";
 import { tableKeymap, tableStyle } from "./table.js";
 import { blockStyle } from "./blocks.js";
 import { frontmatterStyle, tagHue } from "./frontmatter.js";
@@ -121,8 +124,9 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		calloutFolds,
 		webImages,
 		dataviewJs,
-		...(vault ? [dvHost.of(vault)] : []),
-		autocompletion({ override: [slashSource()], icons: false, activateOnTyping: true }),
+		backlinks,
+		...(vault ? [vaultHost.of(vault)] : []),
+		autocompletion({ override: [slashSource(), linkSource], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 		placeholder("Type / for formatting"),
 		EditorView.updateListener.of((u) => {

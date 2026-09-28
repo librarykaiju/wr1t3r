@@ -400,3 +400,14 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 .md-dv-edit { position: absolute; top: 0; right: 0; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); opacity: 0; cursor: pointer; }
 .md-dv:hover .md-dv-edit, .md-dv-edit:focus-visible { opacity: 1; }
 @media (hover: none) { .md-dv-edit { opacity: 0.6; } }
+
+/* Links to notes that don't exist yet (src/links.js) */
+.md-unresolved, .md-unresolved * { opacity: 0.6; text-decoration-style: dashed; }
+
+/* "Linked from" under the note (src/backlinks.js) */
+.md-backlinks { margin: 48px 0 24px; padding-top: 14px; border-top: 1px solid var(--line); font-family: var(--sans); font-size: 14px; }
+.md-backlinks h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.md-backlink { display: block; padding: 6px 8px; margin: 0 -8px; border-radius: 6px; color: inherit; text-decoration: none; }
+.md-backlink:hover { background: var(--card); }
+.md-backlink-name { display: block; color: var(--accent); }
+.md-backlink-line { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

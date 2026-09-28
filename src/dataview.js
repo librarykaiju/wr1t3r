@@ -10,15 +10,13 @@
 // behind your back. Blocks in _clippings/ and _uploads/ (text from outside
 // the vault) are never run.
 
-import { StateField, Facet, RangeSetBuilder } from "@codemirror/state";
+import { StateField, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType, ViewPlugin } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { pageFrom, linkedNames } from "./dvpage.js";
 import { resolveNote } from "./links.js";
+import { vaultHost as dvHost, notePath } from "./vault.js";
 
-// { paths(), text(path), fetch(url) -> {status, text} } from the app, and the open note's path.
-export const dvHost = Facet.define({ combine: (v) => v[0] || null });
-export const notePath = Facet.define({ combine: (v) => v[0] || null });
 
 const SANDBOX = "/dv-sandbox"; // public/dv-sandbox.html
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
