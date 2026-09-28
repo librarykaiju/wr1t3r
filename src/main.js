@@ -1204,7 +1204,112 @@ function toggleCalendar(id) {
 	ids.has(id) ? ids.delete(id) : ids.add(id);
 	writeJSON(FILTER_KEY, [...ids]);
 	renderAgenda();
+	loadMonth();
+	loadPick();
 	if (ids.has(id) && !cal?.fetched?.includes(id)) loadAgenda(true);
+}
+
+// The month calendar above the agenda, on desktop. It loads the six weeks it
+// shows; picking a day moves the agenda list to start there (loaded on its
+// own, since the header's next event and reminders stay on today).
+const desk = matchMedia("(min-width: 900px)");
+let monthShown = agenda.startOfMonth(new Date());
+let monthData = null; // { key, events }
+let agendaFrom = null; // the day the list starts on; null for today
+let pickData = null; // { key, events } for the list when it doesn't start today
+
+const idsKey = () => [...shownIds()].sort().join(",");
+
+async function rangeEvents(from, days) {
+	const picked = readJSON(FILTER_KEY, null);
+	const r = await api.events(from, agenda.addDays(from, days), Array.isArray(picked) ? picked : null);
+	return r.events;
+}
+
+async function loadMonth() {
+	if (!desk.matches || $("agenda").hidden || calState === "setup" || !navigator.onLine) return;
+	const key = agenda.dayKey(monthShown) + "|" + idsKey();
+	if (monthData?.key === key && Date.now() - monthData.at < 5 * 60000) return;
+	try {
+		const events = await rangeEvents(agenda.gridStart(monthShown), agenda.GRID_DAYS);
+		if (key === agenda.dayKey(monthShown) + "|" + idsKey()) { monthData = { key, events, at: Date.now() }; renderMonth(); }
+	} catch {}
+}
+
+async function loadPick() {
+	if (!agendaFrom) return;
+	const key = agenda.dayKey(agendaFrom) + "|" + idsKey();
+	if (pickData?.key === key) return;
+	try {
+		const events = await rangeEvents(agendaFrom, agenda.DAYS);
+		if (agendaFrom && key === agenda.dayKey(agendaFrom) + "|" + idsKey()) { pickData = { key, events }; renderAgenda(); }
+	} catch {}
+}
+
+function monthEvents() {
+	const ids = shownIds();
+	return (monthData?.events || []).filter((e) => ids.has(e.calendar));
+}
+
+function renderMonth() {
+	const box = $("calMonth");
+	box.hidden = !desk.matches || calState === "setup" || $("agenda").hidden;
+	if (box.hidden) return;
+	$("monthTitle").textContent = monthShown.toLocaleDateString([], { month: "long", year: "numeric" });
+	const grid = $("monthGrid");
+	grid.textContent = "";
+	const today = agenda.dayKey(new Date());
+	const picked = agenda.dayKey(agendaFrom || new Date());
+	const days = agenda.monthGrid(monthShown);
+	const byKey = new Map(agenda.byDay(monthData ? monthEvents() : [], days[0], agenda.GRID_DAYS).map((d) => [d.key, d.events]));
+	for (let i = 0; i < 7; i++) {
+		const w = document.createElement("span");
+		w.className = "wd";
+		w.textContent = days[i].toLocaleDateString([], { weekday: "narrow" });
+		grid.append(w);
+	}
+	for (const date of days) {
+		const key = agenda.dayKey(date);
+		const events = byKey.get(key) || [];
+		const b = document.createElement("button");
+		b.type = "button";
+		b.className = "md";
+		b.classList.toggle("out", date.getMonth() !== monthShown.getMonth());
+		b.classList.toggle("today", key === today);
+		b.classList.toggle("picked", key === picked);
+		b.setAttribute("aria-label", date.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }) + (monthData ? `, ${events.length || "no"} event${events.length === 1 ? "" : "s"}` : ""));
+		const n = document.createElement("span");
+		n.textContent = date.getDate();
+		const dots = document.createElement("span");
+		dots.className = "dots";
+		for (const e of events.slice(0, 3)) {
+			const d = document.createElement("i");
+			if (/^#[0-9a-f]{3,8}$/i.test(e.color)) d.style.background = e.color;
+			dots.append(d);
+		}
+		b.append(n, dots);
+		b.addEventListener("click", () => pickDay(date, monthData ? events.length === 0 : false));
+		grid.append(b);
+	}
+}
+
+// A day picked on the month calendar: the list starts there, and an empty day
+// opens the new-event form for it.
+function pickDay(date, empty) {
+	const today = agenda.startOfDay(new Date());
+	agendaFrom = date.getTime() === today.getTime() ? null : date;
+	if (date.getMonth() !== monthShown.getMonth()) { monthShown = agenda.startOfMonth(date); loadMonth(); }
+	renderAgenda();
+	loadPick();
+	$("agendaList").scrollIntoView?.({ block: "nearest" });
+	if (empty) showAddEvent(true, date);
+}
+
+function showMonth(n) {
+	monthShown = n === 0 ? agenda.startOfMonth(new Date()) : agenda.addMonths(monthShown, n);
+	if (n === 0) agendaFrom = null;
+	renderAgenda();
+	loadMonth();
 }
 
 async function loadAgenda(force = false) {
@@ -1219,6 +1324,7 @@ async function loadAgenda(force = false) {
 		cal = { at: Date.now(), events: r.events, calendars: r.calendars, fetched };
 		writeJSON(AGENDA_KEY, cal);
 		calState = "ok";
+		if (force || !monthData || Date.now() - monthData.at > 5 * 60000) { monthData = monthData && { ...monthData, at: 0 }; pickData = null; loadMonth(); loadPick(); }
 	} catch (e) {
 		if (e instanceof AuthError) return signOut("That token no longer works.");
 		calState = e.body?.setup ? "setup" : e instanceof TypeError ? "offline" : "error";
@@ -1244,6 +1350,7 @@ function renderAgenda() {
 	if ($("agenda").hidden) return;
 
 	renderFilters();
+	renderMonth();
 	const list = $("agendaList");
 	list.textContent = "";
 	if (calState === "setup") return;
@@ -1254,7 +1361,21 @@ function renderAgenda() {
 		list.append(p);
 		return;
 	}
-	for (const day of agenda.byDay(events, now)) {
+	let shown = events, from = now;
+	if (agendaFrom) {
+		from = agendaFrom;
+		const key = agenda.dayKey(agendaFrom) + "|" + idsKey();
+		if (pickData?.key !== key) {
+			const p = document.createElement("p");
+			p.className = "hint";
+			p.textContent = navigator.onLine ? "Loading…" : "Offline. Only the coming week is kept for offline use.";
+			list.append(p);
+			return;
+		}
+		const ids = shownIds();
+		shown = pickData.events.filter((e) => ids.has(e.calendar));
+	}
+	for (const day of agenda.byDay(shown, from)) {
 		const sec = document.createElement("section");
 		sec.className = "day";
 		const h = document.createElement("h3");
@@ -1364,6 +1485,7 @@ function openAgenda(on, force = false) {
 		unlockSound();
 		askToNotify();
 		renderAgenda();
+		loadMonth();
 		if (!cal || Date.now() - cal.at > 60000) loadAgenda();
 	} else {
 		openEvent = null;
@@ -1371,7 +1493,7 @@ function openAgenda(on, force = false) {
 	}
 }
 
-function showAddEvent(on) {
+function showAddEvent(on, day = null) {
 	$("addEvent").hidden = !on;
 	$("evError").textContent = "";
 	if (!on) return;
@@ -1380,7 +1502,7 @@ function showAddEvent(on) {
 	const hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 	$("addEvent").reset();
 	fillCalendars();
-	$("evDate").value = agenda.dayKey(start);
+	$("evDate").value = agenda.dayKey(day || start);
 	$("evStart").value = hm(start);
 	$("evEnd").value = hm(new Date(start.getTime() + 3600000));
 	allDayFields();
@@ -1451,6 +1573,7 @@ async function addEvent(e) {
 		const where = cal?.calendars?.find((c) => c.id === calendarId);
 		toast(`Added “${body.title}” to ${where && !where.primary ? agenda.calendarLabel(where) : "Google Calendar"}.`);
 		cal = cal && { ...cal, at: 0 };
+		monthData = null; pickData = null;
 		await loadAgenda();
 	} catch (err) {
 		if (err instanceof AuthError) return signOut("That token no longer works.");
@@ -1478,6 +1601,10 @@ function setupAgenda() {
 		openAgenda($("agenda").hidden);
 	});
 	$("agendaPin").addEventListener("click", () => pinAgenda(!agendaPinned()));
+	$("monthPrev").addEventListener("click", () => showMonth(-1));
+	$("monthNext").addEventListener("click", () => showMonth(1));
+	$("monthToday").addEventListener("click", () => showMonth(0));
+	desk.addEventListener("change", () => { renderAgenda(); loadMonth(); });
 	wide.addEventListener("change", () => { if (agendaPinned()) openAgenda(true); else layoutAgenda(); });
 	if (agendaPinned()) openAgenda(true);
 	$("addEventBtn").addEventListener("click", () => showAddEvent($("addEvent").hidden));

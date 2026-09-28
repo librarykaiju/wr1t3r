@@ -112,3 +112,12 @@ test("calendar names never show an email address", async () => {
 	assert.equal(calendarLabel({ name: "friend.name@example.org" }), "f•••@example.org");
 	assert.equal(calendarLabel({ name: "Holidays in United States" }), "Holidays in United States");
 });
+
+test("month grid: six weeks from the Sunday on or before the 1st", () => {
+	const g = A.monthGrid(new Date(2026, 8, 17)); // September 2026 starts on a Tuesday
+	assert.equal(g.length, 42);
+	assert.equal(A.dayKey(g[0]), "2026-08-30");
+	assert.equal(A.dayKey(g[2]), "2026-09-01");
+	assert.equal(A.dayKey(g[41]), "2026-10-10");
+	assert.equal(A.dayKey(A.addMonths(new Date(2026, 0, 31), 1)), "2026-02-01");
+});
