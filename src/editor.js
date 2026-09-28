@@ -18,7 +18,7 @@ import { slashSource } from "./slash.js";
 import { stripFrontmatter } from "./count.js";
 import { tableKeymap, tableStyle } from "./table.js";
 import { blockStyle } from "./blocks.js";
-import { frontmatterStyle } from "./frontmatter.js";
+import { frontmatterStyle, tagHue } from "./frontmatter.js";
 
 const fromSync = Annotation.define();
 
@@ -48,6 +48,18 @@ function marks(re, cls) {
 	}), { decorations: (v) => v.decorations });
 }
 
+// #tags in the body, as pills colored like the same tag in the properties.
+const hashtags = (() => {
+	const deco = new MatchDecorator({
+		regexp: /(?<=^|\s)#[\p{L}_][\p{L}\p{N}_\/-]*/gu,
+		decoration: (m) => Decoration.mark({ class: `md-hashtag md-tag-${tagHue(m[0].slice(1))}` }),
+	});
+	return ViewPlugin.define((view) => ({
+		decorations: deco.createDeco(view),
+		update(u) { this.decorations = deco.updateDeco(u, this.decorations); },
+	}), { decorations: (v) => v.decorations });
+})();
+
 function lineSeparatorFor(text) {
 	// Only when every line break is CRLF; mixed files fall back to LF once edited.
 	return text.includes("\r\n") && !/(^|[^\r])\n/.test(text) ? "\r\n" : undefined;
@@ -73,6 +85,7 @@ export function createEditor(parent, { onChange, onUpdate }) {
 		marks(/\[\[[^\]\n]+\]\]/g, "md-wikilink"),
 		marks(/==[^=\n]+==/g, "md-highlight"),
 		marks(/\[\^[^\]\s]+\]:?/g, "md-footnote"),
+		hashtags,
 		autocompletion({ override: [slashSource()], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 		placeholder("Type / for formatting"),

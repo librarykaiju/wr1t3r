@@ -3,8 +3,8 @@
 // Task boxes become real checkboxes (clicking one flips the [ ] / [x] in the
 // text), callouts and quotes get a boxed container, code blocks a shaded one,
 // and dividers a rule. Quote markers (">") are hidden, with the box's darker
-// left edge in their place, and a callout's "[!type]" becomes its icon except
-// on the line the cursor is on, where it shows so it can be edited. Only decorations: nothing here rewrites the note
+// left edge in their place, and a callout's "[!type]" becomes its icon. The
+// styling stays while editing; Backspace just after an icon removes the tag. Only decorations: nothing here rewrites the note
 // except the checkbox click.
 
 import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
@@ -119,12 +119,6 @@ function build(view) {
 	const doc = state.doc;
 	const lines = new Map(); // line start -> class names, merged so nested blocks don't fight
 	const marks = []; // [from, to, decoration]
-	// Lines the cursor or a selection touches keep their raw markdown.
-	const editing = new Set();
-	for (const r of state.selection.ranges) {
-		for (let n = doc.lineAt(r.from).number, last = doc.lineAt(r.to).number; n <= last; n++) editing.add(n);
-	}
-	const raw = (pos) => editing.has(doc.lineAt(pos).number);
 	const addLine = (from, to, cls, ends = true) => {
 		for (let n = doc.lineAt(from).number, last = doc.lineAt(to).number; n <= last; n++) {
 			const at = doc.line(n).from;
@@ -148,13 +142,9 @@ function build(view) {
 					const c = calloutOf(first.text);
 					if (c) {
 						addLine(node.from, node.to, `md-callout md-co-${c.color}`);
-						if (raw(first.from)) {
-							marks.push([first.from + c.tag[0], first.to, calloutHead]);
-						} else {
-							const label = c.title ? "" : c.type[0].toUpperCase() + c.type.slice(1);
-							marks.push([first.from + c.tag[0], first.from + c.tag[1], Decoration.replace({ widget: new CalloutIconWidget(c.icon, label), atomic: true })]);
-							if (first.from + c.tag[1] < first.to) marks.push([first.from + c.tag[1], first.to, calloutHead]);
-						}
+						const label = c.title ? "" : c.type[0].toUpperCase() + c.type.slice(1);
+						marks.push([first.from + c.tag[0], first.from + c.tag[1], Decoration.replace({ widget: new CalloutIconWidget(c.icon, label), atomic: true })]);
+						if (first.from + c.tag[1] < first.to) marks.push([first.from + c.tag[1], first.to, calloutHead]);
 					} else {
 						addLine(node.from, node.to, "md-bq");
 					}
@@ -209,7 +199,7 @@ function boxes(set) {
 export const blockStyle = ViewPlugin.define((view) => ({
 	decorations: build(view),
 	update(u) {
-		if (u.docChanged || u.viewportChanged || u.selectionSet || syntaxTree(u.startState) !== syntaxTree(u.state)) this.decorations = build(u.view);
+		if (u.docChanged || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state)) this.decorations = build(u.view);
 	},
 }), {
 	decorations: (v) => v.decorations,
