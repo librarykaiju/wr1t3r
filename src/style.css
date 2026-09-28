@@ -123,6 +123,9 @@ header {
 #empty figcaption cite { font-style: italic; }
 #empty .prompt { margin: 0; max-width: 30em; padding: 10px 16px; border: 0; border-radius: 10px; background: none; color: var(--muted); font: 1.05em/1.5 var(--sans); text-align: center; text-wrap: balance; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 #empty .prompt:focus:not(:focus-visible) { outline: none; }
+#empty .prompt-row { display: flex; align-items: center; gap: 4px; }
+#empty .prompt-next { flex: none; padding: 6px 10px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-size: 1.1em; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+@media (hover: hover) { #empty .prompt-next:hover { color: var(--fg); background: var(--card); } }
 @media (hover: hover) { #empty .prompt:hover { color: var(--fg); background: var(--card); } }
 main.has-note #empty { display: none; }
 main:not(.has-note) #editor { display: none; }

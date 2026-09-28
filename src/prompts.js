@@ -1,5 +1,5 @@
 // Writing prompts for the empty screen: one a day (the same on every device,
-// like the quote), and a tap shows another. Questions, not assignments, so
+// like the quote); a tap starts a note with it and ↻ shows another. Questions, not assignments, so
 // they work for a journal entry, an essay or a scene.
 
 import { dayNumber } from "./quotes.js";

@@ -235,10 +235,16 @@ function openNote(path) {
 
 // The empty screen's quote of the day. Checked again whenever wr1t3r comes back
 // into view, so a tab left open overnight shows the new day's quote.
-// Today's writing prompt; a tap moves on to the next one.
+// Today's writing prompt; a tap starts a note titled with it, the arrow shows another.
 let promptStep = 0;
 function renderPrompt() {
 	$("writingPrompt").textContent = promptFor(new Date(), promptStep);
+}
+
+// A prompt as a note name: without the characters Obsidian won't allow in one.
+function promptFileName(text) {
+	const n = text.replace(/[*"\\/<>:|?#^\[\]]/g, "").replace(/\s+/g, " ").trim();
+	return (n.length > 80 ? n.slice(0, 80).replace(/\s+\S*$/, "") : n) || "Untitled";
 }
 
 function renderQuote() {
@@ -284,7 +290,7 @@ function normalise(input) {
 	return p;
 }
 
-async function newNote(suggestion = currentFolder() + "Untitled.md") {
+async function newNote(suggestion = currentFolder() + "Untitled.md", title = null) {
 	const input = prompt("New note (folders with /):", suggestion);
 	if (input == null) return;
 	const path = normalise(input);
@@ -294,7 +300,7 @@ async function newNote(suggestion = currentFolder() + "Untitled.md") {
 	// note replaces it in the vault.
 	// Notes that could be published start with the Note template's properties,
 	// including today's date; "_" folders never publish, so they start empty.
-	const text = /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"));
+	const text = /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(title ?? name(path), new Date().toLocaleDateString("en-CA"));
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	// Focus goes back to the New button once the name prompt closes; take it
@@ -1181,7 +1187,8 @@ async function start() {
 	setupToc();
 	refreshKeyboardBar = setupKeyboardBar($("app"), () => editor.view);
 	renderQuote();
-	$("writingPrompt").addEventListener("click", () => { promptStep++; renderPrompt(); });
+	$("writingPrompt").addEventListener("click", () => newNote(commonFolder(visible()) + promptFileName($("writingPrompt").textContent) + ".md", $("writingPrompt").textContent));
+	$("promptNext").addEventListener("click", () => { promptStep++; renderPrompt(); });
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
 	persist();
