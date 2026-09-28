@@ -33,3 +33,13 @@ test("[[ ]] wraps the cursor or selection", () => {
 	assert.deepEqual(run("see ", 4, wikiEdit), { doc: "see [[]]", pos: 6 });
 	assert.deepEqual(run("see Note", 4, wikiEdit, 8), { doc: "see [[Note]]", pos: 10 });
 });
+
+test("bar commands wrap the selection and put blocks on their own line", async () => {
+	const { commandSnippet } = await import("../src/kbbar.js");
+	const at = (doc, a, b = a) => EditorState.create({ doc, selection: EditorSelection.single(a, b) });
+	assert.equal(commandSnippet(at("say hi", 4, 6), "**${}**").template, "**hi${}**");
+	assert.equal(commandSnippet(at("a {b}", 2, 5), "**${}**").template, "**\\{b\\}${}**");
+	assert.equal(commandSnippet(at("text", 4), "> ${}").template, "\n> ${}");
+	assert.equal(commandSnippet(at("", 0), "> ${}").template, "> ${}");
+	assert.equal(commandSnippet(at("x", 1), "`${}`").template, "`${}`");
+});

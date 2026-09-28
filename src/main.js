@@ -1093,14 +1093,16 @@ function showLogin(message = "") {
 	};
 }
 
+let refreshKeyboardBar = null;
+
 async function start() {
 	$("app").hidden = false;
-	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => refreshCount(), onLink: followLink });
+	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => { refreshCount(); refreshKeyboardBar?.(); }, onLink: followLink });
 	setupSettings();
 	setupFocusTools();
 	setupAgenda();
 	setupToc();
-	setupKeyboardBar($("app"), () => editor.view);
+	refreshKeyboardBar = setupKeyboardBar($("app"), () => editor.view);
 	renderQuote();
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
