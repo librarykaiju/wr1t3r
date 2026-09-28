@@ -1,5 +1,7 @@
 // Frontmatter ("properties"): drawn as a box that folds, with a button to add
-// a property. Adding only ever inserts one new line (and the two fences when a
+// a property. Values get Obsidian's editors where their type is plain from the
+// text: a checkbox for true/false, a date picker for dates, pills for lists;
+// each edit rewrites only that value. Adding only ever inserts one new line (and the two fences when a
 // note has no frontmatter yet); existing keys, their order and formatting are
 // untouched, and folding is display only.
 
@@ -89,27 +91,53 @@ function enter(view) {
 const cleanTag = (t) => t.trim().replace(/^["']|["']$/g, "").replace(/^#/, "").trim();
 export function tagsIn(doc, fm) {
 	for (let n = fm.open + 1; n < fm.close; n++) {
-		const l = doc.line(n);
-		const m = l.text.match(/^tags?:[ \t]*/);
-		if (!m) continue;
-		const value = l.text.slice(m[0].length);
-		if (value.trim()) {
-			const inner = value.trim().replace(/^\[|\]$/g, "");
-			const tags = inner.split(inner.includes(",") ? "," : /\s+/).map(cleanTag).filter(Boolean);
-			return { form: "flow", first: n, last: n, from: l.from + m[0].length, to: l.to, tags, value };
-		}
-		const tags = [], items = [];
-		let last = n, indent = "  ";
-		for (let i = n + 1; i < fm.close; i++) {
-			const item = doc.line(i).text.match(/^(\s+)-\s*(.*)$/);
-			if (!item) break;
-			indent = item[1];
-			if (cleanTag(item[2])) { tags.push(cleanTag(item[2])); items.push(i); }
-			last = i;
-		}
-		return { form: "list", first: n, last, from: l.to, to: doc.line(last).to, tags, items, indent };
+		if (/^tags?:/.test(doc.line(n).text)) return listAt(doc, n, { loose: true, clean: cleanTag });
 	}
 	return null;
+}
+
+// The list property whose "key:" is on line n, in the same shape as tagsIn
+// (items as "values"-free "tags"), plus blank: the first "- " item with nothing
+// in it (templates leave '- ""'), which adding fills in. loose: a bare value
+// like "a, b" or "a b" counts as a list (only for tags); otherwise only
+// [a, b] or "- " items do. Null when the property isn't a list.
+// "a, 'b, c', "d"" -> ["a", " 'b, c'", ' "d"']: commas inside quotes don't split.
+function splitFlow(text) {
+	const out = [];
+	let cur = "", q = null;
+	for (const ch of text) {
+		if (q) { if (ch === q) q = null; cur += ch; }
+		else if (ch === '"' || ch === "'") { q = ch; cur += ch; }
+		else if (ch === ",") { out.push(cur); cur = ""; }
+		else cur += ch;
+	}
+	out.push(cur);
+	return out;
+}
+const cleanItem = (t) => t.trim().replace(/^"(.*)"$|^'(.*)'$/, "$1$2").trim();
+export function listAt(doc, n, { loose = false, clean = cleanItem } = {}) {
+	const l = doc.line(n);
+	const m = l.text.match(/^[^\s#-][^:]*:[ \t]*/);
+	if (!m) return null;
+	const value = l.text.slice(m[0].length);
+	if (value.trim()) {
+		if (!loose && !/^\[.*\]\s*$/.test(value.trim())) return null;
+		const inner = value.trim().replace(/^\[|\]$/g, "");
+		const parts = (inner.includes(",") || !loose ? splitFlow(inner) : inner.split(/\s+/)).map((x) => x.trim()).filter((x) => clean(x));
+		return { form: "flow", first: n, last: n, from: l.from + m[0].length, to: l.to, tags: parts.map(clean), raw: parts, value };
+	}
+	const tags = [], items = [];
+	let last = n, indent = "  ", blank = null;
+	for (let i = n + 1; i <= doc.lines; i++) {
+		const item = doc.line(i).text.match(/^(\s+)-(?:\s+(.*))?$/);
+		if (!item) break;
+		indent = item[1];
+		if (clean(item[2] || "")) { tags.push(clean(item[2])); items.push(i); }
+		else if (blank == null) blank = i;
+		last = i;
+	}
+	if (!loose && last === n) return null;
+	return { form: "list", first: n, last, from: l.to, to: doc.line(last).to, tags, items, indent, blank };
 }
 
 // All of a note's tags: the tags property plus #tags in the text (outside code).
@@ -140,11 +168,18 @@ export function tagRemoveEdit(doc, t, i) {
 		const line = doc.line(t.items[i]);
 		return { from: doc.line(t.items[i] - 1).to, to: line.to, insert: "" };
 	}
-	return { from: t.from, to: t.to, insert: flowValue(t.value, t.tags.filter((_, k) => k !== i)) };
+	return { from: t.from, to: t.to, insert: flowValue(t.value, (t.raw || t.tags).filter((_, k) => k !== i)) };
 }
 export function tagAddEdit(doc, t, name) {
+	if (t.form === "list" && t.blank != null) { const b = doc.line(t.blank); return { from: b.from, to: b.to, insert: t.indent + "- " + name }; }
 	if (t.form === "list") return { from: t.to, to: t.to, insert: "\n" + t.indent + "- " + name };
-	return { from: t.from, to: t.to, insert: flowValue(t.value, [...t.tags, name]) };
+	return { from: t.from, to: t.to, insert: flowValue(t.value, [...(t.raw || t.tags), name]) };
+}
+
+// A list item as YAML: quoted when it would otherwise read as something else
+// (a colon-space, a comment, a leading symbol, or a comma inside [a, b]).
+export function yamlItem(text, flow = false) {
+	return /^[\s\-?:,\[\]{}#&*!|>'"%@`]|: | #|\s$/.test(text) || (flow && /[,\[\]{}]/.test(text)) ? JSON.stringify(text) : text;
 }
 
 // Same tag, same color, everywhere.
@@ -154,25 +189,122 @@ export function tagHue(tag) {
 	return h % 8;
 }
 
+// Typed values, read from the text the way Obsidian's property types show
+// them: true/false as a checkbox, dates and date-times as pickers, lists as
+// pills. [{ key, line, type, from, to, value, quote, list }] for the note's
+// top-level properties (tags aside: they have their own pills). An empty value
+// counts as a date when the key sounds like one (date, created, due, ...).
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?$/;
+const DATE_KEY = /(^|[_ -])(date|day|created|updated|modified|due|published|start|end)([_ -]|$)|date$/i;
+export function propertiesIn(doc, fm) {
+	const out = [];
+	for (let n = fm.open + 1; n < fm.close; n++) {
+		const l = doc.line(n);
+		const m = l.text.match(/^([^\s#-][^:]*):[ \t]*/);
+		if (!m || /^tags?$/.test(m[1])) continue;
+		const key = m[1];
+		const from = l.from + m[0].length;
+		const raw = l.text.slice(m[0].length).replace(/[ \t]+$/, "");
+		const to = from + raw.length;
+		const list = listAt(doc, n);
+		if (list) { out.push({ key, line: n, type: "list", from: list.from, to: list.to, list }); n = list.last; continue; }
+		const q = raw.match(/^(["'])(.*)\1$/);
+		const value = q ? q[2] : raw;
+		const quote = q ? q[1] : "";
+		let type = "text";
+		if (!q && /^(true|false)$/i.test(value)) type = "bool";
+		else if (DATE.test(value)) type = "date";
+		else if (DATETIME.test(value)) type = "datetime";
+		else if (!value && DATE_KEY.test(key) && !(n + 1 < fm.close && /^\s/.test(doc.line(n + 1).text))) type = "date";
+		if (type !== "text") out.push({ key, line: n, type, from, to, value, quote });
+	}
+	return out;
+}
+
+// The new text for a property's value, keeping its quotes and (for
+// true/false) its capitals.
+export function valueText(p, next) {
+	if (p.type === "bool") {
+		const word = next ? "true" : "false";
+		return /^[A-Z]{2}/.test(p.value) ? word.toUpperCase() : /^[A-Z]/.test(p.value) ? word[0].toUpperCase() + word.slice(1) : word;
+	}
+	if (p.type === "datetime" && next && p.value.includes(" ")) next = next.replace("T", " ");
+	if (p.type === "datetime" && next && /:\d{2}:\d{2}$/.test(p.value) && !/:\d{2}:\d{2}$/.test(next)) next += ":00";
+	return next || !p.quote ? p.quote + next + p.quote : p.quote + p.quote;
+}
+
+// The property named key, found again at edit time (the text may have moved).
+function propertyNamed(state, key) {
+	const fm = frontmatterLines(state.doc);
+	return fm ? propertiesIn(state.doc, fm).find((p) => p.key === key) || null : null;
+}
+
+// A checkbox for true/false.
+class BoolWidget extends WidgetType {
+	constructor(key, on) { super(); this.key = key; this.on = on; }
+	eq(o) { return o.key === this.key && o.on === this.on; }
+	toDOM(view) {
+		const box = document.createElement("input");
+		box.type = "checkbox";
+		box.className = "md-prop-check";
+		box.checked = this.on;
+		box.setAttribute("aria-label", this.key);
+		box.addEventListener("mousedown", (e) => e.stopPropagation());
+		box.addEventListener("change", () => {
+			const p = propertyNamed(view.state, this.key);
+			if (!p || p.type !== "bool" || view.state.readOnly) { box.checked = this.on; return; }
+			view.dispatch({ changes: { from: p.from, to: p.to, insert: valueText(p, box.checked) }, userEvent: "input.property" });
+		});
+		return box;
+	}
+	ignoreEvent() { return true; }
+}
+
+// A date or date-and-time picker.
+class DateWidget extends WidgetType {
+	constructor(key, type, value) { super(); this.key = key; this.type = type; this.value = value; }
+	eq(o) { return o.key === this.key && o.type === this.type && o.value === this.value; }
+	toDOM(view) {
+		const input = document.createElement("input");
+		input.type = this.type === "datetime" ? "datetime-local" : "date";
+		input.className = "md-prop-date";
+		input.value = this.type === "datetime" ? this.value.replace(" ", "T").slice(0, 16) : this.value;
+		input.setAttribute("aria-label", this.key);
+		input.addEventListener("mousedown", (e) => e.stopPropagation());
+		input.addEventListener("change", () => {
+			const p = propertyNamed(view.state, this.key);
+			if (!p || (p.type !== "date" && p.type !== "datetime") || view.state.readOnly) return;
+			let insert = valueText(p, input.value);
+			if (p.from === p.to && view.state.sliceDoc(p.from - 1, p.from) === ":") insert = " " + insert;
+			if (view.state.sliceDoc(p.from, p.to) !== insert) view.dispatch({ changes: { from: p.from, to: p.to, insert }, userEvent: "input.property" });
+		});
+		return input;
+	}
+	ignoreEvent() { return true; }
+}
+
 // The tags as pills, each with a remove button, and a box to add one. Editing
 // happens here rather than in the text, so the pills stay while you work.
+// Other list properties (key set) get the same pills, uncolored.
 class TagsWidget extends WidgetType {
-	constructor(tags) { super(); this.tags = tags; }
-	eq(o) { return o.tags.join("\n") === this.tags.join("\n"); }
+	constructor(tags, key = null) { super(); this.tags = tags; this.key = key; }
+	eq(o) { return o.key === this.key && o.tags.join("\n") === this.tags.join("\n"); }
 	toDOM(view) {
 		const wrap = document.createElement("span");
 		wrap.className = "md-tags";
+		const which = this.key ? `[data-key="${CSS.escape(this.key)}"]` : ":not([data-key])";
 		const apply = (edit) => {
 			const fm = frontmatterLines(view.state.doc);
-			const t = fm && tagsIn(view.state.doc, fm);
+			const t = fm && (this.key ? propertyNamed(view.state, this.key)?.list : tagsIn(view.state.doc, fm));
 			if (!t || view.state.readOnly) return;
 			view.dispatch({ changes: edit(view.state.doc, t), userEvent: "input.tags" });
 			// The pills are redrawn; put the typing back in the new add box.
-			requestAnimationFrame(() => view.dom.querySelector(".md-tag-input")?.focus());
+			requestAnimationFrame(() => view.dom.querySelector(`.md-tag-input${which}`)?.focus());
 		};
 		this.tags.forEach((t, i) => {
 			const pill = document.createElement("span");
-			pill.className = `md-tag md-tag-${tagHue(t)}`;
+			pill.className = this.key ? "md-tag md-item" : `md-tag md-tag-${tagHue(t)}`;
 			pill.textContent = t;
 			const x = document.createElement("button");
 			x.type = "button";
@@ -181,6 +313,7 @@ class TagsWidget extends WidgetType {
 			x.setAttribute("aria-label", `Remove tag ${t}`);
 			x.addEventListener("mousedown", (e) => { e.preventDefault(); apply((doc, tags) => tagRemoveEdit(doc, tags, i)); });
 			pill.append(x);
+			if (this.key) { wrap.append(pill); return; }
 			pill.title = `Notes tagged #${t}`;
 			pill.addEventListener("mousedown", (e) => {
 				if (e.target !== pill) return;
@@ -191,14 +324,15 @@ class TagsWidget extends WidgetType {
 		});
 		const input = document.createElement("input");
 		input.className = "md-tag-input";
-		input.placeholder = "+ tag";
-		input.setAttribute("aria-label", "Add a tag");
+		input.placeholder = this.key ? "+ add" : "+ tag";
+		input.setAttribute("aria-label", this.key ? `Add to ${this.key}` : "Add a tag");
+		if (this.key) input.dataset.key = this.key;
 		input.size = 6;
 		input.addEventListener("keydown", (e) => {
 			if (e.key === "Enter" || e.key === ",") {
 				e.preventDefault();
-				const name = tagName(input.value);
-				if (name) apply((doc, tags) => tagAddEdit(doc, tags, name));
+				const name = this.key ? input.value.trim() : tagName(input.value);
+				if (name) apply((doc, tags) => tagAddEdit(doc, tags, this.key ? yamlItem(name, tags.form === "flow") : name));
 			} else if (e.key === "Backspace" && !input.value && this.tags.length) {
 				e.preventDefault();
 				apply((doc, tags) => tagRemoveEdit(doc, tags, tags.tags.length - 1));
@@ -295,14 +429,22 @@ function decorate(state) {
 	// The styling stays put while editing: fences are always the header and
 	// the add button, and tags always pills (edited through the pills).
 	const pills = tagsIn(doc, fm);
+	const typed = new Map(propertiesIn(doc, fm).map((p) => [p.line, p]));
+	const hidden = (n) => (pills && n > pills.first && n <= pills.last) || [...typed.values()].some((p) => p.list && n > p.list.first && n <= p.list.last);
 	for (let n = fm.open; n <= fm.close; n++) {
-		if (pills && n > pills.first && n <= pills.last) continue; // folded into the pills line
+		if (hidden(n)) continue; // folded into a pills line
 		const l = doc.line(n);
 		const fence = n === fm.open || n === fm.close;
 		const cls = "md-fm" + (fence ? " md-fm-fence" : "") + (n === fm.open ? " md-first" : "") + (n === fm.close ? " md-last" : "");
 		b.add(l.from, l.from, Decoration.line({ class: cls }));
 		if (fence) b.add(l.from, l.to, Decoration.replace({ widget: new FmWidget(n === fm.open ? "open" : "add"), atomic: true }));
 		if (pills && n === pills.first) b.add(pills.from, pills.to, Decoration.replace({ widget: new TagsWidget(pills.tags), atomic: true }));
+		const p = typed.get(n);
+		if (p) {
+			const widget = p.type === "list" ? new TagsWidget(p.list.tags, p.key) : p.type === "bool" ? new BoolWidget(p.key, /^true$/i.test(p.value)) : new DateWidget(p.key, p.type, p.value);
+			if (p.from === p.to) b.add(p.from, p.to, Decoration.widget({ widget, side: 1 }));
+			else b.add(p.from, p.to, Decoration.replace({ widget, atomic: true }));
+		}
 	}
 	return b.finish();
 }
