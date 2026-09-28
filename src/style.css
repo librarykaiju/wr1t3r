@@ -378,3 +378,16 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 	font: 0.95em/1.6 var(--sans); color: var(--fg); width: 6em;
 }
 #editor .md-tag-input:focus { outline: none; border-color: var(--accent); border-style: solid; }
+
+/* The bar above the phone keyboard. */
+#kbbar { position: fixed; left: 0; right: 0; z-index: 40; display: flex; gap: 4px; padding: 5px 8px; background: var(--panel, var(--bg)); border-top: 1px solid var(--line); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+#kbbar::-webkit-scrollbar { display: none; }
+#kbbar[hidden], #kbbar button[hidden] { display: none; }
+#kbbar button { flex: 0 0 auto; min-width: 44px; min-height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font: 600 16px/1 var(--sans); padding: 0 10px; white-space: nowrap; touch-action: pan-x; }
+#kbbar button.kb-last-quick { margin-right: 8px; }
+#kbbar button.b { font-weight: 800; }
+#kbbar button.i { font-style: italic; font-family: var(--serif); }
+#kbbar button.s { text-decoration: line-through; }
+#kbbar button:active { background: var(--sel); }
+#app.kb-open #menu { display: none; }
+#app.kb-open #editor .cm-scroller { padding-bottom: 60px; }

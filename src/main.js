@@ -3,6 +3,7 @@
 // the background and whenever the connection comes back.
 
 import { createEditor } from "./editor.js";
+import { setupKeyboardBar } from "./kbbar.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags } from "./frontmatter.js";
 import { EditorView } from "@codemirror/view";
@@ -1092,13 +1093,16 @@ function showLogin(message = "") {
 	};
 }
 
+let refreshKeyboardBar = null;
+
 async function start() {
 	$("app").hidden = false;
-	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => refreshCount(), onLink: followLink });
+	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => { refreshCount(); refreshKeyboardBar?.(); }, onLink: followLink });
 	setupSettings();
 	setupFocusTools();
 	setupAgenda();
 	setupToc();
+	refreshKeyboardBar = setupKeyboardBar($("app"), () => editor.view);
 	renderQuote();
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
