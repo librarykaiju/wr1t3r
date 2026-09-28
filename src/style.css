@@ -1,9 +1,13 @@
-/* Colors, fonts and themes follow Reader's (librarykaiju/reader): Auto follows
-   the system, and Light, Dark and Sepia set data-theme on <html> (public/theme.js). */
+/* Colors, fonts and themes follow Reader's (librarykaiju/reader). A theme is a
+   family (Default, Sepia, Dracula, Rosé Pine) and a mode (Auto, Light, Dark);
+   src/theme.js and public/theme.js set data-theme on <html>. Default + Auto
+   sets none, and this sheet follows the system. --f1 to --f7 are each theme's
+   rainbow, for the sidebar's folders. */
 :root {
 	--bg: #fbfaf7; --fg: #1d1c1a; --muted: #6d6a64; --line: #e4e1da; --card: #ffffff; --sel: #ecefe9;
 	--accent: #2f5fd0; --bad: #b3261e; --hl: #fbe38a;
 	--panel: #f4f2ed; --mark: #a3a097; --code-bg: #efece5;
+	--f1: #c0392b; --f2: #c2650f; --f3: #9a7d00; --f4: #2e8540; --f5: #16848a; --f6: #2f5fd0; --f7: #8a3fb8;
 	--serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
 	--sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
 	--mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -15,6 +19,7 @@
 		--bg: #141414; --fg: #e7e4de; --muted: #9b978f; --line: #2d2c2a; --card: #1c1c1b; --sel: #2a2a28;
 		--accent: #8fb0ff; --bad: #ff8a80; --hl: #5c4a12;
 		--panel: #1a1a19; --mark: #6b6862; --code-bg: #232321;
+		--f1: #ff8a80; --f2: #ffb074; --f3: #f0d06a; --f4: #8fd694; --f5: #7fd6d9; --f6: #8fb0ff; --f7: #d0a0ff;
 		color-scheme: dark;
 	}
 }
@@ -22,12 +27,44 @@
 	--bg: #141414; --fg: #e7e4de; --muted: #9b978f; --line: #2d2c2a; --card: #1c1c1b; --sel: #2a2a28;
 	--accent: #8fb0ff; --bad: #ff8a80; --hl: #5c4a12;
 	--panel: #1a1a19; --mark: #6b6862; --code-bg: #232321;
+	--f1: #ff8a80; --f2: #ffb074; --f3: #f0d06a; --f4: #8fd694; --f5: #7fd6d9; --f6: #8fb0ff; --f7: #d0a0ff;
 	color-scheme: dark;
 }
 :root[data-theme=sepia] {
 	--bg: #f4ecd8; --fg: #3b3024; --muted: #7b6c58; --line: #e2d6bb; --card: #f9f2e2; --sel: #eadfc4;
 	--accent: #8a4b14; --bad: #a3261e; --hl: #f0d27a;
 	--panel: #efe5cd; --mark: #a8987f; --code-bg: #eadfc4;
+	--f1: #a3261e; --f2: #aa5a14; --f3: #86700f; --f4: #4d7a2c; --f5: #2f7470; --f6: #3d5f9e; --f7: #7a4a8f;
+	color-scheme: light;
+}
+/* Dracula (draculatheme.com) and its light variant, Alucard. */
+:root[data-theme=dracula] {
+	--bg: #282a36; --fg: #f8f8f2; --muted: #a3abcc; --line: #44475a; --card: #2f3241; --sel: #44475a;
+	--accent: #bd93f9; --bad: #ff5555; --hl: #5d5f2a;
+	--panel: #21222c; --mark: #6272a4; --code-bg: #343746;
+	--f1: #ff5555; --f2: #ffb86c; --f3: #f1fa8c; --f4: #50fa7b; --f5: #8be9fd; --f6: #bd93f9; --f7: #ff79c6;
+	color-scheme: dark;
+}
+:root[data-theme=dracula-light] {
+	--bg: #fffbeb; --fg: #1f1f1f; --muted: #635d97; --line: #e4dfc8; --card: #fffdf4; --sel: #cfcfde;
+	--accent: #644ac9; --bad: #cb3a2a; --hl: #f1f0a8;
+	--panel: #f6f1da; --mark: #9f9bb8; --code-bg: #f0ecd6;
+	--f1: #cb3a2a; --f2: #a34d14; --f3: #846e15; --f4: #14710a; --f5: #036a96; --f6: #644ac9; --f7: #a3144d;
+	color-scheme: light;
+}
+/* Rosé Pine (rosepinetheme.com) and its light variant, Dawn. */
+:root[data-theme=rosepine] {
+	--bg: #191724; --fg: #e0def4; --muted: #908caa; --line: #403d52; --card: #1f1d2e; --sel: #403d52;
+	--accent: #c4a7e7; --bad: #eb6f92; --hl: #4d3f2f;
+	--panel: #1f1d2e; --mark: #6e6a86; --code-bg: #26233a;
+	--f1: #eb6f92; --f2: #f6c177; --f3: #ebbcba; --f4: #9ccfd8; --f5: #3e8fb0; --f6: #c4a7e7; --f7: #e0def4;
+	color-scheme: dark;
+}
+:root[data-theme=rosepine-dawn] {
+	--bg: #faf4ed; --fg: #575279; --muted: #797593; --line: #dfdad9; --card: #fffaf3; --sel: #dfdad9;
+	--accent: #907aa9; --bad: #b4637a; --hl: #f6dfb8;
+	--panel: #f2e9e1; --mark: #9893a5; --code-bg: #f2e9e1;
+	--f1: #b4637a; --f2: #ea9d34; --f3: #d7827e; --f4: #56949f; --f5: #286983; --f6: #907aa9; --f7: #575279;
 	color-scheme: light;
 }
 
@@ -65,7 +102,9 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .side-top button { flex: 1; }
 .side-bottom { padding: 8px 10px max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
 #tree { flex: 1; overflow: auto; padding: 0 6px 12px; font-size: 14px; }
-#tree details > summary { list-style: none; cursor: pointer; padding: 3px 6px; border-radius: 4px; color: var(--muted); }
+#tree details > summary { list-style: none; cursor: pointer; padding: 3px 6px; border-radius: 4px; color: var(--fc, var(--muted)); }
+#themes { margin: 6px 0 14px; }
+#themes button:disabled { opacity: 0.45; cursor: default; }
 #tree details > summary::-webkit-details-marker { display: none; }
 #tree details > summary::before { content: "▸"; display: inline-block; width: 1em; transition: transform 0.1s; }
 #tree details[open] > summary::before { transform: rotate(90deg); }

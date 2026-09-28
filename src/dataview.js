@@ -342,4 +342,9 @@ const rerun = ViewPlugin.fromClass(class {
 	destroy() { clearTimeout(this.timer); }
 });
 
+// Re-sends every block on screen, e.g. after the theme changes (scripts get its colors).
+export function rerunDataview() {
+	for (const w of live) if (w.wrap.isConnected) w.send();
+}
+
 export const dataviewJs = [blocks, rerun];
