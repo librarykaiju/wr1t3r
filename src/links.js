@@ -5,8 +5,11 @@
 // always opens. Nothing here changes the note.
 
 import { EditorView, ViewPlugin, Decoration } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";
+import { RangeSetBuilder, Facet } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
+
+// What opens a link (the app's handler), for widgets that draw their own links.
+export const linkOpener = Facet.define({ combine: (v) => v[0] || null });
 
 const WIKILINK = /(!?)\[\[([^\]\n]+)\]\]/g;
 const CODE = /^(InlineCode|CodeText|FencedCode|CodeBlock|Comment)$/;

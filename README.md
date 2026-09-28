@@ -48,7 +48,7 @@ Setting it up is covered under [Google Calendar](#google-calendar) below.
 
 **Contents** in the bar under the editor lists the note's headings, indented by level. Tap one to jump to it. The heading you're reading is highlighted as you scroll, and the arrows fold a section's sub-headings. On a wide screen the list stays docked beside the note (and stays open next time); on a phone it closes after a jump.
 
-Tables are shown in a fixed-width font so the columns line up.
+Tables are drawn as grids, with bold, code and links inside cells formatted (`src/tablegrid.js`); links in a cell open on click. Clicking a cell puts the cursor in that cell and shows the table as markdown, in a fixed-width font, until the cursor leaves it. Wide tables scroll sideways on a phone.
 - **Tab** and **Shift+Tab** move between cells and pad the columns to line up. Tab past the last cell adds a row.
 - **Enter** at the end of a row adds a row below it.
 - With the cursor in a table, the slash menu adds **Add row below**, **Add column after**, **Delete row**, **Delete column** and **Format table**.
