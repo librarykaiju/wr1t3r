@@ -105,3 +105,10 @@ test("agenda: days, all-day spans, alerts and form fields", () => {
 		{ title: "Late", allDay: false, location: "", start: "2026-09-28T23:00", end: "2026-09-29T00:30", timeZone: "UTC", reminder: 10 });
 	assert.equal(A.formEvent({ title: "x", allDay: true, date: "2026-09-28", reminder: "" }).reminder, undefined);
 });
+
+test("calendar names never show an email address", async () => {
+	const { calendarLabel } = await import("../src/agenda.js");
+	assert.equal(calendarLabel({ name: "someone@gmail.com", primary: true }), "Main");
+	assert.equal(calendarLabel({ name: "friend.name@example.org" }), "f•••@example.org");
+	assert.equal(calendarLabel({ name: "Holidays in United States" }), "Holidays in United States");
+});
