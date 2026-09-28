@@ -23,6 +23,8 @@
 	input, select, button, textarea { font: inherit; font-size: 0.9em; color: var(--text-normal); background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 3px 7px; }
 	button { cursor: pointer; }
 	a { color: var(--text-accent); }
+	a.internal { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+	ul.contains-task-list { list-style: none; padding-left: 4px; }
 </style>
 </head>
 <body>
@@ -93,6 +95,282 @@
 		return res;
 	}
 
+	// ---- Dataview values: dates, links, arrays ----
+
+	// A small stand-in for Luxon's DateTime, which Dataview uses for dates:
+	// the methods scripts reach for (toFormat, toISODate, plus/minus, diff,
+	// startOf, comparisons through valueOf).
+	const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+	const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+	const pad = (n, w = 2) => String(n).padStart(w, "0");
+	class DateTime {
+		constructor(ms, dateOnly = false) { this.ts = ms; this.dateOnly = dateOnly; }
+		static fromISO(s) {
+			const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+			if (!m) return null;
+			return new DateTime(new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)).getTime(), !m[4]);
+		}
+		static fromJSDate(d) { return new DateTime(d.getTime()); }
+		static fromMillis(ms) { return new DateTime(ms); }
+		static now() { return new DateTime(Date.now()); }
+		static local(y, mo = 1, d = 1, h = 0, mi = 0) { return new DateTime(new Date(y, mo - 1, d, h, mi).getTime()); }
+		get js() { return new Date(this.ts); }
+		get year() { return this.js.getFullYear(); }
+		get month() { return this.js.getMonth() + 1; }
+		get day() { return this.js.getDate(); }
+		get hour() { return this.js.getHours(); }
+		get minute() { return this.js.getMinutes(); }
+		get second() { return this.js.getSeconds(); }
+		get weekday() { return this.js.getDay() || 7; }
+		get weekdayLong() { return DAYS[this.js.getDay()]; }
+		get weekdayShort() { return DAYS[this.js.getDay()].slice(0, 3); }
+		get monthLong() { return MONTHS[this.js.getMonth()]; }
+		get monthShort() { return MONTHS[this.js.getMonth()].slice(0, 3); }
+		get isValid() { return !isNaN(this.ts); }
+		valueOf() { return this.ts; }
+		toMillis() { return this.ts; }
+		toJSDate() { return this.js; }
+		toISODate() { return this.toFormat("yyyy-MM-dd"); }
+		toISO() { return this.toFormat("yyyy-MM-dd'T'HH:mm:ss"); }
+		toString() { return this.dateOnly ? this.toISODate() : this.toISO(); }
+		toJSON() { return this.toString(); }
+		toLocaleString() { return this.dateOnly ? this.js.toLocaleDateString() : this.js.toLocaleString(); }
+		toRelative() { const d = Math.round((this.ts - Date.now()) / 86400000); return d === 0 ? "today" : d > 0 ? `in ${d} days` : `${-d} days ago`; }
+		toFormat(f) {
+			const d = this.js;
+			const map = { yyyy: d.getFullYear(), yy: pad(d.getFullYear() % 100), MMMM: MONTHS[d.getMonth()], MMM: MONTHS[d.getMonth()].slice(0, 3), MM: pad(d.getMonth() + 1), M: d.getMonth() + 1,
+				dd: pad(d.getDate()), d: d.getDate(), cccc: DAYS[d.getDay()], ccc: DAYS[d.getDay()].slice(0, 3), EEEE: DAYS[d.getDay()], EEE: DAYS[d.getDay()].slice(0, 3),
+				HH: pad(d.getHours()), H: d.getHours(), hh: pad(d.getHours() % 12 || 12), h: d.getHours() % 12 || 12, mm: pad(d.getMinutes()), m: d.getMinutes(), ss: pad(d.getSeconds()), s: d.getSeconds(), a: d.getHours() < 12 ? "AM" : "PM" };
+			return f.replace(/'([^']*)'|yyyy|yy|MMMM|MMM|MM|M|dd|d|cccc|ccc|EEEE|EEE|HH|H|hh|h|mm|m|ss|s|a/g, (t, lit) => (lit != null ? lit : String(map[t])));
+		}
+		plus(o) { return this.#shift(o, 1); }
+		minus(o) { return this.#shift(o, -1); }
+		#shift(o, sign) {
+			const d = this.js;
+			if (typeof o === "number") return new DateTime(this.ts + sign * o, this.dateOnly);
+			if (o.years) d.setFullYear(d.getFullYear() + sign * o.years);
+			if (o.months) d.setMonth(d.getMonth() + sign * o.months);
+			if (o.weeks) d.setDate(d.getDate() + sign * 7 * o.weeks);
+			if (o.days) d.setDate(d.getDate() + sign * o.days);
+			if (o.hours) d.setHours(d.getHours() + sign * o.hours);
+			if (o.minutes) d.setMinutes(d.getMinutes() + sign * o.minutes);
+			return new DateTime(d.getTime(), this.dateOnly);
+		}
+		startOf(unit) {
+			const d = this.js;
+			if (unit === "year") d.setMonth(0, 1);
+			if (unit === "month" || unit === "year") d.setDate(1);
+			if (unit === "week") d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+			d.setHours(0, 0, 0, 0);
+			return new DateTime(d.getTime(), true);
+		}
+		endOf(unit) { return this.startOf(unit).plus({ [unit + "s"]: 1 }).minus(1); }
+		diff(other, unit = "milliseconds") {
+			const ms = this.ts - +other;
+			const per = { milliseconds: 1, seconds: 1e3, minutes: 6e4, hours: 36e5, days: 864e5, weeks: 6048e5 }[unit] || 1;
+			return { [unit]: ms / per, as: (u) => ms / ({ milliseconds: 1, seconds: 1e3, minutes: 6e4, hours: 36e5, days: 864e5, weeks: 6048e5 }[u] || 1), toMillis: () => ms };
+		}
+		hasSame(other, unit) { return this.startOf(unit).ts === DateTime.fromMillis(+other).startOf(unit).ts; }
+		equals(other) { return other != null && +other === this.ts; }
+	}
+	const ISO = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+
+	// Link values ({ path, display }) show as the note's name.
+	class Link {
+		constructor(path, display, embed = false) { this.path = path; this.display = display; this.embed = embed; this.type = "file"; }
+		toString() { return this.display || String(this.path).split("/").pop().replace(/\.md$/i, ""); }
+		markdown() { return `[[${String(this.path).replace(/\.md$/i, "")}${this.display ? "|" + this.display : ""}]]`; }
+		withDisplay(d) { return new Link(this.path, d, this.embed); }
+		get fileName() { return String(this.path).split("/").pop().replace(/\.md$/i, ""); }
+	}
+
+	// Dataview's DataArray: an array with query methods, where reading a field
+	// off it (pages.file.name) gives that field of every item.
+	// A DataArray's or array's items (plain arrays have a values() method too).
+	const vals = (x) => (Array.isArray(x) ? x : x && Array.isArray(x.values) ? x.values : x);
+	function DataArray(items) {
+		const arr = Array.from(vals(items) || []);
+		const api = {
+			values: arr,
+			get length() { return arr.length; },
+			array: () => arr.slice(),
+			where: (fn) => DataArray(arr.filter(fn)),
+			filter: (fn) => DataArray(arr.filter(fn)),
+			map: (fn) => DataArray(arr.map(fn)),
+			flatMap: (fn) => DataArray(arr.flatMap((x, i) => { return vals(fn(x, i)); })),
+			forEach: (fn) => arr.forEach(fn),
+			mutate: (fn) => { arr.forEach(fn); return api.proxy; },
+			limit: (n) => DataArray(arr.slice(0, n)),
+			slice: (a, b) => DataArray(arr.slice(a, b)),
+			concat: (o) => DataArray(arr.concat(vals(o))),
+			indexOf: (x) => arr.indexOf(x),
+			find: (fn) => arr.find(fn),
+			findIndex: (fn) => arr.findIndex(fn),
+			includes: (x) => arr.includes(x),
+			join: (sep = ", ") => arr.map(show).join(sep),
+			first: () => arr[0],
+			last: () => arr[arr.length - 1],
+			some: (fn) => arr.some(fn),
+			every: (fn) => arr.every(fn),
+			none: (fn) => !arr.some(fn),
+			sum: () => arr.reduce((a, b) => a + (Number(b) || 0), 0),
+			avg: () => (arr.length ? api.sum() / arr.length : 0),
+			min: () => Math.min(...arr.map(Number)),
+			max: () => Math.max(...arr.map(Number)),
+			distinct: (fn = (x) => x) => { const seen = new Set(); return DataArray(arr.filter((x) => { const k = +fn(x) || String(fn(x)); if (seen.has(k)) return false; seen.add(k); return true; })); },
+			sort: (key, dir = "asc", cmp) => {
+				const k = typeof key === "function" ? key : key == null ? (x) => x : (x) => x?.[key];
+				const out = arr.slice().sort((a, b) => { const r = cmp ? cmp(k(a), k(b)) : compare(k(a), k(b)); return dir === "desc" ? -r : r; });
+				return DataArray(out);
+			},
+			sortInPlace: (key, dir) => { const s = api.sort(key, dir).values; arr.splice(0, arr.length, ...s); return api.proxy; },
+			groupBy: (fn) => {
+				const m = new Map();
+				for (const x of arr) { const k = fn(x); const key = k instanceof DateTime ? +k : k instanceof Link ? k.path : k; if (!m.has(key)) m.set(key, { key: k, rows: [] }); m.get(key).rows.push(x); }
+				return DataArray([...m.values()].map((g) => ({ key: g.key, rows: DataArray(g.rows) })));
+			},
+			expand: (key) => DataArray(arr.flatMap((x) => [x, ...(x?.[key] || [])])),
+			to: (key) => api.proxy[key],
+			into: (key) => DataArray(arr.flatMap((x) => { const v = vals(x?.[key]); return v == null ? [] : Array.isArray(v) ? v : [v]; })),
+			[Symbol.iterator]: () => arr[Symbol.iterator](),
+		};
+		api.proxy = new Proxy(api, {
+			get(t, k) {
+				if (k in t) return t[k];
+				if (typeof k === "string" && /^\d+$/.test(k)) return arr[+k];
+				if (typeof k === "symbol") return undefined;
+				return DataArray(arr.flatMap((x) => { const v = vals(x?.[k]); return v == null ? [] : Array.isArray(v) ? v : [v]; }));
+			},
+		});
+		return api.proxy;
+	}
+	const compare = (a, b) => {
+		if (a == null && b == null) return 0;
+		if (a == null) return -1;
+		if (b == null) return 1;
+		if (typeof a === "number" || a instanceof DateTime || typeof b === "number") return +a - +b;
+		return String(a).localeCompare(String(b), undefined, { numeric: true });
+	};
+	const isArrayish = (v) => Array.isArray(v) || (v && v.values && Array.isArray(v.values));
+
+	// How a value reads on screen.
+	function show(v) {
+		if (v == null) return "–";
+		if (v instanceof DateTime) return v.dateOnly ? v.toFormat("MMMM d, yyyy") : v.toFormat("h:mm a - MMMM d, yyyy");
+		if (v instanceof Link) return v.toString();
+		if (isArrayish(v)) return (v.values || v).map(show).join(", ");
+		if (typeof v === "object") return JSON.stringify(v);
+		return String(v);
+	}
+
+	// Dataview writes paragraphs and cells as markdown; the common inline bits
+	// (bold, italic, code, links) are drawn here, everything else as text.
+	function md(text, into) {
+		const re = /(\*\*|__)(.+?)\1|(\*|_)(.+?)\3|`([^`]+)`|\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\[([^\]]+)\]\((https?:[^)\s]+)\)/g;
+		let last = 0;
+		for (const m of String(text).matchAll(re)) {
+			into.appendChild(document.createTextNode(text.slice(last, m.index)));
+			let el;
+			if (m[2] != null) { el = document.createElement("strong"); md(m[2], el); }
+			else if (m[4] != null) { el = document.createElement("em"); md(m[4], el); }
+			else if (m[5] != null) { el = document.createElement("code"); el.textContent = m[5]; }
+			else if (m[6] != null) { el = document.createElement("a"); el.className = "internal"; el.textContent = m[7] || m[6].split("/").pop(); el.dataset.note = m[6]; }
+			else { el = document.createElement("a"); el.textContent = m[8]; el.href = m[9]; el.target = "_blank"; el.rel = "noopener noreferrer"; }
+			into.appendChild(el);
+			last = m.index + m[0].length;
+		}
+		into.appendChild(document.createTextNode(String(text).slice(last)));
+		return into;
+	}
+	// A value into an element: links clickable, markdown strings drawn.
+	function put(v, into) {
+		if (v instanceof Node) { into.appendChild(v); return into; }
+		if (v instanceof Link) { const a = document.createElement("a"); a.className = "internal"; a.textContent = v.toString(); a.dataset.note = v.path; into.appendChild(a); return into; }
+		if (isArrayish(v)) { (v.values || v).forEach((x, i) => { if (i) into.appendChild(document.createTextNode(", ")); put(x, into); }); return into; }
+		if (typeof v === "string") return md(v, into);
+		into.appendChild(document.createTextNode(show(v)));
+		return into;
+	}
+
+	// Frontmatter values as Dataview types them: ISO dates become dates, and
+	// "[[Note]]" strings links.
+	function typed(v) {
+		if (typeof v === "string") {
+			if (ISO.test(v.trim())) return DateTime.fromISO(v.trim());
+			const l = v.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/);
+			if (l) return new Link(l[1], l[2]);
+			return v;
+		}
+		if (Array.isArray(v)) return v.map(typed);
+		return v;
+	}
+	function livePage(p) {
+		if (!p || p.__live) return p;
+		const out = { __live: true };
+		for (const [k, v] of Object.entries(p)) if (k !== "file") out[k] = typed(v);
+		const f = p.file;
+		const name = f.name;
+		const day = name.match(/(\d{4})[-.](\d{2})[-.](\d{2})/);
+		out.file = {
+			...f,
+			link: new Link(f.path),
+			day: day ? DateTime.fromISO(`${day[1]}-${day[2]}-${day[3]}`) : undefined,
+			ctime: f.ctime ? DateTime.fromMillis(f.ctime) : undefined,
+			mtime: f.mtime ? DateTime.fromMillis(f.mtime) : undefined,
+			lists: DataArray(f.lists.map((l) => ({ ...l, path: f.path, link: new Link(f.path), checked: l.task ? l.status !== " " : false, fullyCompleted: l.completed }))),
+			tasks: DataArray(f.tasks.map((l) => ({ ...l, path: f.path, link: new Link(f.path), checked: l.status !== " ", fullyCompleted: l.completed }))),
+			tags: DataArray(f.tags),
+			etags: DataArray(f.tags),
+			outlinks: DataArray((f.outlinks || []).map((x) => new Link(x))),
+			inlinks: DataArray((f.inlinks || []).map((x) => new Link(x))),
+			frontmatter: f.frontmatter,
+		};
+		// Common aliases Dataview adds for dashed/space keys.
+		for (const k of Object.keys(p)) {
+			const alias = k.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-");
+			if (k !== "file" && !(alias in out)) out[alias] = out[k];
+		}
+		return out;
+	}
+
+	// Which pages a Dataview source names: "folder", #tag, [[note]] (notes
+	// linking to it), outgoing([[note]]), joined with and / or / - and
+	// parentheses. Empty means every page.
+	function sourceFilter(source, current, resolve) {
+		const src = String(source ?? "").trim();
+		if (!src) return () => true;
+		const tokens = src.match(/"[^"]*"|#[^\s()]+|outgoing\(\[\[[^\]]*\]\]\)|\[\[[^\]]*\]\]|\(|\)|-|\band\b|\bor\b|!/gi) || [];
+		let i = 0;
+		const peek = () => tokens[i];
+		function atom() {
+			const t = tokens[i++];
+			if (t == null) return () => false;
+			if (t === "(") { const f = or(); i++; return f; }
+			if (t === "-" || t === "!") { const f = atom(); return (p) => !f(p); }
+			if (t.startsWith('"')) {
+				const f = t.slice(1, -1).replace(/^\/+|\/+$/g, "").toLowerCase();
+				return (p) => { const path = p.file.path.toLowerCase(); return path === f + ".md" || path === f || path.startsWith(f + "/"); };
+			}
+			if (t.startsWith("#")) {
+				const tag = t.toLowerCase();
+				return (p) => (p.file.tags.values || p.file.tags).some((x) => { x = String(x).toLowerCase(); return x === tag || x.startsWith(tag + "/"); });
+			}
+			const out = /^outgoing/i.test(t);
+			const name = t.replace(/^outgoing\(|\)$/gi, "").slice(2, -2);
+			const target = name ? resolve(name) : current.file.path;
+			if (out) {
+				const from = (target && pagesByPath[target]) || null;
+				const set = new Set(from ? (from.file.outlinks.values || []).map((l) => l.path) : []);
+				return (p) => set.has(p.file.path);
+			}
+			return (p) => (p.file.outlinks.values || []).some((l) => l.path === target);
+		}
+		function and() { let f = atom(); while (peek() && /^and$/i.test(peek())) { i++; const a = f, b = atom(); f = (p) => a(p) && b(p); } return f; }
+		function or() { let f = and(); while (peek() && /^or$/i.test(peek())) { i++; const a = f, b = and(); f = (p) => a(p) || b(p); } return f; }
+		return or();
+	}
+	let pagesByPath = {};
+
 	function start(d) {
 		const id = ++runId;
 		const root = document.documentElement;
@@ -102,7 +380,10 @@
 		out.empty();
 		const container = out.createDiv();
 
-		const pages = d.pages;
+		const pages = {};
+		for (const [k, v] of Object.entries(d.pages)) pages[k] = livePage(v);
+		pagesByPath = pages;
+		d.current = pages[d.current.file.path] || livePage(d.current);
 		const byLower = new Map(Object.keys(pages).map((p) => [p.toLowerCase(), p]));
 		const findPath = (p) => {
 			if (p == null) return null;
@@ -130,31 +411,62 @@
 
 		const el = (tag, text, o) => {
 			const e = container.createEl(tag, o);
-			if (text != null && typeof text !== "object") e.textContent = String(text);
-			else if (text instanceof Node) e.appendChild(text);
+			if (text != null) put(text, e);
 			return e;
+		};
+		const resolveName = (name) => {
+			const n = String(name).replace(/#.*$/, "").trim();
+			return findPath(n) || null;
 		};
 		const dv = {
 			container,
 			current: () => d.current,
 			page: (p) => { const f = findPath(p); return f ? pages[f] : undefined; },
-			pages: () => { throw new Error("dv.pages() queries aren't supported in wr1t3r yet."); },
+			pages: (source) => {
+				if (!d.all) throw new Error("dv.pages() needs the whole vault; wr1t3r sends it when the script mentions dv.pages.");
+				const keep = sourceFilter(source, d.current, resolveName);
+				return DataArray(Object.values(pages).filter(keep));
+			},
+			pagePaths: (source) => DataArray(Object.values(pages).filter(sourceFilter(source, d.current, resolveName)).map((p) => p.file.path)),
+			array: (a) => DataArray(a && a.values ? a.values : a),
+			isArray: (a) => isArrayish(a),
+			date: (s) => (s instanceof DateTime ? s : s === "today" ? DateTime.now().startOf("day") : s === "now" ? DateTime.now() : s === "tomorrow" ? DateTime.now().startOf("day").plus({ days: 1 }) : s === "yesterday" ? DateTime.now().startOf("day").minus({ days: 1 }) : DateTime.fromISO(s)),
+			duration: (s) => { const m = String(s).match(/(\d+(?:\.\d+)?)\s*(\w+)/); if (!m) return null; const unit = m[2].replace(/s$/, ""); const ms = { millisecond: 1, second: 1e3, minute: 6e4, hour: 36e5, day: 864e5, week: 6048e5 }[unit] || 0; return +m[1] * ms; },
+			fileLink: (p, embed, display) => new Link(p, display, embed),
+			sectionLink: (p, s, embed, display) => new Link(p + "#" + s, display || s, embed),
+			blockLink: (p, b, embed, display) => new Link(p + "#^" + b, display, embed),
+			compare,
+			equal: (a, b) => compare(a, b) === 0,
+			luxon: { DateTime },
+			value: { isArray: isArrayish, isLink: (v) => v instanceof Link, isDate: (v) => v instanceof DateTime },
+			taskList: (tasks, group) => {
+				const ul = container.createEl("ul", { cls: "contains-task-list" });
+				for (const t of tasks || []) {
+					const li = ul.createEl("li", { cls: "task-list-item" });
+					const box = li.createEl("input", { attr: { type: "checkbox", disabled: true } });
+					box.checked = !!t.checked || !!t.completed;
+					li.appendText(" ");
+					md(t.text || "", li);
+				}
+				return ul;
+			},
+			markdownTable: (headers, rows) => [ "| " + headers.join(" | ") + " |", "| " + headers.map(() => "---").join(" | ") + " |", ...(rows || []).map((r) => "| " + r.map(show).join(" | ") + " |") ].join("\n"),
+			markdownList: (items) => (items || []).map((i) => "- " + show(i)).join("\n"),
 			el,
 			paragraph: (t, o) => el("p", t, o),
 			span: (t, o) => el("span", t, o),
 			header: (level, t, o) => el("h" + Math.min(6, Math.max(1, level)), t, o),
-			list: (items) => { const ul = container.createEl("ul"); for (const i of items || []) ul.createEl("li", { text: String(i) }); return ul; },
+			list: (items) => { const ul = container.createEl("ul"); for (const i of items || []) put(i, ul.createEl("li")); return ul; },
 			table: (headers, rows) => {
 				const t = container.createEl("table");
 				const hr = t.createEl("thead").createEl("tr");
-				for (const h of headers || []) hr.createEl("th", { text: String(h) });
+				for (const h of headers || []) put(h, hr.createEl("th"));
 				const tb = t.createEl("tbody");
-				for (const r of rows || []) { const tr = tb.createEl("tr"); for (const c of r) tr.createEl("td", { text: c == null ? "" : String(c) }); }
+				for (const r of rows || []) { const tr = tb.createEl("tr"); for (const c of vals(r) || []) { const td = tr.createEl("td"); if (c != null) put(c, td); } }
 				return t;
 			},
 			io: { load, csv: () => { throw new Error("dv.io.csv isn't supported in wr1t3r yet."); } },
 			component: { registerEvent() {}, register() {}, registerInterval() {}, registerDomEvent() {} },
-			fileLink: (p, embed, display) => display || String(p).split("/").pop().replace(/\.md$/i, ""),
 		};
 		const app = {
 			vault: {
@@ -185,8 +497,8 @@
 		};
 		try {
 			const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
-			const fn = new AsyncFunction("dv", "app", "require", "Notice", "input", d.code);
-			fn(dv, app, require, Notice, undefined).catch(showError);
+			const fn = new AsyncFunction("dv", "app", "require", "Notice", "input", "moment", d.code);
+			fn(dv, app, require, Notice, undefined, undefined).catch(showError);
 		} catch (err) {
 			showError(err);
 		}
@@ -204,6 +516,14 @@
 	});
 	addEventListener("error", (e) => out.createDiv({ cls: "dv-error", text: "dataviewjs: " + e.message }));
 	addEventListener("unhandledrejection", (e) => out.createDiv({ cls: "dv-error", text: "dataviewjs: " + (e.reason && e.reason.message || e.reason) }));
+
+	// Note links drawn in the output open the note in the app.
+	out.addEventListener("click", (e) => {
+		const a = e.target.closest && e.target.closest("a.internal");
+		if (!a) return;
+		e.preventDefault();
+		parent.postMessage({ type: "open", note: a.dataset.note }, "*");
+	});
 
 	let lastH = 0;
 	new ResizeObserver(() => {
