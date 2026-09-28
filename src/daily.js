@@ -71,7 +71,21 @@ export function renderTemplate(template, { title, date = new Date() }) {
 		} else value = expression(body, { title, date, aliases });
 		return (trimBefore ? "" : before) + value + (close ? "" : after);
 	});
-	return { text, companion };
+	return { text: coreTemplate(text, { title, date }), companion };
+}
+
+// Obsidian's core Templates syntax: {{title}}, {{date}}, {{time}},
+// {{date:YYYY-MM-DD}}, {{time:HH:mm}}. Other {{...}} fields (like the Book
+// Search plugin's {{LIST:author}}) are left empty, since only their plugin
+// can fill them.
+function coreTemplate(text, { title, date }) {
+	return text.replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (all, field) => {
+		const [name, fmt] = [field.split(":")[0].trim().toLowerCase(), field.includes(":") ? field.slice(field.indexOf(":") + 1).trim() : null];
+		if (name === "title") return title;
+		if (name === "date") return formatDate(fmt || "YYYY-MM-DD", date);
+		if (name === "time") return formatDate(fmt || "HH:mm", date);
+		return "";
+	});
 }
 
 // The template's path in the vault (case doesn't matter), and the vault root it sits in.

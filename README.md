@@ -28,6 +28,12 @@ A line holding just `![[Note]]` shows that note in a box, as Obsidian does (`src
 
 **Live Preview** (Aa panel > Markdown symbols, off by default) hides `**`, `##`, `[text](url)` parts, `[[`/`]]` and `==` on every line except the one the cursor is on, like Obsidian's Live Preview (`src/livepreview.js`). Code blocks, tables and the properties box are left as they are. The note's text never changes.
 
+**Quick switcher and command palette** (`src/palette.js`): **Ctrl/Cmd+O** jumps to a note by name (recent ones first; letters in order are enough, so `chone` finds Chapter One), and offers to create the note when nothing matches. **Ctrl/Cmd+P**, or the ⌘ button in the header, runs any command: new note, today's note, templates, bookmark, rename, delete, close tab, reference pane, Contents, Live Preview, upload, clip, sync, the focus timer, find, and every formatting command from the slash menu.
+
+**Templates** (`src/templates.js`): **New note from template** and **Insert template** (both in the command palette) list everything in `_templates/`. A new note is named first; inserting puts the template's text at the cursor and adds only the properties the note doesn't have yet. Templater tags (dates, the title) and Obsidian's core `{{title}}`, `{{date}}`, `{{time}}` and `{{date:FORMAT}}` are filled in without running anything; plugin fields like `{{LIST:director}}` come out empty.
+
+**Bookmarks and tags:** the ☆ in a note's tab bookmarks it; bookmarked notes are listed at the top of the sidebar (on this device). Below them, **Tags** lists every tag with how many notes have it; click one to see them.
+
 **Tabs:** every note opened from the sidebar (or New, Today, a search) gets a tab across the top; following a link opens it in the current tab, as Obsidian does. Close a tab with × (or a middle-click). Open tabs are remembered on the device. On a phone only the current tab shows, and the number beside it lists the others.
 
 **Reference pane** (wide screens): the split-square button in the header shows another note, read-only, beside the one you're editing. Pick it from the list at the top (your open tabs); links clicked in it open in the pane; **Edit** swaps it with the note in the editor.

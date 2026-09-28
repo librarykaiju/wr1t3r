@@ -45,3 +45,8 @@ test("renderTemplate fills script variables set from the title", () => {
 	const { text } = renderTemplate(tmpl, { title: "What's the best advice you ignored?", date: new Date(2026, 8, 28) });
 	assert.equal(text, '---\ntitle: "What\'s the best advice you ignored?"\npublish: false\ndate: "2026-09-28"\ntags:\n  - ""\n---\n\n');
 });
+
+test("renderTemplate fills core Templates fields and empties plugin ones", () => {
+	const { text } = renderTemplate('title: "{{ title }}"\ndirector: "{{ LIST:director }}"\ndate: "{{date:YYYY-MM-DD}}"\n{{date}} {{time:HH}}', { title: "Heat", date: new Date(2026, 8, 28, 14, 5) });
+	assert.equal(text, 'title: "Heat"\ndirector: ""\ndate: "2026-09-28"\n2026-09-28 14');
+});

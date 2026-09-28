@@ -76,7 +76,7 @@ export function commandSnippet(state, template) {
 	return { template: t, from, to };
 }
 
-function runCommand(view, c) {
+export function runCommand(view, c) {
 	if (c.run) return c.run(view);
 	const raw = typeof c.template === "function" ? c.template() : c.template;
 	const { template, from, to } = commandSnippet(view.state, raw);
