@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Text } from "@codemirror/state";
-import { frontmatterLines, propertyEdit, propertyCount, propertyEnter, tagsIn, tagHue, tagAddEdit, tagRemoveEdit, tagName, newNoteFrontmatter } from "../src/frontmatter.js";
+import { frontmatterLines, propertyEdit, propertyCount, propertyEnter, tagsIn, tagHue, tagAddEdit, tagRemoveEdit, tagName, newNoteFrontmatter, propertiesIn, valueText, yamlItem } from "../src/frontmatter.js";
 
 const doc = (s) => Text.of(s.split("\n"));
 
@@ -69,4 +69,38 @@ test("new notes get the Note template's properties with a fixed date", () => {
 	const fm = newNoteFrontmatter('Say "hi"', "2026-09-28");
 	assert.equal(fm, '---\ntitle: "Say \\"hi\\""\npublish: false\ntags:\nstatus: seed\ndate: "2026-09-28"\nsticky: false\ncallout:\n---\n');
 	assert.deepEqual(frontmatterLines(doc(fm)), { open: 1, close: 9 });
+});
+
+test("propertiesIn reads booleans, dates and lists from the text", () => {
+	const d = doc('---\ntitle: A\npublish: false\nsticky: True\ndate: "2026-09-28"\nat: 2026-09-28 14:05\ndue:\nnote:\ncategories:\n  - ""\ncast: [Ann, "Bo: b"]\nquoted: "true"\ntags:\n  - x\n---');
+	const ps = propertiesIn(d, frontmatterLines(d));
+	assert.deepEqual(ps.map((p) => [p.key, p.type, p.value ?? p.list.tags]), [
+		["publish", "bool", "false"], ["sticky", "bool", "True"], ["date", "date", "2026-09-28"],
+		["at", "datetime", "2026-09-28 14:05"], ["due", "date", ""], ["categories", "list", []], ["cast", "list", ["Ann", "Bo: b"]],
+	]);
+});
+
+test("valueText keeps quotes, capitals and date-time style", () => {
+	assert.equal(valueText({ type: "bool", value: "True", quote: "" }, false), "False");
+	assert.equal(valueText({ type: "bool", value: "false", quote: "" }, true), "true");
+	assert.equal(valueText({ type: "date", value: "2026-09-28", quote: '"' }, "2026-10-01"), '"2026-10-01"');
+	assert.equal(valueText({ type: "date", value: "2026-09-28", quote: '"' }, ""), '""');
+	assert.equal(valueText({ type: "datetime", value: "2026-09-28 14:05", quote: "" }, "2026-09-29T09:30"), "2026-09-29 09:30");
+	assert.equal(valueText({ type: "datetime", value: "2026-09-28T14:05:00", quote: "" }, "2026-09-29T09:30"), "2026-09-29T09:30:00");
+});
+
+test("list properties: adding fills a blank item, flow items keep their quotes", () => {
+	const apply = (s, e) => s.slice(0, e.from) + e.insert + s.slice(e.to);
+	const run = (s, f) => { const d = doc(s); const p = propertiesIn(d, frontmatterLines(d))[0]; return apply(s, f(d, p.list)); };
+	assert.equal(run('---\ncategories:\n  - ""\n---', (d, t) => tagAddEdit(d, t, "essay")), "---\ncategories:\n  - essay\n---");
+	assert.equal(run('---\ncast: [Ann, "Bo: b"]\n---', (d, t) => tagRemoveEdit(d, t, 0)), '---\ncast: ["Bo: b"]\n---');
+	assert.equal(run('---\ncast: [Ann]\n---', (d, t) => tagAddEdit(d, t, yamlItem("C, D", true))), '---\ncast: [Ann, "C, D"]\n---');
+	assert.equal(yamlItem("plain words"), "plain words");
+	assert.equal(yamlItem("a: b"), '"a: b"');
+	assert.equal(yamlItem("#x"), '"#x"');
+});
+
+test("flow lists don't split on commas inside quotes", () => {
+	const d = doc('---\ncast: [Ann, "C, D", \'E, F\']\n---');
+	assert.deepEqual(propertiesIn(d, frontmatterLines(d))[0].list.tags, ["Ann", "C, D", "E, F"]);
 });

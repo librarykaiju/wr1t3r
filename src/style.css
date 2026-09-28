@@ -380,6 +380,10 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 	background: none; border: 1px dashed var(--line); border-radius: 999px; padding: 0 0.6em; min-width: 0;
 	font: 0.95em/1.6 var(--sans); color: var(--fg); width: 6em;
 }
+#editor .md-item { --t: var(--muted); }
+#editor .md-prop-check { width: 1.05em; height: 1.05em; margin: 0 0 0 2px; vertical-align: -0.15em; accent-color: var(--accent); cursor: pointer; }
+#editor .md-prop-date { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; min-height: 0; line-height: 1.6; color-scheme: light dark; }
+#editor .md-prop-date:focus { outline: none; border-color: var(--accent); }
 #editor .md-tag-input:focus { outline: none; border-color: var(--accent); border-style: solid; }
 
 /* The bar above the phone keyboard. */
