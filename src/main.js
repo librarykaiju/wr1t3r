@@ -12,6 +12,7 @@ import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
 import { newNoteFrontmatter } from "./frontmatter.js";
+import { quoteFor } from "./quotes.js";
 import { EditorView } from "@codemirror/view";
 
 const $ = (id) => document.getElementById(id);
@@ -189,6 +190,17 @@ function openNote(path) {
 	$("app").classList.remove("menu-open");
 	renderTree();
 	refreshCount(true);
+}
+
+// The empty screen's quote of the day. Checked again whenever wr1t3r comes back
+// into view, so a tab left open overnight shows the new day's quote.
+function renderQuote() {
+	const q = quoteFor();
+	$("quoteText").textContent = q.text.replaceAll(" / ", "\n");
+	const by = $("quoteBy");
+	const cite = document.createElement("cite");
+	cite.textContent = q.work;
+	by.replaceChildren("— " + q.author + ", ", cite);
 }
 
 function renderTitle() {
@@ -1030,6 +1042,8 @@ async function start() {
 	setupFocusTools();
 	setupAgenda();
 	setupToc();
+	renderQuote();
+	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
 	persist();
 

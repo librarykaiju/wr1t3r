@@ -108,7 +108,12 @@ header {
 }
 
 #editor { flex: 1; min-height: 0; }
-#empty { flex: 1; display: grid; place-items: center; color: var(--muted); }
+#empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 24px; color: var(--muted); }
+#empty .quote { margin: 0; max-width: 34em; text-align: center; }
+#empty blockquote { margin: 0; font: italic 1.45em/1.5 var(--serif); color: var(--fg); white-space: pre-line; text-wrap: balance; }
+#empty figcaption { margin-top: 14px; font-size: 0.95em; }
+#empty figcaption cite { font-style: italic; }
+#empty .hint { margin: 0; font-size: 0.9em; }
 main.has-note #empty { display: none; }
 main:not(.has-note) #editor { display: none; }
 
