@@ -18,6 +18,7 @@ import { slashSource } from "./slash.js";
 import { stripFrontmatter } from "./count.js";
 import { tableKeymap, tableStyle } from "./table.js";
 import { blockStyle } from "./blocks.js";
+import { frontmatterStyle } from "./frontmatter.js";
 
 const fromSync = Annotation.define();
 
@@ -66,6 +67,7 @@ export function createEditor(parent, { onChange, onUpdate }) {
 		Prec.high(keymap.of(tableKeymap)),
 		tableStyle,
 		blockStyle,
+		frontmatterStyle,
 		yamlFrontmatter({ content: markdown({ base: markdownLanguage }) }),
 		syntaxHighlighting(style),
 		marks(/\[\[[^\]\n]+\]\]/g, "md-wikilink"),
@@ -87,7 +89,12 @@ export function createEditor(parent, { onChange, onUpdate }) {
 	function makeState(note) {
 		const text = note.binary ? "" : note.text;
 		const sep = note.binary ? undefined : lineSeparatorFor(text);
+		// The cursor starts just below the frontmatter, so typing right away can't break it.
+		const fmEnd = note.binary ? 0 : text.length - stripFrontmatter(text).length;
+		const head = text.slice(0, fmEnd);
+		const start = head.length - (head.match(/\r\n/g) || []).length; // CodeMirror counts a CRLF as one position
 		return EditorState.create({
+			selection: { anchor: start },
 			doc: note.binary ? "This note isn't valid UTF-8 text, so wr1t3r shows it read-only to keep its bytes intact." : text,
 			extensions: [...base, ...(sep ? [EditorState.lineSeparator.of(sep)] : []), EditorState.readOnly.of(!!note.binary)],
 		});
