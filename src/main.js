@@ -30,6 +30,8 @@ import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
 import { newNoteFrontmatter } from "./frontmatter.js";
 import { quoteFor } from "./quotes.js";
+import { readTheme, themeAttr } from "./theme.js";
+import { rerunDataview } from "./dataview.js";
 
 const $ = (id) => document.getElementById(id);
 const notes = new Map(); // path -> note, mirrors IndexedDB
@@ -210,10 +212,13 @@ function renderTree() {
 		top = child;
 	}
 	const current = editor.path || "";
-	(function draw(node, into, prefix) {
+	(function draw(node, into, prefix, depth = 0) {
+		let i = 0;
 		for (const [dir, child] of node.folders) {
 			const full = prefix + dir + "/";
 			const d = document.createElement("details");
+			// Top-level folders take the theme's rainbow in turn; subfolders keep their parent's color.
+			if (!depth) d.style.setProperty("--fc", `var(--f${(i++ % 7) + 1})`);
 			d.open = openFolders.has(full) || current.startsWith(full);
 			const s = document.createElement("summary");
 			s.textContent = dir;
@@ -223,9 +228,9 @@ function renderTree() {
 			d.addEventListener("toggle", () => {
 				d.open ? openFolders.add(full) : openFolders.delete(full);
 				writeJSON(OPEN_KEY, [...openFolders]);
-				if (d.open && !kids.childElementCount) draw(child, kids, full);
+				if (d.open && !kids.childElementCount) draw(child, kids, full, depth + 1);
 			});
-			if (d.open) draw(child, kids, full);
+			if (d.open) draw(child, kids, full, depth + 1);
 			into.append(d);
 		}
 		for (const n of node.notes) into.append(link(n, name(n.path)));
@@ -837,11 +842,17 @@ function storeRaw(key, value) {
 	try { value == null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch {}
 }
 
-function applyTheme(t) {
+function applyTheme() {
 	const root = document.documentElement;
-	if (t === "light" || t === "dark" || t === "sepia") root.setAttribute("data-theme", t);
-	else { root.removeAttribute("data-theme"); t = "auto"; }
-	document.querySelectorAll("#themes button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.theme === t)));
+	const { family, mode } = readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme"));
+	const attr = themeAttr(family, mode, matchMedia("(prefers-color-scheme: dark)").matches);
+	if (attr) root.setAttribute("data-theme", attr); else root.removeAttribute("data-theme");
+	rerunDataview();
+	document.querySelectorAll("#themeFamilies button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.family === family)));
+	document.querySelectorAll("#themes button").forEach((b) => {
+		b.setAttribute("aria-pressed", String(family !== "sepia" && b.dataset.theme === mode));
+		b.disabled = family === "sepia"; // Sepia is light only
+	});
 	const meta = document.querySelector("meta[name=theme-color]");
 	if (meta) meta.content = getComputedStyle(root).getPropertyValue("--bg").trim();
 }
@@ -867,16 +878,24 @@ function openSettings(on) {
 }
 
 function setupSettings() {
-	applyTheme(readRaw("wr1t3rTheme"));
+	applyTheme();
 	applySize(fontSize);
-	// Auto follows the system, so the browser bar color has to follow it too.
-	matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(readRaw("wr1t3rTheme")));
+	// Auto follows the system, so the theme and browser bar color follow it too.
+	matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme());
+	$("themeFamilies").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b) return;
+		const { mode } = readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme"));
+		storeRaw("wr1t3rThemeFamily", b.dataset.family === "default" ? null : b.dataset.family);
+		storeRaw("wr1t3rTheme", mode === "auto" ? null : mode); // drops an old "sepia"
+		applyTheme();
+	});
 	$("settingsBtn").addEventListener("click", (e) => { e.stopPropagation(); openSettings($("settings").hidden); });
 	$("themes").addEventListener("click", (e) => {
 		const b = e.target.closest("button");
 		if (!b) return;
 		storeRaw("wr1t3rTheme", b.dataset.theme === "auto" ? null : b.dataset.theme);
-		applyTheme(b.dataset.theme);
+		applyTheme();
 	});
 	applyMode(readRaw("wr1t3rMode"));
 	$("modes").addEventListener("click", (e) => {
@@ -1636,7 +1655,7 @@ function setupAgenda() {
 // ---- start -------------------------------------------------------------------------
 
 function showLogin(message = "") {
-	applyTheme(readRaw("wr1t3rTheme"));
+	applyTheme();
 	$("login").hidden = false;
 	$("login-error").textContent = message;
 	$("token").focus();

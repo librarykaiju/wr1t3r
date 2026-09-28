@@ -56,7 +56,7 @@ To clip from any page, use the bookmarklet in the **Aa** panel: drag it to the b
 javascript:location.href="https://wr1t3r.brandonj.ink/#clip="+encodeURIComponent(location.href)
 ```
 
-**Aa** in the header sets the theme (Auto, Light, Dark, Sepia) and text size, with the same colors and choices as Reader. Both are kept per device.
+**Aa** in the header sets the theme and text size, kept per device. Themes are Default (Reader's colors), Sepia, Dracula and Rosé Pine; each but Sepia has Light and Dark variants (Dracula's light one is Alucard, Rosé Pine's is Dawn), and Auto follows the system. Top-level folders in the sidebar take the theme's rainbow colors in turn, and their subfolders keep the same color.
 
 The bar under the editor shows the note's word count, leaving out frontmatter. Tap it to switch to characters. When text is selected, it counts the selection.
 
