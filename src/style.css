@@ -131,6 +131,8 @@ main:not(.has-note) #editor { display: none; }
 .md-mark { color: var(--mark); }
 .md-link { color: var(--accent); }
 .md-wikilink { color: var(--accent); }
+.md-a { cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 0.15em; }
+.md-a:hover { text-decoration-color: var(--accent); }
 .md-code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); border-radius: 3px; }
 .md-quote { color: var(--muted); }
 .md-highlight { background: var(--hl); border-radius: 2px; }

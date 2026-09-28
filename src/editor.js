@@ -19,6 +19,7 @@ import { stripFrontmatter } from "./count.js";
 import { tableKeymap, tableStyle } from "./table.js";
 import { blockStyle } from "./blocks.js";
 import { frontmatterStyle, tagHue } from "./frontmatter.js";
+import { linkClicks } from "./links.js";
 
 const fromSync = Annotation.define();
 
@@ -65,7 +66,7 @@ function lineSeparatorFor(text) {
 	return text.includes("\r\n") && !/(^|[^\r])\n/.test(text) ? "\r\n" : undefined;
 }
 
-export function createEditor(parent, { onChange, onUpdate }) {
+export function createEditor(parent, { onChange, onUpdate, onLink }) {
 	let current = null; // path shown
 	const states = new Map(); // path -> EditorState, so undo history survives switching notes
 
@@ -86,6 +87,7 @@ export function createEditor(parent, { onChange, onUpdate }) {
 		marks(/==[^=\n]+==/g, "md-highlight"),
 		marks(/\[\^[^\]\s]+\]:?/g, "md-footnote"),
 		hashtags,
+		linkClicks((link) => onLink?.(link)),
 		autocompletion({ override: [slashSource()], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 		placeholder("Type / for formatting"),
