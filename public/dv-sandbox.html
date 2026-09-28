@@ -1,0 +1,217 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>dataviewjs</title>
+<!--
+	Runs a note's ```dataviewjs block for wr1t3r (src/dataview.js). This page is
+	loaded in an <iframe sandbox="allow-scripts">, so it has its own opaque
+	origin: no cookies, no localStorage (so no token), no access to the app's
+	page. Its CSP (public/_headers) allows no network requests. Everything it
+	knows about the vault arrives by postMessage, and anything it needs later
+	(a note's text, a web page for requestUrl) it asks the app for. Writes
+	(vault.modify, processFrontMatter) do nothing here; Obsidian keeps doing them.
+-->
+<style>
+	html, body { margin: 0; padding: 0; background: transparent; }
+	body { font: var(--font-size, 16px)/1.5 var(--font-text, system-ui, sans-serif); color: var(--text-normal); overflow: hidden; }
+	#out { padding: 2px 1px; }
+	.dv-error { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--background-modifier-border); color: var(--text-muted); font-size: 0.85em; white-space: pre-wrap; }
+	.dv-notice { margin-top: 6px; font-size: 0.85em; color: var(--text-muted); }
+	table { border-collapse: collapse; }
+	th, td { border: 1px solid var(--background-modifier-border); padding: 3px 8px; text-align: left; }
+	input, select, button, textarea { font: inherit; font-size: 0.9em; color: var(--text-normal); background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 3px 7px; }
+	button { cursor: pointer; }
+	a { color: var(--text-accent); }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+"use strict";
+(() => {
+	const out = document.getElementById("out");
+	const pending = new Map();
+	let seq = 0;
+	let runId = 0;
+
+	const ask = (msg) => new Promise((resolve, reject) => {
+		const req = ++seq;
+		pending.set(req, { resolve, reject });
+		parent.postMessage({ ...msg, req }, "*");
+	});
+
+	// Obsidian adds these to every element; scripts written for it lean on them.
+	const P = Node.prototype;
+	function applyOpts(el, o) {
+		if (typeof o === "string") { el.className = o; return; }
+		if (!o) return;
+		if (o.cls) el.className = [].concat(o.cls).join(" ");
+		if (o.text != null) el.textContent = String(o.text);
+		if (o.attr) for (const [k, v] of Object.entries(o.attr)) if (v != null && v !== false) el.setAttribute(k, v === true ? "" : String(v));
+		for (const k of ["title", "href", "type", "value", "placeholder", "prepend"]) if (o[k] != null && k !== "prepend") el.setAttribute(k, String(o[k]));
+	}
+	P.createEl = function (tag, o, cb) {
+		const el = document.createElement(tag);
+		applyOpts(el, o);
+		o && o.prepend ? this.prepend(el) : this.appendChild(el);
+		if (cb) cb(el);
+		return el;
+	};
+	P.createDiv = function (o, cb) { return this.createEl("div", o, cb); };
+	P.createSpan = function (o, cb) { return this.createEl("span", o, cb); };
+	P.setText = function (t) { this.textContent = t == null ? "" : String(t); };
+	P.appendText = function (t) { this.appendChild(document.createTextNode(String(t))); };
+	P.empty = function () { while (this.firstChild) this.removeChild(this.firstChild); };
+	P.detach = function () { this.remove?.(); };
+	Element.prototype.addClass = function (...c) { this.classList.add(...c.flat()); };
+	Element.prototype.removeClass = function (...c) { this.classList.remove(...c.flat()); };
+	Element.prototype.toggleClass = function (c, on) { this.classList.toggle(c, on); };
+	Element.prototype.hasClass = function (c) { return this.classList.contains(c); };
+	Element.prototype.setAttr = function (k, v) { v == null ? this.removeAttribute(k) : this.setAttribute(k, v); };
+	Element.prototype.show = function () { this.style.display = ""; };
+	Element.prototype.hide = function () { this.style.display = "none"; };
+
+	const readOnly = (what) => Promise.reject(new Error(what + " only works in Obsidian; wr1t3r shows this block read-only."));
+
+	class Notice {
+		constructor(text) {
+			const n = out.createDiv({ cls: "dv-notice", text: String(text) });
+			setTimeout(() => n.remove(), 5000);
+		}
+		setMessage(t) { return this; }
+		hide() {}
+	}
+
+	async function requestUrl(req) {
+		const url = typeof req === "string" ? req : req.url;
+		const method = (typeof req === "object" && req.method) || "GET";
+		if (method.toUpperCase() !== "GET") return readOnly("Sending data from a script");
+		const r = await ask({ type: "fetch", url });
+		const res = { status: r.status, text: r.text, headers: {}, get json() { return JSON.parse(r.text); } };
+		if (r.status >= 400 && !(typeof req === "object" && req.throw === false)) throw new Error(`Request failed, status ${r.status}`);
+		return res;
+	}
+
+	function start(d) {
+		const id = ++runId;
+		const root = document.documentElement;
+		for (const [k, v] of Object.entries(d.theme.vars)) root.style.setProperty(k, v);
+		document.body.className = d.theme.dark ? "theme-dark" : "theme-light";
+		root.style.colorScheme = d.theme.dark ? "dark" : "light";
+		out.empty();
+		const container = out.createDiv();
+
+		const pages = d.pages;
+		const byLower = new Map(Object.keys(pages).map((p) => [p.toLowerCase(), p]));
+		const findPath = (p) => {
+			if (p == null) return null;
+			p = String(p.path ?? p).replace(/^\/+/, "");
+			const tries = [p, p + ".md"];
+			const folder = d.current.file.folder ? d.current.file.folder + "/" : "";
+			tries.push(folder + p, folder + p + ".md");
+			for (const t of tries) if (byLower.has(t.toLowerCase())) return byLower.get(t.toLowerCase());
+			const tail = "/" + (p.toLowerCase().endsWith(".md") ? p.toLowerCase() : p.toLowerCase() + ".md");
+			return [...byLower.keys()].filter((k) => k.endsWith(tail)).sort((a, b) => a.length - b.length).map((k) => byLower.get(k))[0] || null;
+		};
+		const allPaths = new Set(d.paths.map((p) => p.toLowerCase()));
+		const fileFor = (p) => {
+			if (p == null) return null;
+			const path = String(p).replace(/^\/+/, "");
+			if (!allPaths.has(path.toLowerCase())) return null;
+			const name = path.split("/").pop();
+			return { path, name, basename: name.replace(/\.[^.]+$/, ""), extension: (name.match(/\.([^.]+)$/) || [])[1] || "" };
+		};
+		const live = () => id === runId;
+		const load = async (p) => {
+			const path = typeof p === "object" && p ? p.path : p;
+			return (await ask({ type: "load", path: String(path) })) ?? undefined;
+		};
+
+		const el = (tag, text, o) => {
+			const e = container.createEl(tag, o);
+			if (text != null && typeof text !== "object") e.textContent = String(text);
+			else if (text instanceof Node) e.appendChild(text);
+			return e;
+		};
+		const dv = {
+			container,
+			current: () => d.current,
+			page: (p) => { const f = findPath(p); return f ? pages[f] : undefined; },
+			pages: () => { throw new Error("dv.pages() queries aren't supported in wr1t3r yet."); },
+			el,
+			paragraph: (t, o) => el("p", t, o),
+			span: (t, o) => el("span", t, o),
+			header: (level, t, o) => el("h" + Math.min(6, Math.max(1, level)), t, o),
+			list: (items) => { const ul = container.createEl("ul"); for (const i of items || []) ul.createEl("li", { text: String(i) }); return ul; },
+			table: (headers, rows) => {
+				const t = container.createEl("table");
+				const hr = t.createEl("thead").createEl("tr");
+				for (const h of headers || []) hr.createEl("th", { text: String(h) });
+				const tb = t.createEl("tbody");
+				for (const r of rows || []) { const tr = tb.createEl("tr"); for (const c of r) tr.createEl("td", { text: c == null ? "" : String(c) }); }
+				return t;
+			},
+			io: { load, csv: () => { throw new Error("dv.io.csv isn't supported in wr1t3r yet."); } },
+			component: { registerEvent() {}, register() {}, registerInterval() {}, registerDomEvent() {} },
+			fileLink: (p, embed, display) => display || String(p).split("/").pop().replace(/\.md$/i, ""),
+		};
+		const app = {
+			vault: {
+				getAbstractFileByPath: fileFor,
+				getFileByPath: fileFor,
+				read: load,
+				cachedRead: load,
+				modify: () => readOnly("Saving to the vault"),
+				process: () => readOnly("Saving to the vault"),
+				create: () => readOnly("Creating notes"),
+				append: () => readOnly("Saving to the vault"),
+				delete: () => readOnly("Deleting notes"),
+				on: () => ({}),
+				offref() {},
+			},
+			fileManager: { processFrontMatter: () => Promise.resolve() },
+			workspace: { on: () => ({}), offref() {}, getActiveFile: () => fileFor(d.current.file.path) },
+			metadataCache: { getFileCache: (f) => { const p = pages[findPath(f && f.path)]; return p ? { frontmatter: p.file.frontmatter } : null; }, on: () => ({}) },
+		};
+		const require = (name) => {
+			if (name === "obsidian") return { requestUrl, Notice };
+			throw new Error(`require("${name}") isn't available in wr1t3r.`);
+		};
+
+		const showError = (err) => {
+			if (!live()) return;
+			container.createDiv({ cls: "dv-error", text: "dataviewjs: " + (err && err.message ? err.message : String(err)) });
+		};
+		try {
+			const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+			const fn = new AsyncFunction("dv", "app", "require", "Notice", "input", d.code);
+			fn(dv, app, require, Notice, undefined).catch(showError);
+		} catch (err) {
+			showError(err);
+		}
+	}
+
+	addEventListener("message", (e) => {
+		if (e.source !== parent) return;
+		const d = e.data || {};
+		if (d.type === "reply") {
+			const p = pending.get(d.req);
+			if (!p) return;
+			pending.delete(d.req);
+			d.error ? p.reject(new Error(d.error)) : p.resolve(d.value);
+		} else if (d.type === "run") start(d);
+	});
+	addEventListener("error", (e) => out.createDiv({ cls: "dv-error", text: "dataviewjs: " + e.message }));
+	addEventListener("unhandledrejection", (e) => out.createDiv({ cls: "dv-error", text: "dataviewjs: " + (e.reason && e.reason.message || e.reason) }));
+
+	let lastH = 0;
+	new ResizeObserver(() => {
+		const h = Math.ceil(document.documentElement.getBoundingClientRect().height);
+		if (h !== lastH) { lastH = h; parent.postMessage({ type: "height", h }, "*"); }
+	}).observe(document.body);
+	parent.postMessage({ type: "ready" }, "*");
+})();
+</script>
+</body>
+</html>

@@ -9,3 +9,16 @@
 
 /sw.js
   Cache-Control: no-cache
+
+# The dataviewjs sandbox (src/dataview.js) runs note scripts, so it gets its
+# own policy: inline and eval'd script, but no network at all, and no images
+# from the web. It's only ever loaded in <iframe sandbox="allow-scripts">.
+/dv-sandbox
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'
+  Cache-Control: no-cache
+
+/dv-sandbox.html
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'
+  Cache-Control: no-cache
