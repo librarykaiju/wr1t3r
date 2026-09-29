@@ -31,6 +31,7 @@ import { webImages } from "./images.js";
 import { prettyProperties } from "./pretty.js";
 import { embeds, embedLook } from "./embeds.js";
 import { livePreview } from "./livepreview.js";
+import { bases } from "./basesview.js";
 
 const fromSync = Annotation.define();
 
@@ -124,6 +125,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		webImages,
 		prettyProperties,
 		livePreview,
+		bases,
 		...(vault ? [vaultHost.of(vault)] : []),
 	];
 	const look = lookFor(onLink);

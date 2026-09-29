@@ -701,6 +701,45 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 .md-dql-error { color: var(--muted); font: 0.85em var(--mono); }
 .md-dql-link { color: var(--accent); text-decoration: none; cursor: pointer; }
 
+/* Bases (src/basesview.js) */
+.md-base { padding: 6px 0; font: 0.92em/1.45 var(--sans); white-space: normal; word-break: normal; overflow-wrap: normal; }
+.md-base-whole { padding-top: 0; }
+.md-base-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 8px; }
+.md-base-tab { font: inherit; font-size: 0.9em; padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); cursor: pointer; }
+.md-base-tab.on { background: var(--panel); color: var(--fg); border-color: var(--muted); }
+.md-base-title { font-weight: 600; }
+.md-base-count { color: var(--muted); font-size: 0.85em; }
+.md-base .md-base-src { position: static; margin-left: auto; opacity: 0.7; }
+.md-base-scroll { overflow-x: auto; }
+.md-base-table { border-collapse: collapse; width: max-content; min-width: 100%; }
+.md-base-table th, .md-base-table td { border-bottom: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; max-width: 22em; overflow-wrap: break-word; }
+.md-base-table th { color: var(--muted); font-weight: 600; white-space: nowrap; cursor: pointer; user-select: none; }
+.md-base-table th:hover { color: var(--fg); }
+.md-base-group td, div.md-base-group { font-weight: 600; padding-top: 10px; color: var(--muted); }
+.md-base-editable { cursor: text; }
+.md-base-editable:hover { background: color-mix(in srgb, var(--panel) 70%, transparent); }
+.md-base-input { width: 100%; min-width: 8em; box-sizing: border-box; font: inherit; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--bg); color: var(--fg); }
+.md-base-link { color: var(--accent); text-decoration: none; cursor: pointer; overflow-wrap: anywhere; }
+.md-base-pill { display: inline-block; padding: 0 7px; margin: 0 4px 3px 0; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 0.9em; white-space: nowrap; }
+.md-base-thumb { display: block; max-height: 64px; max-width: 64px; border-radius: 4px; object-fit: cover; }
+.md-base-empty, .md-base-note { color: var(--muted); padding: 4px 0; }
+.md-base-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.md-base-card { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card, var(--bg)); }
+.md-base-card .md-base-pic { aspect-ratio: 2 / 3; background: var(--panel); }
+.md-base-cover { display: block; width: 100%; height: 100%; object-fit: cover; }
+.md-base-card .md-base-text { padding: 8px 10px; }
+.md-base-name { font-weight: 600; margin-bottom: 2px; }
+.md-base-prop { font-size: 0.88em; display: flex; gap: 6px; align-items: baseline; }
+.md-base-label { color: var(--muted); flex: none; }
+.md-base-value { min-width: 0; flex: 1; }
+.md-base-list { display: flex; flex-direction: column; }
+.md-base-item { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.md-base-item .md-base-pic { flex: none; width: 40px; }
+.md-base-item .md-base-pic:empty { display: none; }
+.md-base-sourcebar { padding: 4px 0 8px; }
+.md-base-mode .cm-cursorLayer { display: none; }
+.md-base-back { font: 13px var(--sans); padding: 3px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+
 /* vault attachments */
 :is(#editor, #refView) .md-attachment audio { display: block; width: min(100%, 420px); }
 :is(#editor, #refView) .md-attachment video { display: block; max-width: 100%; height: auto; border-radius: 6px; }
