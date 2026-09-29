@@ -29,7 +29,6 @@ import { calloutFolds } from "./callouts.js";
 import { webImages } from "./images.js";
 import { embeds, embedLook } from "./embeds.js";
 import { livePreview } from "./livepreview.js";
-import { hotkeys } from "./hotkeys.js";
 
 const fromSync = Annotation.define();
 
@@ -133,7 +132,6 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		highlightSelectionMatches(),
 		indentUnit.of("\t"),
 		Prec.high(keymap.of(tableKeymap)),
-		Prec.high(keymap.of(hotkeys)),
 		frontmatterStyle,
 		look,
 		embedLook.of(() => look),
