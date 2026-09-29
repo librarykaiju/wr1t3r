@@ -25,6 +25,7 @@ import { blockStyle } from "./blocks.js";
 import { frontmatterStyle, tagHue } from "./frontmatter.js";
 import { linkClicks, linkOpener } from "./links.js";
 import { tableGrid } from "./tablegrid.js";
+import { tableCalc } from "./tablecalc.js";
 import { calloutFolds } from "./callouts.js";
 import { webImages } from "./images.js";
 import { embeds, embedLook } from "./embeds.js";
@@ -132,6 +133,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		highlightSelectionMatches(),
 		indentUnit.of("\t"),
 		Prec.high(keymap.of(tableKeymap)),
+		tableCalc,
 		frontmatterStyle,
 		look,
 		embedLook.of(() => look),

@@ -450,6 +450,21 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-grid code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); border-radius: 3px; padding: 0 0.2em; }
 :is(#editor, #refView) .md-grid mark { background: var(--hl); color: inherit; }
 :is(#editor, #refView) .md-grid a { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); cursor: pointer; }
+:is(#editor, #refView) .md-grid .md-grid-calc { font-variant-numeric: tabular-nums; box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+:is(#editor, #refView) .md-grid .md-grid-err { color: var(--bad); }
+:is(#editor, #refView) .md-grid .md-grid-editing { padding: 0; box-shadow: inset 0 0 0 2px var(--accent); }
+:is(#editor, #refView) .md-grid-input { display: block; width: 100%; min-width: 5em; box-sizing: border-box; border: 0; outline: 0; background: var(--bg); color: var(--fg);
+	font: inherit; padding: 0.35em 0.7em; }
+:is(#editor, #refView) .md-grid .md-grid-letters th, :is(#editor, #refView) .md-grid .md-grid-num { background: none; border-color: transparent; color: var(--mark);
+	font-weight: 400; font-size: 0.8em; min-width: 0; padding: 0.1em 0.4em; text-align: center; vertical-align: middle; font-family: var(--mono); }
+:is(#editor, #refView) .md-grid .md-grid-here { color: var(--accent); font-weight: 600; }
+:is(#editor, #refView) .md-grid-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 0 0.4em; font: 13px var(--sans); position: sticky; left: 0; }
+:is(#editor, #refView) .md-grid-bar[hidden] { display: none; }
+:is(#editor, #refView) .md-grid-bar button { font: inherit; padding: 2px 8px; border: 1px solid var(--line, var(--mark)); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+:is(#editor, #refView) .md-grid-bar button:hover { border-color: var(--accent); }
+:is(#editor, #refView) .md-grid-bar button[hidden] { display: none; }
+:is(#editor, #refView) .md-grid-addr { font-family: var(--mono); color: var(--accent); font-weight: 600; min-width: 3ch; padding-right: 4px; }
+:is(#editor, #refView) .md-grid-hint { color: var(--mark); padding-left: 4px; }
 
 #toast {
 	position: fixed; left: 50%; bottom: calc(max(4px, env(safe-area-inset-bottom)) + 40px); transform: translateX(-50%);
