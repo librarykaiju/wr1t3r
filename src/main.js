@@ -465,6 +465,29 @@ function insertFromTemplate() {
 }
 
 // Ctrl/Cmd+P: every command, app and formatting alike.
+// Shortcuts, shown beside their commands in the palette (src/hotkeys.js has the editing ones).
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const KEYS = {
+	"Open a note": "Mod+O", "Search notes": "Mod+Shift+F", "Toggle Live Preview": "Mod+E", "Settings": "Mod+,",
+	"Sync now": "Mod+S", "Find in note": "Mod+F", "Bold": "Mod+B", "Italic": "Mod+I", "Link": "Mod+K", "Task": "Mod+Enter",
+};
+function keyHint(label) {
+	const k = KEYS[label];
+	return k ? k.replace("Mod+", MAC ? "⌘" : "Ctrl+").replace("Shift+", MAC ? "⇧" : "Shift+") : undefined;
+}
+
+function searchNotes() {
+	$("app").classList.add("menu-open");
+	$("filter").focus();
+	$("filter").select();
+}
+
+function toggleLivePreview() {
+	const live = readRaw("wr1t3rMode") !== "live";
+	storeRaw("wr1t3rMode", live ? "live" : null);
+	applyMode(live ? "live" : "source");
+}
+
 function commandPalette() {
 	const has = !!editor.path;
 	const view = editor.view;
@@ -474,22 +497,23 @@ function commandPalette() {
 		["New note from template", newFromTemplate, "templater"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", openDaily, "today journal daily"],
-		["Search notes", () => { $("app").classList.add("menu-open"); $("filter").focus(); $("filter").select(); }, "find sidebar"],
+		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
 		["Rename this note", () => { $("path").focus(); }, "move", true],
 		["Delete this note", () => removeNote(editor.path), "remove", true],
 		["Close this tab", () => closeTab(editor.path), "close", true],
 		["Show reference pane", () => showRef(!ref.on), "split side", true],
 		["Contents", () => openToc(!tocOpen()), "outline headings toc", true],
-		["Toggle Live Preview", () => { const live = readRaw("wr1t3rMode") !== "live"; storeRaw("wr1t3rMode", live ? "live" : null); applyMode(live ? "live" : "source"); }, "markdown symbols hide"],
+		["Toggle Live Preview", toggleLivePreview, "markdown symbols hide"],
+		["Settings", () => openSettings(true), "preferences theme"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],
 		["Sync now", () => runSync(), "save"],
 		["Start or pause the focus timer", () => toggleTimer(), "pomodoro"],
 		["Find in note", () => { view.focus(); openSearchPanel(view); }, "search replace", true],
-	].filter(([, , , needsNote]) => !needsNote || has).map(([label, run, keywords]) => ({ label, run, keywords }));
+	].filter(([, , , needsNote]) => !needsNote || has).map(([label, run, keywords]) => ({ label, run, keywords, detail: keyHint(label) }));
 	const format = has && !view.state.readOnly
-		? COMMANDS.filter((c) => !c.table || inTable(view.state)).map((c) => ({ label: c.label, detail: "insert", keywords: c.keywords, run: () => { view.focus(); runCommand(view, c); } }))
+		? COMMANDS.filter((c) => !c.table || inTable(view.state)).map((c) => ({ label: c.label, detail: keyHint(c.label) || "insert", keywords: c.keywords, run: () => { view.focus(); runCommand(view, c); } }))
 		: [];
 	openPalette({ placeholder: "Run a command…", items: [...app, ...format] });
 }
@@ -1796,6 +1820,9 @@ async function start() {
 		if (k === "s") { e.preventDefault(); runSync(); }
 		else if (k === "o" && !e.shiftKey) { e.preventDefault(); quickSwitcher(); }
 		else if (k === "p" && !e.shiftKey) { e.preventDefault(); commandPalette(); }
+		else if (k === "f" && e.shiftKey) { e.preventDefault(); searchNotes(); }
+		else if (k === "e" && !e.shiftKey) { e.preventDefault(); toggleLivePreview(); }
+		else if (k === "," && !e.shiftKey) { e.preventDefault(); openSettings($("settings").hidden); }
 	});
 	$("bookmark").addEventListener("click", () => toggleBookmark());
 	$("palette").addEventListener("click", () => commandPalette());
