@@ -36,6 +36,9 @@ import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
 import { makeMediaNote } from "./media.js";
+import { homePath, readPins, writePins, pinKind, pinPath, linkFor, folderLink, pinOpens, retargetPins } from "./home.js";
+import { drawHome, onMenu } from "./homeview.js";
+import { attachmentKind } from "./attachments.js";
 
 const $ = (id) => document.getElementById(id);
 const notes = new Map(); // path -> note, mirrors IndexedDB
@@ -167,6 +170,7 @@ function vaultTouched() {
 
 function renderTree() {
 	vaultTouched();
+	renderHome();
 	const tree = $("tree");
 	const q = $("filter").value.trim();
 	tree.replaceChildren();
@@ -270,18 +274,7 @@ function itemRow(el, item) {
 		e.stopPropagation();
 	});
 	el.addEventListener("dragend", () => { dragging = null; clearDrop(); });
-	el.addEventListener("contextmenu", (e) => { e.preventDefault(); itemMenu(item, e.clientX, e.clientY); });
-	// iOS Safari has no contextmenu event: a long press opens the menu instead.
-	let timer = null, opened = false;
-	el.addEventListener("touchstart", (e) => {
-		opened = false;
-		const t = e.touches[0];
-		timer = setTimeout(() => { opened = true; itemMenu(item, t.clientX, t.clientY); }, 550);
-	}, { passive: true });
-	const cancel = () => clearTimeout(timer);
-	el.addEventListener("touchmove", cancel, { passive: true });
-	el.addEventListener("touchend", (e) => { cancel(); if (opened) e.preventDefault(); });
-	el.addEventListener("click", (e) => { if (opened) { e.preventDefault(); e.stopPropagation(); opened = false; } }, true);
+	onMenu(el, (x, y) => itemMenu(item, x, y));
 	return el;
 }
 
@@ -330,17 +323,25 @@ const folderLabel = (f) => f.replace(/^content\//, "").replace(/\/$/, "") || "th
 const itemLabel = (item) => (item.endsWith("/") ? item.slice(0, -1).split("/").pop() : name(item));
 
 function itemMenu(item, x, y) {
-	document.querySelector(".item-menu")?.remove();
 	const isFolder = item.endsWith("/");
-	const menu = document.createElement("div");
-	menu.className = "item-menu";
-	menu.setAttribute("role", "menu");
-	const entries = [
+	showMenu([
+		pinEntry(item),
 		["Rename…", () => renameItem(item)],
 		["Move to…", () => moveItemTo(item)],
 		[isFolder ? "Delete folder" : "Delete", () => deleteItem(item), "danger"],
-	];
-	for (const [label, run, cls] of entries) {
+	], x, y);
+}
+
+// A small menu at (x, y). entries: [label, run, class] rows, or a DOM element
+// (given close, to call when it's done).
+function showMenu(entries, x, y) {
+	document.querySelector(".item-menu")?.remove();
+	const menu = document.createElement("div");
+	menu.className = "item-menu";
+	menu.setAttribute("role", "menu");
+	for (const entry of entries) {
+		if (typeof entry === "function") { menu.append(entry(() => close())); continue; }
+		const [label, run, cls] = entry;
 		const b = document.createElement("button");
 		b.type = "button";
 		b.setAttribute("role", "menuitem");
@@ -365,7 +366,7 @@ function itemMenu(item, x, y) {
 		document.addEventListener("pointerdown", away, true);
 		document.addEventListener("keydown", esc, true);
 	});
-	menu.querySelector("button").focus();
+	menu.querySelector("button")?.focus();
 }
 
 const parentFolder = (item) => {
@@ -438,8 +439,10 @@ async function moveItem(item, folder, newName = null) {
 	bookmarks = bookmarks.map(moveTo);
 	writeJSON(BOOKMARKS_KEY, bookmarks);
 	if (ref.path && map.has(ref.path)) { ref.path = map.get(ref.path); saveRef(); }
+	const destFolder = item.endsWith("/") ? pairs[0].to.slice(0, pairs[0].to.length - (pairs[0].from.length - item.length)) : null;
+	await followPins(map, paths, destFolder && item, destFolder);
 	if (item.endsWith("/")) {
-		const dest = pairs[0].to.slice(0, pairs[0].to.length - (pairs[0].from.length - item.length));
+		const dest = destFolder;
 		openFolders = new Set([...openFolders].map((f) => (f.startsWith(item) ? dest + f.slice(item.length) : f)));
 	}
 	for (let i = folder.indexOf("/"); i >= 0; i = folder.indexOf("/", i + 1)) openFolders.add(folder.slice(0, i + 1));
@@ -502,7 +505,11 @@ function drawBookmarks(tree) {
 	const marked = bookmarks.filter(isOpenable);
 	if (!marked.length) return;
 	const kids = sideSection("bookmarks", `Bookmarks`, tree);
-	for (const p of marked) kids.append(link(notes.get(p), name(p)));
+	for (const p of marked) {
+		const a = link(notes.get(p), name(p));
+		onMenu(a, (x, y) => showMenu([pinEntry(p), ["Remove bookmark", () => toggleBookmark(p)]], x, y));
+		kids.append(a);
+	}
 }
 
 function toggleBookmark(path = editor.path) {
@@ -520,6 +527,243 @@ function renderBookmarkButton() {
 	b.classList.toggle("on", on);
 	b.setAttribute("aria-pressed", String(on));
 	b.title = on ? "Remove bookmark" : "Bookmark this note";
+}
+
+// ---- Home ------------------------------------------------------------------------
+//
+// With no note open, Home shows the quote, today's prompt, and a grid of pinned
+// tiles. The pins live in the vault (src/home.js), so every device has them.
+
+const homeFile = () => { const list = visible(); return homePath(list.map((n) => n.path), commonFolder(list)); };
+
+function homeText() {
+	const path = homeFile(), n = notes.get(path);
+	if (!n || n.deleted || n.binary) return null;
+	return path === editor?.path ? editor.text() : n.text;
+}
+
+const pins = () => readPins(homeText() || "");
+
+// Saves the pins to the Home note (made the first time), like any edit.
+async function savePins(list) {
+	const path = homeFile();
+	if (homeText() != null) await dataviewVault.write(path, (t) => writePins(t, list));
+	else {
+		if (!visible().length) return toast("The vault hasn't loaded yet.");
+		const text = writePins("", list);
+		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+		renderStatus();
+		renderTree();
+		scheduleSync();
+	}
+	renderHome(true);
+}
+
+const pinTarget = (item) => (item.endsWith("/") ? { folder: item } : { path: item });
+function pinIndex(item, list = pins()) {
+	const paths = visible().map((n) => n.path);
+	return list.findIndex((p) => pinOpens(p, pinTarget(item), paths, homeFile()));
+}
+
+// "Pin to Home" or "Unpin from Home", for a note or folder ("…/") menu.
+function pinEntry(item) {
+	return pinIndex(item) >= 0 ? ["Unpin from Home", () => unpinItem(item)] : ["Pin to Home", () => pinItem(item)];
+}
+
+function pinItem(item) {
+	if (!item) return;
+	const list = pins();
+	if (pinIndex(item, list) >= 0) return toast(`“${itemLabel(item)}” is already on Home.`);
+	const link = item.endsWith("/") ? folderLink(item) : linkFor(item, visible().map((n) => n.path));
+	addPin({ link }, itemLabel(item));
+}
+
+function addPin(pin, label) {
+	savePins([...pins(), pin]);
+	toast(`Pinned “${label}” to Home.`);
+}
+
+function unpinItem(item) {
+	const list = pins(), i = pinIndex(item, list);
+	if (i < 0) return;
+	savePins(list.filter((_, j) => j !== i));
+	toast(`Unpinned “${itemLabel(item)}”.`);
+}
+
+// After notes or a folder moved: pins point at their new places.
+async function followPins(moved, oldPaths, folderFrom = null, folderTo = null) {
+	const list = pins();
+	if (!list.length) return;
+	const next = retargetPins(list, moved, oldPaths, visible().map((n) => n.path), homeFile(), folderFrom, folderTo);
+	if (next) await savePins(next);
+}
+
+function goHome() {
+	if (editor.path) openNote(null, { tab: false });
+	else renderHome(true);
+	$("app").classList.remove("menu-open");
+}
+
+// A tile's picture: a web address as is, a vault image through the attachment
+// cache (so it shows offline), or null while the list of files hasn't come.
+function tileImage(ref, from) {
+	if (ref.url) return ref.url;
+	const path = dataviewVault.resolveAttachment(ref.name, from);
+	if (!path || attachmentKind(path) !== "image") return null;
+	return dataviewVault.attachmentURL(path);
+}
+
+let homeKey = null;
+function renderHome(force = false) {
+	if (!editor || editor.path) return;
+	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
+	// Redraw only when something a tile shows changed (a sync redraws the
+	// sidebar often; the pictures would flicker).
+	const key = JSON.stringify([list, paths.length, attachments.length, list.map((p) => { const q = pinPath(p, paths, file); return q && notes.get(q)?.text?.slice(0, 1500); })]);
+	if (!force && key === homeKey) return;
+	homeKey = key;
+	drawHome($("homeGrid"), {
+		pins: list, homeFile: file, paths,
+		text: (p) => { const n = notes.get(p); return n && !n.binary ? n.text : null; },
+		image: tileImage,
+		open: openPin,
+		menu: tileMenu,
+		add: addTile,
+		reorder: (from, to) => {
+			const next = pins();
+			const [moved] = next.splice(from, 1);
+			next.splice(to, 0, moved);
+			savePins(next);
+		},
+	});
+}
+
+function openPin(pin, path) {
+	const k = pinKind(pin.link);
+	if (k.kind === "url") return void window.open(k.url, "_blank", "noopener");
+	if (k.kind === "note") return path ? openNote(path) : toast(`There's no note at “${k.target}” any more.`);
+	if (k.kind === "folder") return revealFolder(k.folder);
+	const c = allCommands().find((x) => x.label.toLowerCase() === k.command.toLowerCase());
+	if (!c) return toast(`There's no command called “${k.command}”.`);
+	if (c.needsNote) return toast(`“${c.label}” needs a note open.`);
+	c.run();
+}
+
+// A folder tile: the folder, opened and in view, in the notes list.
+function revealFolder(folder) {
+	if (!visible().some((n) => n.path.toLowerCase().startsWith(folder.toLowerCase()))) return toast(`There's no folder “${folderLabel(folder)}” any more.`);
+	$("filter").value = "";
+	for (let i = folder.indexOf("/"); i >= 0; i = folder.indexOf("/", i + 1)) openFolders.add(folder.slice(0, i + 1));
+	writeJSON(OPEN_KEY, [...openFolders]);
+	renderTree();
+	showSidebar();
+	const row = [...$("tree").querySelectorAll("summary")].find((s) => s.dataset.item?.toLowerCase() === folder.toLowerCase());
+	if (row) {
+		row.scrollIntoView({ block: "center" });
+		row.classList.add("flash");
+		setTimeout(() => row.classList.remove("flash"), 1200);
+	}
+}
+
+function tileMenu(i, x, y) {
+	const list = pins(), pin = list[i];
+	if (!pin) return;
+	const set = (patch) => savePins(list.map((p, j) => (j === i ? clean({ ...p, ...patch }) : p)));
+	const move = (to) => { const next = [...list]; next.splice(i, 1); next.splice(to, 0, pin); savePins(next); };
+	showMenu([
+		["Color…", () => colorMenu(pin, set, x, y)],
+		["Cover…", () => pickCover(pin, set)],
+		["Rename…", () => {
+			const t = prompt("Tile name (empty for the usual one):", pin.title ?? "");
+			if (t != null) set({ title: t.trim() || null });
+		}],
+		...(i > 0 ? [["Move earlier", () => move(i - 1)]] : []),
+		...(i < list.length - 1 ? [["Move later", () => move(i + 1)]] : []),
+		["Unpin", () => savePins(list.filter((_, j) => j !== i)), "danger"],
+	], x, y);
+}
+
+// Drops keys set to nothing, so they come out of the file.
+const clean = (p) => Object.fromEntries(Object.entries(p).filter(([, v]) => v != null && v !== ""));
+
+// The theme's seven rainbow colors, and Auto (the tile's place in the grid).
+function colorMenu(pin, set, x, y) {
+	showMenu([(close) => {
+		const row = document.createElement("div");
+		row.className = "swatches";
+		row.setAttribute("role", "group");
+		row.setAttribute("aria-label", "Tile color");
+		const now = Number(pin.color);
+		for (const n of [0, 1, 2, 3, 4, 5, 6, 7]) {
+			const b = document.createElement("button");
+			b.type = "button";
+			b.className = "swatch" + (n ? "" : " auto");
+			if (n) b.style.setProperty("--sw", `var(--f${n})`);
+			b.setAttribute("aria-label", n ? `Color ${n}` : "Auto");
+			b.title = n ? `Color ${n}` : "Auto (next in the rainbow)";
+			b.setAttribute("aria-pressed", String(n ? now === n : !(now >= 1 && now <= 7)));
+			b.addEventListener("click", () => { close(); set({ color: n || null }); });
+			row.append(b);
+		}
+		return row;
+	}], x, y);
+}
+
+// Cover: the note's own, none, a web image, or any image in the vault.
+function pickCover(pin, set) {
+	const k = pinKind(pin.link);
+	const images = attachments.filter((f) => attachmentKind(f.path) === "image").map((f) => f.path);
+	const nameOf = (p) => p.split("/").pop();
+	const items = [
+		...(k.kind === "note" ? [{ label: "Use the note's cover", detail: "cover or banner property", run: () => set({ cover: null }) }] : []),
+		{ label: "No picture", detail: "color only", run: () => set({ cover: "none" }) },
+		{ label: "Web image…", detail: "paste an https address", run: () => {
+			const u = (prompt("Image address (https://…):", /^https:/.test(pin.cover || "") ? pin.cover : "") || "").trim();
+			if (!u) return;
+			if (!/^https:\/\/\S+$/i.test(u)) return toast("That needs to be an https:// address.");
+			set({ cover: u });
+		} },
+		...images.map((p) => ({
+			label: nameOf(p), detail: p.slice(0, -nameOf(p).length - 1).replace(/^content\//, ""), keywords: p,
+			run: () => set({ cover: `[[${images.filter((q) => nameOf(q).toLowerCase() === nameOf(p).toLowerCase()).length > 1 ? p : nameOf(p)}]]` }),
+		})),
+	];
+	openPalette({ placeholder: images.length ? "Tile picture: pick a vault image or an option…" : "Tile picture…", items });
+}
+
+// The + tile: pin a note, a folder, a command, or a web page.
+function addTile() {
+	const list = visible(), paths = list.map((n) => n.path), home = commonFolder(list), file = homeFile();
+	const have = pins();
+	const pinned = (item) => have.some((p) => pinOpens(p, pinTarget(item), paths, file));
+	const notesIn = list.filter((n) => !n.binary && n.path !== file).map((n) => n.path);
+	const order = [...recent.filter((p) => notesIn.includes(p)), ...notesIn.filter((p) => !recent.includes(p))];
+	const folders = new Set();
+	for (const p of paths) {
+		const parts = p.split("/").slice(0, -1);
+		for (let i = 1; i <= parts.length; i++) folders.add(parts.slice(0, i).join("/") + "/");
+	}
+	const webLink = (u) => {
+		u = u.trim();
+		if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+		try { new URL(u); } catch { return toast("That isn't a web address."); }
+		const title = prompt("Tile name:", new URL(u).hostname.replace(/^www\./, ""));
+		if (title == null) return;
+		addPin(clean({ link: u, title: title.trim() || null }), title.trim() || u);
+	};
+	const items = [
+		{ label: "Web page…", detail: "link", keywords: "url https website", run: () => { const u = prompt("Web page address:"); if (u) webLink(u); } },
+		...order.filter((p) => !pinned(p)).map((p) => ({ label: name(p), detail: folderOf(p) || "note", keywords: folderOf(p), run: () => pinItem(p) })),
+		...[...folders].filter((f) => f !== home && f.startsWith(home) && !pinned(f)).sort()
+			.map((f) => ({ label: folderLabel(f), detail: "folder", keywords: "folder", run: () => pinItem(f) })),
+		...allCommands().filter((c) => !c.needsNote && !c.editor)
+			.map((c) => ({ label: c.label, detail: "command", keywords: "command " + (c.keywords || ""), run: () => addPin({ link: "command:" + c.label }, c.label) })),
+	];
+	openPalette({
+		placeholder: "Pin to Home: a note, folder, command or web page…",
+		items,
+		empty: (q) => (/^(https?:\/\/|www\.)\S+$|^\S+\.[a-z]{2,}(\/\S*)?$/i.test(q.trim()) ? { label: `Web page “${q.trim()}”`, detail: "link", run: () => webLink(q) } : null),
+	});
 }
 
 // Tags per note, kept while the note's text is the same.
@@ -648,6 +892,7 @@ function openNote(path, { replace = false, tab = true } = {}) {
 	renderTabs();
 	renderBookmarkButton();
 	refreshCount(true);
+	renderHome();
 }
 
 // ---- quick switcher, command palette, templates ----------------------------------
@@ -742,6 +987,9 @@ function allCommands() {
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
 		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
+		["Go home", goHome, "home start pinned tiles grid"],
+		["Pin this note to Home", () => pinItem(editor.path), "pin home tile", true],
+		["Add a tile to Home", addTile, "pin home tile folder command link"],
 		["Rename this note", () => { $("path").focus(); }, "move", true],
 		["Delete this note", () => removeNote(editor.path), "remove", true],
 		["Close this tab", () => closeTab(editor.path), "close", true],
@@ -1189,6 +1437,7 @@ async function renameNote(from, input) {
 	tabs = tabs.map((p) => (p === from ? to : p));
 	saveTabs();
 	if (ref.path === from) ref.path = to;
+	await followPins(new Map([[from, to]]), paths);
 	openNote(to);
 	scheduleSync(0);
 }
@@ -2208,7 +2457,7 @@ let attachments = [];
 let attachmentsLoaded = false;
 async function loadAttachments() {
 	try { attachments = (await meta.get("attachments")) || []; } catch {}
-	if (attachments.length) { attachmentsLoaded = true; vaultTouched(); }
+	if (attachments.length) { attachmentsLoaded = true; vaultTouched(); renderHome(); }
 }
 async function refreshAttachments() {
 	try {
@@ -2216,7 +2465,7 @@ async function refreshAttachments() {
 		const changed = JSON.stringify(list) !== JSON.stringify(attachments);
 		attachments = list;
 		attachmentsLoaded = true;
-		if (changed) { meta.set("attachments", list).catch(() => {}); vaultTouched(); }
+		if (changed) { meta.set("attachments", list).catch(() => {}); vaultTouched(); renderHome(); }
 	} catch {}
 }
 
@@ -2344,6 +2593,7 @@ async function start() {
 	document.addEventListener("keydown", onHotkey, true); // ahead of the editor's own keys
 	$("hotkeysBtn").addEventListener("click", editHotkeys);
 	$("bookmark").addEventListener("click", () => toggleBookmark());
+	$("homeBtn").addEventListener("click", goHome);
 	$("palette").addEventListener("click", () => commandPalette());
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);
 
