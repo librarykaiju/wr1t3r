@@ -29,6 +29,7 @@ import { counts, countWords } from "./count.js";
 import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
+import { timelineChanges, eventsOn } from "./timeline.js";
 import { newNoteFrontmatter } from "./frontmatter.js";
 import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
@@ -495,6 +496,7 @@ function allCommands() {
 		["New note from template", newFromTemplate, "templater"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", openDaily, "today journal daily"],
+		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
 		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
 		["Rename this note", () => { $("path").focus(); }, "move", true],
@@ -790,7 +792,10 @@ async function openDaily() {
 	const path = folder + title + ".md";
 	const existing = paths.find((p) => p.toLowerCase() === path.toLowerCase());
 	if (existing) return openNote(existing);
-	const { text, companion } = renderTemplate(notes.get(tmpl.path).text, { title, date });
+	let { text, companion } = renderTemplate(notes.get(tmpl.path).text, { title, date });
+	const events = await timelineEvents(date);
+	const filled = events && timelineChanges(text, events);
+	if (filled) text = applyChanges(text, filled.changes);
 	for (const c of companion) {
 		const cPath = folder + c.name + ".md";
 		const t = findTemplate(paths, c.template.replace(/\.md$/i, "") + ".md");
@@ -801,6 +806,63 @@ async function openDaily() {
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	scheduleSync();
+}
+
+// The Timeline's calendar (Settings > Daily note timeline): off until one is
+// picked, per device like the other settings.
+const DAILY_CAL_KEY = "wr1t3r-daily-calendar";
+
+// `date`'s events from that calendar, or null when none is picked or they
+// can't be loaded (the note is still made; a toast says why).
+async function timelineEvents(date) {
+	const id = readRaw(DAILY_CAL_KEY);
+	if (!id) return null;
+	const from = agenda.startOfDay(date);
+	try {
+		return eventsOn((await api.events(from, agenda.addDays(from, 1), [id])).events, from);
+	} catch (e) {
+		if (e instanceof AuthError) signOut("That token no longer works.");
+		else toast("Couldn't load calendar events" + (e instanceof TypeError ? " while offline." : ": " + e.message));
+		return null;
+	}
+}
+
+// The open daily note's day (its name is YYYY-MM-DD), or null.
+function noteDay(path) {
+	const m = path && name(path).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+	return m ? new Date(+m[1], m[2] - 1, +m[3]) : null;
+}
+
+// Fill the open daily note's Timeline (or today's, made if needed) from the
+// picked calendar. Events already there aren't added again.
+async function pullTimeline() {
+	if (!readRaw(DAILY_CAL_KEY)) {
+		openSettings(true);
+		return toast("Pick a calendar under Daily note timeline first.");
+	}
+	if (!noteDay(editor.path)) await openDaily();
+	const path = editor.path, date = noteDay(path);
+	if (!date) return;
+	const events = await timelineEvents(date);
+	if (!events || editor.path !== path) return;
+	const view = editor.view;
+	const r = timelineChanges(view.state.sliceDoc(), events);
+	if (!r) return toast("This note has no Timeline heading.");
+	if (r.changes.length) view.dispatch({ changes: r.changes, userEvent: "input.timeline" });
+	if (r.added) toast(`Added ${r.added} event${r.added === 1 ? "" : "s"} to the timeline, in time order.`);
+	else if (r.changes.length) toast("No new events. Sorted the timeline by time.");
+	else toast(events.length ? "The timeline already has every event." : "No events on the calendar that day.");
+}
+
+function fillCalendarSetting() {
+	const sel = $("dailyCal"), id = readRaw(DAILY_CAL_KEY) || "";
+	const list = calState === "setup" ? [] : cal?.calendars || [];
+	sel.replaceChildren(new Option("Off", ""));
+	for (const c of [...list].sort((a, b) => b.primary - a.primary)) sel.append(new Option(agenda.calendarLabel(c), c.id));
+	// Picked before the calendar list loaded on this device: keep it.
+	if (id && !list.some((c) => c.id === id)) sel.append(new Option("Picked calendar", id));
+	sel.value = id;
+	sel.disabled = calState === "setup";
 }
 
 // A clicked link: web links open in a new tab, links to notes open the note
@@ -1020,6 +1082,7 @@ function openSettings(on) {
 	if (on && !$("agenda").hidden) openAgenda(false);
 	$("settings").hidden = !on;
 	$("settingsBtn").setAttribute("aria-expanded", String(on));
+	if (on) { fillCalendarSetting(); if (!cal?.calendars && calState !== "setup") loadAgenda(); }
 }
 
 function setupSettings() {
@@ -1049,6 +1112,7 @@ function setupSettings() {
 		storeRaw("wr1t3rMode", b.dataset.mode === "live" ? "live" : null);
 		applyMode(b.dataset.mode);
 	});
+	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
 	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
 	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });
 	document.addEventListener("click", (e) => {
@@ -1500,6 +1564,7 @@ async function loadAgenda(force = false) {
 }
 
 function renderAgenda() {
+	if (!$("settings").hidden && document.activeElement !== $("dailyCal")) fillCalendarSetting();
 	const now = new Date();
 	const events = visibleEvents();
 	const next = agenda.nextEvent(events, now);
