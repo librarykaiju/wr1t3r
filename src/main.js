@@ -14,7 +14,7 @@ import { parseQuery, matches, snippet } from "./search.js";
 import { openPalette } from "./palette.js";
 import { EDIT_ACTIONS, DEFAULT_KEYS, keyName, showKey, usableKey, bindings, rebind } from "./hotkeys.js";
 import { templatesIn, insertTemplate } from "./templates.js";
-import { COMMANDS } from "./slash.js";
+import { COMMANDS, setSlashExtras } from "./slash.js";
 import { runCommand } from "./kbbar.js";
 import { inTable } from "./table.js";
 import { renameEdits, applyChanges } from "./vaultlinks.js";
@@ -672,8 +672,10 @@ function renderFor(tmplPath, title) {
 	return renderTemplate(notes.get(tmplPath)?.text || "", { title, date: new Date() }).text;
 }
 
+const vaultTemplates = () => templatesIn(visible().map((n) => n.path));
+
 function templateItems(run) {
-	return templatesIn(visible().map((n) => n.path)).map((t) => ({ label: t.name, detail: "template", run: () => run(t) }));
+	return vaultTemplates().map((t) => ({ label: t.name, detail: "template", run: () => run(t) }));
 }
 
 // A new note from any template, named first (in the current note's folder).
@@ -684,19 +686,28 @@ function newFromTemplate() {
 }
 
 // The template at the cursor; its properties join the note's without changing any.
-function insertFromTemplate() {
+function insertTemplateAt(t) {
 	const view = editor.view;
 	if (!editor.path || view.state.readOnly) return toast("Open a note first.");
-	const items = templateItems((t) => {
-		const text = view.state.sliceDoc();
-		const changes = insertTemplate(text, renderFor(t.path, name(editor.path)), view.state.selection.main.head);
-		const body = changes[changes.length - 1];
-		view.dispatch({ changes, selection: body ? { anchor: view.state.changes(changes).mapPos(body.from, 1) } : undefined, scrollIntoView: true, userEvent: "input.template" });
-		view.focus();
-	});
+	const text = view.state.sliceDoc();
+	const changes = insertTemplate(text, renderFor(t.path, name(editor.path)), view.state.selection.main.head);
+	const body = changes[changes.length - 1];
+	view.dispatch({ changes, selection: body ? { anchor: view.state.changes(changes).mapPos(body.from, 1) } : undefined, scrollIntoView: true, userEvent: "input.template" });
+	view.focus();
+}
+
+function insertFromTemplate() {
+	if (!editor.path || editor.view.state.readOnly) return toast("Open a note first.");
+	const items = templateItems(insertTemplateAt);
 	if (!items.length) return toast("There's no _templates folder in the vault.");
 	openPalette({ placeholder: "Insert template…", items });
 }
+
+// Each template in the slash menu too: /name inserts it at the cursor.
+setSlashExtras(() => vaultTemplates().map((t) => ({
+	label: t.name, detail: "template", keywords: "template " + t.name.toLowerCase(),
+	run: () => insertTemplateAt(t),
+})));
 
 // Hotkeys: Obsidian's defaults plus this device's changes (src/hotkeys.js).
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -747,6 +758,8 @@ function allCommands() {
 		["Sync now", () => runSync(), "save"],
 		["Start or pause the focus timer", () => toggleTimer(), "pomodoro"],
 		["Find in note", () => { view.focus(); openSearchPanel(view); }, "search replace", true],
+		// One per template, so each can have its own hotkey.
+		...vaultTemplates().map((t) => [`Insert template: ${t.name}`, () => insertTemplateAt(t), "templater " + t.name.toLowerCase(), true]),
 	].map(([label, run, keywords, needsNote]) => ({ label, run, keywords, needsNote: !!needsNote }));
 	const edits = [
 		...COMMANDS.map((c) => ({ label: c.label, keywords: c.keywords, table: !!c.table, run: EDIT_ACTIONS[c.label] || ((v) => runCommand(v, c)) })),

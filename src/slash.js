@@ -43,11 +43,19 @@ export const COMMANDS = [
 	{ label: "Format table", run: formatTable, keywords: "table align tidy", table: true },
 ];
 
+// Commands that come and go with the vault (a command per template), set by
+// main.js: () => [{ label, detail, keywords, run }].
+let extras = () => [];
+export function setSlashExtras(fn) {
+	extras = fn;
+}
+
 // Matches "/filter" at the start of a line or after whitespace, ending at the cursor.
 const TRIGGER = /(?:^|\s)\/([\w-]*)$/;
 
-export function slashSource(commands = COMMANDS) {
+export function slashSource(commands) {
 	return (context) => {
+		const list = commands || [...COMMANDS, ...extras()];
 		const line = context.state.doc.lineAt(context.pos);
 		const before = line.text.slice(0, context.pos - line.from);
 		const m = before.match(TRIGGER);
@@ -56,12 +64,13 @@ export function slashSource(commands = COMMANDS) {
 		const q = m[1].toLowerCase();
 		const atDocStart = slashAt === 0;
 		const table = inTable(context.state);
-		const options = commands
+		const options = list
 			.filter((c) => !c.docStart || atDocStart)
 			.filter((c) => !c.table || table)
 			.filter((c) => !q || c.label.toLowerCase().includes(q) || (c.keywords || "").includes(q))
 			.map((c, i) => ({
 				label: c.label,
+				detail: c.detail,
 				// Prefix matches first, then list order.
 				boost: (c.table ? 100 : 0) + (c.label.toLowerCase().startsWith(q) ? 50 - i : -i),
 				apply: (view, completion, from, to) => {
