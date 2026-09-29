@@ -285,9 +285,14 @@ function itemRow(el, item) {
 	return el;
 }
 
+// The outline can sit on #tree itself (a drop at the top level), and the row
+// that was dragged may be redrawn before its dragend fires, so this clears
+// every outline, and runs after any drag on the page ends.
 function clearDrop() {
-	document.querySelectorAll("#tree .drop").forEach((x) => x.classList.remove("drop"));
+	document.querySelectorAll("#tree.drop, #tree .drop").forEach((x) => x.classList.remove("drop"));
 }
+document.addEventListener("dragend", () => { dragging = null; clearDrop(); });
+document.addEventListener("drop", () => clearDrop());
 
 // el takes drops into folder; a closed folder (details) opens while hovered.
 function dropTarget(el, folder, details = null) {
