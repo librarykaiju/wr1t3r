@@ -27,6 +27,7 @@ import { linkClicks, linkOpener } from "./links.js";
 import { tableGrid } from "./tablegrid.js";
 import { calloutFolds } from "./callouts.js";
 import { webImages } from "./images.js";
+import { prettyProperties } from "./pretty.js";
 import { embeds, embedLook } from "./embeds.js";
 import { livePreview } from "./livepreview.js";
 
@@ -120,6 +121,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		tableGrid,
 		calloutFolds,
 		webImages,
+		prettyProperties,
 		livePreview,
 		...(vault ? [vaultHost.of(vault)] : []),
 	];

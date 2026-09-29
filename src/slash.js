@@ -5,6 +5,7 @@
 
 import { snippet } from "@codemirror/autocomplete";
 import { addProperty } from "./frontmatter.js";
+import { editBanner, editCover } from "./pretty.js";
 import { inTable, addRow, addColumn, deleteRow, deleteColumn, formatTable } from "./table.js";
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
@@ -31,6 +32,8 @@ export const COMMANDS = [
 	{ label: "Highlight", template: "==${}==", keywords: "mark" },
 	{ label: "Inline code", template: "`${}`", keywords: "code" },
 	{ label: "Add property", run: addProperty, keywords: "frontmatter yaml properties metadata tags" },
+	{ label: "Banner image", run: editBanner, keywords: "banner header picture properties pretty" },
+	{ label: "Cover image", run: editCover, keywords: "cover poster picture properties pretty" },
 	{ label: "Date", template: () => today() + "${}", keywords: "today" },
 	// Only offered with the cursor in a table.
 	{ label: "Add row below", run: addRow, keywords: "table insert", table: true },
