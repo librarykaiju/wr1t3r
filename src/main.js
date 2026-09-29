@@ -18,6 +18,7 @@ import { COMMANDS } from "./slash.js";
 import { runCommand } from "./kbbar.js";
 import { inTable } from "./table.js";
 import { renameEdits, applyChanges } from "./vaultlinks.js";
+import { movePlan, moveLinkEdits } from "./moves.js";
 import { EditorView } from "@codemirror/view";
 import { openSearchPanel } from "@codemirror/search";
 import { local, meta, persist } from "./store.js";
@@ -228,6 +229,8 @@ function renderTree() {
 			d.open = openFolders.has(full) || current.startsWith(full);
 			const s = document.createElement("summary");
 			s.textContent = dir;
+			itemRow(s, full);
+			dropTarget(s, full, d);
 			const kids = document.createElement("div");
 			kids.className = "kids";
 			d.append(s, kids);
@@ -239,10 +242,233 @@ function renderTree() {
 			if (d.open) draw(child, kids, full, depth + 1);
 			into.append(d);
 		}
-		for (const n of node.notes) into.append(link(n, name(n.path)));
+		for (const n of node.notes) into.append(itemRow(link(n, name(n.path)), n.path));
 	};
+	dropTarget(tree, base);
 	draw(top, tree, base);
 	if (top !== root) draw(root, tree, "");
+}
+
+// ---- moving and deleting from the sidebar -------------------------------------
+//
+// Notes and folders drag onto a folder (or the empty space below the list, for
+// the top level). Right-click, or a long press on a phone, opens a menu with
+// Rename, Move to… and Delete.
+
+const DRAG_TYPE = "application/x-wr1t3r-item";
+let dragging = null; // the note path or folder path ("…/") being dragged
+
+function itemRow(el, item) {
+	el.draggable = true;
+	el.dataset.item = item;
+	el.addEventListener("dragstart", (e) => {
+		dragging = item;
+		e.dataTransfer.setData(DRAG_TYPE, item);
+		e.dataTransfer.setData("text/plain", item);
+		e.dataTransfer.effectAllowed = "move";
+		e.stopPropagation();
+	});
+	el.addEventListener("dragend", () => { dragging = null; clearDrop(); });
+	el.addEventListener("contextmenu", (e) => { e.preventDefault(); itemMenu(item, e.clientX, e.clientY); });
+	// iOS Safari has no contextmenu event: a long press opens the menu instead.
+	let timer = null, opened = false;
+	el.addEventListener("touchstart", (e) => {
+		opened = false;
+		const t = e.touches[0];
+		timer = setTimeout(() => { opened = true; itemMenu(item, t.clientX, t.clientY); }, 550);
+	}, { passive: true });
+	const cancel = () => clearTimeout(timer);
+	el.addEventListener("touchmove", cancel, { passive: true });
+	el.addEventListener("touchend", (e) => { cancel(); if (opened) e.preventDefault(); });
+	el.addEventListener("click", (e) => { if (opened) { e.preventDefault(); e.stopPropagation(); opened = false; } }, true);
+	return el;
+}
+
+function clearDrop() {
+	document.querySelectorAll("#tree .drop").forEach((x) => x.classList.remove("drop"));
+}
+
+// el takes drops into folder; a closed folder (details) opens while hovered.
+function dropTarget(el, folder, details = null) {
+	let openTimer;
+	el.addEventListener("dragover", (e) => {
+		if (!dragging || !e.dataTransfer.types.includes(DRAG_TYPE)) return;
+		e.preventDefault();
+		e.stopPropagation();
+		e.dataTransfer.dropEffect = "move";
+		if (!el.classList.contains("drop")) {
+			clearDrop();
+			el.classList.add("drop");
+			clearTimeout(openTimer);
+			if (details && !details.open) openTimer = setTimeout(() => { details.open = true; }, 700);
+		}
+	});
+	el.addEventListener("dragleave", (e) => {
+		if (el.contains(e.relatedTarget)) return;
+		el.classList.remove("drop");
+		clearTimeout(openTimer);
+	});
+	el.addEventListener("drop", (e) => {
+		const item = e.dataTransfer.getData(DRAG_TYPE);
+		if (!item) return;
+		e.preventDefault();
+		e.stopPropagation();
+		clearTimeout(openTimer);
+		clearDrop();
+		dragging = null;
+		moveItem(item, folder);
+	});
+}
+
+const folderLabel = (f) => f.replace(/^content\//, "").replace(/\/$/, "") || "the top level";
+const itemLabel = (item) => (item.endsWith("/") ? item.slice(0, -1).split("/").pop() : name(item));
+
+function itemMenu(item, x, y) {
+	document.querySelector(".item-menu")?.remove();
+	const isFolder = item.endsWith("/");
+	const menu = document.createElement("div");
+	menu.className = "item-menu";
+	menu.setAttribute("role", "menu");
+	const entries = [
+		["Rename…", () => renameItem(item)],
+		["Move to…", () => moveItemTo(item)],
+		[isFolder ? "Delete folder" : "Delete", () => deleteItem(item), "danger"],
+	];
+	for (const [label, run, cls] of entries) {
+		const b = document.createElement("button");
+		b.type = "button";
+		b.setAttribute("role", "menuitem");
+		b.textContent = label;
+		if (cls) b.className = cls;
+		b.addEventListener("click", () => { close(); run(); });
+		menu.append(b);
+	}
+	document.body.append(menu);
+	const r = menu.getBoundingClientRect();
+	menu.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
+	menu.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+	const away = (e) => { if (!menu.contains(e.target)) close(); };
+	const esc = (e) => { if (e.key === "Escape") close(); };
+	function close() {
+		menu.remove();
+		document.removeEventListener("pointerdown", away, true);
+		document.removeEventListener("keydown", esc, true);
+	}
+	// Wait for the press that opened the menu to finish.
+	setTimeout(() => {
+		document.addEventListener("pointerdown", away, true);
+		document.addEventListener("keydown", esc, true);
+	});
+	menu.querySelector("button").focus();
+}
+
+const parentFolder = (item) => {
+	const q = item.endsWith("/") ? item.slice(0, -1) : item;
+	return q.includes("/") ? q.slice(0, q.lastIndexOf("/") + 1) : "";
+};
+
+function renameItem(item) {
+	const input = prompt(item.endsWith("/") ? "Rename folder:" : "Rename note:", itemLabel(item));
+	if (input == null || input.trim() === itemLabel(item)) return;
+	moveItem(item, parentFolder(item), input.trim().replace(/\.md$/i, ""));
+}
+
+// "Move to…": pick a folder from the vault's folders.
+function moveItemTo(item) {
+	const list = visible();
+	const home = commonFolder(list);
+	const folders = new Set([home]);
+	for (const n of list) {
+		const parts = n.path.split("/").slice(0, -1);
+		for (let i = 1; i <= parts.length; i++) folders.add(parts.slice(0, i).join("/") + "/");
+	}
+	const here = parentFolder(item);
+	const items = [...folders]
+		.filter((f) => f.startsWith(home) && f !== here && !(item.endsWith("/") && f.startsWith(item)))
+		.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
+		.map((f) => ({ label: folderLabel(f), run: () => moveItem(item, f) }));
+	openPalette({
+		placeholder: `Move “${itemLabel(item)}” to…`,
+		items,
+		empty: (q) => ({ label: `New folder “${q}”`, detail: "create", run: () => moveItem(item, home + q.trim().replace(/^\/+|\/+$/g, "") + "/") }),
+	});
+}
+
+// Moves a note or folder into folder (renaming it to newName on the way), and
+// points links to it at its new place. A move is a new note plus a delete of
+// the old one, as a rename is.
+async function moveItem(item, folder, newName = null) {
+	const list = visible();
+	const paths = list.map((n) => n.path);
+	const { pairs, error } = movePlan(paths, item, folder, newName);
+	if (error) return toast(error);
+	if (!pairs.length) return;
+	if (pairs.some((p) => !isNotePath(p.to))) return toast("That isn't a usable name.");
+	const textOf = (p) => (p === editor.path ? editor.text() : notes.get(p)?.binary ? null : notes.get(p)?.text);
+	const edits = moveLinkEdits(pairs, paths, textOf);
+	const moved = new Set(pairs.map((p) => p.to));
+	const others = edits.filter((e) => !moved.has(e.path));
+	const n = others.reduce((a, e) => a + e.count, 0);
+	const update = others.length && confirm(`Update ${n} link${n === 1 ? "" : "s"} in ${others.length} other note${others.length === 1 ? "" : "s"} to point at the new place?`);
+	if (update) {
+		for (const e of others) {
+			await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
+			editor.forget(e.path);
+		}
+	}
+	const own = new Map(edits.filter((e) => moved.has(e.path)).map((e) => [e.path, e.text]));
+	const was = editor.path;
+	for (const { from, to } of pairs) {
+		const note = notes.get(from);
+		const body = note.binary ? { bytes: note.bytes, binary: true } : { text: own.get(to) ?? textOf(from) };
+		await change(to, (cur) => ({ path: to, ...body, base: cur?.base ?? null, dirty: true, deleted: false }));
+		await change(from, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
+		editor.forget(from);
+	}
+	const map = new Map(pairs.map((p) => [p.from, p.to]));
+	const moveTo = (p) => map.get(p) ?? p;
+	tabs = tabs.map(moveTo);
+	saveTabs();
+	bookmarks = bookmarks.map(moveTo);
+	writeJSON(BOOKMARKS_KEY, bookmarks);
+	if (ref.path && map.has(ref.path)) { ref.path = map.get(ref.path); saveRef(); }
+	if (item.endsWith("/")) {
+		const dest = pairs[0].to.slice(0, pairs[0].to.length - (pairs[0].from.length - item.length));
+		openFolders = new Set([...openFolders].map((f) => (f.startsWith(item) ? dest + f.slice(item.length) : f)));
+	}
+	for (let i = folder.indexOf("/"); i >= 0; i = folder.indexOf("/", i + 1)) openFolders.add(folder.slice(0, i + 1));
+	writeJSON(OPEN_KEY, [...openFolders]);
+	if (was && map.has(was)) openNote(map.get(was), { tab: false });
+	else renderTabs();
+	renderTree();
+	renderStatus();
+	scheduleSync(0);
+	toast(newName != null
+		? `Renamed to “${newName}”.`
+		: `Moved ${pairs.length === 1 && !item.endsWith("/") ? `“${name(item)}”` : `“${itemLabel(item)}” (${pairs.length} note${pairs.length === 1 ? "" : "s"})`} to ${folderLabel(folder)}.`);
+}
+
+// Deletes a note, or every note in a folder, after asking.
+async function deleteItem(item) {
+	if (!item.endsWith("/")) return removeNote(item);
+	const inside = visible().filter((n) => n.path.startsWith(item)).map((n) => n.path);
+	if (!inside.length) return;
+	if (!confirm(`Delete the folder “${itemLabel(item)}” and the ${inside.length} note${inside.length === 1 ? "" : "s"} in it? They're removed from the vault on every device.`)) return;
+	for (const p of inside) {
+		await change(p, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
+		editor.forget(p);
+	}
+	bookmarks = bookmarks.filter((p) => !p.startsWith(item));
+	writeJSON(BOOKMARKS_KEY, bookmarks);
+	const open = editor.path && editor.path.startsWith(item);
+	tabs = tabs.filter((p) => !p.startsWith(item));
+	saveTabs();
+	if (open) openNote(tabs.find(isOpenable) || null, { tab: false });
+	else renderTabs();
+	renderTree();
+	renderStatus();
+	scheduleSync(0);
+	toast(`Deleted “${itemLabel(item)}” (${inside.length} note${inside.length === 1 ? "" : "s"}).`);
 }
 
 // Bookmarked notes, and every tag with its count, above the folders. Both
@@ -902,6 +1128,7 @@ async function removeNote(path) {
 	await change(path, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
 	editor.forget(path);
 	closeTab(path);
+	renderTree();
 	renderStatus();
 	scheduleSync(0);
 }
