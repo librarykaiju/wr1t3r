@@ -274,7 +274,20 @@ main:not(.has-note) #panes { display: none; }
 :is(#editor, #refView) .cm-editor { height: 100%; background: var(--bg); }
 :is(#editor, #refView) .cm-editor.cm-focused { outline: none; }
 :is(#editor, #refView) .cm-scroller { font: var(--editor-size)/1.65 var(--serif); padding: 24px 16px 40vh; }
-.cm-content { max-width: 720px; margin: 0 auto; caret-color: var(--accent); }
+:is(#editor, #refView) .cm-content { max-width: 720px; margin: 0 auto; caret-color: var(--accent); }
+/* Readable line length centers the note on the screen, not just in its column:
+   the scroller pads the side facing the wider neighbor by the difference in
+   width (--lw: notes list, --rw: right column), but never so far that a line
+   gets shorter than 720px. Off, lines fill the column. */
+#app { --lw: 0px; --rw: 0px; }
+#editor > .cm-editor > .cm-scroller {
+	--free: calc(100vw - var(--lw) - var(--rw) - 32px - 720px);
+	padding-left: calc(16px + clamp(0px, var(--rw) - var(--lw), var(--free)));
+	padding-right: calc(16px + clamp(0px, var(--lw) - var(--rw), var(--free)));
+}
+#app.full-lines { --lw: 0px !important; --rw: 0px !important; }
+#panes:has(> #ref:not([hidden])) { --lw: 0px; --rw: 0px; }
+#app.full-lines :is(#editor, #refView) .cm-content { max-width: none; }
 :is(#editor, #refView) .cm-cursor { border-left-color: var(--accent) !important; }
 :is(#editor, #refView) .cm-activeLine { background: transparent; }
 :is(#editor, #refView) .cm-selectionBackground, :is(#editor, #refView) .cm-focused .cm-selectionBackground { background: var(--sel) !important; }
@@ -432,6 +445,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 @media (min-width: 761px) {
 	#leftBtn { display: inline-flex; }
 	#app.left-shut #sidebar { display: none; }
+	#app:not(.left-shut) { --lw: 280px; }
 }
 @media (min-width: 1180px) {
 	#rightBtn { display: inline-flex; }
@@ -440,6 +454,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 		background: var(--panel); border-left: 1px solid var(--line);
 	}
 	#app.right-shut #rightcol { display: none; }
+	#app:not(.right-shut) { --rw: 320px; }
 	#rightcol > .pop { position: static; width: auto; max-height: none; box-shadow: none; border: 0; border-radius: 0; background: none; z-index: auto; }
 	#rightcol > #agenda {
 		flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column;
