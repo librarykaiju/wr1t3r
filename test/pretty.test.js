@@ -33,6 +33,7 @@ test("banner and cover with Pretty Properties' keys and defaults", () => {
 	// cover wins over coverImage and image; an empty one is skipped; unknown shape/position fall back.
 	const e = doc('---\ncover: ""\ncoverImage: "{{ image }}"\nimage: https://m.com/p.jpg\ncover_shape: blob\ncover_position: middle\n---\n');
 	assert.deepEqual(prettyOf(e), { banner: null, cover: { ref: { url: "https://m.com/p.jpg" }, shape: "initial", position: "left" } });
+	assert.deepEqual(prettyOf(doc("---\nthumbnail: https://t.com/t.jpg\n---\n")).cover.ref, { url: "https://t.com/t.jpg" });
 	assert.equal(prettyOf(doc("---\nbanner:\n---\n")).banner, null);
 	assert.equal(prettyOf(doc("---\nbanner: a.png\n---\n")).banner.position, 50);
 });
