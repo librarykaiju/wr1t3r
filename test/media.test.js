@@ -1,0 +1,187 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import worker from "../worker/index.js";
+import { splitList, duration, usDate, plainText } from "../worker/media.js";
+import { frontmatter, mediaNote, mediaNoteName } from "../src/medianote.js";
+
+crypto.subtle.timingSafeEqual ??= (a, b) => Buffer.from(a).equals(Buffer.from(b));
+
+const call = (e, path, init = {}) =>
+	worker.fetch(new Request("https://w" + path, { ...init, headers: { Authorization: "Bearer t", ...init.headers } }), e);
+const post = (e, path, body) => call(e, path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+// Answers each outside call from routes: [[test(url, init), data | Response]].
+function fakeWeb(routes) {
+	const seen = [];
+	const real = globalThis.fetch;
+	globalThis.fetch = async (url, init = {}) => {
+		seen.push({ url: String(url), init });
+		for (const [match, answer] of routes) {
+			if (match(new URL(url), init)) return answer instanceof Response ? answer : new Response(JSON.stringify(answer));
+		}
+		return new Response("{}", { status: 404 });
+	};
+	return { seen, restore: () => (globalThis.fetch = real) };
+}
+const host = (h, path) => (u) => u.hostname === h && (!path || u.pathname.startsWith(path));
+
+test("frontmatter is written the way the Obsidian plugin writes it", () => {
+	const text = frontmatter({
+		title: "Intro: Yes", artist: ["Death*Star"], volume: null, tags: [], draft: true, releasedOn: "2011",
+		summary: 'Two\nlines "quoted"', tracks: [{ number: 1, title: "A", duration: "", featuredArtists: ["X"] }],
+	});
+	assert.equal(text, [
+		"---",
+		'title: "Intro: Yes"',
+		"artist:",
+		'  - "Death*Star"',
+		"volume:",
+		"tags:",
+		"draft: true",
+		'releasedOn: "2011"',
+		'summary: "Two\\nlines \\"quoted\\""',
+		"tracks:",
+		"  - number: 1",
+		"    title: A",
+		"    duration:",
+		"    featuredArtists:",
+		"      - X",
+		"---",
+		"",
+	].join("\n"));
+	assert.equal(mediaNote({ title: "X" }, "Episode Notes"), "---\ntitle: X\n---\n\n## Episode Notes\n");
+});
+
+test("note names drop characters a file can't have", () => {
+	assert.equal(mediaNoteName("Who? What: [x]#1", "2020–2022"), "Who What x1 (2020–2022)");
+	assert.equal(mediaNoteName("Serial", ""), "Serial");
+	assert.equal(mediaNoteName("", ""), "Untitled");
+});
+
+test("small conversions match the plugin's", () => {
+	assert.deepEqual(splitList("Lana Wachowski, Lilly Wachowski and Keanu Reeves"), ["Lana Wachowski", "Lilly Wachowski", "Keanu Reeves"]);
+	assert.deepEqual(splitList("N/A"), []);
+	assert.equal(duration(61500), "1:02");
+	assert.equal(duration(0), "");
+	assert.equal(usDate("2011-04-05"), "04/05/2011");
+	assert.equal(usDate("2011"), "2011");
+	assert.equal(plainText("<p>Hi&nbsp;&amp; <b>bye</b></p>"), "Hi & bye");
+});
+
+test("kinds say which lookups this Worker can do, and where notes go", async () => {
+	const r = await call({ WR1T3R_TOKEN: "t", OMDB_API_KEY: "k", MEDIA_BOOK_FOLDER: "/Books/" }, "/api/media/kinds");
+	const kinds = Object.fromEntries((await r.json()).kinds.map((k) => [k.kind, k]));
+	assert.equal(kinds.movie.ready, true);
+	assert.equal(kinds.movie.folder, "content/logs/movies-tv");
+	assert.equal(kinds.game.ready, false);
+	assert.deepEqual(kinds.game.needs, ["RAWG_API_KEY"]);
+	assert.equal(kinds.book.folder, "Books");
+	assert.equal(kinds.comic.folder, "Books", "comics go with books, as in the plugin");
+	assert.equal(kinds.podcast.heading, "Episode Notes");
+});
+
+test("media routes need the token, a known kind and its key", async () => {
+	const e = { WR1T3R_TOKEN: "t" };
+	assert.equal((await worker.fetch(new Request("https://w/api/media/kinds"), e)).status, 401);
+	assert.equal((await call(e, "/api/media/search?kind=nope&q=x")).status, 400);
+	const r = await call(e, "/api/media/search?kind=movie&q=x");
+	assert.equal(r.status, 404);
+	assert.match((await r.json()).error, /OMDB_API_KEY/);
+});
+
+test("a movie: search, then its note with director first", async () => {
+	const web = fakeWeb([
+		[(u) => u.hostname === "www.omdbapi.com" && u.searchParams.get("s"), { Search: [
+			{ Title: "The Matrix", Year: "1999", Type: "movie", imdbID: "tt0133093", Poster: "https://p/m.jpg" },
+			{ Title: "The Matrix Game", Year: "2003", Type: "game", imdbID: "tt1" },
+		] }],
+		[(u) => u.hostname === "www.omdbapi.com" && u.searchParams.get("i"), {
+			Title: "The Matrix", Year: "1999", Type: "movie", Director: "Lana Wachowski, Lilly Wachowski", Writer: "N/A",
+			Actors: "Keanu Reeves", Genre: "Action, Sci-Fi", Poster: "https://p/m.jpg", Plot: "Neo.",
+		}],
+	]);
+	try {
+		const e = { WR1T3R_TOKEN: "t", OMDB_API_KEY: "k" };
+		const s = await (await call(e, "/api/media/search?kind=movie&q=matrix")).json();
+		assert.deepEqual(s.results.map((r) => r.title), ["The Matrix"], "only movies and series");
+		assert.equal(new URL(web.seen[0].url).searchParams.get("apikey"), "k");
+		const n = await (await post(e, "/api/media/note", { kind: "movie", ref: s.results[0].ref, today: "2026-09-29" })).json();
+		assert.deepEqual(Object.keys(n.fields).slice(0, 3), ["title", "director", "writers"]);
+		assert.deepEqual(n.fields.director, ["Lana Wachowski", "Lilly Wachowski"]);
+		assert.deepEqual(n.fields.writers, []);
+		assert.equal(n.fields.date, "2026-09-29");
+		assert.equal(n.year, "1999");
+		assert.equal((await post(e, "/api/media/note", { kind: "movie", ref: { imdbID: "../x" } })).status, 400, "ids are checked");
+	} finally { web.restore(); }
+});
+
+test("a book: covers from Google and Open Library, summary, tags from Claude", async () => {
+	const web = fakeWeb([
+		[host("www.googleapis.com"), { items: [{ volumeInfo: { imageLinks: { thumbnail: "http://books.google.com/c?id=1&zoom=1" }, description: "From Google." } }] }],
+		[host("openlibrary.org", "/works/OL1W/editions.json"), { entries: [{ covers: [7] }, { covers: [7] }, { covers: [-1] }] }],
+		[host("openlibrary.org", "/works/OL1W.json"), { description: { value: "A monk and a robot." }, subjects: ["Robots, Tea", "robots"] }],
+		[host("api.anthropic.com"), { content: [{ text: '{"subjects": ["Robots -- Fiction"], "vibesAndThemes": ["Cozy"]}' }] }],
+	]);
+	try {
+		const e = { WR1T3R_TOKEN: "t", ANTHROPIC_API_KEY: "sk" };
+		const ref = { workKey: "/works/OL1W", title: "A Psalm for the Wild-Built", authors: ["Becky Chambers"], coverId: 5, year: "2021" };
+		const c = await (await post(e, "/api/media/covers", { kind: "book", ref })).json();
+		assert.deepEqual(c.covers, [
+			"https://books.google.com/c?id=1&zoom=3",
+			"https://covers.openlibrary.org/b/id/5-M.jpg",
+			"https://covers.openlibrary.org/b/id/7-M.jpg",
+		]);
+		const n = await (await post(e, "/api/media/note", { kind: "book", ref, cover: "https://covers.openlibrary.org/b/id/5-M.jpg", today: "2026-09-29" })).json();
+		assert.equal(n.fields.summary, "A monk and a robot.");
+		assert.deepEqual(n.fields.subjects, ["Robots -- Fiction"]);
+		assert.deepEqual(n.fields.vibesAndThemes, ["Cozy"]);
+		assert.equal(n.fields.coverImage, "https://covers.openlibrary.org/b/id/5-M.jpg");
+		assert.equal(n.year, "2021");
+		const claude = web.seen.find((s) => s.url.startsWith("https://api.anthropic.com"));
+		assert.equal(claude.init.headers["x-api-key"], "sk");
+		const noKey = await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/note", { kind: "book", ref, cover: "javascript:alert(1)" })).json();
+		assert.deepEqual(noKey.fields.subjects, ["Robots", "Tea"], "Open Library's subjects without Claude");
+		assert.equal(noKey.fields.coverImage, "", "only https covers");
+	} finally { web.restore(); }
+});
+
+test("an album: tracks from the earliest release, repeated discs once", async () => {
+	const id = "0c3e150e-1bf4-47bb-8526-84f84562763e";
+	const tracks = [{ number: "1", title: "One", length: 61000, "artist-credit": [{ name: "Death*Star" }] }, { number: "2", title: "Two", length: 60000, "artist-credit": [{ name: "Guest" }] }];
+	const web = fakeWeb([
+		[host("musicbrainz.org", `/ws/2/release-group/${id}`), { title: "A New Dope", "artist-credit": [{ name: "Death*Star" }], genres: [{ name: "hip hop" }], tags: [] }],
+		[host("musicbrainz.org", "/ws/2/release"), { releases: [
+			{ date: "2012-01-01", media: [] },
+			{ date: "2011-04-05", "text-representation": { language: "eng" }, media: [{ tracks }, { tracks }] },
+		] }],
+		[host("coverartarchive.org"), new Response(null, { status: 307, headers: { Location: "https://archive.org/x.jpg" } })],
+	]);
+	try {
+		const n = await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/note", { kind: "music", ref: { releaseGroupId: id, title: "A New Dope", year: "2011" } })).json();
+		assert.equal(n.fields.coverImage, `https://coverartarchive.org/release-group/${id}/front-500`);
+		assert.equal(n.fields.releasedOn, "04/05/2011");
+		assert.equal(n.fields.language, "English");
+		assert.equal(n.fields.albumDuration, "2:01");
+		assert.deepEqual(n.fields.tracks, [
+			{ number: 1, title: "One", duration: "1:01", featuredArtists: [] },
+			{ number: 2, title: "Two", duration: "1:00", featuredArtists: ["Guest"] },
+		]);
+		assert.ok(web.seen.every((s) => s.init.headers["User-Agent"]), "MusicBrainz wants a User-Agent");
+	} finally { web.restore(); }
+});
+
+test("a podcast needs nothing past the search", async () => {
+	const web = fakeWeb([[host("itunes.apple.com"), { results: [{
+		collectionName: "Serial", artistName: "This American Life", artworkUrl100: "https://a/100x100bb.jpg",
+		collectionViewUrl: "https://podcasts.apple.com/serial", primaryGenreName: "News", genres: ["News", "Podcasts"],
+	}] }]]);
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const s = await (await call(e, "/api/media/search?kind=podcast&q=serial")).json();
+		const n = await (await post(e, "/api/media/note", { kind: "podcast", ref: s.results[0].ref, today: "2026-09-29" })).json();
+		assert.equal(n.fields.coverImage, "https://a/600x600bb.jpg");
+		assert.deepEqual(n.fields.genre, ["News"]);
+		assert.equal(n.fields.externalUrl, "https://podcasts.apple.com/serial");
+		assert.equal(web.seen.length, 1);
+	} finally { web.restore(); }
+});

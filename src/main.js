@@ -34,6 +34,7 @@ import { newNoteFrontmatter } from "./frontmatter.js";
 import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
+import { makeMediaNote } from "./media.js";
 
 const $ = (id) => document.getElementById(id);
 const notes = new Map(); // path -> note, mirrors IndexedDB
@@ -509,6 +510,7 @@ function allCommands() {
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],
+		...mediaKinds.filter((k) => k.ready && MEDIA_COMMANDS[k.kind]).map((k) => [`Create ${MEDIA_COMMANDS[k.kind]} note`, () => newMediaNote(k), "media log " + k.label.toLowerCase()]),
 		["Sync now", () => runSync(), "save"],
 		["Start or pause the focus timer", () => toggleTimer(), "pomodoro"],
 		["Find in note", () => { view.focus(); openSearchPanel(view); }, "search replace", true],
@@ -957,7 +959,8 @@ async function addNote(folder, noteName, text) {
 }
 
 function showAdded(folder, path) {
-	openFolders.add("content/").add(folder);
+	// The folder and every folder above it, so the new note shows in the sidebar.
+	for (let i = folder.indexOf("/"); i >= 0; i = folder.indexOf("/", i + 1)) openFolders.add(folder.slice(0, i + 1));
 	writeJSON(OPEN_KEY, [...openFolders]);
 	openNote(path);
 	renderStatus();
@@ -1006,6 +1009,33 @@ async function clipPage(url) {
 	} catch (e) {
 		if (e instanceof AuthError) return signOut("That token no longer works.");
 		toast("Couldn't clip that: " + e.message, 8000);
+	}
+}
+
+// Media notes (src/media.js, worker/media.js): the kinds this Worker can look
+// up, remembered so the commands are there offline too.
+const MEDIA_KEY = "wr1t3r-media-kinds";
+let mediaKinds = readJSON(MEDIA_KEY, []);
+async function loadMediaKinds() {
+	try {
+		mediaKinds = await api.mediaKinds();
+		writeJSON(MEDIA_KEY, mediaKinds);
+	} catch {}
+}
+
+const MEDIA_COMMANDS = { movie: "movie/TV", book: "book", music: "music", game: "game", comic: "comic", podcast: "podcast" };
+
+async function newMediaNote(k) {
+	if (!navigator.onLine) return toast("Media lookups need a connection.");
+	try {
+		const made = await makeMediaNote(k, api, (text) => (text ? toast(text, 60000) : ($("toast").hidden = true)));
+		if (!made) return;
+		const path = await addNote(made.folder, made.name, made.text);
+		toast(`Made “${name(path)}”.`);
+		showAdded(made.folder, path);
+	} catch (e) {
+		if (e instanceof AuthError) return signOut("That token no longer works.");
+		toast("Couldn't make that note: " + e.message, 8000);
 	}
 }
 
@@ -1937,6 +1967,7 @@ async function start() {
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
 	loadAttachments();
+	loadMediaKinds();
 	persist();
 
 	$("filter").addEventListener("input", renderTree);
