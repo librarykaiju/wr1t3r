@@ -227,9 +227,12 @@ main:not(.has-note) #panes { display: none; }
 :is(#editor, #refView) .md-callout-fold.folded { transform: rotate(0deg); }
 :is(#editor, #refView) .md-callout-fold:hover { opacity: 1; }
 :is(#editor, #refView) .md-callout-more { color: var(--mark); margin-left: 0.3em; }
-:is(#editor, #refView) .md-image { margin: 0.4em 0 0.8em; }
+/* Block widgets and lines keep their spacing as padding or borders, never margins:
+   CodeMirror measures heights without margins, so each one shifted everything below
+   it and the arrow keys skipped lines. */
+:is(#editor, #refView) .md-image { padding: 0.4em 0 0.8em; }
 :is(#editor, #refView) .md-image img { display: block; max-width: 100%; height: auto; border-radius: 6px; }
-:is(#editor, #refView) .md-image.broken { font-family: var(--sans, sans-serif); font-size: 0.8em; color: var(--mark); border: 1px dashed var(--mark); border-radius: 6px; padding: 0.6em 0.8em; display: inline-block; }
+:is(#editor, #refView) .md-image-note { font-family: var(--sans, sans-serif); font-size: 0.8em; color: var(--mark); border: 1px dashed var(--mark); border-radius: 6px; padding: 0.6em 0.8em; display: inline-block; }
 .md-inline-note { font-size: 0.9em !important; }
 .md-blockid { color: var(--mark); font-family: var(--mono); font-size: 0.75em; }
 .md-html { color: var(--mark); font-family: var(--mono); font-size: 0.85em; }
@@ -370,7 +373,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .cm-lineWrapping .md-table { white-space: pre; overflow-wrap: normal; }
 :is(#editor, #refView) .md-table-head { background: var(--code-bg); }
 :is(#editor, #refView) .md-table-delim { color: var(--mark); }
-:is(#editor, #refView) .md-grid-wrap { overflow-x: auto; margin: 0.4em 0; cursor: text; }
+:is(#editor, #refView) .md-grid-wrap { overflow-x: auto; padding: 0.4em 0; cursor: text; }
 :is(#editor, #refView) .md-grid { border-collapse: collapse; font-size: 0.9em; line-height: 1.45; }
 :is(#editor, #refView) .md-grid th, :is(#editor, #refView) .md-grid td { border: 1px solid var(--line, var(--mark)); padding: 0.35em 0.7em; vertical-align: top; text-align: left;
 	min-width: 5em; max-width: 26em; white-space: normal; word-break: normal; overflow-wrap: break-word; hyphens: manual; }
@@ -455,8 +458,11 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-fm .md-key { font-family: var(--sans); font-size: 1em; color: var(--muted); }
 :is(#editor, #refView) .md-fm .md-value { font-family: var(--sans); font-size: 1em; }
 :is(#editor, #refView) .md-fm.md-first { border-top-left-radius: 8px; border-top-right-radius: 8px; padding-top: 4px; box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line), inset 0 1px 0 var(--line); }
-:is(#editor, #refView) .md-fm.md-last { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; padding-bottom: 4px; margin-bottom: 0.6em; box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line); }
+:is(#editor, #refView) .md-fm.md-last { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; padding-bottom: 4px; box-shadow: inset 1px 0 0 var(--line), inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line); }
 :is(#editor, #refView) .md-fm.md-first.md-last { box-shadow: inset 0 0 0 1px var(--line); }
+/* The gap under the box, as a see-through border (a margin would throw off CodeMirror's heights).
+   The vertical corner radius grows by the border so the inner corners stay 8px round. */
+:is(#editor, #refView) .md-fm.md-last { border-bottom: 0.6em solid transparent; background-clip: padding-box; border-bottom-left-radius: 8px calc(8px + 0.6em); border-bottom-right-radius: 8px calc(8px + 0.6em); }
 :is(#editor, #refView) .md-fm-fence { color: var(--mark); }
 :is(#editor, #refView) .md-fm-toggle, :is(#editor, #refView) .md-fm-add {
 	background: none; border: 0; padding: 0; font: 600 1em var(--sans); color: var(--muted); cursor: pointer;
@@ -505,13 +511,14 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 #app.kb-open :is(#editor, #refView) .cm-scroller { padding-bottom: 60px; }
 
 /* dataviewjs output (src/dataview.js) */
-.md-dv { position: relative; margin: 4px 0; }
+.md-dv { position: relative; padding: 4px 0; }
 .md-dv iframe { display: block; width: 100%; height: 40px; border: 0; background: transparent; }
-.md-dv-edit { position: absolute; top: 0; right: 0; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); opacity: 0; cursor: pointer; }
+.md-dv-edit { position: absolute; top: 4px; right: 0; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); opacity: 0; cursor: pointer; }
 .md-dv:hover .md-dv-edit, .md-dv-edit:focus-visible { opacity: 1; }
 @media (hover: none) { .md-dv-edit { opacity: 0.6; } }
 /* ![[Note]] embeds (src/embeds.js) */
-.md-embed { position: relative; margin: 6px 0; padding: 6px 12px 8px; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--card); }
+.md-embed-wrap { padding: 6px 0; }
+.md-embed { position: relative; padding: 6px 12px 8px; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--card); }
 .md-embed-top { display: flex; align-items: center; gap: 8px; font: 13px/1.5 var(--sans); }
 .md-embed-title { color: var(--muted); text-decoration: none; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .md-embed-title:hover { color: var(--accent); }
@@ -528,7 +535,8 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 .md-unresolved, .md-unresolved * { opacity: 0.6; text-decoration-style: dashed; }
 
 /* "Linked from" under the note (src/backlinks.js) */
-.md-backlinks { margin: 48px 0 24px; padding-top: 14px; border-top: 1px solid var(--line); font-family: var(--sans); font-size: 14px; }
+/* The rule above it is a background line, so the space around it can be padding (see .md-image). */
+.md-backlinks { padding: 63px 0 24px; background: linear-gradient(var(--line), var(--line)) 0 48px / 100% 1px no-repeat; font-family: var(--sans); font-size: 14px; }
 .md-backlinks details + details { margin-top: 12px; }
 .md-backlinks summary { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; list-style-position: inside; }
 .md-backlink.md-unresolved { opacity: 1; border: 0; }

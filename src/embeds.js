@@ -39,8 +39,12 @@ class EmbedWidget extends WidgetType {
 	constructor(e, path, text) { super(); this.e = e; this.path = path; this.text = text; }
 	eq(o) { return o.path === this.path && o.text === this.text && o.e.note === this.e.note && o.e.part === this.e.part && o.e.label === this.e.label; }
 	toDOM(view) {
+		// The spacing around the box is the outer div's padding: CodeMirror doesn't count margins.
+		const outer = document.createElement("div");
+		outer.className = "md-embed-wrap";
 		const box = document.createElement("div");
 		box.className = "md-embed" + (this.text == null ? " missing" : "");
+		outer.append(box);
 		const top = document.createElement("div");
 		top.className = "md-embed-top";
 		const title = document.createElement("a");
@@ -73,7 +77,7 @@ class EmbedWidget extends WidgetType {
 			p.className = "md-embed-missing";
 			p.textContent = !this.path ? "No note with this name yet" : this.e.part.startsWith("^") ? "That block isn't in the note" : "That heading isn't in the note";
 			box.append(p);
-			return box;
+			return outer;
 		}
 		const inner = new EditorView({
 			parent: box,
@@ -83,9 +87,9 @@ class EmbedWidget extends WidgetType {
 				extensions: [view.state.facet(embedLook)(), EditorState.readOnly.of(true), EditorView.editable.of(false), notePath.of(this.path)],
 			}),
 		});
-		box.embedView = inner;
+		outer.embedView = inner;
 		requestAnimationFrame(() => view.requestMeasure());
-		return box;
+		return outer;
 	}
 	destroy(dom) { dom.embedView?.destroy(); }
 	ignoreEvent() { return true; }

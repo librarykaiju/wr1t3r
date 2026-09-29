@@ -55,6 +55,16 @@ export function imagesIn(state) {
 	return out.sort((a, b) => a.from - b.from);
 }
 
+// A dashed note in place of a file that can't be shown. It sits inside the
+// widget, which keeps its spacing as padding (see .md-image in style.css).
+function brokenNote(wrap, text) {
+	const span = document.createElement("span");
+	span.className = "md-image-note";
+	span.textContent = text;
+	wrap.classList.add("broken");
+	wrap.replaceChildren(span);
+}
+
 class ImageWidget extends WidgetType {
 	constructor(img) { super(); this.img = img; }
 	eq(o) { return ["url", "alt", "width", "height", "path", "version"].every((k) => o.img[k] === this.img[k]) && !!o.img.missing === !!this.img.missing; }
@@ -75,8 +85,7 @@ class ImageWidget extends WidgetType {
 		// below it still land where they look.
 		img.addEventListener("load", () => view.requestMeasure());
 		img.addEventListener("error", () => {
-			wrap.classList.add("broken");
-			wrap.textContent = navigator.onLine ? "Image didn't load" : "Image not shown offline";
+			brokenNote(wrap, navigator.onLine ? "Image didn't load" : "Image not shown offline");
 			view.requestMeasure();
 		});
 		wrap.append(img);
@@ -87,7 +96,7 @@ class ImageWidget extends WidgetType {
 		const wrap = document.createElement("div");
 		wrap.className = "md-image md-attachment";
 		const { name, path, missing } = this.img;
-		const note = (text) => { wrap.classList.add("broken"); wrap.textContent = text; };
+		const note = (text) => brokenNote(wrap, text);
 		if (missing || !path) { note(`“${name}” isn't in the vault`); return wrap; }
 		const host = view.state.facet(vaultHost);
 		const kind = attachmentKind(path);
