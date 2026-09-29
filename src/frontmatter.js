@@ -379,6 +379,9 @@ const remembered = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; 
 const remember = (v) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch {} };
 
 const setFolded = StateEffect.define();
+// Whether the properties box is folded to its header line (src/pretty.js
+// leaves the cover out then).
+export const propertiesFolded = (state) => !!state.field(folded, false);
 const folded = StateField.define({
 	create: () => remembered(),
 	update(value, tr) {

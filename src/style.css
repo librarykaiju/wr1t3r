@@ -554,6 +554,38 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-fm-toggle { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.92em; }
 :is(#editor, #refView) .md-fm-add { font-weight: 400; color: var(--accent); }
 :is(#editor, #refView) .md-fm-toggle:hover, :is(#editor, #refView) .md-fm-add:hover { color: var(--fg); }
+/* Banners and covers from properties, as Pretty Properties draws them (src/pretty.js).
+   Spacing is padding, never margin (see above). */
+:is(#editor, #refView) .md-banner { padding: 0 0 6px; }
+:is(#editor, #refView) .md-banner img { display: block; width: 100%; height: 150px; object-fit: cover; border-radius: 10px 10px 0 0;
+	-webkit-mask-image: linear-gradient(to bottom, black 25%, transparent); mask-image: linear-gradient(to bottom, black 25%, transparent); }
+:is(#editor, #refView) .md-banner.gone, :is(#editor, #refView) .md-cover.gone { display: none; }
+:is(#editor, #refView) .md-cover { display: block; width: var(--cover-w); max-width: 100%; font-size: 0; line-height: 0; cursor: default; }
+:is(#editor, #refView) .md-cover img { display: block; width: 100%; height: auto; max-height: 500px; object-fit: cover; border-radius: 6px; }
+:is(#editor, #refView) .md-cover.vertical-cover img, :is(#editor, #refView) .md-cover.vertical-contain img { aspect-ratio: 0.63; object-position: top; }
+:is(#editor, #refView) .md-cover.horizontal-cover img, :is(#editor, #refView) .md-cover.horizontal-contain img { aspect-ratio: 4 / 3; }
+:is(#editor, #refView) .md-cover.square img, :is(#editor, #refView) .md-cover.circle img { aspect-ratio: 1; }
+:is(#editor, #refView) .md-cover.circle img { border-radius: 50%; }
+:is(#editor, #refView) .md-cover:is(.vertical-contain, .horizontal-contain) img { object-fit: contain; }
+:is(#editor, #refView) .md-cover:is(.top, .bottom) { padding: 6px 0; }
+:is(#editor, #refView) .md-cover:is(.top, .bottom) img { max-height: 400px; width: auto; max-width: 100%; }
+/* Beside the box: the cover hangs from the first line and every line of the box
+   makes room for it; the last line grows by --md-cover-reserve to fit it. */
+@media (min-width: 641px) {
+	:is(#editor, #refView) .md-fm.md-has-cover.md-first { position: relative; }
+	:is(#editor, #refView) .md-cover:is(.left, .right) { position: absolute; top: 10px; width: min(var(--cover-w, 200px), 40%); }
+	:is(#editor, #refView) .md-cover.left { left: 10px; }
+	:is(#editor, #refView) .md-cover.right { right: 10px; }
+	:is(#editor, #refView) .md-fm.md-cover-left { padding-left: calc(24px + min(var(--cover-w, 200px), 40%)); }
+	:is(#editor, #refView) .md-fm.md-cover-right { padding-right: calc(20px + min(var(--cover-w, 200px), 40%)); }
+	:is(#editor, #refView) .md-fm.md-last.md-has-cover { padding-bottom: calc(4px + var(--md-cover-reserve, 0px)); }
+}
+/* Phones: the cover sits above the properties instead, as Pretty Properties does in narrow panes. */
+@media (max-width: 640px) {
+	:is(#editor, #refView) .md-banner img { height: 100px; }
+	:is(#editor, #refView) .md-cover:is(.left, .right) { padding: 6px 0; }
+	:is(#editor, #refView) .md-cover img { max-height: 200px; width: auto; max-width: 100%; }
+}
 :is(#editor, #refView) .md-nested {
 	padding-left: 26px;
 	background-image: linear-gradient(var(--mark), var(--mark)); background-size: 3px 100%; background-position: 13px 0; background-repeat: no-repeat;
