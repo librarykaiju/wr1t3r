@@ -144,10 +144,12 @@ function link(note, label) {
 	return a;
 }
 
-// The folder every note is in ("content/"), or "".
+// The folder the notes live in ("content/"), or "". Notes elsewhere in the
+// bucket (at the vault root, say) don't change it; they're listed beside it.
 function commonFolder(list) {
 	let base = list[0]?.path.includes("/") ? list[0].path.slice(0, list[0].path.indexOf("/") + 1) : "";
-	return base && list.every((n) => n.path.startsWith(base)) ? base : "";
+	if (base && list.every((n) => n.path.startsWith(base))) return base;
+	return list.some((n) => n.path.startsWith("content/")) ? "content/" : "";
 }
 
 // Tells the editor other notes changed (backlinks, faded links to missing
@@ -171,7 +173,7 @@ function renderTree() {
 		const hits = list.filter((n) => matches(n.binary ? { path: n.path, text: "" } : n, terms, noteTags));
 		const base = commonFolder(list);
 		for (const n of hits.slice(0, 300)) {
-			const a = link(n, n.path.slice(base.length).replace(/\.md$/i, ""));
+			const a = link(n, (n.path.startsWith(base) ? n.path.slice(base.length) : n.path).replace(/\.md$/i, ""));
 			const s = n.binary ? null : snippet(n.text, terms);
 			if (s) {
 				a.classList.add("hit");
@@ -204,20 +206,22 @@ function renderTree() {
 		}
 		node.notes.push(n);
 	}
-	// The vault's one top folder ("content/") isn't shown; its contents are the top level.
+	// The notes' folder ("content/") isn't shown; its contents are the top level,
+	// followed by anything outside it.
 	let top = root, base = "";
-	while (!top.notes.length && top.folders.size === 1) {
-		const [dir, child] = [...top.folders][0];
-		base += dir + "/";
-		top = child;
+	const home = commonFolder(list);
+	if (home) {
+		top = root.folders.get(home.slice(0, -1));
+		base = home;
+		root.folders.delete(home.slice(0, -1));
 	}
 	const current = editor.path || "";
-	(function draw(node, into, prefix, depth = 0) {
-		let i = 0;
+	let i = 0; // top-level folders take the theme's rainbow in turn
+	const draw = (node, into, prefix, depth = 0) => {
 		for (const [dir, child] of node.folders) {
 			const full = prefix + dir + "/";
 			const d = document.createElement("details");
-			// Top-level folders take the theme's rainbow in turn; subfolders keep their parent's color.
+			// Subfolders keep their parent's color.
 			if (!depth) d.style.setProperty("--fc", `var(--f${(i++ % 7) + 1})`);
 			d.open = openFolders.has(full) || current.startsWith(full);
 			const s = document.createElement("summary");
@@ -234,7 +238,9 @@ function renderTree() {
 			into.append(d);
 		}
 		for (const n of node.notes) into.append(link(n, name(n.path)));
-	})(top, tree, base);
+	};
+	draw(top, tree, base);
+	if (top !== root) draw(root, tree, "");
 }
 
 // Bookmarked notes, and every tag with its count, above the folders. Both

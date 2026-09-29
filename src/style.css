@@ -441,6 +441,8 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-codeblock .md-code { background: none; font-size: 1em; }
 
 :is(#editor, #refView) .md-hr { background: linear-gradient(var(--line), var(--line)) no-repeat center / 100% 1px; color: var(--mark); }
+/* The --- itself only shows on the cursor's line; it stays in the text, so the cursor still moves through it. */
+:is(#editor, #refView) .md-hr:not(.cm-activeLine), :is(#editor, #refView) .md-hr:not(.cm-activeLine) * { color: transparent; }
 
 :is(#editor, #refView) .md-task-box {
 	width: 1.05em; height: 1.05em; margin: 0 0.15em 0 0; vertical-align: -0.12em;
