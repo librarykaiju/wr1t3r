@@ -822,3 +822,142 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .item-menu .swatch:hover { background: var(--sw); transform: scale(1.08); }
 .item-menu .swatch.auto:hover { background: conic-gradient(var(--f1), var(--f2), var(--f3), var(--f4), var(--f5), var(--f6), var(--f7), var(--f1)); }
 #tree summary.flash { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ---- a folder as a manuscript: corkboard, outliner, scrivenings -------------------
+   A folder tab shows one of three views under a bar with the folder's path,
+   the view switch, its word count and Compile. */
+main.has-folder #empty { display: none; }
+#folderView { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#folderView[hidden] { display: none; }
+.fv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-family: var(--sans); font-size: 14px; }
+.fv-crumbs { display: flex; align-items: center; min-width: 0; gap: 2px; flex-wrap: wrap; }
+.fv-crumbs button { padding: 4px 6px; min-height: 0; font-size: 14px; }
+.fv-crumbs button.here { color: var(--fg); font-weight: 600; font-size: 15px; }
+.fv-crumbs .sep { color: var(--mark); }
+.fv-modes { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.fv-modes button { border: 0; border-radius: 0; background: none; padding: 5px 11px; min-height: 0; font-size: 13.5px; color: var(--muted); }
+.fv-modes button + button { border-left: 1px solid var(--line); }
+.fv-modes button[aria-pressed=true] { background: var(--sel); color: var(--fg); font-weight: 600; }
+.fv-words { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#fvCompile { padding: 5px 12px; min-height: 0; font-size: 13.5px; }
+#fvMore { font-size: 18px; line-height: 1; padding: 4px 8px; min-height: 0; }
+#fvBody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 600px) {
+	.fv-bar { padding: 8px 10px; }
+	.fv-bar .spacer { display: none; }
+	.fv-modes { order: 5; width: 100%; }
+	.fv-modes button { flex: 1; }
+}
+/* A folder's tab. */
+#tabs .other.current { background: var(--card); border-color: var(--line); color: var(--fg); }
+#tabs .other.folder-tab .name::before { content: "▦ "; color: var(--mark); }
+@media (max-width: 760px) { #tabs .other.current { display: flex; max-width: none; } }
+
+/* Dragging (src/drag.js): the lifted copy, the gap it leaves, where it lands. */
+html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+.sort-ghost { opacity: 0.92; box-shadow: 0 14px 34px rgb(0 0 0 / 0.28) !important; rotate: -1.5deg; }
+.sort-dragging { opacity: 0.3; }
+
+/* Corkboard: index cards, in the theme's rainbow when labeled. */
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; padding: 18px 18px 80px; max-width: 1400px; margin: 0 auto; }
+@media (max-width: 480px) { .board { grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 10px 80px; } }
+.card {
+	--cc: var(--mark);
+	position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 150px; padding: 10px 12px 10px; overflow: hidden;
+	background: var(--card); border: 1px solid var(--line); border-top: 5px solid var(--cc); border-radius: 8px;
+	box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); font-family: var(--sans); color: var(--fg);
+	-webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; cursor: grab;
+}
+.card.no-color { border-top-color: color-mix(in srgb, var(--line) 60%, var(--mark)); }
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: hover) { .card:hover { box-shadow: 0 4px 14px rgb(0 0 0 / 0.14); } }
+.card-cover { display: block; width: calc(100% + 24px); margin: -10px -12px 2px; height: 96px; object-fit: cover; }
+.card-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 6px; }
+.card-title { flex: 1 1 6em; min-width: 0; padding: 0; border: 0; background: none; text-align: left; font: 600 15px/1.3 var(--sans); color: var(--fg); cursor: pointer; min-height: 0; overflow-wrap: break-word; }
+.card-title:hover { color: var(--accent); }
+.card-badge { flex: none; margin-top: 1px; padding: 1px 7px; border-radius: 99px; background: color-mix(in srgb, var(--cc) 18%, var(--card)); color: var(--muted); font-size: 11.5px; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-more { flex: none; margin-left: auto; padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1.1; min-height: 0; border-radius: 5px; }
+.card-more:hover { background: var(--sel); color: var(--fg); }
+.card-text { flex: 1; margin: 0; font: 14px/1.45 var(--serif); color: var(--fg); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.card-text.dim { color: var(--muted); font-style: italic; }
+.card-text.editable { cursor: text; border-radius: 4px; }
+@media (hover: hover) { .card-text.editable:hover { background: var(--sel); } }
+.card-edit { flex: 1; width: 100%; box-sizing: border-box; resize: vertical; margin: 0; padding: 4px 6px; border: 1px solid var(--accent); border-radius: 5px; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--serif); -webkit-user-select: text; user-select: text; }
+.card-meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card-stack { border-top-color: var(--mark); box-shadow: 4px 4px 0 -1px var(--card), 4px 4px 0 0 var(--line), 8px 8px 0 -1px var(--card), 8px 8px 0 0 var(--line); margin: 0 8px 8px 0; }
+.card-stack .card-title::before { content: "▤ "; color: var(--mark); }
+.card-add { justify-content: center; align-items: center; background: none; border: 1.5px dashed var(--line); border-top: 1.5px dashed var(--line); box-shadow: none; color: var(--muted); font: 500 14px var(--sans); cursor: pointer; }
+.card-add:hover { background: var(--card); color: var(--fg); }
+.card.sort-before { box-shadow: -5px 0 0 -1px var(--accent); }
+.card.sort-after { box-shadow: 5px 0 0 -1px var(--accent); }
+.card.sort-into { outline: 2px dashed var(--accent); outline-offset: 3px; }
+
+/* Outliner: the same notes as rows. */
+.outline { font-family: var(--sans); font-size: 14px; padding: 8px 14px 0; max-width: 1200px; margin: 0 auto; }
+.ol-row { display: grid; grid-template-columns: 14px minmax(12em, 1.1fr) 2fr minmax(6em, 0.45fr) 5em; align-items: start; gap: 10px; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+.ol-head { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; position: sticky; top: 0; background: var(--bg); z-index: 1; }
+.ol-total { font-weight: 600; border-bottom: 0; }
+.ol-row .ol-words { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.ol-item > .ol-row { cursor: grab; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.ol-item > .ol-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) { .ol-item > .ol-row:hover { background: var(--card); } }
+.ol-grip { color: var(--mark); line-height: 1.5; }
+.ol-title { display: flex; align-items: flex-start; gap: 6px; min-width: 0; padding-left: calc(var(--depth, 0) * 18px); }
+.ol-name { padding: 0; border: 0; background: none; min-height: 0; text-align: left; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; cursor: pointer; }
+.ol-name:hover { color: var(--accent); }
+.ol-twisty { padding: 0 2px; border: 0; background: none; min-height: 0; color: var(--muted); line-height: 1.5; transition: transform 0.12s; }
+.ol-twisty.shut { transform: rotate(-90deg); }
+.ol-dot { --cc: transparent; flex: none; width: 12px; height: 12px; margin-top: 4px; padding: 0; min-height: 0; border-radius: 50%; border: 1.5px solid var(--mark); background: var(--cc); }
+.ol-dot[style] { border-color: var(--cc); }
+.ol-syn { font-family: var(--serif); line-height: 1.45; overflow-wrap: anywhere; }
+.ol-syn.dim { color: var(--muted); font-style: italic; }
+.ol-status { color: var(--muted); overflow-wrap: anywhere; }
+.ol-syn.editable, .ol-status.editable { cursor: text; border-radius: 4px; min-height: 1.4em; }
+@media (hover: hover) { .ol-syn.editable:hover, .ol-status.editable:hover { background: var(--sel); } }
+.ol-edit { width: 100%; box-sizing: border-box; margin: 0; padding: 3px 5px; border: 1px solid var(--accent); border-radius: 5px; background: var(--bg); color: var(--fg); font: inherit; resize: vertical; -webkit-user-select: text; user-select: text; }
+.ol-item.sort-before > .ol-row { box-shadow: inset 0 3px 0 var(--accent); }
+.ol-item.sort-after > .ol-row { box-shadow: inset 0 -3px 0 var(--accent); }
+.ol-list.sort-over { outline: 2px dashed var(--accent); outline-offset: -2px; min-height: 24px; }
+.ol-add { margin: 10px 14px 80px; font-family: var(--sans); }
+@media (max-width: 700px) {
+	.ol-row { grid-template-columns: 14px 1fr 4em; }
+	.ol-row .ol-syn, .ol-row .ol-status, .ol-total > span:nth-child(3), .ol-total > span:nth-child(4) { display: none; }
+}
+
+/* Scrivenings: the folder's notes as one document, each still its own editor. */
+.scriv { max-width: 44em; margin: 0 auto; padding: 16px 16px 40vh; }
+.scriv-part { margin: 2.2em 0 0.4em; padding-left: calc(var(--depth, 0) * 14px); font: 600 13px/1.3 var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.scriv-part button { padding: 0; border: 0; background: none; min-height: 0; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer; }
+.scriv-part button:hover { color: var(--accent); }
+.scriv-sec { padding-top: 6px; }
+.scriv-sec + .scriv-sec { border-top: 1px dashed var(--line); margin-top: 10px; }
+.scriv-head { display: flex; align-items: baseline; gap: 10px; font-family: var(--sans); font-size: 12.5px; color: var(--muted); padding: 2px 0 2px; }
+.scriv-title { padding: 0; border: 0; background: none; min-height: 0; font-weight: 600; color: var(--muted); cursor: pointer; }
+.scriv-title:hover { color: var(--accent); }
+.scriv-words { font-variant-numeric: tabular-nums; }
+.scriv-plain { white-space: pre-wrap; font: var(--editor-size)/1.65 var(--serif); color: var(--fg); padding: 4px 6px 12px; min-height: 2em; overflow-wrap: anywhere; }
+.scriv-body .cm-editor { background: var(--bg); }
+.scriv-body .cm-editor.cm-focused { outline: none; }
+.scriv-body .cm-scroller { font: var(--editor-size)/1.65 var(--serif); overflow: visible; padding: 4px 0 12px; }
+.scriv-body .cm-cursor { border-left-color: var(--accent) !important; }
+.scriv-body .cm-selectionBackground, .scriv-body .cm-focused .cm-selectionBackground { background: var(--sel) !important; }
+
+/* Compile: settings beside a preview of the book. */
+.compile { align-items: center; padding: 12px; }
+.compile-box { width: min(1100px, 100%); height: min(760px, calc(100dvh - 24px)); display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 40px rgb(0 0 0 / 0.25); overflow: hidden; font-family: var(--sans); }
+.compile-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.compile-head h2 { flex: 1; margin: 0; font-size: 16px; font-weight: 600; }
+.compile-head button { font-size: 20px; line-height: 1; padding: 2px 8px; min-height: 0; }
+.compile-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px 1fr; }
+.compile-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; overflow-y: auto; border-right: 1px solid var(--line); }
+.compile-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.compile-form input, .compile-form select { margin: 0; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; }
+.compile-form .hint { margin: 0; font-size: 13px; color: var(--muted); }
+.compile-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.compile-actions button:last-child { grid-column: 1 / -1; }
+.compile-preview { width: 100%; height: 100%; border: 0; background: #fff; }
+@media (max-width: 720px) {
+	.compile-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+	.compile-form { border-right: 0; border-bottom: 1px solid var(--line); max-height: 52vh; }
+	.compile-preview { min-height: 40vh; }
+}

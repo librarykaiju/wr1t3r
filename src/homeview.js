@@ -10,6 +10,7 @@ const ICONS = {
 	folder: '<path d="M3.5 6.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
 	command: '<path d="M13 3.5 5.5 13.5H12l-1 7 7.5-10H12z"/>',
 	url: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>',
+	view: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><rect x="6.5" y="7.5" width="4.5" height="4" rx="0.8"/><rect x="13" y="7.5" width="4.5" height="4" rx="0.8"/><rect x="6.5" y="13.5" width="4.5" height="3.5" rx="0.8"/>',
 	add: '<path d="M12 5v14M5 12h14"/>',
 };
 

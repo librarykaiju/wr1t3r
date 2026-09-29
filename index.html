@@ -84,6 +84,21 @@
 					<div id="refView"></div>
 				</aside>
 			</div>
+			<section id="folderView" aria-label="Folder" hidden>
+				<div class="fv-bar">
+					<nav id="fvCrumbs" class="fv-crumbs" aria-label="Folder"></nav>
+					<div id="fvModes" class="fv-modes" role="group" aria-label="Show the folder as">
+						<button type="button" data-view="corkboard" title="Index cards you can drag into order">Corkboard</button>
+						<button type="button" data-view="outliner" title="A table of the folder's notes, in order">Outliner</button>
+						<button type="button" data-view="scrivenings" title="Every note in the folder as one long document">Scrivenings</button>
+					</div>
+					<span class="spacer"></span>
+					<span id="fvWords" class="fv-words"></span>
+					<button id="fvCompile" type="button" title="Join the folder's notes, in order, into one file">Compile…</button>
+					<button id="fvMore" type="button" class="quiet" aria-label="More" title="More">⋯</button>
+				</div>
+				<div id="fvBody"></div>
+			</section>
 			<div id="empty">
 				<figure class="quote">
 					<blockquote id="quoteText"></blockquote>

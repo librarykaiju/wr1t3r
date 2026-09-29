@@ -65,3 +65,13 @@ export function attachmentURL(file, fetchBlob) {
 	}
 	return urls.get(key);
 }
+
+// The file itself (for Compile's pictures), from this device's copy if it has one.
+export async function attachmentBlob(file, fetchBlob) {
+	const req = new Request("/__attachments/" + encodeURIComponent(file.path) + "?v=" + encodeURIComponent(file.version));
+	try {
+		const hit = await (await caches.open(CACHE)).match(req);
+		if (hit) return await hit.blob();
+	} catch {}
+	return fetchBlob(file.path);
+}
