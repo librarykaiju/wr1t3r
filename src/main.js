@@ -706,7 +706,7 @@ let keys = bindings(keyChanges);
 let capturing = false; // while a new hotkey is being pressed
 
 function searchNotes() {
-	$("app").classList.add("menu-open");
+	showSidebar();
 	$("filter").focus();
 	$("filter").select();
 }
@@ -736,6 +736,8 @@ function allCommands() {
 		["Close this tab", () => closeTab(editor.path), "close", true],
 		["Show reference pane", () => showRef(!ref.on), "split side", true],
 		["Contents", () => openToc(!tocOpen()), "outline headings toc", true],
+		["Toggle left sidebar", () => showLeft(leftShut()), "notes list panel collapse hide show"],
+		["Toggle right sidebar", () => showRight(rightShut()), "calendar agenda contents panel collapse hide show"],
 		["Toggle Live Preview", toggleLivePreview, "markdown symbols hide"],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
@@ -1129,7 +1131,7 @@ function followLink(link) {
 function showTag(tag) {
 	$("filter").value = "#" + tag;
 	renderTree();
-	$("app").classList.add("menu-open");
+	showSidebar();
 }
 
 async function removeNote(path) {
@@ -1432,14 +1434,12 @@ function tocOpen() { return !$("toc").hidden; }
 function openToc(on) {
 	$("toc").hidden = !on;
 	$("tocBtn").setAttribute("aria-expanded", String(on));
-	$("app").classList.toggle("toc-docked", on && wide.matches);
-	// Remembered only on wide screens, where it stays docked beside the note.
+	// Remembered only on wide screens, where it stays in the right column.
 	if (wide.matches) storeRaw(TOC_KEY, on ? "1" : null);
 	if (on) { openSettings(false); openAgenda(false); renderToc(); }
 }
 
 function renderToc() {
-	$("toc").classList.toggle("docked", wide.matches);
 	if (!tocOpen() || !editor.path) return;
 	tocItems = toc.outline(toc.headings(editor.view.state));
 	const list = $("tocList");
@@ -1501,7 +1501,10 @@ function markActive(fromScroll = false) {
 }
 
 function setupToc() {
-	$("tocBtn").addEventListener("click", (e) => { e.stopPropagation(); openToc(!tocOpen()); });
+	$("tocBtn").addEventListener("click", (e) => {
+		e.stopPropagation();
+		if (wide.matches && rightShut()) { showRight(true); openToc(true); } else openToc(!tocOpen());
+	});
 	$("tocClose").addEventListener("click", () => openToc(false));
 	$("tocTop").addEventListener("click", () => jumpTo(0));
 	editor.view.scrollDOM.addEventListener("scroll", () => {
@@ -1792,6 +1795,7 @@ function pickDay(date, empty) {
 	const today = agenda.startOfDay(new Date());
 	agendaFrom = date.getTime() === today.getTime() ? null : date;
 	if (date.getMonth() !== monthShown.getMonth()) { monthShown = agenda.startOfMonth(date); loadMonth(); }
+	if (wide.matches && agendaFolded()) foldAgenda(false);
 	renderAgenda();
 	loadPick();
 	$("agendaList").scrollIntoView?.({ block: "nearest" });
@@ -1948,36 +1952,67 @@ function eventRow(e, now) {
 	return row;
 }
 
-// On a wide screen the agenda can be pinned: it docks beside the note (above
-// the contents when those are docked too) and stays open while you write.
-const AGENDA_PIN_KEY = "wr1t3r-agenda-pinned";
-function agendaPinned() { return wide.matches && readRaw(AGENDA_PIN_KEY) === "1"; }
+// ---- three columns ------------------------------------------------------------------
+// On a wide screen the page is notes list | note | calendar, agenda and
+// contents. Either side column folds away (remembered per device), and so does
+// the agenda list under the month calendar. Narrower screens keep the sidebar
+// and the pop-over agenda and contents; phones keep the sliding menu.
+const LEFT_KEY = "wr1t3r-left-shut", RIGHT_KEY = "wr1t3r-right-shut", AGENDA_FOLD_KEY = "wr1t3r-agenda-folded";
+const leftShut = () => readRaw(LEFT_KEY) === "1";
+const rightShut = () => readRaw(RIGHT_KEY) === "1";
+const agendaFolded = () => readRaw(AGENDA_FOLD_KEY) === "1";
 
-function pinAgenda(on) {
-	storeRaw(AGENDA_PIN_KEY, on ? "1" : null);
-	layoutAgenda();
-	if (on) openAgenda(true);
+function showLeft(on) { storeRaw(LEFT_KEY, on ? null : "1"); layoutColumns(); }
+function showRight(on) { storeRaw(RIGHT_KEY, on ? null : "1"); layoutColumns(); }
+function foldAgenda(on) {
+	storeRaw(AGENDA_FOLD_KEY, on ? "1" : null);
+	layoutColumns();
+	if (!on) renderAgenda();
 }
 
-function layoutAgenda() {
-	const docked = agendaPinned() && !$("agenda").hidden;
-	$("agenda").classList.toggle("docked", docked);
-	$("app").classList.toggle("agenda-docked", docked);
-	const pin = $("agendaPin");
-	pin.setAttribute("aria-pressed", String(agendaPinned()));
-	pin.title = agendaPinned() ? "Unpin the agenda" : "Pin the agenda beside the note";
+// The notes list, wherever it lives: the phone menu, or the left column.
+function showSidebar() {
+	$("app").classList.add("menu-open");
+	if (leftShut()) showLeft(true);
 }
 
-function openAgenda(on, force = false) {
-	if (!on && agendaPinned() && !force) return; // pinned: stays open
+function layoutColumns() {
+	const app = $("app"), col = $("rightcol"), cols = wide.matches;
+	if (cols && $("agenda").parentElement !== col) col.append($("agenda"), $("toc"));
+	if (!cols && $("agenda").parentElement === col) $("toast").before($("toc"), $("agenda"));
+	app.classList.toggle("cols", cols);
+	app.classList.toggle("left-shut", leftShut());
+	app.classList.toggle("right-shut", cols && rightShut());
+	app.classList.toggle("agenda-folded", cols && agendaFolded());
+	const label = (btn, on, what) => {
+		btn.setAttribute("aria-pressed", String(on));
+		btn.setAttribute("aria-label", (on ? "Hide " : "Show ") + what);
+		btn.title = (on ? "Hide " : "Show ") + what;
+	};
+	label($("leftBtn"), !leftShut(), "the notes list");
+	label($("rightBtn"), !rightShut(), "the calendar column");
+	const fold = $("agendaFold");
+	fold.setAttribute("aria-expanded", String(!agendaFolded()));
+	fold.setAttribute("aria-label", agendaFolded() ? "Show the agenda" : "Hide the agenda");
+	fold.title = fold.getAttribute("aria-label");
+	if (cols) openAgenda(true);
+	else if (!$("agenda").hidden) openAgenda(false);
+}
+
+function setupColumns() {
+	$("leftBtn").addEventListener("click", () => showLeft(leftShut()));
+	$("rightBtn").addEventListener("click", () => showRight(rightShut()));
+	$("agendaFold").addEventListener("click", () => foldAgenda(!agendaFolded()));
+	wide.addEventListener("change", layoutColumns);
+	layoutColumns();
+}
+
+function openAgenda(on) {
+	if (!on && wide.matches) return; // in the right column it stays
 	$("agenda").hidden = !on;
-	layoutAgenda();
 	$("calBtn").setAttribute("aria-expanded", String(on));
 	if (on) {
-		openSettings(false);
-		if (!wide.matches) $("toc").hidden = true;
-		unlockSound();
-		askToNotify();
+		if (!wide.matches) { openSettings(false); $("toc").hidden = true; }
 		renderAgenda();
 		loadMonth();
 		if (!cal || Date.now() - cal.at > 60000) loadAgenda();
@@ -1991,6 +2026,7 @@ function showAddEvent(on, day = null) {
 	$("addEvent").hidden = !on;
 	$("evError").textContent = "";
 	if (!on) return;
+	if (wide.matches && agendaFolded()) foldAgenda(false);
 	const now = new Date();
 	const start = new Date(Math.ceil(now.getTime() / 1800000) * 1800000); // next half hour
 	const hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -2091,16 +2127,19 @@ function checkAlerts() {
 function setupAgenda() {
 	$("calBtn").addEventListener("click", (e) => {
 		e.stopPropagation();
-		if (agendaPinned() && !$("agenda").hidden) { pinAgenda(false); openAgenda(false); return; }
+		unlockSound();
+		askToNotify();
+		// In the right column: show the column and the agenda, or fold the agenda.
+		if (wide.matches) {
+			if (rightShut() || agendaFolded()) { storeRaw(RIGHT_KEY, null); foldAgenda(false); } else foldAgenda(true);
+			return;
+		}
 		openAgenda($("agenda").hidden);
 	});
-	$("agendaPin").addEventListener("click", () => pinAgenda(!agendaPinned()));
 	$("monthPrev").addEventListener("click", () => showMonth(-1));
 	$("monthNext").addEventListener("click", () => showMonth(1));
 	$("monthToday").addEventListener("click", () => showMonth(0));
 	desk.addEventListener("change", () => { renderAgenda(); loadMonth(); });
-	wide.addEventListener("change", () => { if (agendaPinned()) openAgenda(true); else layoutAgenda(); });
-	if (agendaPinned()) openAgenda(true);
 	$("addEventBtn").addEventListener("click", () => showAddEvent($("addEvent").hidden));
 	$("evCancel").addEventListener("click", () => showAddEvent(false));
 	$("evAllDay").addEventListener("change", allDayFields);
@@ -2223,6 +2262,7 @@ async function start() {
 	setupFocusTools();
 	setupAgenda();
 	setupToc();
+	setupColumns();
 	refreshKeyboardBar = setupKeyboardBar($("app"), () => editor.view);
 	renderQuote();
 	$("writingPrompt").addEventListener("click", () => newPromptNote($("writingPrompt").textContent));
