@@ -22,7 +22,7 @@ import { movePlan, moveLinkEdits } from "./moves.js";
 import { EditorView } from "@codemirror/view";
 import { openSearchPanel } from "@codemirror/search";
 import { local, meta, persist } from "./store.js";
-import { resolveAttachment, attachmentURL } from "./attachments.js";
+import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.js";
 import { api, token, setToken, AuthError } from "./api.js";
 import { sync } from "./sync.js";
 import { isNotePath } from "./paths.js";
@@ -36,7 +36,16 @@ import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
 import { makeMediaNote } from "./media.js";
-import { homePath, readPins, writePins, pinKind, pinPath, linkFor, folderLink, pinOpens, retargetPins } from "./home.js";
+import { homePath, readPins, writePins, pinKind, pinPath, linkFor, folderLink, viewLink, pinOpens, retargetPins } from "./home.js";
+import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
+import { reorder } from "./drag.js";
+import { drawBoard, drawOutline, folderWords, stopViews } from "./folderview.js";
+import { mountScrivenings, readingOrder } from "./scrivenings.js";
+import { cleanNote, writeCompileSettings } from "./compile.js";
+import { openCompile as openCompileDialog } from "./compileview.js";
+import { setProperty } from "./bases.js";
+import { prettyOf } from "./pretty.js";
+import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { attachmentKind } from "./attachments.js";
 
@@ -166,6 +175,7 @@ function vaultTouched() {
 	clearTimeout(vaultTimer);
 	vaultTimer = setTimeout(() => editor?.view.dispatch({ effects: vaultChanged.of(null) }), 400);
 	refTouched();
+	folderTouched();
 }
 
 function renderTree() {
@@ -223,30 +233,46 @@ function renderTree() {
 		base = home;
 		root.folders.delete(home.slice(0, -1));
 	}
-	const current = editor.path || "";
+	const current = editor.path || (folderTab ? folderTab.slice(FOLDER_TAB.length) : "");
 	let i = 0; // top-level folders take the theme's rainbow in turn
+	const paths = list.map((n) => n.path);
+	const drawFolder = (into, dir, child, prefix, depth) => {
+		const full = prefix + dir + "/";
+		const d = document.createElement("details");
+		// Subfolders keep their parent's color.
+		if (!depth) d.style.setProperty("--fc", `var(--f${(i++ % 7) + 1})`);
+		d.open = openFolders.has(full) || current.startsWith(full);
+		const s = document.createElement("summary");
+		s.textContent = dir;
+		itemRow(s, full);
+		dropTarget(s, full, d);
+		const kids = document.createElement("div");
+		kids.className = "kids";
+		d.append(s, kids);
+		d.addEventListener("toggle", () => {
+			d.open ? openFolders.add(full) : openFolders.delete(full);
+			writeJSON(OPEN_KEY, [...openFolders]);
+			if (d.open && !kids.childElementCount) draw(child, kids, full, depth + 1);
+		});
+		if (d.open) draw(child, kids, full, depth + 1);
+		into.append(d);
+	};
 	const draw = (node, into, prefix, depth = 0) => {
-		for (const [dir, child] of node.folders) {
-			const full = prefix + dir + "/";
-			const d = document.createElement("details");
-			// Subfolders keep their parent's color.
-			if (!depth) d.style.setProperty("--fc", `var(--f${(i++ % 7) + 1})`);
-			d.open = openFolders.has(full) || current.startsWith(full);
-			const s = document.createElement("summary");
-			s.textContent = dir;
-			itemRow(s, full);
-			dropTarget(s, full, d);
-			const kids = document.createElement("div");
-			kids.className = "kids";
-			d.append(s, kids);
-			d.addEventListener("toggle", () => {
-				d.open ? openFolders.add(full) : openFolders.delete(full);
-				writeJSON(OPEN_KEY, [...openFolders]);
-				if (d.open && !kids.childElementCount) draw(child, kids, full, depth + 1);
-			});
-			if (d.open) draw(child, kids, full, depth + 1);
-			into.append(d);
+		// A folder with a _Binder.md lists its notes and folders in that order
+		// (the binder itself isn't listed); others show folders, then notes.
+		const binder = node.notes.find((n) => isBinder(n.path) && n.path === binderPath(prefix));
+		if (binder && !binder.binary) {
+			const byPath = new Map(node.notes.map((n) => [n.path, n]));
+			for (const it of binderOrder(prefix, paths, binder.text)) {
+				if (it.kind === "folder") {
+					const dir = it.path.slice(prefix.length, -1);
+					if (node.folders.has(dir)) drawFolder(into, dir, node.folders.get(dir), prefix, depth);
+				} else if (byPath.has(it.path)) into.append(itemRow(link(byPath.get(it.path), name(it.path)), it.path));
+			}
+			for (const n of node.notes) if (!/\.md$/i.test(n.path)) into.append(itemRow(link(n, name(n.path)), n.path)); // .base files
+			return;
 		}
+		for (const [dir, child] of node.folders) drawFolder(into, dir, child, prefix, depth);
 		for (const n of node.notes) into.append(itemRow(link(n, name(n.path)), n.path));
 	};
 	dropTarget(tree, base);
@@ -325,6 +351,12 @@ const itemLabel = (item) => (item.endsWith("/") ? item.slice(0, -1).split("/").p
 function itemMenu(item, x, y) {
 	const isFolder = item.endsWith("/");
 	showMenu([
+		...(isFolder ? [
+			["Corkboard", () => openFolderView(item, "corkboard")],
+			["Outliner", () => openFolderView(item, "outliner")],
+			["Scrivenings", () => openFolderView(item, "scrivenings")],
+			["Compile…", () => openCompile(item)],
+		] : []),
 		pinEntry(item),
 		["Rename…", () => renameItem(item)],
 		["Move to…", () => moveItemTo(item)],
@@ -414,9 +446,15 @@ async function moveItem(item, folder, newName = null) {
 	const textOf = (p) => (p === editor.path ? editor.text() : notes.get(p)?.binary ? null : notes.get(p)?.text);
 	const edits = moveLinkEdits(pairs, paths, textOf);
 	const moved = new Set(pairs.map((p) => p.to));
-	const others = edits.filter((e) => !moved.has(e.path));
+	// Folder binders (their order) always follow; other notes' links are asked about.
+	const binders = edits.filter((e) => !moved.has(e.path) && isBinder(e.path));
+	const others = edits.filter((e) => !moved.has(e.path) && !isBinder(e.path));
 	const n = others.reduce((a, e) => a + e.count, 0);
 	const update = others.length && confirm(`Update ${n} link${n === 1 ? "" : "s"} in ${others.length} other note${others.length === 1 ? "" : "s"} to point at the new place?`);
+	for (const e of binders) {
+		await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
+		editor.forget(e.path);
+	}
 	if (update) {
 		for (const e of others) {
 			await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
@@ -441,6 +479,12 @@ async function moveItem(item, folder, newName = null) {
 	if (ref.path && map.has(ref.path)) { ref.path = map.get(ref.path); saveRef(); }
 	const destFolder = item.endsWith("/") ? pairs[0].to.slice(0, pairs[0].to.length - (pairs[0].from.length - item.length)) : null;
 	await followPins(map, paths, destFolder && item, destFolder);
+	// A renamed folder keeps its place in its parent's binder.
+	if (destFolder && newName != null) {
+		const bp = binderPath(parentFolder(item));
+		if (dataviewVault.text(bp) != null) await dataviewVault.write(bp, (t) => renameFolderEntry(t, itemLabel(item), newName));
+	}
+	if (destFolder) followFolderTabs(item, destFolder);
 	if (item.endsWith("/")) {
 		const dest = destFolder;
 		openFolders = new Set([...openFolders].map((f) => (f.startsWith(item) ? dest + f.slice(item.length) : f)));
@@ -455,6 +499,7 @@ async function moveItem(item, folder, newName = null) {
 	toast(newName != null
 		? `Renamed to “${newName}”.`
 		: `Moved ${pairs.length === 1 && !item.endsWith("/") ? `“${name(item)}”` : `“${itemLabel(item)}” (${pairs.length} note${pairs.length === 1 ? "" : "s"})`} to ${folderLabel(folder)}.`);
+	return map;
 }
 
 // Deletes a note, or every note in a folder, after asking.
@@ -469,10 +514,10 @@ async function deleteItem(item) {
 	}
 	bookmarks = bookmarks.filter((p) => !p.startsWith(item));
 	writeJSON(BOOKMARKS_KEY, bookmarks);
-	const open = editor.path && editor.path.startsWith(item);
-	tabs = tabs.filter((p) => !p.startsWith(item));
+	const open = (editor.path && editor.path.startsWith(item)) || (folderTab && shownFolder().startsWith(item));
+	tabs = tabs.filter((p) => !p.startsWith(item) && !(isFolderTab(p) && p.slice(FOLDER_TAB.length).startsWith(item)));
 	saveTabs();
-	if (open) openNote(tabs.find(isOpenable) || null, { tab: false });
+	if (open) openNote(tabs.find(tabOpen) || null, { tab: false });
 	else renderTabs();
 	renderTree();
 	renderStatus();
@@ -599,7 +644,7 @@ async function followPins(moved, oldPaths, folderFrom = null, folderTo = null) {
 }
 
 function goHome() {
-	if (editor.path) openNote(null, { tab: false });
+	if (activeTab()) openNote(null, { tab: false });
 	else renderHome(true);
 	$("app").classList.remove("menu-open");
 }
@@ -643,6 +688,7 @@ function openPin(pin, path) {
 	if (k.kind === "url") return void window.open(k.url, "_blank", "noopener");
 	if (k.kind === "note") return path ? openNote(path) : toast(`There's no note at “${k.target}” any more.`);
 	if (k.kind === "folder") return revealFolder(k.folder);
+	if (k.kind === "view") return openFolderView(k.folder, k.view);
 	const c = allCommands().find((x) => x.label.toLowerCase() === k.command.toLowerCase());
 	if (!c) return toast(`There's no command called “${k.command}”.`);
 	if (c.needsNote) return toast(`“${c.label}” needs a note open.`);
@@ -816,10 +862,19 @@ const MAX_TABS = 12;
 let tabs = readJSON(TABS_KEY, []);
 const saveTabs = () => writeJSON(TABS_KEY, tabs);
 const isOpenable = (p) => { const n = notes.get(p); return !!n && !n.deleted; };
+// A tab is a note's path, or "folder:<folder>/" for a folder's corkboard,
+// outliner or scrivenings.
+const FOLDER_TAB = "folder:";
+const isFolderTab = (p) => typeof p === "string" && p.startsWith(FOLDER_TAB);
+const folderExists = (f) => { const lf = f.toLowerCase(); return visible().some((n) => n.path.toLowerCase().startsWith(lf)); };
+const tabOpen = (p) => (isFolderTab(p) ? folderExists(p.slice(FOLDER_TAB.length)) : isOpenable(p));
+const tabName = (p) => (isFolderTab(p) ? p.slice(FOLDER_TAB.length).replace(/\/+$/, "").split("/").pop() || "Folder" : name(p));
+let folderTab = null; // the folder tab showing, or null
+const activeTab = () => editor.path || folderTab;
 
 function addTab(path, replace) {
 	if (tabs.includes(path)) return;
-	const at = tabs.indexOf(editor.path);
+	const at = tabs.indexOf(activeTab());
 	if (replace && at >= 0) tabs[at] = path;
 	else tabs.splice(at >= 0 ? at + 1 : tabs.length, 0, path);
 	while (tabs.length > MAX_TABS) tabs.splice(tabs.findIndex((p) => p !== path), 1);
@@ -829,32 +884,33 @@ function addTab(path, replace) {
 function closeTab(path) {
 	const at = tabs.indexOf(path);
 	if (at >= 0) { tabs.splice(at, 1); saveTabs(); }
-	if (path !== editor.path) return renderTabs();
-	const next = tabs.slice(Math.max(0, at)).concat(tabs.slice(0, Math.max(0, at)).reverse()).find(isOpenable);
+	if (path !== activeTab()) return renderTabs();
+	const next = tabs.slice(Math.max(0, at)).concat(tabs.slice(0, Math.max(0, at)).reverse()).find(tabOpen);
 	openNote(next || null, { tab: false });
 }
 
 function renderTabs() {
 	const strip = $("tabs"), current = $("tab");
-	const shown = tabs.filter((p) => isOpenable(p) || p === editor.path);
+	const shown = tabs.filter((p) => tabOpen(p) || p === activeTab());
 	strip.replaceChildren();
 	for (const p of shown) {
 		if (p === editor.path) { strip.append(current); continue; }
 		const t = document.createElement("div");
-		t.className = "other" + (notes.get(p)?.dirty ? " dirty" : "");
+		const here = p === folderTab;
+		t.className = "other" + (notes.get(p)?.dirty ? " dirty" : "") + (isFolderTab(p) ? " folder-tab" : "") + (here ? " current" : "");
 		t.setAttribute("role", "tab");
-		t.setAttribute("aria-selected", "false");
-		t.title = p;
+		t.setAttribute("aria-selected", String(here));
+		t.title = isFolderTab(p) ? folderLabel(p.slice(FOLDER_TAB.length)) : p;
 		const b = document.createElement("button");
 		b.type = "button";
 		b.className = "name quiet";
-		b.textContent = name(p);
+		b.textContent = tabName(p);
 		b.addEventListener("click", () => openNote(p, { tab: false }));
 		const x = document.createElement("button");
 		x.type = "button";
 		x.className = "x quiet";
 		x.textContent = "×";
-		x.setAttribute("aria-label", `Close ${name(p)}`);
+		x.setAttribute("aria-label", `Close ${tabName(p)}`);
 		x.addEventListener("click", () => closeTab(p));
 		t.addEventListener("auxclick", (e) => { if (e.button === 1) { e.preventDefault(); closeTab(p); } });
 		t.append(b, x);
@@ -864,8 +920,8 @@ function renderTabs() {
 	const pick = $("tabPick");
 	$("tabPickWrap").hidden = shown.length < 2;
 	$("tabCount").textContent = shown.length;
-	pick.replaceChildren(...shown.map((p) => Object.assign(document.createElement("option"), { value: p, textContent: name(p), selected: p === editor.path })));
-	requestAnimationFrame(() => current.scrollIntoView?.({ block: "nearest", inline: "nearest" }));
+	pick.replaceChildren(...shown.map((p) => Object.assign(document.createElement("option"), { value: p, textContent: tabName(p), selected: p === activeTab() })));
+	requestAnimationFrame(() => (folderTab ? strip.querySelector(".current") : current)?.scrollIntoView?.({ block: "nearest", inline: "nearest" }));
 	renderRefPick();
 }
 
@@ -875,6 +931,8 @@ const RECENT_KEY = "wr1t3r-recent";
 let recent = readJSON(RECENT_KEY, []);
 
 function openNote(path, { replace = false, tab = true } = {}) {
+	if (isFolderTab(path)) return openFolderView(path.slice(FOLDER_TAB.length), null, { tab });
+	if (folderTab) closeFolderView();
 	const note = path ? notes.get(path) : null;
 	if (tab && note && !note.deleted) addTab(path, replace);
 	if (note && !note.deleted) { recent = [path, ...recent.filter((p) => p !== path)].slice(0, 50); writeJSON(RECENT_KEY, recent); }
@@ -893,6 +951,370 @@ function openNote(path, { replace = false, tab = true } = {}) {
 	renderBookmarkButton();
 	refreshCount(true);
 	renderHome();
+}
+
+// ---- a folder as a manuscript: corkboard, outliner, scrivenings -----------------
+//
+// A folder's tab shows it one of three ways (remembered per folder on this
+// device). Its order is the folder's _Binder.md (src/binder.js); dragging a
+// card or a row rewrites that list, and nothing else.
+
+const VIEWS = ["corkboard", "outliner", "scrivenings"];
+const VIEWS_KEY = "wr1t3r-folder-views";
+let folderViews = readJSON(VIEWS_KEY, {});
+let scriv = null; // Scrivenings, while it shows
+let focusedSection = null; // { view, path }: the Scrivenings section last typed in
+
+const viewOf = (folder) => (VIEWS.includes(folderViews[folder]) ? folderViews[folder] : "corkboard");
+const shownFolder = () => (folderTab ? folderTab.slice(FOLDER_TAB.length) : null);
+const orderOf = (folder) => binderOrder(folder, visible().map((n) => n.path), dataviewVault.text(binderPath(folder)));
+
+// The editor commands act on: a Scrivenings section while one has been typed
+// in, else the editor.
+function activeView() {
+	const s = focusedSection;
+	return folderTab && s?.view.dom.isConnected ? s.view : editor.view;
+}
+
+// The folder as it's spelled in the vault ("content/novel/" -> "content/Novel/").
+function realFolder(folder) {
+	const lf = folder.toLowerCase();
+	const hit = visible().find((n) => n.path.toLowerCase().startsWith(lf));
+	return hit ? hit.path.slice(0, folder.length) : folder;
+}
+
+function openFolderView(folder, view = null, { tab = true, replace = false } = {}) {
+	if (!folder.endsWith("/")) folder += "/";
+	if (!folderExists(folder)) return toast(`There's no folder “${folderLabel(folder)}” any more.`);
+	folder = realFolder(folder);
+	if (view) { folderViews[folder] = view; writeJSON(VIEWS_KEY, folderViews); }
+	const key = FOLDER_TAB + folder;
+	if (tab) addTab(key, replace);
+	if (folderTab !== key) closeFolderView();
+	editor.open(null);
+	folderTab = key;
+	const main = document.querySelector("main");
+	main.classList.remove("has-note");
+	main.classList.add("has-folder");
+	$("folderView").hidden = false;
+	showPath();
+	$("path").disabled = true;
+	$("delete").disabled = true;
+	renderTitle();
+	if (location.hash !== "#" + encodeURIComponent(key)) history.replaceState(null, "", "#" + encodeURIComponent(key));
+	$("app").classList.remove("menu-open");
+	renderFolderView(true);
+	renderTree();
+	renderTabs();
+	renderBookmarkButton();
+	refreshCount(true);
+}
+
+function closeFolderView() {
+	if (!folderTab) return;
+	scriv?.destroy();
+	scriv = null;
+	stopViews();
+	focusedSection = null;
+	folderTab = null;
+	$("fvBody").replaceChildren();
+	$("folderView").hidden = true;
+	document.querySelector("main").classList.remove("has-folder");
+}
+
+// After a folder moved or was renamed: its tabs and settings go with it.
+function followFolderTabs(from, to) {
+	const move = (f) => (f.startsWith(from) ? to + f.slice(from.length) : f);
+	tabs = tabs.map((t) => (isFolderTab(t) ? FOLDER_TAB + move(t.slice(FOLDER_TAB.length)) : t));
+	saveTabs();
+	folderViews = Object.fromEntries(Object.entries(folderViews).map(([f, v]) => [move(f), v]));
+	writeJSON(VIEWS_KEY, folderViews);
+	if (folderTab && shownFolder().startsWith(from)) {
+		folderTab = FOLDER_TAB + move(shownFolder());
+		history.replaceState(null, "", "#" + encodeURIComponent(folderTab));
+		renderFolderView(true);
+	}
+}
+
+// Redraws after a sync or an edit elsewhere (after a pause), unless a card is
+// being edited or dragged; Scrivenings only takes in changed text.
+let folderTimer;
+function folderTouched() {
+	if (!folderTab) return;
+	clearTimeout(folderTimer);
+	folderTimer = setTimeout(() => renderFolderView(false), 300);
+}
+
+function renderFolderView(force) {
+	if (!folderTab) return;
+	const folder = shownFolder();
+	if (!folderExists(folder)) return closeTab(folderTab);
+	const view = viewOf(folder);
+	const body = $("fvBody");
+	const host = folderHost(folder);
+	renderFolderBar(folder, view, host);
+	if (view === "scrivenings") {
+		const same = scriv && scriv.folder === folder;
+		if (same && !force) {
+			const key = scrivKey(folder);
+			if (key === scriv.key || scriv.hasFocus()) return scriv.sync();
+		}
+		const top = same ? body.scrollTop : 0;
+		scriv?.destroy();
+		stopViews();
+		scriv = mountScrivenings(body, scrivHost(folder));
+		scriv.folder = folder;
+		body.scrollTop = top;
+		return;
+	}
+	if (scriv) { scriv.destroy(); scriv = null; focusedSection = null; }
+	if (!force && (document.documentElement.classList.contains("sorting") || body.contains(document.activeElement) && document.activeElement.matches("input, textarea"))) return folderTouched();
+	const top = body.dataset.shown === folder + view ? body.scrollTop : 0;
+	(view === "outliner" ? drawOutline : drawBoard)(body, host);
+	body.dataset.shown = folder + view;
+	body.scrollTop = top;
+}
+
+const scrivKey = (folder) => {
+	const walk = (f) => orderOf(f).flatMap((it) => (it.kind === "folder" ? [it.path, ...walk(it.path)] : [it.path]));
+	return walk(folder).join("\n");
+};
+
+function renderFolderBar(folder, view, host) {
+	const crumbs = $("fvCrumbs");
+	crumbs.replaceChildren();
+	const root = commonFolder(visible());
+	const parts = folder.slice(root.length).split("/").filter(Boolean);
+	parts.forEach((part, i) => {
+		const f = root + parts.slice(0, i + 1).join("/") + "/";
+		if (i) crumbs.append(Object.assign(document.createElement("span"), { className: "sep", textContent: "/" }));
+		const b = document.createElement("button");
+		b.type = "button";
+		b.className = "quiet" + (i === parts.length - 1 ? " here" : "");
+		b.textContent = part;
+		if (i < parts.length - 1) b.addEventListener("click", () => openFolderView(f, null, { replace: true }));
+		else b.addEventListener("click", () => revealFolder(folder));
+		b.title = i < parts.length - 1 ? `Show ${part}` : "Show in the notes list";
+		crumbs.append(b);
+	});
+	for (const b of $("fvModes").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.view === view));
+	const n = folderWords(folder, host);
+	$("fvWords").textContent = `${fmt(n)} word${n === 1 ? "" : "s"}`;
+}
+
+function folderHost(folder) {
+	return {
+		folder,
+		order: orderOf,
+		text: (p) => dataviewVault.text(p),
+		cover: cardCover,
+		open: (p) => openNote(p),
+		openFolder: (f) => openFolderView(f, null, { replace: true }),
+		menu: cardMenu,
+		reorder: saveOrder,
+		moveInto,
+		setProp,
+		add: addCard,
+	};
+}
+
+function scrivHost(folder) {
+	return {
+		folder,
+		order: orderOf,
+		note: (p) => { const n = notes.get(p); return n && !n.deleted ? n : null; },
+		editor,
+		edit: (p, text) => onEdit(p, text),
+		open: (p) => openNote(p),
+		openFolder: (f) => openFolderView(f, null, { replace: true }),
+		focused: (view, path) => { focusedSection = { view, path }; },
+	};
+}
+
+// A card's picture: the note's cover property (not its banner).
+function cardCover(path, text) {
+	if (!text || !text.startsWith("---")) return null;
+	const { cover } = prettyOf(Text.of(text.split(/\r?\n/)));
+	return cover ? tileImage(cover.ref, path) : null;
+}
+
+// Saves a folder's order in its _Binder.md (made the first time).
+async function saveOrder(folder, items) {
+	const path = binderPath(folder), paths = visible().map((n) => n.path);
+	if (dataviewVault.text(path) != null) await dataviewVault.write(path, (t) => writeBinder(t, items, paths));
+	else {
+		const text = writeBinder("", items, paths);
+		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+		renderStatus();
+		scheduleSync();
+	}
+	renderTree();
+	renderFolderView(true);
+}
+
+// A card or row dropped into another folder: moved there, at that place in its order.
+async function moveInto(item, folder, at) {
+	const map = await moveItem(item, folder);
+	if (!map) return renderFolderView(true);
+	const moved = item.endsWith("/") ? folder + itemLabel(item) + "/" : map.get(item);
+	const order = orderOf(folder);
+	const i = order.findIndex((it) => it.path === moved);
+	if (i < 0) return renderFolderView(true);
+	await saveOrder(folder, reorder(order, i, Math.max(0, Math.min(at, order.length - 1))));
+}
+
+async function setProp(path, key, value) {
+	await dataviewVault.write(path, (t) => setProperty(t, key, value));
+	renderFolderView(true);
+}
+
+// A new note in folder, at a place in its order. It stays on the board, so
+// several can be jotted down in a row.
+async function addCard(folder, at) {
+	const input = prompt("New note:", "Untitled");
+	if (input == null || !input.trim()) return;
+	const nm = input.trim().replace(/\.md$/i, "");
+	const path = folder + nm + ".md";
+	if (!isNotePath(path) || nm.includes("/")) return toast("That isn't a usable note name.");
+	if (taken(path)) return toast(`There's already a note called “${nm}” here.`);
+	const text = /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(nm, new Date().toLocaleDateString("en-CA"));
+	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	scheduleSync();
+	const order = orderOf(folder);
+	const i = order.findIndex((it) => it.path === path);
+	await saveOrder(folder, reorder(order, i, Math.min(at, order.length - 1)));
+	toast(`Added “${nm}”.`);
+}
+
+function cardMenu(item, x, y, index, what) {
+	if (what === "label") return labelMenu(item, x, y);
+	const folder = shownFolder();
+	if (!folder) return;
+	const isFolder = item.endsWith("/");
+	const order = orderOf(folder);
+	const i = order.findIndex((it) => it.path === item);
+	const move = (to) => saveOrder(folder, reorder(order, i, to));
+	const info = isFolder ? null : cardInfo(item, dataviewVault.text(item) || "");
+	showMenu([
+		["Open", () => (isFolder ? openFolderView(item, null, { replace: true }) : openNote(item))],
+		...(isFolder ? [] : [
+			["Open in Scrivenings", () => { openFolderView(folder, "scrivenings", { tab: false }); scriv?.show(item); }],
+			["Label color…", () => labelMenu(item, x, y)],
+			["Status…", () => {
+				const v = prompt("Status (empty to clear):", info.status);
+				if (v != null) setProp(item, "status", v.trim() || null);
+			}],
+		]),
+		...(i > 0 ? [["Move to the top", () => move(0)], ["Move earlier", () => move(i - 1)]] : []),
+		...(i >= 0 && i < order.length - 1 ? [["Move later", () => move(i + 1)], ["Move to the bottom", () => move(order.length - 1)]] : []),
+		["Rename…", () => renameItem(item)],
+		["Move to…", () => moveItemTo(item)],
+		[isFolder ? "Delete folder" : "Delete", () => deleteItem(item), "danger"],
+	], x, y);
+}
+
+// The label color: one of the theme's seven, in the note's `label` property.
+function labelMenu(item, x, y) {
+	const now = cardInfo(item, dataviewVault.text(item) || "").label;
+	colorMenu({ color: now }, ({ color }) => setProp(item, "label", color ?? null), x, y);
+}
+
+function folderMore() {
+	const folder = shownFolder();
+	if (!folder) return;
+	const view = viewOf(folder);
+	const r = $("fvMore").getBoundingClientRect();
+	const paths = visible().map((n) => n.path);
+	const pinned = pins().some((p) => pinOpens(p, { folder, view }, paths, homeFile()));
+	const bp = binderPath(folder);
+	showMenu([
+		["New note here", () => addCard(folder, orderOf(folder).length)],
+		pinned
+			? ["Unpin from Home", () => savePins(pins().filter((p) => !pinOpens(p, { folder, view }, paths, homeFile())))]
+			: ["Pin to Home", () => addPin({ link: viewLink(view, folder) }, `${itemLabel(folder)} (${view})`)],
+		[dataviewVault.text(bp) != null ? "Open the binder note" : "Save this order as a binder note", async () => {
+			if (dataviewVault.text(bp) == null) await saveOrder(folder, orderOf(folder));
+			openNote(bp);
+		}],
+		["Show in the notes list", () => revealFolder(folder)],
+	], r.left, r.bottom + 4);
+}
+
+// A folder to show or compile: the open note's folder first.
+function pickFolder(what) {
+	if (what === "compile" && folderTab) return openCompile(shownFolder());
+	const list = visible(), home = commonFolder(list);
+	const folders = new Set();
+	for (const n of list) {
+		const parts = n.path.split("/").slice(0, -1);
+		for (let i = 1; i <= parts.length; i++) folders.add(parts.slice(0, i).join("/") + "/");
+	}
+	const here = shownFolder() || currentFolder();
+	const all = [...folders].filter((f) => f.startsWith(home) && f !== home)
+		.sort((a, b) => (b === here) - (a === here) || a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+	openPalette({
+		placeholder: what === "compile" ? "Compile which folder?" : `Show which folder as ${what === "corkboard" ? "a corkboard" : what === "outliner" ? "an outline" : "one document"}?`,
+		items: all.map((f) => ({ label: folderLabel(f), detail: "folder", run: () => (what === "compile" ? openCompile(f) : openFolderView(f, what)) })),
+	});
+}
+
+// Compile: the folder's notes in order, as one file (src/compileview.js).
+const COMPILED_FOLDER = "_compiled/";
+function openCompile(folder) {
+	if (!folder.endsWith("/")) folder += "/";
+	if (!folderExists(folder)) return toast(`There's no folder “${folderLabel(folder)}”.`);
+	folder = realFolder(folder);
+	const bp = binderPath(folder);
+	const paths = () => visible().map((n) => n.path);
+	openCompileDialog({
+		folder,
+		label: itemLabel(folder),
+		parts: () => readingOrder(folder, orderOf),
+		text: (p) => dataviewVault.text(p),
+		embed: (name) => {
+			const p = resolveNote({ note: name, heading: "", wiki: true }, bp, paths());
+			const t = p && dataviewVault.text(p);
+			return t == null ? null : cleanNote(t);
+		},
+		settings: () => readBinder(dataviewVault.text(bp) || "").compile,
+		async saveSettings(s) {
+			if (dataviewVault.text(bp) == null) await saveOrder(folder, orderOf(folder));
+			await dataviewVault.write(bp, (t) => writeCompileSettings(t, s));
+		},
+		async image(name) {
+			const path = dataviewVault.resolveAttachment(name, bp);
+			const file = path && attachmentKind(path) === "image" && attachments.find((f) => f.path === path);
+			return file ? attachmentBlob(file, (p) => api.attachment(p)) : null;
+		},
+		async saveToVault(nm, text) {
+			const path = commonFolder(visible()) + COMPILED_FOLDER + nm + ".md";
+			if (!isNotePath(path)) return toast("That title can't be a note name.");
+			if (dataviewVault.text(path) != null) {
+				if (!confirm(`Replace “${nm}” in _compiled with this version?`)) return;
+				await dataviewVault.write(path, () => text);
+			} else {
+				await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+				renderStatus();
+				renderTree();
+				scheduleSync();
+			}
+			toast(`Saved “${nm}” in _compiled.`);
+		},
+		toast,
+	});
+}
+
+function setupFolderView() {
+	$("fvModes").addEventListener("click", (e) => {
+		const b = e.target.closest("button[data-view]");
+		const folder = shownFolder();
+		if (!b || !folder) return;
+		folderViews[folder] = b.dataset.view;
+		writeJSON(VIEWS_KEY, folderViews);
+		renderFolderView(true);
+	});
+	$("fvCompile").addEventListener("click", () => shownFolder() && openCompile(shownFolder()));
+	$("fvMore").addEventListener("click", (e) => { e.stopPropagation(); folderMore(); });
 }
 
 // ---- quick switcher, command palette, templates ----------------------------------
@@ -1001,6 +1423,10 @@ function allCommands() {
 		["Toggle readable line length", toggleLineLength, "width wide full center column"],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
+		["Open corkboard", () => pickFolder("corkboard"), "scrivener index cards folder board order"],
+		["Open outliner", () => pickFolder("outliner"), "scrivener outline table folder order"],
+		["Open scrivenings", () => pickFolder("scrivenings"), "scrivener one document whole folder read"],
+		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],
 		...mediaKinds.filter((k) => k.ready && MEDIA_COMMANDS[k.kind]).map((k) => [`Create ${MEDIA_COMMANDS[k.kind]} note`, () => newMediaNote(k), "media log " + k.label.toLowerCase()]),
@@ -1020,10 +1446,10 @@ function allCommands() {
 
 // Ctrl/Cmd+P: every command that can run now, with its hotkey.
 function commandPalette() {
-	const has = !!editor.path;
-	const view = editor.view;
+	const view = activeView();
+	const has = !!editor.path, section = view !== editor.view;
 	const items = allCommands()
-		.filter((c) => (!c.needsNote || has) && (!c.editor || !view.state.readOnly) && (!c.table || inTable(view.state)))
+		.filter((c) => (!c.needsNote || has || (section && c.editor)) && (!c.editor || !view.state.readOnly) && (!c.table || inTable(view.state)))
 		.map((c) => ({
 			label: c.label, keywords: c.keywords,
 			detail: showKey(keys.byLabel[c.label], MAC) || (c.editor ? "insert" : undefined),
@@ -1041,8 +1467,8 @@ function onHotkey(e) {
 	const label = keys.byKey.get(name);
 	const c = label && allCommands().find((x) => x.label === label);
 	if (!c) return;
-	const view = editor.view;
-	if (c.needsNote && !editor.path) return;
+	const view = activeView();
+	if (c.needsNote && !editor.path && !(c.editor && view !== editor.view)) return;
 	if (c.editor && (document.activeElement !== view.contentDOM || (c.table && !inTable(view.state)))) return;
 	e.preventDefault();
 	e.stopPropagation();
@@ -1224,7 +1650,7 @@ function renderQuote() {
 }
 
 function renderTitle() {
-	const base = editor.path ? name(editor.path) + " · wr1t3r" : "wr1t3r";
+	const base = editor.path ? name(editor.path) + " · wr1t3r" : folderTab ? tabName(folderTab) + " · wr1t3r" : "wr1t3r";
 	document.title = timer.running ? `${pomo.format(pomo.remaining(timer, Date.now()))} · ${base}` : base;
 }
 
@@ -1437,10 +1863,15 @@ async function renameNote(from, input) {
 		const ch = renameEdits(t, p, from, to, paths);
 		if (ch.length) edits.push({ path: p, text: applyChanges(t, ch), count: ch.length });
 	}
-	const others = edits.filter((e) => e.path !== from);
+	const binders = edits.filter((e) => e.path !== from && isBinder(e.path));
+	const others = edits.filter((e) => e.path !== from && !isBinder(e.path));
 	const n = others.reduce((a, e) => a + e.count, 0);
 	const update = others.length && confirm(`Update ${n} link${n === 1 ? "" : "s"} to this note in ${others.length} other note${others.length === 1 ? "" : "s"}?`);
 	const text = edits.find((e) => e.path === from)?.text ?? editor.text();
+	for (const e of binders) {
+		await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
+		editor.forget(e.path);
+	}
 	if (update) {
 		for (const e of others) {
 			await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
@@ -2562,7 +2993,8 @@ async function start() {
 	setupAgenda();
 	setupToc();
 	setupColumns();
-	refreshKeyboardBar = setupKeyboardBar($("app"), () => editor.view);
+	refreshKeyboardBar = setupKeyboardBar($("app"), activeView);
+	setupFolderView();
 	renderQuote();
 	$("writingPrompt").addEventListener("click", () => newPromptNote($("writingPrompt").textContent));
 	$("promptNext").addEventListener("click", () => { promptStep++; renderPrompt(); });
@@ -2600,7 +3032,7 @@ async function start() {
 	});
 	$("path").addEventListener("blur", showPath);
 	$("path").addEventListener("focus", () => { showPath(); $("path").select(); });
-	$("closeNote").addEventListener("click", () => editor.path ? closeTab(editor.path) : openNote(null));
+	$("closeNote").addEventListener("click", () => activeTab() ? closeTab(activeTab()) : openNote(null));
 	$("tabPick").addEventListener("change", () => openNote($("tabPick").value, { tab: false }));
 	$("refBtn").addEventListener("click", () => showRef(!ref.on));
 	$("refClose").addEventListener("click", () => showRef(false));
@@ -2620,7 +3052,7 @@ async function start() {
 	window.addEventListener("hashchange", () => {
 		if (clipFromHash()) return;
 		const p = decodeURIComponent(location.hash.slice(1));
-		if (p && p !== editor.path) openNote(p);
+		if (p && p !== activeTab()) openNote(p);
 	});
 	window.addEventListener("online", () => runSync());
 	window.addEventListener("offline", () => { lastError = "offline"; renderStatus(); });
@@ -2634,7 +3066,7 @@ async function start() {
 	$("palette").addEventListener("click", () => commandPalette());
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);
 
-	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || tabs.find(isOpenable) || null);
+	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || tabs.find(tabOpen) || null);
 	if (ref.on) showRef(true);
 	renderStatus();
 	runSync();

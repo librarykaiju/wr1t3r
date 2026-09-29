@@ -487,4 +487,10 @@ const clicks = EditorView.domEventHandlers({
 	},
 });
 
+// Folds a view's properties box without changing the remembered setting
+// (Scrivenings' sections start folded so the text reads on).
+export function foldProperties(view) {
+	if (frontmatterLines(view.state.doc)) view.dispatch({ effects: setFolded.of(true) });
+}
+
 export const frontmatterStyle = [folded, decorations, clicks, Prec.high(keymap.of([{ key: "Enter", run: enter }]))];

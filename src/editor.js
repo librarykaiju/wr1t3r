@@ -22,7 +22,7 @@ import { backlinks } from "./backlinks.js";
 import { linkSource } from "./linkcomplete.js";
 import { tableKeymap, tableStyle } from "./table.js";
 import { blockStyle } from "./blocks.js";
-import { frontmatterStyle, tagHue } from "./frontmatter.js";
+import { frontmatterStyle, tagHue, foldProperties } from "./frontmatter.js";
 import { linkClicks, linkOpener } from "./links.js";
 import { tableGrid } from "./tablegrid.js";
 import { tableCalc } from "./tablecalc.js";
@@ -93,6 +93,15 @@ const comments = ViewPlugin.define((view) => {
 	};
 }, { decorations: (v) => v.decorations });
 
+// Whether the cursor is on the first visual line (dir -1) or the last (dir 1).
+function atEdge(view, dir) {
+	const { state } = view, sel = state.selection.main;
+	if (!sel.empty) return false;
+	if (sel.head === (dir < 0 ? 0 : state.doc.length)) return true;
+	const here = view.coordsAtPos(sel.head), end = view.coordsAtPos(dir < 0 ? 0 : state.doc.length);
+	return !!here && !!end && Math.abs(here.top - end.top) < 2;
+}
+
 function lineSeparatorFor(text) {
 	// Only when every line break is CRLF; mixed files fall back to LF once edited.
 	return text.includes("\r\n") && !/(^|[^\r])\n/.test(text) ? "\r\n" : undefined;
@@ -130,10 +139,10 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 	];
 	const look = lookFor(onLink);
 
-	const base = [
+	// Editing, shared by the editor and Scrivenings' sections.
+	const core = [
 		history(),
 		drawSelection(),
-		highlightActiveLine(),
 		highlightSelectionMatches(),
 		indentUnit.of("\t"),
 		Prec.high(keymap.of(tableKeymap)),
@@ -143,9 +152,14 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		embedLook.of(() => look),
 		embeds,
 		dataviewJs,
-		backlinks,
 		autocompletion({ override: [slashSource(), linkSource], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
+	];
+
+	const base = [
+		...core,
+		highlightActiveLine(),
+		backlinks,
 		placeholder("Type / for formatting"),
 		EditorView.updateListener.of((u) => {
 			if (u.docChanged || u.selectionSet) onUpdate?.();
@@ -196,6 +210,41 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 					else rv.scrollDOM.scrollTop = 0;
 				},
 				refresh() { rv.dispatch({ effects: vaultChanged.of(null) }); },
+			};
+		},
+		// One note of a folder shown as one long document (Scrivenings): an
+		// editor that grows with its text instead of scrolling, with its
+		// properties folded. edits(text) gets every change; edge(dir, view)
+		// is asked about arrow keys past the first or last line (true: handled).
+		section(parent, note, { edits, focus, edge }) {
+			const arrows = Prec.high(keymap.of([
+				{ key: "ArrowUp", run: (v) => atEdge(v, -1) && !!edge?.(-1, v) },
+				{ key: "ArrowDown", run: (v) => atEdge(v, 1) && !!edge?.(1, v) },
+			]));
+			const make = (n) => {
+				const sep = lineSeparatorFor(n.text);
+				return EditorState.create({
+					doc: n.text,
+					extensions: [...core, arrows, notePath.of(n.path), ...(sep ? [EditorState.lineSeparator.of(sep)] : []),
+						EditorView.updateListener.of((u) => {
+							if (u.focusChanged && u.view.hasFocus) focus?.(u.view);
+							if (!u.docChanged || u.transactions.some((tr) => tr.annotation(fromSync))) return;
+							edits(u.state.sliceDoc());
+						})],
+				});
+			};
+			const sv = new EditorView({ parent, state: make(note) });
+			foldProperties(sv);
+			return {
+				view: sv,
+				text: () => sv.state.sliceDoc(),
+				// A newer version from a sync (only when this device has no unsent edits to it).
+				replace(n) {
+					if (sv.state.sliceDoc() === n.text) return;
+					if (lineSeparatorFor(n.text) !== (sv.state.lineBreak === "\r\n" ? "\r\n" : undefined)) { sv.setState(make(n)); foldProperties(sv); return; }
+					sv.dispatch({ changes: { from: 0, to: sv.state.doc.length, insert: n.text }, annotations: [fromSync.of(true), Transaction.addToHistory.of(false)] });
+				},
+				destroy: () => sv.destroy(),
 			};
 		},
 		get path() { return current; },

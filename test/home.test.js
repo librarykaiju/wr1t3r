@@ -110,3 +110,14 @@ test("pins follow moved notes and folders", () => {
 	assert.ok(pinOpens(pins[1], { folder: "content/a/" }, paths, HOME));
 	assert.ok(!pinOpens(pins[1], { path: "content/a/" }, paths, HOME));
 });
+
+test("a folder's corkboard, outliner or scrivenings can be pinned, and follows the folder", async () => {
+	const { viewLink } = await import("../src/home.js");
+	const pin = { link: viewLink("corkboard", "content/Novel/") };
+	assert.equal(pin.link, "corkboard:content/Novel");
+	assert.deepEqual(pinKind(pin.link), { kind: "view", view: "corkboard", folder: "content/Novel/" });
+	assert.equal(pinTitle(pin, null), "Novel");
+	assert.ok(pinOpens(pin, { folder: "content/novel/", view: "corkboard" }, [], HOME));
+	assert.ok(!pinOpens(pin, { folder: "content/Novel/", view: "outliner" }, [], HOME));
+	assert.deepEqual(retargetPins([pin], new Map(), [], [], HOME, "content/Novel/", "content/Books/Novel/"), [{ link: "corkboard:content/Books/Novel" }]);
+});

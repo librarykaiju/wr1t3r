@@ -93,12 +93,16 @@ export function writePins(text, pins) {
 }
 
 // What a pin points at: { kind: "note", target } | { kind: "folder", folder }
-// (with its trailing /) | { kind: "command", command } | { kind: "url", url }.
+// (with its trailing /) | { kind: "view", view, folder } (a folder's
+// corkboard, outliner or scrivenings) | { kind: "command", command } |
+// { kind: "url", url }.
 export function pinKind(link) {
 	const l = String(link || "").trim();
 	if (/^https?:\/\//i.test(l)) return { kind: "url", url: l };
 	let m = l.match(/^command:\s*(.+)$/i);
 	if (m) return { kind: "command", command: m[1].trim() };
+	m = l.match(/^(corkboard|outliner|scrivenings):\s*(.*)$/i);
+	if (m) return { kind: "view", view: m[1].toLowerCase(), folder: m[2].trim().replace(/^\/+|\/+$/g, "") + "/" };
 	m = l.match(/^folder:\s*(.*)$/i);
 	if (m) return { kind: "folder", folder: m[1].trim().replace(/^\/+|\/+$/g, "") + "/" };
 	m = l.match(/^!?\[\[(.+)\]\]$/);
@@ -131,6 +135,7 @@ export function linkFor(path, paths) {
 }
 
 export const folderLink = (folder) => "folder:" + folder.replace(/\/+$/, "");
+export const viewLink = (view, folder) => view + ":" + folder.replace(/\/+$/, "");
 
 // The tile's name when the pin doesn't give one.
 export function pinTitle(pin, path) {
@@ -139,6 +144,7 @@ export function pinTitle(pin, path) {
 	if (k.kind === "url") { try { return new URL(k.url).hostname.replace(/^www\./, ""); } catch { return k.url; } }
 	if (k.kind === "command") return k.command;
 	if (k.kind === "folder") return k.folder.slice(0, -1).split("/").pop() || "Folder";
+	if (k.kind === "view") return k.folder.slice(0, -1).split("/").pop() || "Folder";
 	return (path ? baseName(path) : baseName(k.target)).replace(/\.(md|base)$/i, "") || "Note";
 }
 
@@ -178,15 +184,19 @@ export function retargetPins(pins, moved, oldPaths, newPaths, homeFile, folderFr
 		} else if (k.kind === "folder" && folderFrom && k.folder.toLowerCase().startsWith(folderFrom.toLowerCase())) {
 			changed = true;
 			return { ...p, link: folderLink(folderTo + k.folder.slice(folderFrom.length)) };
+		} else if (k.kind === "view" && folderFrom && k.folder.toLowerCase().startsWith(folderFrom.toLowerCase())) {
+			changed = true;
+			return { ...p, link: viewLink(k.view, folderTo + k.folder.slice(folderFrom.length)) };
 		}
 		return p;
 	});
 	return changed ? out : null;
 }
 
-// Whether a pin opens path (a note) or folder.
-export function pinOpens(pin, { path = null, folder = null }, paths, homeFile) {
+// Whether a pin opens path (a note), folder, or a folder's view.
+export function pinOpens(pin, { path = null, folder = null, view = null }, paths, homeFile) {
 	const k = pinKind(pin.link);
+	if (view) return k.kind === "view" && k.view === view && k.folder.toLowerCase() === folder.toLowerCase();
 	if (folder) return k.kind === "folder" && k.folder.toLowerCase() === folder.toLowerCase();
 	return k.kind === "note" && pinPath(pin, paths, homeFile) === path;
 }
