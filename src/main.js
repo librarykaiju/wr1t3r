@@ -998,6 +998,7 @@ function allCommands() {
 		["Toggle left sidebar", () => showLeft(leftShut()), "notes list panel collapse hide show"],
 		["Toggle right sidebar", () => showRight(rightShut()), "calendar agenda contents panel collapse hide show"],
 		["Toggle Live Preview", toggleLivePreview, "markdown symbols hide"],
+		["Toggle readable line length", toggleLineLength, "width wide full center column"],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
@@ -1623,6 +1624,19 @@ function applyMode(mode) {
 	document.querySelectorAll("#modes button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.mode === "live") === live)));
 }
 
+// Readable line length (on unless turned off): lines stop at 720px and the note
+// is centered on the screen. Off, lines run the full width of the note column.
+function applyLineLength(full) {
+	$("app").classList.toggle("full-lines", full);
+	document.querySelectorAll("#lineLength button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.lines === "full") === full)));
+	editor?.view.requestMeasure();
+}
+function toggleLineLength() {
+	const full = !$("app").classList.contains("full-lines");
+	storeRaw("wr1t3rLines", full ? "full" : null);
+	applyLineLength(full);
+}
+
 function openSettings(on) {
 	if (on && !$("agenda").hidden) openAgenda(false);
 	$("settings").hidden = !on;
@@ -1656,6 +1670,13 @@ function setupSettings() {
 		if (!b) return;
 		storeRaw("wr1t3rMode", b.dataset.mode === "live" ? "live" : null);
 		applyMode(b.dataset.mode);
+	});
+	applyLineLength(readRaw("wr1t3rLines") === "full");
+	$("lineLength").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b) return;
+		storeRaw("wr1t3rLines", b.dataset.lines === "full" ? "full" : null);
+		applyLineLength(b.dataset.lines === "full");
 	});
 	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
 	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
