@@ -146,6 +146,7 @@ header {
 .pop h2 + * { margin-bottom: 14px; }
 .pop > :last-child { margin-bottom: 0; }
 .pop .hint { font-size: 14px; color: var(--muted); margin: 0; }
+.pop .seg + .hint { margin: -8px 0 14px; }
 .pop a { color: var(--accent); }
 .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .seg button { flex: 1; border: 0; border-radius: 0; background: none; padding: 9px 4px; font-size: 14px; min-width: 0; }
@@ -308,7 +309,7 @@ main:not(.has-note) #count { visibility: hidden; }
 #addEvent .row.end { justify-content: flex-end; }
 #addEvent input[type=checkbox] { width: auto; margin: 0; }
 #addEvent .check { font-size: 14px; display: flex; gap: 6px; align-items: center; }
-#addEvent select { font: inherit; font-size: 14px; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px; flex: 1; }
+#addEvent select, #dailyCal { font: inherit; font-size: 14px; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px; flex: 1; }
 #addEvent .error:empty { display: none; }
 #agendaNote:empty { display: none; }
 /* Month calendar above the agenda (desktop) */
