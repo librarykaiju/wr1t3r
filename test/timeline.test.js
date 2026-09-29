@@ -75,3 +75,33 @@ test("only the day's events, all-day first", () => {
 	assert.deepEqual(eventsOn(events, new Date(2026, 8, 29)).map((e) => e.title), ["Trip", "B"]);
 	assert.equal(eventLine(events[0]), "- [ ] 09:00 - 10:00 | B");
 });
+
+test("items already out of order are sorted, with the lines under them", () => {
+	const text = [
+		"# Timeline",
+		"- [ ] 14:00 - 15:00 | review",
+		"    - notes for review",
+		"- [ ] call Sam",
+		"- [x] 09:00 - 10:00 | gym",
+		"",
+		"## Notes",
+	].join("\n");
+	const r = fill(text, [ev("Standup", "2026-09-29T09:30:00", "2026-09-29T09:45:00"), ev("Trip", "2026-09-29", "2026-09-30", true)]);
+	assert.equal(r.added, 2);
+	assert.equal(r.text, [
+		"# Timeline",
+		"- [ ] All day | Trip",
+		"- [x] 09:00 - 10:00 | gym",
+		"- [ ] 09:30 - 09:45 | Standup",
+		"- [ ] 14:00 - 15:00 | review",
+		"    - notes for review",
+		"- [ ] call Sam",
+		"",
+		"## Notes",
+	].join("\n"));
+	// Nothing new, but out of order: pulling still sorts.
+	const sorted = fill(text, []);
+	assert.equal(sorted.added, 0);
+	assert.match(sorted.text, /# Timeline\n- \[x\] 09:00 - 10:00 \| gym\n- \[ \] 14:00/);
+	assert.deepEqual(timelineChanges(r.text, []).changes, []);
+});

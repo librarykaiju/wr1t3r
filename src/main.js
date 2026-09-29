@@ -848,9 +848,10 @@ async function pullTimeline() {
 	const view = editor.view;
 	const r = timelineChanges(view.state.sliceDoc(), events);
 	if (!r) return toast("This note has no Timeline heading.");
-	if (!r.added) return toast(events.length ? "The timeline already has every event." : "No events on the calendar that day.");
-	view.dispatch({ changes: r.changes, userEvent: "input.timeline" });
-	toast(`Added ${r.added} event${r.added === 1 ? "" : "s"} to the timeline.`);
+	if (r.changes.length) view.dispatch({ changes: r.changes, userEvent: "input.timeline" });
+	if (r.added) toast(`Added ${r.added} event${r.added === 1 ? "" : "s"} to the timeline, in time order.`);
+	else if (r.changes.length) toast("No new events. Sorted the timeline by time.");
+	else toast(events.length ? "The timeline already has every event." : "No events on the calendar that day.");
 }
 
 function fillCalendarSetting() {

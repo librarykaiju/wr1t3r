@@ -50,9 +50,19 @@ function findSection(lines) {
 	return start >= 0 ? { start, end: lines.length } : null;
 }
 
-// The changes ({from, to, insert}, CodeMirror style) that put `events` into
-// the note's Timeline, and how many events that adds. null when the note has
-// no Timeline heading.
+// Where a list item sorts: all day first, then by start time. An item with no
+// time (a plain "- [ ] call Sam") stays after the item above it.
+function itemKey(line) {
+	const m = line.match(TASK);
+	if (!m) return null;
+	if (m[4]) return -1;
+	return minutes(m[2]);
+}
+
+// The change ({from, to, insert}, CodeMirror style) that puts `events` into
+// the note's Timeline and sorts its items by time, and how many events that
+// adds. No changes when nothing is new and the order is already right; null
+// when the note has no Timeline heading.
 export function timelineChanges(text, events) {
 	const nl = text.includes("\r\n") ? "\r\n" : "\n";
 	const lines = text.split(/\r?\n/);
@@ -77,41 +87,39 @@ export function timelineChanges(text, events) {
 		return tasks.some((t) => t.text.includes(e.title) && (t.allDay ? key === "all day" : t.line.includes(key)));
 	};
 	const wanted = events.filter((e) => !have(e));
-	if (!wanted.length) return { changes: [], added: 0 };
 
 	const drop = new Set(); // empty slots an event fills
-	const after = new Map(); // line index -> event lines inserted after it (-1: before the first task)
-	const put = (i, line) => after.set(i, [...(after.get(i) || []), line]);
 	for (const e of wanted) {
-		if (e.allDay) { put(-1, eventLine(e)); continue; }
+		if (e.allDay) continue;
 		const start = eventStart(e), end = new Date(e.end);
 		const from = start.getHours() * 60 + start.getMinutes();
 		const to = from + Math.max(0, Math.round((end - start) / 60000));
 		for (const t of tasks) if (!t.allDay && !t.text && t.from !== t.to && t.from >= from && t.to <= to) drop.add(t.i);
-		// After the last task starting at or before this event (so ties keep what's there first).
-		const prev = tasks.filter((t) => t.allDay || t.from <= from).at(-1);
-		put(prev ? prev.i : -1, eventLine(e));
 	}
 
-	const changes = [];
-	const firstTask = tasks[0]?.i;
-	if (after.has(-1)) {
-		const block = after.get(-1).join(nl) + nl;
-		if (firstTask != null) changes.push({ from: offsets[firstTask], to: offsets[firstTask], insert: block });
-		else {
-			// No tasks yet: right under the heading.
-			const at = section.start;
-			changes.push(at < lines.length ? { from: offsets[at], to: offsets[at], insert: block } : { from: text.length, to: text.length, insert: nl + block.slice(0, -nl.length) });
-		}
+	// The section's list: from its first item to its last line that isn't
+	// blank. Each top-level item carries the indented or loose lines under it.
+	let first = section.start;
+	while (first < section.end && !/^[-*+] /.test(lines[first])) first++;
+	if (first === section.end) first = section.start; // no list yet: under the heading
+	let last = section.end;
+	while (last > first && !lines[last - 1].trim()) last--;
+	const items = [];
+	for (let i = first; i < last; i++) {
+		if (drop.has(i)) continue;
+		if (/^[-*+] /.test(lines[i]) || !items.length) items.push({ lines: [lines[i]], key: itemKey(lines[i]) });
+		else items.at(-1).lines.push(lines[i]);
 	}
-	for (const t of tasks) {
-		const extra = after.get(t.i) || [];
-		const lineEnd = offsets[t.i] + lines[t.i].length;
-		if (drop.has(t.i)) {
-			// Swap the empty slot for the event(s) placed after it.
-			changes.push({ from: offsets[t.i], to: lineEnd, insert: extra.length ? extra.join(nl) : "" });
-			if (!extra.length) changes[changes.length - 1] = { from: offsets[t.i], to: Math.min(offsets[t.i + 1], text.length), insert: "" };
-		} else if (extra.length) changes.push({ from: lineEnd, to: lineEnd, insert: nl + extra.join(nl) });
-	}
-	return { changes, added: wanted.length };
+	for (const e of wanted) items.push({ lines: [eventLine(e)], key: e.allDay ? -1 : itemKey(eventLine(e)) });
+	let prev = -Infinity;
+	for (const it of items) prev = it.key = it.key ?? prev;
+	const sorted = items.map((it, n) => ({ it, n })).sort((a, b) => a.it.key - b.it.key || a.n - b.n).map((x) => x.it);
+
+	const insert = sorted.flatMap((it) => it.lines).join(nl);
+	const from = offsets[first], to = offsets[last] - (last > first ? nl.length : 0);
+	const before = text.slice(from, Math.max(from, to));
+	if (insert === before) return { changes: [], added: 0 };
+	if (first < last) return { changes: [{ from, to, insert }], added: wanted.length };
+	if (first < lines.length) return { changes: [{ from, to: from, insert: insert + nl }], added: wanted.length };
+	return { changes: [{ from: text.length, to: text.length, insert: nl + insert }], added: wanted.length };
 }
