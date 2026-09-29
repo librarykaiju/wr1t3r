@@ -983,7 +983,7 @@ function allCommands() {
 		["New note", () => newNote(), "create"],
 		["New note from template", newFromTemplate, "templater"],
 		["Insert template", insertFromTemplate, "templater", true],
-		["Open today's daily note", openDaily, "today journal daily"],
+		["Open today's daily note", () => openDaily(), "today journal daily"],
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
 		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
@@ -1281,7 +1281,7 @@ async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = 
 // Today's note in _daily, from _templates/Daily.md (and its companion notes,
 // like "<date> Health"), or the existing one. Made the way Obsidian would, so
 // both apps produce the same file.
-async function openDaily() {
+async function openDaily({ quiet = true } = {}) {
 	const paths = visible().map((n) => n.path);
 	const tmpl = findTemplate(paths);
 	if (!tmpl) return toast("There's no _templates/Daily.md in the vault.");
@@ -1290,11 +1290,12 @@ async function openDaily() {
 	const folder = tmpl.root + DAILY_FOLDER;
 	const path = folder + title + ".md";
 	const existing = paths.find((p) => p.toLowerCase() === path.toLowerCase());
-	if (existing) return openNote(existing);
-	let { text, companion } = renderTemplate(notes.get(tmpl.path).text, { title, date });
-	const events = await timelineEvents(date);
-	const filled = events && timelineChanges(text, events);
-	if (filled) text = applyChanges(text, filled.changes);
+	if (existing) {
+		// Made earlier, here or by Obsidian: still bring in new events.
+		openNote(existing);
+		return fillTimeline(existing, { quiet });
+	}
+	const { text, companion } = renderTemplate(notes.get(tmpl.path).text, { title, date });
 	for (const c of companion) {
 		const cPath = folder + c.name + ".md";
 		const t = findTemplate(paths, c.template.replace(/\.md$/i, "") + ".md");
@@ -1305,6 +1306,7 @@ async function openDaily() {
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	scheduleSync();
+	await fillTimeline(path, { quiet });
 }
 
 // The Timeline's calendar (Settings > Daily note timeline): off until one is
@@ -1339,18 +1341,32 @@ async function pullTimeline() {
 		openSettings(true);
 		return toast("Pick a calendar under Daily note timeline first.");
 	}
-	if (!noteDay(editor.path)) await openDaily();
-	const path = editor.path, date = noteDay(path);
-	if (!date) return;
+	if (noteDay(editor.path)) await fillTimeline(editor.path, { quiet: false });
+	else await openDaily({ quiet: false });
+}
+
+// Put the picked calendar's events into the open daily note's Timeline.
+// quiet (the Today button): says nothing when there's nothing to add.
+async function fillTimeline(path, { quiet }) {
+	const date = noteDay(path);
+	if (!date || !readRaw(DAILY_CAL_KEY)) return;
 	const events = await timelineEvents(date);
 	if (!events || editor.path !== path) return;
 	const view = editor.view;
 	const r = timelineChanges(view.state.sliceDoc(), events);
-	if (!r) return toast("This note has no Timeline heading.");
+	if (!r) return toast("This note has no Timeline heading, so no events were added.");
 	if (r.changes.length) view.dispatch({ changes: r.changes, userEvent: "input.timeline" });
-	if (r.added) toast(`Added ${r.added} event${r.added === 1 ? "" : "s"} to the timeline, in time order.`);
+	const where = calendarName(readRaw(DAILY_CAL_KEY));
+	if (r.added) toast(`Added ${r.added} event${r.added === 1 ? "" : "s"} from ${where} to the timeline.`);
+	else if (!events.length) toast(`No events on ${where} ${isoDate(date) === isoDate() ? "today" : "on " + isoDate(date)}.`);
+	else if (quiet) return;
 	else if (r.changes.length) toast("No new events. Sorted the timeline by time.");
-	else toast(events.length ? "The timeline already has every event." : "No events on the calendar that day.");
+	else toast("The timeline already has every event.");
+}
+
+function calendarName(id) {
+	const c = cal?.calendars?.find((x) => x.id === id);
+	return c ? agenda.calendarLabel(c) : "the calendar";
 }
 
 function fillCalendarSetting() {
