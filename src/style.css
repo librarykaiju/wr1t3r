@@ -255,15 +255,15 @@ header {
 	#tabPickWrap:not([hidden]) { display: grid; }
 }
 #tabs .other.dirty .name::after { content: " •"; color: var(--accent); }
-#empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 24px; color: var(--muted); }
+#empty { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: max(24px, 5vh) 24px 96px; color: var(--muted); }
 #empty .quote { margin: 0; max-width: 34em; text-align: center; }
-#empty blockquote { margin: 0; font: italic 1.45em/1.5 var(--serif); color: var(--fg); white-space: pre-line; text-wrap: balance; }
-#empty figcaption { margin-top: 14px; font-size: 0.95em; }
+#empty blockquote { margin: 0; font: italic 1.15em/1.5 var(--serif); color: var(--fg); white-space: pre-line; text-wrap: balance; }
+#empty figcaption { margin-top: 8px; font-size: 0.88em; }
 #empty figcaption cite { font-style: italic; }
-#empty .prompt { margin: 0; max-width: 30em; padding: 10px 16px; border: 0; border-radius: 10px; background: none; color: var(--muted); font: 1.05em/1.5 var(--sans); text-align: center; text-wrap: balance; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+#empty .prompt { margin: 0; max-width: 30em; padding: 6px 14px; border: 0; border-radius: 10px; background: none; color: var(--muted); font: 1.05em/1.5 var(--sans); text-align: center; text-wrap: balance; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 #empty .prompt:focus:not(:focus-visible) { outline: none; }
 #empty .prompt-box { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-#empty .prompt-heading { margin: 0; font: 600 0.95em/1.4 var(--sans); color: var(--fg); }
+#empty .prompt-heading { margin: 0; font: 600 0.88em/1.4 var(--sans); color: var(--fg); }
 #empty .prompt-row { display: flex; align-items: center; gap: 4px; }
 #empty .prompt-next { flex: none; padding: 6px 10px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-size: 1.1em; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 @media (hover: hover) { #empty .prompt-next:hover { color: var(--fg); background: var(--card); } }
@@ -781,3 +781,44 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 .item-menu button { text-align: left; background: none; border: 0; border-radius: 6px; padding: 8px 10px; font-size: 14px; color: var(--fg); min-height: 0; }
 .item-menu button:hover, .item-menu button:focus-visible { background: var(--sel); outline: none; }
 .item-menu button.danger { color: var(--danger, #c0392b); }
+
+/* Home (src/home.js, src/homeview.js): the quote and prompt, then the pinned
+   tiles, 4:3, in the theme's rainbow. A tile with a picture shows it full
+   bleed with its name on a darkened strip; without one it's tinted like the
+   sidebar's folder rows, so text keeps its contrast in every theme. */
+#homeBtn { display: inline-flex; }
+main:not(.has-note) #homeBtn { color: var(--accent); }
+.home-grid { width: 100%; max-width: 1080px; margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+@media (max-width: 480px) { .home-grid { grid-template-columns: 1fr 1fr; gap: 10px; } }
+.tile {
+	position: relative; overflow: hidden; aspect-ratio: 4 / 3; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start;
+	padding: 12px; border: 1px solid color-mix(in srgb, var(--tc) 45%, var(--bg)); border-radius: 12px;
+	background: color-mix(in srgb, var(--tc) 26%, var(--bg)); color: var(--fg); font: 600 15px/1.3 var(--sans); text-align: left;
+	cursor: pointer; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: transform .12s, box-shadow .12s;
+}
+@media (hover: hover) { .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgb(0 0 0 / 0.16); background: color-mix(in srgb, var(--tc) 34%, var(--bg)); } }
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tile-icon { display: grid; color: color-mix(in srgb, var(--tc) 70%, var(--fg)); }
+.tile-name { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.tile-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tile.has-cover { padding: 0; justify-content: flex-end; border-color: color-mix(in srgb, var(--tc) 60%, var(--bg)); }
+.tile.has-cover .tile-icon { display: none; }
+.tile.has-cover .tile-name {
+	position: relative; width: 100%; padding: 22px 12px 10px; color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+	background: linear-gradient(to top, color-mix(in srgb, var(--tc) 45%, rgb(0 0 0 / 0.78)) 0%, color-mix(in srgb, var(--tc) 30%, rgb(0 0 0 / 0.55)) 60%, transparent 100%);
+}
+.tile.missing { opacity: 0.55; }
+.tile.missing .tile-name::after { content: " (missing)"; font-weight: 400; }
+.tile.dragging { opacity: 0.4; }
+.tile.drop-before { box-shadow: -4px 0 0 var(--accent); }
+.tile.drop-after { box-shadow: 4px 0 0 var(--accent); }
+.tile-add { --tc: var(--mark); background: none; border: 1.5px dashed var(--line); color: var(--muted); font-weight: 500; justify-content: center; align-items: center; gap: 6px; text-align: center; }
+.tile-add .tile-icon { color: var(--muted); }
+@media (hover: hover) { .tile-add:hover { background: var(--card); color: var(--fg); } }
+.item-menu .swatches { display: grid; grid-template-columns: repeat(4, 32px); gap: 8px; padding: 8px; }
+.item-menu .swatch { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; border: 2px solid transparent; background: var(--sw); }
+.item-menu .swatch.auto { background: conic-gradient(var(--f1), var(--f2), var(--f3), var(--f4), var(--f5), var(--f6), var(--f7), var(--f1)); }
+.item-menu .swatch[aria-pressed=true] { border-color: var(--fg); box-shadow: inset 0 0 0 2px var(--card); }
+.item-menu .swatch:hover { background: var(--sw); transform: scale(1.08); }
+.item-menu .swatch.auto:hover { background: conic-gradient(var(--f1), var(--f2), var(--f3), var(--f4), var(--f5), var(--f6), var(--f7), var(--f1)); }
+#tree summary.flash { outline: 2px solid var(--accent); outline-offset: -2px; }

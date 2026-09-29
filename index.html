@@ -46,6 +46,9 @@
 					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg>
 				</button>
 				<button id="menu" type="button" aria-label="Notes">☰</button>
+				<button id="homeBtn" type="button" class="quiet" aria-label="Home" title="Home">
+					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg>
+				</button>
 				<label id="tabPickWrap" title="Open notes" hidden><span id="tabCount"></span><select id="tabPick" aria-label="Switch to an open note"></select></label>
 				<div id="tabs" role="tablist" aria-label="Open notes">
 					<div id="tab" class="tab" role="tab" aria-selected="true" hidden>
@@ -93,6 +96,7 @@
 						<button id="promptNext" type="button" class="prompt-next" title="Another prompt" aria-label="Another prompt">↻</button>
 					</div>
 				</section>
+				<div id="homeGrid" class="home-grid" role="list" aria-label="Pinned"></div>
 			</div>
 			<footer id="bar">
 				<span class="pomo">
