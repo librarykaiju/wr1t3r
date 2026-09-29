@@ -684,7 +684,9 @@ export function readBase(text) {
 // Work out one view: { columns: [id], names: [label], groups: [{ key, rows }], total }
 // where each row is { path, file, values: [value per column] }. `files` is
 // [{ path, text }] of every note; thisFile is the note showing the base.
-export function runView(base, viewIndex, files, { thisPath = null, sortBy = null, resolve = null } = {}) {
+// rank(path) gives a note's place in its folder's binder, for views set to
+// "Binder order" (wr1t3r: { sort: binder }); sortBy is a sort clicked on screen.
+export function runView(base, viewIndex, files, { thisPath = null, sortBy = null, resolve = null, rank = null } = {}) {
 	const view = base.views[viewIndex] ?? base.views[0];
 	const paths = files.map((f) => f.path);
 	const byPath = new Map(files.map((f) => [f.path, f]));
@@ -705,7 +707,10 @@ export function runView(base, viewIndex, files, { thisPath = null, sortBy = null
 		rows.push({ path: f.path, file, value, values: columns.map(value) });
 	}
 	const sorts = sortBy ? [sortBy] : toList(view.sort).filter((s) => s && s.property);
-	if (sorts.length) {
+	if (!sortBy && rank && view.wr1t3r?.sort === "binder") {
+		const key = new Map(rows.map((r) => [r.path, rank(r.path) ?? Infinity]));
+		rows.sort((a, b) => a.file.folder.localeCompare(b.file.folder) || key.get(a.path) - key.get(b.path));
+	} else if (sorts.length) {
 		rows.sort((a, b) => {
 			for (const s of sorts) {
 				const x = a.value(String(s.property)), y = b.value(String(s.property));
@@ -733,7 +738,7 @@ export function runView(base, viewIndex, files, { thisPath = null, sortBy = null
 			return String(g.direction).toUpperCase() === "DESC" ? -c : c;
 		});
 	}
-	return { view, columns, names: columns.map((c) => displayName(c, base)), groups, total: rows.length, errors: [...errors] };
+	return { view, columns, names: columns.map((c) => displayName(c, base)), groups, rows: limited, total: rows.length, errors: [...errors] };
 }
 
 // ---- Writing a property -----------------------------------------------------

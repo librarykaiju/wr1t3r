@@ -47,7 +47,8 @@ export function dataviewBlocks(state, lang = "dataviewjs") {
 			const text = n.node.getChild("CodeText");
 			const last = state.doc.lineAt(n.to);
 			if (!/^\s*(`{3,}|~{3,})\s*$/.test(last.text) || last.number === state.doc.lineAt(n.from).number) return false; // not closed yet
-			out.push({ from: state.doc.lineAt(n.from).from, to: last.to, code: text ? state.sliceDoc(text.from, text.to) : "" });
+			const first = state.doc.lineAt(n.from);
+			out.push({ from: first.from, to: last.to, code: text ? state.sliceDoc(text.from, text.to) : "", codeFrom: text ? text.from : Math.min(first.to + 1, last.from), codeTo: text ? text.to : Math.min(first.to + 1, last.from) });
 			return false;
 		},
 	});

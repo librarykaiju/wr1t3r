@@ -2970,6 +2970,17 @@ const dataviewVault = {
 		scheduleSync();
 	},
 	text: (path) => { const n = notes.get(path); return n && !n.deleted && !n.binary ? n.text : null; },
+	// A base's "+ New": the note's text as New note would start it.
+	newNoteText: (path) => (/(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"))),
+	// ...then saved (numbered if the name's taken) and opened.
+	async create(folder, noteName, makeText) {
+		let path = folder + noteName + ".md";
+		for (let n = 2; taken(path); n++) path = `${folder}${noteName} ${n}.md`;
+		const text = makeText(path);
+		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+		showAdded(folder, path);
+		return path;
+	},
 	attachments: () => attachments,
 	attachmentsLoaded: () => attachmentsLoaded,
 	resolveAttachment: (name, from) => resolveAttachment(name, from, attachments.map((f) => f.path)),

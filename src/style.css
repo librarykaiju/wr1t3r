@@ -288,6 +288,8 @@ main:not(.has-note) #panes { display: none; }
 #app.full-lines { --lw: 0px !important; --rw: 0px !important; }
 #panes:has(> #ref:not([hidden])) { --lw: 0px; --rw: 0px; }
 #app.full-lines :is(#editor, #refView) .cm-content { max-width: none; }
+/* A .base note's views (grids, boards) use the whole width. */
+:is(#editor, #refView) .md-base-mode .cm-content { max-width: none; }
 :is(#editor, #refView) .cm-cursor { border-left-color: var(--accent) !important; }
 :is(#editor, #refView) .cm-activeLine { background: transparent; }
 :is(#editor, #refView) .cm-selectionBackground, :is(#editor, #refView) .cm-focused .cm-selectionBackground { background: var(--sel) !important; }
@@ -737,13 +739,103 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 /* Bases (src/basesview.js) */
 .md-base { padding: 6px 0; font: 0.92em/1.45 var(--sans); white-space: normal; word-break: normal; overflow-wrap: normal; }
 .md-base-whole { padding-top: 0; }
-.md-base-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 8px; }
+.md-base-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-bottom: 8px; font-family: var(--sans); }
+.md-base-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.md-base-tab { display: inline-flex; align-items: center; gap: 2px; }
+.md-base-tabmenu, .md-base-addview { font: inherit; font-size: 0.85em; padding: 0 4px; min-height: 0; border: 0; background: none; color: var(--muted); cursor: pointer; border-radius: 5px; }
+.md-base-addview { font-size: 1.05em; padding: 1px 8px; border: 1px dashed var(--line); border-radius: 999px; }
+.md-base-tabmenu:hover, .md-base-addview:hover { color: var(--fg); background: var(--sel); }
+.md-base-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: auto; }
+.md-base-tool { font: 13px var(--sans); padding: 3px 9px; min-height: 0; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
+.md-base-tool:hover, .md-base-tool.open { background: var(--sel); color: var(--fg); }
+.md-base-tool.on { color: var(--accent); }
+.md-base-savesort { border-color: var(--accent); color: var(--accent); }
+.md-base-new { display: block; margin-top: 8px; font: 13px var(--sans); padding: 5px 12px; min-height: 0; border: 1px dashed var(--line); border-radius: 8px; background: none; color: var(--muted); cursor: pointer; }
+.md-base-new:hover { color: var(--fg); background: var(--sel); }
+/* The panel under a toolbar button (src/basesui.js). */
+.base-panel { position: fixed; z-index: 65; width: min(420px, calc(100vw - 16px)); max-height: min(70vh, 560px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgb(0 0 0 / 0.22); font: 14px var(--sans); color: var(--fg); }
+.base-panel-title { font-weight: 600; }
+.base-panel-hint { margin: 0; font-size: 12.5px; color: var(--muted); }
+.base-panel-sub { margin-top: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.base-panel select, .base-input { font: 14px var(--sans); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; min-width: 0; margin: 0; }
+.base-input { flex: 1 1 8em; }
+.base-num { flex: 0 0 6em; }
+.base-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.base-row-label { flex: 0 0 9em; color: var(--muted); }
+.base-filter select.base-sel-prop { max-width: 11em; }
+.base-raw code { flex: 1; min-width: 0; font-size: 12.5px; overflow-wrap: anywhere; color: var(--muted); }
+.base-x { margin-left: auto; padding: 0 6px; min-height: 0; border: 0; border-radius: 5px; background: none; color: var(--muted); font-size: 17px; line-height: 1.2; cursor: pointer; }
+.base-x:hover { background: var(--sel); color: var(--fg); }
+.base-btn { font: 13px var(--sans); padding: 4px 10px; min-height: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); cursor: pointer; }
+.base-btn:hover { background: var(--sel); }
+.base-add { align-self: flex-start; border-style: dashed; color: var(--muted); }
+.base-adder { display: flex; gap: 6px; }
+.base-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.base-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 9px; border-radius: 999px; background: var(--sel); font-size: 13px; }
+.base-chip-x { padding: 0 4px; min-height: 0; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; }
+.base-proplist { display: flex; flex-direction: column; }
+.base-prop { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.base-prop:hover { background: var(--sel); }
+.base-prop input { margin: 0; }
+.base-prop-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.base-grip { color: var(--muted); cursor: grab; touch-action: none; }
+.base-prop.sort-before, .base-sort-row.sort-before { box-shadow: inset 0 3px 0 var(--accent); }
+.base-prop.sort-after, .base-sort-row.sort-after { box-shadow: inset 0 -3px 0 var(--accent); }
+.item-menu .menu-rule { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+/* Grid: sizing and moving columns. */
+.md-base-table th { position: relative; }
+.md-base-table th.sort-before { box-shadow: inset 3px 0 0 var(--accent); }
+.md-base-table th.sort-after { box-shadow: inset -3px 0 0 var(--accent); }
+.md-base-resize { position: absolute; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; z-index: 1; }
+.md-base-resize:hover, html.base-resizing .md-base-resize:active { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+html.base-resizing, html.base-resizing * { cursor: col-resize !important; user-select: none; }
+.md-base-listedit { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 12em; }
+.md-base-listedit .md-base-input { flex: 1 1 6em; width: auto; min-width: 6em; }
+.md-base-pill-x { padding: 0 0 0 4px; min-height: 0; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 13px; }
+/* Gallery: the corkboard's cards (src/cards.js) with a picture on top. */
+.md-base-galleries { display: flex; flex-direction: column; gap: 10px; }
+.md-base-gallery { --card-min: 220px; --card-ar: 16 / 10; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--card-min), 100%), 1fr)); gap: 14px; }
+.md-base .card { min-height: 0; cursor: default; -webkit-user-select: text; user-select: text; }
+.md-base .md-base-lanebody .card { cursor: grab; -webkit-user-select: none; user-select: none; }
+.md-base .card .card-cover { height: auto; aspect-ratio: var(--card-ar, 16 / 10); background: var(--panel); }
+.md-base-gallery.fit-contain .card-cover, .md-base-board.fit-contain .card-cover { object-fit: contain; }
+.md-base .card-blank { display: flex; align-items: center; justify-content: center; font: 600 28px var(--sans); color: color-mix(in srgb, var(--cc) 70%, var(--fg)); background: color-mix(in srgb, var(--cc) 16%, var(--card)); }
+.md-base img.card-cover + .card-blank { display: none; }
+.md-base .card.no-color .card-blank { color: var(--muted); background: var(--panel); }
+.md-base-cardprops { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+/* List: one row a note, its values as chips. */
+.md-base-item { align-items: center; flex-wrap: wrap; }
+.md-base-item .md-base-name { margin: 0; flex: 0 1 auto; }
+.md-base-pills { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-left: auto; justify-content: flex-end; font-size: 0.88em; }
+.md-base-chipval { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.md-base-chipval:has(.md-base-pill) { padding: 0; border: 0; }
+.md-base-chipval .md-base-pill { margin: 0; }
+/* Kanban: lanes side by side, scrolling sideways. */
+.md-base-board { display: flex; align-items: flex-start; gap: 12px; overflow-x: auto; padding-bottom: 8px; font-family: var(--sans); }
+.md-base-lane { flex: 0 0 min(260px, 78vw); display: flex; flex-direction: column; gap: 8px; padding: 8px; border-radius: 10px; background: color-mix(in srgb, var(--panel) 70%, var(--bg)); border: 1px solid var(--line); }
+.md-base-lane.sort-dragging { opacity: 0.4; }
+.md-base-lane.sort-before { box-shadow: -4px 0 0 var(--accent); }
+.md-base-lane.sort-after { box-shadow: 4px 0 0 var(--accent); }
+.md-base-lanehead { display: flex; align-items: center; gap: 6px; padding: 0 2px; cursor: grab; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.md-base-lanename { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.md-base-lanecount { color: var(--muted); font-size: 12.5px; }
+.md-base-laneadd, .md-base-lanemore { padding: 0 6px; min-height: 0; border: 0; border-radius: 5px; background: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1.3; }
+.md-base-laneadd { margin-left: auto; }
+.md-base-laneadd:hover, .md-base-lanemore:hover { background: var(--sel); color: var(--fg); }
+.md-base-lanebody { display: flex; flex-direction: column; gap: 8px; min-height: 48px; border-radius: 8px; }
+.md-base-lanebody.sort-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.md-base-lanebody .card.sort-before { box-shadow: 0 -4px 0 -1px var(--accent); }
+.md-base-lanebody .card.sort-after { box-shadow: 0 4px 0 -1px var(--accent); }
+.md-base-lanetail { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
 .md-base-tab { font: inherit; font-size: 0.9em; padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); cursor: pointer; }
 .md-base-tab.on { background: var(--panel); color: var(--fg); border-color: var(--muted); }
 .md-base-title { font-weight: 600; }
 .md-base-count { color: var(--muted); font-size: 0.85em; }
 .md-base .md-base-src { position: static; margin-left: auto; opacity: 0.7; }
 .md-base-scroll { overflow-x: auto; }
+/* Sideways-scrolling parts take the note's width, not their content's (the
+   0 width keeps a wide table or board from widening the editor). */
+.md-base-scroll, .md-base-board { width: 0; min-width: 100%; box-sizing: border-box; }
 .md-base-table { border-collapse: collapse; width: max-content; min-width: 100%; }
 .md-base-table th, .md-base-table td { border-bottom: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; max-width: 22em; overflow-wrap: break-word; }
 .md-base-table th { color: var(--muted); font-weight: 600; white-space: nowrap; cursor: pointer; user-select: none; }
