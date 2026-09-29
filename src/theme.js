@@ -1,15 +1,19 @@
-// Themes: a family (Default, Sepia, Dracula, Rosé Pine) and a mode (Auto,
+// Themes: a family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night,
+// Catppuccin, Kanagawa) and a mode (Auto,
 // Light, Dark). themeAttr() gives the data-theme value set on <html>; the
 // colors are in src/style.css. public/theme.js repeats this before the page
 // draws, so keep the two in step.
 
-export const FAMILIES = ["default", "sepia", "dracula", "rosepine"];
+export const FAMILIES = ["default", "sepia", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa"];
 
 const VARIANTS = {
 	default: { light: "light", dark: "dark" },
 	sepia: { light: "sepia", dark: "sepia" }, // light only
 	dracula: { light: "dracula-light", dark: "dracula" },
 	rosepine: { light: "rosepine-dawn", dark: "rosepine" },
+	tokyonight: { light: "tokyonight-day", dark: "tokyonight" },
+	catppuccin: { light: "catppuccin-latte", dark: "catppuccin" },
+	kanagawa: { light: "kanagawa-lotus", dark: "kanagawa" },
 };
 
 // Saved values -> { family, mode }. Before families, wr1t3rTheme held

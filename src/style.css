@@ -1,5 +1,6 @@
 /* Colors, fonts and themes follow Reader's (librarykaiju/reader). A theme is a
-   family (Default, Sepia, Dracula, Rosé Pine) and a mode (Auto, Light, Dark);
+   family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night, Catppuccin,
+   Kanagawa) and a mode (Auto, Light, Dark);
    src/theme.js and public/theme.js set data-theme on <html>. Default + Auto
    sets none, and this sheet follows the system. --f1 to --f7 are each theme's
    rainbow, for the sidebar's folders, from its official palette where it has
@@ -66,6 +67,54 @@
 	--accent: #907aa9; --bad: #b4637a; --hl: #f6dfb8;
 	--panel: #f2e9e1; --mark: #9893a5; --code-bg: #f2e9e1;
 	--f1: #b4637a; --f2: #ea9d34; --f3: #d7827e; --f4: #56949f; --f5: #286983; --f6: #907aa9; --f7: #797593;
+	color-scheme: light;
+}
+
+/* Tokyo Night (github.com/folke/tokyonight.nvim): Night, and Day for light.
+   Day's text is Tokyo Night Light's #343b58, since Day's own blue text is too
+   faint on the tinted sidebar rows. */
+:root[data-theme=tokyonight] {
+	--bg: #1a1b26; --fg: #c0caf5; --muted: #a9b1d6; --line: #292e42; --card: #1f2335; --sel: #283457;
+	--accent: #7aa2f7; --bad: #f7768e; --hl: #3d59a1;
+	--panel: #16161e; --mark: #565f89; --code-bg: #24283b;
+	--f1: #f7768e; --f2: #ff9e64; --f3: #e0af68; --f4: #9ece6a; --f5: #7dcfff; --f6: #7aa2f7; --f7: #bb9af7;
+	color-scheme: dark;
+}
+:root[data-theme=tokyonight-day] {
+	--bg: #e1e2e7; --fg: #343b58; --muted: #4c5a8c; --line: #c4c8da; --card: #e9e9ed; --sel: #b7c1e3;
+	--accent: #3760bf; --bad: #f52a65; --hl: #e8d8b5;
+	--panel: #d0d5e3; --mark: #848cb5; --code-bg: #d0d5e3;
+	--f1: #f52a65; --f2: #b15c00; --f3: #8c6c3e; --f4: #587539; --f5: #007197; --f6: #2e7de9; --f7: #9854f1;
+	color-scheme: light;
+}
+/* Catppuccin (catppuccin.com): Mocha, and Latte for light. */
+:root[data-theme=catppuccin] {
+	--bg: #1e1e2e; --fg: #cdd6f4; --muted: #a6adc8; --line: #313244; --card: #181825; --sel: #45475a;
+	--accent: #cba6f7; --bad: #f38ba8; --hl: #585b70;
+	--panel: #181825; --mark: #6c7086; --code-bg: #313244;
+	--f1: #f38ba8; --f2: #fab387; --f3: #f9e2af; --f4: #a6e3a1; --f5: #89dceb; --f6: #89b4fa; --f7: #cba6f7;
+	color-scheme: dark;
+}
+:root[data-theme=catppuccin-latte] {
+	--bg: #eff1f5; --fg: #4c4f69; --muted: #6c6f85; --line: #ccd0da; --card: #ffffff; --sel: #ccd0da;
+	--accent: #8839ef; --bad: #d20f39; --hl: #f5dfb5;
+	--panel: #e6e9ef; --mark: #9ca0b0; --code-bg: #e6e9ef;
+	--f1: #d20f39; --f2: #fe640b; --f3: #df8e1d; --f4: #40a02b; --f5: #04a5e5; --f6: #1e66f5; --f7: #8839ef;
+	color-scheme: light;
+}
+/* Kanagawa (github.com/rebelot/kanagawa.nvim): Wave, and Lotus for light. */
+:root[data-theme=kanagawa] {
+	--bg: #1f1f28; --fg: #dcd7ba; --muted: #c8c093; --line: #363646; --card: #2a2a37; --sel: #223249;
+	--accent: #7e9cd8; --bad: #e46876; --hl: #49443c;
+	--panel: #16161d; --mark: #54546d; --code-bg: #2a2a37;
+	--f1: #e46876; --f2: #ffa066; --f3: #e6c384; --f4: #98bb6c; --f5: #7aa89f; --f6: #7e9cd8; --f7: #957fb8;
+	color-scheme: dark;
+}
+:root[data-theme=kanagawa-lotus] {
+	--bg: #f2ecbc; --fg: #545464; --muted: #716e61; --line: #dcd5ac; --card: #f2ecbc; --sel: #c9cbd1;
+	--accent: #4d699b; --bad: #c84053; --hl: #f9d791;
+	--panel: #e5ddb0; --mark: #a09cac; --code-bg: #e7dba0;
+	--f1: #c84053; --f2: #cc6d00; --f3: #77713f; --f4: #6f894e; --f5: #597b75; --f6: #4d699b; --f7: #624c83;
 	color-scheme: light;
 }
 
@@ -166,6 +215,9 @@ header {
 .seg button { flex: 1; border: 0; border-radius: 0; background: none; padding: 9px 4px; font-size: 14px; min-width: 0; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed=true] { background: var(--sel); font-weight: 600; }
+/* Seven theme families, three to a row. */
+#themeFamilies { display: grid; grid-template-columns: repeat(3, 1fr); }
+#themeFamilies button { border-left: 1px solid var(--line); border-top: 1px solid var(--line); margin: -1px 0 0 -1px; }
 .seg .val {
 	flex: 0 0 56px; display: grid; place-items: center; font-variant-numeric: tabular-nums;
 	border-left: 1px solid var(--line); border-right: 1px solid var(--line); font-size: 14px;
