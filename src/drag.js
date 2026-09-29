@@ -42,7 +42,10 @@ export function sortable(list, opts) {
 	function down(e) {
 		if (press || (e.pointerType === "mouse" && e.button !== 0)) return;
 		const el = e.target.closest(o.item);
-		if (!el || owner(el) !== list || e.target.closest(EDITING)) return;
+		// (Only boxes inside the item count: a list can sit in an editor, whose
+		// whole content is contenteditable.)
+		const editing = e.target.closest(EDITING);
+		if (!el || owner(el) !== list || (editing && el.contains(editing))) return;
 		press = { el, x: e.clientX, y: e.clientY, id: e.pointerId, type: e.pointerType, active: false, drop: null };
 		if (e.pointerType !== "mouse") press.timer = setTimeout(() => begin(), o.holdMs);
 		window.addEventListener("pointermove", move, true);
