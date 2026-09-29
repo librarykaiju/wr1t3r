@@ -40,3 +40,43 @@ test("Ctrl+Enter cycles a checkbox like Obsidian", () => {
 	assert.equal(cyc("> - [ ] quoted|"), "> - [x] quoted");
 	assert.equal(cyc("|"), "- [ ] ");
 });
+
+import { keyName, showKey, usableKey, bindings, rebind, DEFAULT_KEYS } from "../src/hotkeys.js";
+
+const ev = (code, key, mods = {}) => ({ code, key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...mods });
+
+test("key names come from the physical key, with Cmd as Mod on a Mac", () => {
+	assert.equal(keyName(ev("KeyB", "b", { ctrlKey: true }), false), "Mod-b");
+	assert.equal(keyName(ev("KeyB", "b", { metaKey: true }), true), "Mod-b");
+	assert.equal(keyName(ev("KeyB", "b", { ctrlKey: true }), true), "Ctrl-b");
+	assert.equal(keyName(ev("KeyF", "F", { ctrlKey: true, shiftKey: true }), false), "Mod-Shift-f");
+	assert.equal(keyName(ev("BracketRight", "}", { ctrlKey: true, shiftKey: true }), false), "Mod-Shift-]");
+	assert.equal(keyName(ev("KeyN", "˜", { altKey: true }), true), "Alt-n"); // Option changes the character, not the key
+	assert.equal(keyName(ev("Enter", "Enter", { ctrlKey: true }), false), "Mod-Enter");
+	assert.equal(keyName(ev("Minus", "-", { ctrlKey: true }), false), "Mod--");
+	assert.equal(keyName(ev("ControlLeft", "Control", { ctrlKey: true }), false), null);
+});
+
+test("keys read as Ctrl+Shift+F, or ⌘⇧F on a Mac", () => {
+	assert.equal(showKey("Mod-Shift-f", false), "Ctrl+Shift+F");
+	assert.equal(showKey("Mod-Shift-f", true), "⌘⇧F");
+	assert.equal(showKey("Mod-Enter", false), "Ctrl+Enter");
+	assert.equal(showKey("Mod--", false), "Ctrl+-");
+	assert.equal(showKey("Alt-ArrowUp", true), "⌥↑");
+	assert.equal(showKey(undefined, false), "");
+	assert.ok(usableKey("Mod-b") && usableKey("Alt-x") && usableKey("F5"));
+	assert.ok(!usableKey("b") && !usableKey("Shift-b") && !usableKey(null));
+});
+
+test("changing a hotkey takes it off whatever had it, and resets tidy up", () => {
+	let c = rebind({}, "Heading 1", "Mod-b");
+	assert.deepEqual(c, { "Heading 1": "Mod-b", "Bold": "" });
+	let k = bindings(c);
+	assert.equal(k.byKey.get("Mod-b"), "Heading 1");
+	assert.equal(k.byLabel.Bold, undefined);
+	c = rebind(c, "Bold", null); // Bold back to Ctrl+B: Heading 1 loses it, which is its default (none)
+	assert.deepEqual(c, {});
+	assert.equal(bindings(c).byKey.get("Mod-b"), "Bold");
+	assert.deepEqual(rebind({}, "Italic", ""), { "Italic": "" });
+	assert.equal(bindings({ Italic: "" }).byKey.has(DEFAULT_KEYS.Italic), false);
+});

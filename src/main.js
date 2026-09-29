@@ -12,6 +12,7 @@ import { vaultChanged } from "./vault.js";
 import { setLivePreview } from "./livepreview.js";
 import { parseQuery, matches, snippet } from "./search.js";
 import { openPalette } from "./palette.js";
+import { EDIT_ACTIONS, DEFAULT_KEYS, keyName, showKey, usableKey, bindings, rebind } from "./hotkeys.js";
 import { templatesIn, insertTemplate } from "./templates.js";
 import { COMMANDS } from "./slash.js";
 import { runCommand } from "./kbbar.js";
@@ -464,17 +465,12 @@ function insertFromTemplate() {
 	openPalette({ placeholder: "Insert template…", items });
 }
 
-// Ctrl/Cmd+P: every command, app and formatting alike.
-// Shortcuts, shown beside their commands in the palette (src/hotkeys.js has the editing ones).
+// Hotkeys: Obsidian's defaults plus this device's changes (src/hotkeys.js).
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-const KEYS = {
-	"Open a note": "Mod+O", "Search notes": "Mod+Shift+F", "Toggle Live Preview": "Mod+E", "Settings": "Mod+,",
-	"Sync now": "Mod+S", "Find in note": "Mod+F", "Bold": "Mod+B", "Italic": "Mod+I", "Link": "Mod+K", "Task": "Mod+Enter",
-};
-function keyHint(label) {
-	const k = KEYS[label];
-	return k ? k.replace("Mod+", MAC ? "⌘" : "Ctrl+").replace("Shift+", MAC ? "⇧" : "Shift+") : undefined;
-}
+const HOTKEYS_KEY = "wr1t3r-hotkeys";
+let keyChanges = readJSON(HOTKEYS_KEY, {});
+let keys = bindings(keyChanges);
+let capturing = false; // while a new hotkey is being pressed
 
 function searchNotes() {
 	$("app").classList.add("menu-open");
@@ -488,11 +484,13 @@ function toggleLivePreview() {
 	applyMode(live ? "live" : "source");
 }
 
-function commandPalette() {
-	const has = !!editor.path;
+// Every command, for the palette and the hotkeys. editor: runs on the open
+// note's editor (and only while it has the cursor, from a hotkey).
+function allCommands() {
 	const view = editor.view;
 	const app = [
 		["Open a note", quickSwitcher, "quick switcher go to find"],
+		["Run a command", commandPalette, "palette"],
 		["New note", () => newNote(), "create"],
 		["New note from template", newFromTemplate, "templater"],
 		["Insert template", insertFromTemplate, "templater", true],
@@ -505,17 +503,134 @@ function commandPalette() {
 		["Show reference pane", () => showRef(!ref.on), "split side", true],
 		["Contents", () => openToc(!tocOpen()), "outline headings toc", true],
 		["Toggle Live Preview", toggleLivePreview, "markdown symbols hide"],
-		["Settings", () => openSettings(true), "preferences theme"],
+		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
+		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],
 		["Sync now", () => runSync(), "save"],
 		["Start or pause the focus timer", () => toggleTimer(), "pomodoro"],
 		["Find in note", () => { view.focus(); openSearchPanel(view); }, "search replace", true],
-	].filter(([, , , needsNote]) => !needsNote || has).map(([label, run, keywords]) => ({ label, run, keywords, detail: keyHint(label) }));
-	const format = has && !view.state.readOnly
-		? COMMANDS.filter((c) => !c.table || inTable(view.state)).map((c) => ({ label: c.label, detail: keyHint(c.label) || "insert", keywords: c.keywords, run: () => { view.focus(); runCommand(view, c); } }))
-		: [];
-	openPalette({ placeholder: "Run a command…", items: [...app, ...format] });
+	].map(([label, run, keywords, needsNote]) => ({ label, run, keywords, needsNote: !!needsNote }));
+	const edits = [
+		...COMMANDS.map((c) => ({ label: c.label, keywords: c.keywords, table: !!c.table, run: EDIT_ACTIONS[c.label] || ((v) => runCommand(v, c)) })),
+		{ label: "Indent", keywords: "tab nest", run: EDIT_ACTIONS.Indent },
+		{ label: "Outdent", keywords: "unindent dedent", run: EDIT_ACTIONS.Outdent },
+	].map((c) => ({ ...c, editor: true, needsNote: true }));
+	return [...app, ...edits];
+}
+
+// Ctrl/Cmd+P: every command that can run now, with its hotkey.
+function commandPalette() {
+	const has = !!editor.path;
+	const view = editor.view;
+	const items = allCommands()
+		.filter((c) => (!c.needsNote || has) && (!c.editor || !view.state.readOnly) && (!c.table || inTable(view.state)))
+		.map((c) => ({
+			label: c.label, keywords: c.keywords,
+			detail: showKey(keys.byLabel[c.label], MAC) || (c.editor ? "insert" : undefined),
+			run: c.editor ? () => { view.focus(); c.run(view); } : c.run,
+		}));
+	openPalette({ placeholder: "Run a command…", items });
+}
+
+// Runs the command whose hotkey was pressed. Editing commands only act on the
+// open note's text while it has the cursor.
+function onHotkey(e) {
+	if (capturing || e.defaultPrevented || e.isComposing) return;
+	const name = keyName(e, MAC);
+	if (!usableKey(name)) return;
+	const label = keys.byKey.get(name);
+	const c = label && allCommands().find((x) => x.label === label);
+	if (!c) return;
+	const view = editor.view;
+	if (c.needsNote && !editor.path) return;
+	if (c.editor && (document.activeElement !== view.contentDOM || (c.table && !inTable(view.state)))) return;
+	e.preventDefault();
+	e.stopPropagation();
+	c.editor ? c.run(view) : c.run();
+}
+
+// Settings > Hotkeys: pick a command, then press its new keys.
+function editHotkeys() {
+	openSettings(false);
+	const items = allCommands().map((c) => ({
+		label: c.label, keywords: c.keywords,
+		detail: showKey(keys.byLabel[c.label], MAC) || "—",
+		run: () => captureHotkey(c.label),
+	}));
+	openPalette({ placeholder: "Change a hotkey…", items });
+}
+
+function saveHotkeys(changes) {
+	keyChanges = changes;
+	keys = bindings(changes);
+	writeJSON(HOTKEYS_KEY, changes);
+}
+
+function captureHotkey(label) {
+	const back = document.activeElement;
+	const wrap = document.createElement("div");
+	wrap.className = "palette";
+	wrap.setAttribute("role", "dialog");
+	wrap.setAttribute("aria-label", `New hotkey for ${label}`);
+	const box = document.createElement("div");
+	box.className = "palette-box hotkey-box";
+	const title = document.createElement("p");
+	title.className = "hotkey-title";
+	title.textContent = `Press the new keys for “${label}”`;
+	const now = document.createElement("p");
+	now.className = "hotkey-now";
+	const current = keys.byLabel[label];
+	now.textContent = current ? `Now: ${showKey(current, MAC)}` : "No hotkey yet";
+	const row = document.createElement("div");
+	row.className = "hotkey-actions";
+	const button = (text, fn) => {
+		const b = document.createElement("button");
+		b.type = "button";
+		b.textContent = text;
+		b.addEventListener("click", fn);
+		row.append(b);
+		return b;
+	};
+	const done = (changes, note) => {
+		window.removeEventListener("keydown", onKey, true);
+		capturing = false;
+		wrap.remove();
+		if (changes) saveHotkeys(changes);
+		if (note) toast(note);
+		back?.focus?.();
+		editHotkeys();
+	};
+	const set = (key) => {
+		const had = key && keys.byKey.get(key);
+		const lost = had && had !== label ? ` It was on “${had}”, which now has none.` : "";
+		const changes = rebind(keyChanges, label, key);
+		const shown = bindings(changes).byLabel[label];
+		done(changes, shown ? `“${label}” is now ${showKey(shown, MAC)}.${lost}` : `“${label}” has no hotkey now.`);
+	};
+	if (current) button("Remove", () => set(""));
+	if ((DEFAULT_KEYS[label] || "") !== (current || "")) button(DEFAULT_KEYS[label] ? `Reset to ${showKey(DEFAULT_KEYS[label], MAC)}` : "Reset", () => set(null));
+	button("Cancel", () => done(null));
+	const onKey = (e) => {
+		if (e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopPropagation(); return done(null); }
+		if (e.key === "Tab" || e.key === "Enter" || e.key === " ") return; // move between and press the buttons
+		const name = keyName(e, MAC);
+		if (!name) return;
+		e.preventDefault();
+		e.stopPropagation();
+		if (!usableKey(name)) {
+			now.textContent = `${showKey(name, MAC)} would get in the way of typing. Hold ${MAC ? "⌘, ⌃ or ⌥" : "Ctrl or Alt"} too.`;
+			return;
+		}
+		set(name);
+	};
+	box.append(title, now, row);
+	wrap.append(box);
+	wrap.addEventListener("mousedown", (e) => { if (e.target === wrap) { e.preventDefault(); done(null); } });
+	document.body.append(wrap);
+	capturing = true;
+	window.addEventListener("keydown", onKey, true);
+	row.lastElementChild.focus();
 }
 
 // ---- reference pane ------------------------------------------------------------
@@ -1814,16 +1929,8 @@ async function start() {
 	document.addEventListener("visibilitychange", () => {
 		if (document.visibilityState === "visible") runSync();
 	});
-	document.addEventListener("keydown", (e) => {
-		if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-		const k = e.key.toLowerCase();
-		if (k === "s") { e.preventDefault(); runSync(); }
-		else if (k === "o" && !e.shiftKey) { e.preventDefault(); quickSwitcher(); }
-		else if (k === "p" && !e.shiftKey) { e.preventDefault(); commandPalette(); }
-		else if (k === "f" && e.shiftKey) { e.preventDefault(); searchNotes(); }
-		else if (k === "e" && !e.shiftKey) { e.preventDefault(); toggleLivePreview(); }
-		else if (k === "," && !e.shiftKey) { e.preventDefault(); openSettings($("settings").hidden); }
-	});
+	document.addEventListener("keydown", onHotkey, true); // ahead of the editor's own keys
+	$("hotkeysBtn").addEventListener("click", editHotkeys);
 	$("bookmark").addEventListener("click", () => toggleBookmark());
 	$("palette").addEventListener("click", () => commandPalette());
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);

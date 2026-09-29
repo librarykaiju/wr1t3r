@@ -560,6 +560,11 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 .palette-box li .detail { flex: none; max-width: 45%; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-box li.none { color: var(--muted); cursor: default; }
 #palette { font-size: 17px; }
+/* Pressing a new hotkey (Settings > Hotkeys) */
+.hotkey-box { padding: 18px 18px 14px; gap: 6px; font-family: var(--sans); }
+.hotkey-title { margin: 0; font-size: 16px; font-weight: 600; }
+.hotkey-now { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+.hotkey-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 #bookmark { flex: none; background: none; border: 0; color: var(--muted); font-size: 16px; line-height: 1; padding: 4px 4px; border-radius: 6px; min-height: 0; }
 #bookmark.on { color: var(--accent); }
 #bookmark:hover { background: var(--sel); color: var(--fg); }
