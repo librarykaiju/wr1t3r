@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 // skipping lines (as they did under the daily note's properties and dataview blocks).
 test("editor lines and block widgets keep their spacing out of margins", () => {
 	const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-	const roots = ["md-fm", "md-dv", "md-dql", "md-embed-wrap", "md-image", "md-grid-wrap", "md-backlinks", "cm-line"];
+	const roots = ["md-fm", "md-banner", "md-cover", "md-dv", "md-dql", "md-embed-wrap", "md-image", "md-grid-wrap", "md-backlinks", "cm-line"];
 	const bad = [];
 	for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
 		const [sel, body] = [m[1].trim(), m[2]];

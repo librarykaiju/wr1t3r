@@ -86,7 +86,7 @@ export function runCommand(view, c) {
 // Short names for the bar; anything not listed shows its menu label.
 const SHORT = {
 	"Heading 1": "H1", "Heading 2": "H2", "Heading 3": "H3", "Bullet list": "• List", "Numbered list": "1. List",
-	"Code block": "Code", "Divider": "―", "Inline code": "`code`", "Add property": "Property",
+	"Code block": "Code", "Divider": "―", "Inline code": "`code`", "Add property": "Property", "Banner image": "Banner", "Cover image": "Cover",
 	"Bold": "B", "Italic": "I", "Strikethrough": "S", "Add row below": "+ Row", "Add column after": "+ Col",
 	"Delete row": "− Row", "Delete column": "− Col", "Format table": "Tidy",
 };
