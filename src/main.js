@@ -989,9 +989,12 @@ function taken(path) {
 
 function normalise(input) {
 	let p = input.trim().replace(/^\/+/, "");
-	if (!/\.md$/i.test(p)) p += ".md";
+	if (!/\.(md|base)$/i.test(p)) p += ".md";
 	return p;
 }
+
+// A new .base starts as Obsidian starts one: a table of every note.
+const NEW_BASE = "views:\n  - type: table\n    name: Table\n";
 
 async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = null) {
 	const input = prompt("New note (folders with /):", suggestion);
@@ -1003,7 +1006,7 @@ async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = 
 	// note replaces it in the vault.
 	// Notes that could be published start with the Note template's properties,
 	// including today's date; "_" folders never publish, so they start empty.
-	const text = makeText ? makeText(path) : /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"));
+	const text = makeText ? makeText(path) : /\.base$/i.test(path) ? NEW_BASE : /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"));
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	// Focus goes back to the New button once the name prompt closes; take it
@@ -2165,10 +2168,38 @@ async function refreshAttachments() {
 	} catch {}
 }
 
+// The smallest single change that turns a into b.
+function diffChange(a, b) {
+	let from = 0;
+	while (from < a.length && from < b.length && a[from] === b[from]) from++;
+	let ea = a.length, eb = b.length;
+	while (ea > from && eb > from && a[ea - 1] === b[eb - 1]) { ea--; eb--; }
+	return { from, to: ea, insert: b.slice(from, eb) };
+}
+
 // What dataviewjs blocks (src/dataview.js) may read: notes on this device, and
 // public web pages through the Worker, as the clipper fetches them.
 const dataviewVault = {
-	paths: () => visible().filter((n) => !n.binary).map((n) => n.path),
+	paths: () => visible().filter((n) => !n.binary && !/\.base$/i.test(n.path)).map((n) => n.path),
+	files: () => visible().filter((n) => !n.binary).map((n) => n.path),
+	// A base changing a note's property: the open note through the editor (so
+	// it can be undone there), others saved and synced like any edit.
+	async write(path, fn) {
+		const note = notes.get(path);
+		if (!note || note.deleted || note.binary) return;
+		if (path === editor.path) {
+			const before = editor.view.state.doc.toString(), after = fn(before); // "\n" breaks, as CodeMirror counts them
+			if (after !== before) editor.view.dispatch({ changes: diffChange(before, after), userEvent: "input.base" });
+			return;
+		}
+		const after = fn(note.text);
+		if (after === note.text) return;
+		await change(path, (cur) => (cur ? { ...cur, text: after, dirty: true } : cur));
+		editor.forget(path);
+		renderStatus();
+		renderTree();
+		scheduleSync();
+	},
 	text: (path) => { const n = notes.get(path); return n && !n.deleted && !n.binary ? n.text : null; },
 	attachments: () => attachments,
 	attachmentsLoaded: () => attachmentsLoaded,
