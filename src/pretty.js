@@ -3,8 +3,9 @@
 //   banner: <image>           a wide picture across the top of the note
 //   banner_position: 0-100    which part of it shows (50, the middle, if unset)
 //   cover: <image>            a picture beside the properties box; the Media
-//                             Notes plugin's coverImage and the vault's older
-//                             image property count too (the first one set wins)
+//                             Notes plugin's coverImage, the vault's older
+//                             image, and thumbnail count too (the first one
+//                             set wins)
 //   cover_shape: initial | initial-2 | initial-3 | vertical-cover |
 //                vertical-contain | horizontal-cover | horizontal-contain |
 //                square | circle
@@ -22,7 +23,7 @@ import { attachmentKind } from "./attachments.js";
 
 export const BANNER_KEY = "banner";
 export const BANNER_POSITION_KEY = "banner_position";
-export const COVER_KEYS = ["cover", "coverImage", "image"];
+export const COVER_KEYS = ["cover", "coverImage", "image", "thumbnail"];
 export const COVER_SHAPES = ["initial", "initial-2", "initial-3", "vertical-cover", "vertical-contain", "horizontal-cover", "horizontal-contain", "square", "circle"];
 // Widths in px, Pretty Properties' defaults.
 export const COVER_WIDTHS = { initial: 200, "initial-2": 250, "initial-3": 300, "vertical-cover": 200, "vertical-contain": 200, "horizontal-cover": 300, "horizontal-contain": 300, square: 250, circle: 250 };
