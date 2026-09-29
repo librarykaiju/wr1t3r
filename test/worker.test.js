@@ -24,13 +24,13 @@ const call = (env, path, init = {}) =>
 
 const env = () => ({
 	WR1T3R_TOKEN: "t",
-	EXCLUDE: "_includes/",
-	VAULT: fakeBucket({ "content/a.md": "A", "_includes/snippets/marquee.md": "M", "_Includes/x.md": "X", "content/img/p.png": "PNG", "_includes/i.png": "I", ".obsidian/icon.png": "O", "content/x.exe": "E" }),
+	EXCLUDE: "_includes/, content/404.md",
+	VAULT: fakeBucket({ "content/a.md": "A", "content/404.md": "404", "content/404.md.bak/x.md": "Y", "_includes/snippets/marquee.md": "M", "_Includes/x.md": "X", "content/img/p.png": "PNG", "_includes/i.png": "I", ".obsidian/icon.png": "O", "content/x.exe": "E" }),
 });
 
-test("excluded folders are left out of the list, whatever their case", async () => {
+test("excluded folders and files are left out of the list, whatever their case", async () => {
 	const r = await call(env(), "/api/files");
-	assert.deepEqual((await r.json()).files.map((f) => f.path), ["content/a.md"]);
+	assert.deepEqual((await r.json()).files.map((f) => f.path), ["content/404.md.bak/x.md", "content/a.md"], "a file entry hides only that file");
 });
 
 test("excluded folders can't be read, written or deleted", async () => {

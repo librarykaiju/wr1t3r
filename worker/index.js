@@ -12,8 +12,9 @@
 //                  Contents read/write on GITHUB_REPO only
 //   GITHUB_REPO    "owner/name"
 //   GITHUB_BRANCH  default "main"
-//   EXCLUDE        folders wr1t3r must never list, read or write, comma
-//                  separated, e.g. "_includes/"; paths as the page sees them
+//   EXCLUDE        folders and files wr1t3r must never list, read or write,
+//                  comma separated, e.g. "_includes/,content/404.md"; paths
+//                  as the page sees them
 //
 // Routes (all need "Authorization: Bearer <WR1T3R_TOKEN>"). Paths are relative
 // to the vault root; every note has a version (R2 etag or git blob sha) that
@@ -72,15 +73,20 @@ function backend(env) {
 	return r2Backend(env.VAULT, prefix);
 }
 
-// Returns a test for paths inside an EXCLUDE folder. Matching ignores case,
-// since some devices' file systems do too.
+// Returns a test for paths inside an EXCLUDE folder, or naming an EXCLUDE
+// file (an entry with an extension, like "content/404.md"). Matching ignores
+// case, since some devices' file systems do too.
 function excluded(env) {
-	const folders = (env.EXCLUDE || "")
+	const entries = (env.EXCLUDE || "")
 		.split(",")
 		.map((f) => f.trim().replace(/^\/+/, "").toLowerCase())
-		.filter(Boolean)
-		.map((f) => (f.endsWith("/") ? f : f + "/"));
-	return (path) => folders.some((f) => path.toLowerCase().startsWith(f));
+		.filter(Boolean);
+	const files = new Set(entries.filter((f) => /\.[a-z0-9]+$/.test(f)));
+	const folders = entries.filter((f) => !files.has(f)).map((f) => (f.endsWith("/") ? f : f + "/"));
+	return (path) => {
+		const p = path.toLowerCase();
+		return files.has(p) || folders.some((f) => p.startsWith(f));
+	};
 }
 
 async function authorized(request, env) {
