@@ -28,7 +28,7 @@ A line holding just `![[Note]]` shows that note in a box, as Obsidian does (`src
 
 **Live Preview** (Aa panel > Markdown symbols, off by default) hides `**`, `##`, `[text](url)` parts, `[[`/`]]` and `==` on every line except the one the cursor is on, like Obsidian's Live Preview (`src/livepreview.js`). Code blocks, tables and the properties box are left as they are. The note's text never changes.
 
-**Quick switcher and command palette** (`src/palette.js`): **Ctrl/Cmd+O** jumps to a note by name (recent ones first; letters in order are enough, so `chone` finds Chapter One), and offers to create the note when nothing matches. **Ctrl/Cmd+P**, or the ⌘ button in the header, runs any command: new note, today's note, templates, bookmark, rename, delete, close tab, reference pane, Contents, Live Preview, upload, clip, sync, the focus timer, find, and every formatting command from the slash menu.
+**Quick switcher and command palette** (`src/palette.js`): **Ctrl/Cmd+O** jumps to a note by name (recent ones first; letters in order are enough, so `chone` finds Chapter One), and offers to create the note when nothing matches. **Ctrl/Cmd+P**, or the ⌘ button in the header, runs any command: new note, today's note, templates, bookmark, rename, delete, close tab, reference pane, Contents, Live Preview, upload, clip, media notes, sync, the focus timer, find, and every formatting command from the slash menu.
 
 **Templates** (`src/templates.js`): **New note from template** and **Insert template** (both in the command palette) list everything in `_templates/`. A new note is named first; inserting puts the template's text at the cursor and adds only the properties the note doesn't have yet. Templater tags (dates, the title) and Obsidian's core `{{title}}`, `{{date}}`, `{{time}}` and `{{date:FORMAT}}` are filled in without running anything; plugin fields like `{{LIST:director}}` come out empty.
 
@@ -130,6 +130,23 @@ This is a one-time setup, done in a browser and a terminal on your computer.
 If the agenda ever says the Google sign-in has expired, run `npm run google-auth` again. To cut wr1t3r off, remove it at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
 The first sync downloads every note (a few MB for this vault).
+
+## Media notes
+
+The command palette's **Create movie/TV note**, **Create book note**, **Create music note**, **Create game note**, **Create comic note** and **Create podcast note** do what the Media Notes Obsidian plugin does, with the same properties, so a note made here matches one made in Obsidian. Search, pick a result (and a cover, for books and games), and the note opens in its folder with the looked-up properties and an empty `## Notes` heading. The Worker does the lookups (`worker/media.js`), since most of these services don't answer browsers directly, and it holds the keys; the page never sees them.
+
+Books (Open Library and Google Books), music (MusicBrainz and Cover Art Archive) and podcasts (iTunes) need no key. The others show up once their keys are set:
+
+```sh
+npx wrangler secret put OMDB_API_KEY        # movies and TV, free at omdbapi.com/apikey.aspx
+npx wrangler secret put RAWG_API_KEY        # games, free at rawg.io/apidocs
+npx wrangler secret put COMICVINE_API_KEY   # comics, free at comicvine.gamespot.com/api
+npx wrangler secret put IGDB_CLIENT_ID      # optional: game box art (a Twitch app at dev.twitch.tv/console/apps)
+npx wrangler secret put IGDB_CLIENT_SECRET
+npx wrangler secret put ANTHROPIC_API_KEY   # optional: subject headings and vibe tags for books
+```
+
+Notes go in `content/logs/movies-tv`, `books` (comics too), `music`, `games` and `podcasts`. Set `MEDIA_MOVIE_FOLDER`, `MEDIA_BOOK_FOLDER`, `MEDIA_MUSIC_FOLDER`, `MEDIA_GAME_FOLDER` or `MEDIA_PODCAST_FOLDER` under `[vars]` to change them.
 
 ## Using a GitHub repo instead of R2
 

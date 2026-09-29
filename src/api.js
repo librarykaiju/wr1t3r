@@ -89,6 +89,18 @@ export const api = {
 		});
 		return (await jsonOrThrow(res)).event;
 	},
+	async mediaKinds() {
+		return (await jsonOrThrow(await call("/api/media/kinds"))).kinds;
+	},
+	async mediaSearch(kind, q) {
+		return (await jsonOrThrow(await call("/api/media/search?" + new URLSearchParams({ kind, q })))).results;
+	},
+	async mediaCovers(kind, ref) {
+		return (await jsonOrThrow(await call("/api/media/covers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, ref }) }))).covers;
+	},
+	async mediaNote(kind, ref, cover, today) {
+		return jsonOrThrow(await call("/api/media/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, ref, cover, today }) }));
+	},
 	async remove(path, expected) {
 		const res = await call(q(path), { method: "DELETE", headers: { "If-Match": `"${expected}"` } });
 		if (res.status === 412) return { ok: false, version: (await res.json().catch(() => ({}))).version ?? null };

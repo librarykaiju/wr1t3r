@@ -659,6 +659,17 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-attachment video { display: block; max-width: 100%; height: auto; border-radius: 6px; }
 :is(#editor, #refView) .md-pdf { font: 0.9em var(--sans, sans-serif); padding: 0.5em 0.9em; border: 1px solid var(--line); border-radius: 8px; background: var(--card, var(--bg)); color: var(--fg); cursor: pointer; }
 :is(#editor, #refView) .md-pdf:hover { border-color: var(--accent); }
+/* Media notes: search results with covers, and the cover picker (src/media.js) */
+.palette-box .media-results li { align-items: center; }
+.media-results img, .media-results .media-thumb { flex: none; width: 36px; height: 54px; object-fit: cover; border-radius: 4px; background: var(--panel); }
+.media-results .media-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.media-results .media-text .label, .media-results .media-text .detail { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-cover-box { padding: 18px 18px 14px; gap: 8px; font-family: var(--sans); }
+.media-covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; overflow-y: auto; min-height: 0; }
+.media-cover { padding: 0; border: 2px solid transparent; border-radius: 8px; background: none; min-height: 0; cursor: pointer; }
+.media-cover img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; }
+.media-cover:hover, .media-cover:focus-visible { border-color: var(--accent); outline: none; }
+.palette-box .media-url input { flex: 1 1 200px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 16px; }
 /* Moving and deleting from the sidebar (drag and drop; right-click or long-press menu) */
 #tree a, #tree details > summary { -webkit-touch-callout: none; }
 #tree .drop, #tree.drop { outline: 2px dashed var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
