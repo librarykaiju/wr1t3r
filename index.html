@@ -42,6 +42,9 @@
 		<div id="scrim"></div>
 		<main>
 			<header>
+				<button id="leftBtn" type="button" class="quiet panel-btn" aria-pressed="true" aria-controls="sidebar">
+					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg>
+				</button>
 				<button id="menu" type="button" aria-label="Notes">☰</button>
 				<label id="tabPickWrap" title="Open notes" hidden><span id="tabCount"></span><select id="tabPick" aria-label="Switch to an open note"></select></label>
 				<div id="tabs" role="tablist" aria-label="Open notes">
@@ -63,6 +66,9 @@
 				</button>
 				<button id="settingsBtn" type="button" class="quiet" aria-label="Display settings" aria-expanded="false" aria-controls="settings">Aa</button>
 				<button id="delete" type="button" class="quiet" title="Delete note" disabled>Delete</button>
+				<button id="rightBtn" type="button" class="quiet panel-btn" aria-pressed="true" aria-controls="rightcol">
+					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M14.5 4.5v15"/></svg>
+				</button>
 			</header>
 			<div id="panes">
 				<div id="editor"></div>
@@ -97,6 +103,7 @@
 				<button id="count" type="button" class="quiet" title="Switch between words and characters"></button>
 			</footer>
 		</main>
+		<aside id="rightcol" aria-label="Calendar and contents"></aside>
 		<div id="settings" class="pop" hidden>
 			<h2>Theme</h2>
 			<div class="seg" id="themeFamilies">
@@ -158,8 +165,8 @@
 			<div class="agenda-top">
 				<h2>Agenda</h2>
 				<button id="addEventBtn" type="button">+ Add event</button>
-				<button id="agendaPin" type="button" class="quiet" aria-pressed="false" aria-label="Pin the agenda">
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+				<button id="agendaFold" type="button" class="quiet" aria-expanded="true" aria-controls="agendaList">
+					<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l5 5 5-5"/></svg>
 				</button>
 			</div>
 			<div id="calMonth" hidden>

@@ -396,18 +396,6 @@ main:not(.has-note) #count { visibility: hidden; }
 #monthGrid .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .agenda-top { gap: 6px; }
 .agenda-top h2 { flex: 1; }
-#agendaPin { display: none; padding: 4px 6px; line-height: 0; color: var(--muted); }
-#agendaPin[aria-pressed=true] { color: var(--accent); }
-/* Pinned on a wide screen: docked beside the note like the contents, above them when both are open. */
-@media (min-width: 1180px) {
-	#agendaPin { display: inline-flex; }
-	#agenda.docked { top: calc(env(safe-area-inset-top) + 60px); bottom: 48px; right: 12px; width: 340px; max-height: none; box-shadow: none; z-index: 20; }
-	#app.agenda-docked :is(#editor, #refView) .cm-scroller { padding-right: 360px; }
-	#app.agenda-docked.toc-docked #agenda.docked { bottom: calc(50% + 4px); }
-	#app.agenda-docked.toc-docked :is(#editor, #refView) .cm-scroller { padding-right: 360px; }
-	#app.agenda-docked.toc-docked #toc.docked { top: calc(50% + 4px); width: 340px; }
-}
-
 #tocBtn { display: inline-flex; align-items: center; gap: 5px; }
 main:not(.has-note) #tocBtn { visibility: hidden; }
 #toc {
@@ -431,10 +419,38 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 #tocList .lvl0 .go { color: var(--fg); font-weight: 600; }
 #tocList li.active .go { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
 #tocEmpty { padding: 0 6px 6px; }
-/* On a wide screen the contents sit beside the note and stay open while you write. */
+/* Three columns (1180px and wider): notes list | note | right column with the
+   month calendar, the agenda (folds) and the contents. Each side folds away
+   from the header; the notes list folds on any screen wider than a phone. */
+.panel-btn { display: none; padding: 4px 6px; line-height: 0; }
+#leftBtn { margin-right: 2px; }
+#agendaFold { display: none; padding: 4px 6px; line-height: 0; color: var(--muted); }
+#agendaFold svg { transition: transform 0.12s; }
+#rightcol { display: none; }
+@media (min-width: 761px) {
+	#leftBtn { display: inline-flex; }
+	#app.left-shut #sidebar { display: none; }
+}
 @media (min-width: 1180px) {
-	#toc.docked { top: calc(env(safe-area-inset-top) + 60px); bottom: 48px; right: 12px; max-height: none; box-shadow: none; }
-	#app.toc-docked :is(#editor, #refView) .cm-scroller { padding-right: 320px; }
+	#rightBtn { display: inline-flex; }
+	#rightcol {
+		display: flex; flex-direction: column; width: 320px; flex: none; min-height: 0;
+		background: var(--panel); border-left: 1px solid var(--line);
+	}
+	#app.right-shut #rightcol { display: none; }
+	#rightcol > .pop { position: static; width: auto; max-height: none; box-shadow: none; border: 0; border-radius: 0; background: none; z-index: auto; }
+	#rightcol > #agenda {
+		flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column;
+		padding: max(12px, env(safe-area-inset-top)) 14px 12px;
+	}
+	#rightcol #calMonth { order: -1; position: sticky; top: calc(-1 * max(12px, env(safe-area-inset-top))); z-index: 1; background: var(--panel); margin: 0 -14px 10px; padding: 0 14px 8px; }
+	#rightcol .agenda-top { margin-bottom: 8px; }
+	#agendaFold { display: inline-flex; }
+	#app.agenda-folded #agendaFold svg { transform: rotate(-90deg); }
+	#app.agenda-folded #rightcol > #agenda { flex: none; }
+	#app.agenda-folded #agenda > :is(#calFilters, #addEvent, #agendaList, #agendaNote) { display: none; }
+	#rightcol > #toc { flex: 0 1 auto; max-height: 45%; min-height: 0; padding: 12px 8px 8px; border-top: 1px solid var(--line); }
+	#app.agenda-folded #rightcol > #toc { flex: 1 1 auto; max-height: none; }
 }
 :is(#editor, #refView) .md-table { font-family: var(--mono); font-size: 0.8em; line-height: 1.6; white-space: pre; }
 :is(#editor, #refView) .cm-lineWrapping .md-table { white-space: pre; overflow-wrap: normal; }
