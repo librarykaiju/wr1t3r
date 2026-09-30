@@ -79,3 +79,13 @@ test("#tags in the text are links; frontmatter, headings and code aren't", async
 	assert.equal(blockFor(s, "^quote-1"), doc.indexOf("A quote."));
 	assert.equal(blockFor(s, "^missing"), null);
 });
+
+test("resolving by name matches with an index, and a new paths list sees new notes", () => {
+	const paths = ["Plot.md", "b/long/Plot.md", "a/Plot.md", "a/Other.md"];
+	assert.equal(resolveNote({ note: "plot", wiki: true }, "z/x.md", paths), "Plot.md");
+	assert.equal(resolveNote({ note: "Other", wiki: true }, "z/x.md", paths), "a/Other.md");
+	assert.equal(resolveNote({ note: "long/plot", wiki: true }, "z/x.md", paths), "b/long/Plot.md");
+	assert.equal(resolveNote({ note: "Plot", wiki: true }, "b/long/x.md", paths), "b/long/Plot.md");
+	assert.equal(resolveNote({ note: "New", wiki: true }, null, paths), null);
+	assert.equal(resolveNote({ note: "New", wiki: true }, null, [...paths, "c/New.md"]), "c/New.md");
+});

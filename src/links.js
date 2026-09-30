@@ -137,7 +137,7 @@ export function resolveNote(link, fromPath, paths) {
 	let want = link.note.trim().replace(/^\.\//, "").replace(/^\/+/, "");
 	if (!want) return null;
 	if (!/\.md$/i.test(want)) want += ".md";
-	const lower = new Map(paths.map((p) => [p.toLowerCase(), p]));
+	const { lower, byName } = pathIndex(paths);
 	const folder = fromPath && fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/") + 1) : "";
 	const parts = [];
 	for (const seg of (folder + want).split("/")) {
@@ -148,8 +148,27 @@ export function resolveNote(link, fromPath, paths) {
 	// Otherwise any note whose path ends with it ("Note" or "Folder/Note").
 	if (want.includes("/") && !link.wiki) return null;
 	const tail = want.toLowerCase();
-	const hits = paths.filter((p) => p.toLowerCase() === tail || p.toLowerCase().endsWith("/" + tail));
+	const hits = tail.includes("/") ? paths.filter((p) => p.toLowerCase() === tail || p.toLowerCase().endsWith("/" + tail)) : [...(byName.get(tail) || [])];
 	return hits.sort((a, b) => a.length - b.length || a.localeCompare(b))[0] || null;
+}
+
+// Lookups over one paths array, built once per array: callers resolve many
+// links against the same list (backlinks scan the whole vault), and building
+// these for every link made that quadratic.
+const indexes = new WeakMap();
+function pathIndex(paths) {
+	let ix = indexes.get(paths);
+	if (ix) return ix;
+	const lower = new Map(), byName = new Map();
+	for (const p of paths) {
+		const l = p.toLowerCase();
+		lower.set(l, p);
+		const nm = l.slice(l.lastIndexOf("/") + 1);
+		if (byName.has(nm)) byName.get(nm).push(p); else byName.set(nm, [p]);
+	}
+	ix = { lower, byName };
+	indexes.set(paths, ix);
+	return ix;
 }
 
 // The line ending in a block id ("... ^quote-1"), for [[Note#^quote-1]] links.
