@@ -9,7 +9,7 @@ import { EditorView, Decoration, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { dataviewBlocks } from "./dataview.js";
 import {
-	PLANNER, readPlanner, writePlanner, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
+	PLANNER, readPlanner, writePlanner, setEntryColor, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
 	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
 	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine,
 } from "./planner.js";
@@ -22,6 +22,7 @@ import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { propertiesFolded, setPropertiesHidden } from "./frontmatter.js";
 import { openPanel, redrawPanel } from "./basesui.js";
 import { onMenu } from "./homeview.js";
+import { EVENT_COLORS } from "./agenda.js";
 import { menu } from "./basesui.js";
 
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
@@ -59,7 +60,7 @@ export function importEvents(view, events) {
 	if (!b) return null;
 	const cfg = readPlanner(b.code);
 	const r = addEvents(cfg.timeline, events);
-	if (r.added) saveBlock(view, 0, { ...cfg, timeline: r.timeline });
+	if (r.added || r.colored) saveBlock(view, 0, { ...cfg, timeline: r.timeline });
 	return { added: r.added };
 }
 
@@ -431,7 +432,7 @@ class PlannerWidget extends WidgetType {
 					if (!events) return;
 					const cur = readPlanner(dataviewBlocks(view.state, PLANNER)[this.n]?.code);
 					const r = addEvents(cur.timeline, events);
-					if (r.added) saveBlock(view, this.n, { ...cur, timeline: r.timeline });
+					if (r.added || r.colored) saveBlock(view, this.n, { ...cur, timeline: r.timeline });
 					host.toast?.(r.added ? `Added ${r.added} event${r.added === 1 ? "" : "s"} to the timeline.` : events.length ? "The timeline already has every event." : "No events that day.");
 				} finally { imp.disabled = false; }
 			});
@@ -454,6 +455,11 @@ class PlannerWidget extends WidgetType {
 			for (const e of items) {
 				const onSlot = hour != null && e.start === hour * 60 && (e.end == null || e.end === hour * 60 + 60);
 				const item = el("span", "planner-entry");
+				if (e.color) item.style.setProperty("--ev", e.color);
+				if (!ro && host) onMenu(item, (x, y) => colorPicker(e.color, x, y, (color) => {
+					const cur = readPlanner(dataviewBlocks(view.state, PLANNER)[this.n]?.code);
+					saveBlock(view, this.n, { ...cur, timeline: setEntryColor(cur.timeline, e.index, color) });
+				}));
 				if (!onSlot && !e.allDay && e.start != null) item.append(el("span", "planner-entry-time", timeText(clock(e.start)) + (e.end != null ? `–${timeText(clock(e.end))}` : "")));
 				item.append(el("span", "planner-entry-text", e.text));
 				if (!ro) item.addEventListener("click", (ev) => { ev.stopPropagation(); this.editEntry(item, e, hour ?? cfg.start, save); });
@@ -501,6 +507,42 @@ class PlannerWidget extends WidgetType {
 
 	ignoreEvent() { return true; }
 	get estimatedHeight() { return 900; }
+}
+
+// Google Calendar's event colors as swatches, and No color (the accent):
+// pick(color or null). Right-click or long-press an entry to open it.
+function colorPicker(current, x, y, pick) {
+	document.querySelector(".item-menu")?.remove();
+	const box = el("div", "item-menu planner-colors");
+	box.setAttribute("role", "dialog");
+	box.setAttribute("aria-label", "Entry color");
+	const row = el("div", "swatches");
+	const swatch = (color, label) => {
+		const b = el("button", "swatch" + (color ? "" : " none"));
+		b.type = "button";
+		b.title = label;
+		b.setAttribute("aria-label", label);
+		b.setAttribute("aria-pressed", String((current || null) === color));
+		if (color) b.style.setProperty("--sw", color);
+		b.addEventListener("click", () => { close(); pick(color); });
+		row.append(b);
+	};
+	swatch(null, "No color");
+	for (const [label, color] of Object.values(EVENT_COLORS)) swatch(color.toLowerCase(), label);
+	box.append(row);
+	document.body.append(box);
+	const r = box.getBoundingClientRect();
+	box.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
+	box.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+	const away = (ev) => { if (!box.contains(ev.target)) close(); };
+	const esc = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); close(); } };
+	function close() {
+		box.remove();
+		document.removeEventListener("pointerdown", away, true);
+		document.removeEventListener("keydown", esc, true);
+	}
+	setTimeout(() => { document.addEventListener("pointerdown", away, true); document.addEventListener("keydown", esc, true); });
+	box.querySelector("[aria-pressed=true]")?.focus();
 }
 
 function timeText(hhmm) {

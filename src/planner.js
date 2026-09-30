@@ -97,17 +97,26 @@ const minutes = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h
 // "09:30 - 10:15 | Dentist" -> { allDay, start, end, text } (minutes from
 // midnight; end null when only a start is given). An entry with no time
 // ("call Sam") has start null.
+// A trailing "{#039be5}" is the entry's color: its Google Calendar color,
+// kept when the event is imported so the card matches the calendar.
+const COLOR = /\s*\{(#[0-9a-f]{3,8})\}\s*$/i;
+
 export function parseEntry(s) {
-	const m = String(s).match(/^\s*(?:(\d{1,2}:\d{2})(?:\s*[-–]\s*(\d{1,2}:\d{2}))?|(all day))\s*\|?\s*(.*)$/i);
-	if (!m) return { allDay: false, start: null, end: null, text: String(s).trim() };
-	if (m[3]) return { allDay: true, start: null, end: null, text: m[4].trim() };
-	return { allDay: false, start: minutes(m[1]), end: m[2] ? minutes(m[2]) : null, text: m[4].trim() };
+	let str = String(s);
+	const c = str.match(COLOR);
+	const color = c ? c[1].toLowerCase() : null;
+	if (c) str = str.slice(0, c.index);
+	const m = str.match(/^\s*(?:(\d{1,2}:\d{2})(?:\s*[-–]\s*(\d{1,2}:\d{2}))?|(all day))\s*\|?\s*(.*)$/i);
+	if (!m) return { allDay: false, start: null, end: null, text: str.trim(), color };
+	if (m[3]) return { allDay: true, start: null, end: null, text: m[4].trim(), color };
+	return { allDay: false, start: minutes(m[1]), end: m[2] ? minutes(m[2]) : null, text: m[4].trim(), color };
 }
 
-export function entryLine({ allDay, start, end, text }) {
-	if (allDay) return `All day | ${text}`;
-	if (start == null) return text;
-	return `${clock(start)}${end != null ? ` - ${clock(end)}` : ""} | ${text}`;
+export function entryLine({ allDay, start, end, text, color }) {
+	const tag = color ? ` {${color}}` : "";
+	if (allDay) return `All day | ${text}${tag}`;
+	if (start == null) return text + tag;
+	return `${clock(start)}${end != null ? ` - ${clock(end)}` : ""} | ${text}${tag}`;
 }
 
 // The timeline as the card shows it: all-day entries, then one row per hour
@@ -145,9 +154,19 @@ export function setEntry(timeline, i, text, hour) {
 	else {
 		const old = parseEntry(list[i]);
 		const e = parseEntry(t);
-		list[i] = e.start != null || e.allDay ? entryLine(e) : entryLine({ ...old, text: t });
+		const color = e.color || old.color; // editing the text keeps the color
+		list[i] = e.start != null || e.allDay ? entryLine({ ...e, color }) : entryLine({ ...old, text: e.text, color });
 	}
 	return sortTimeline(list);
+}
+
+// The timeline with entry i's color set (null takes it off).
+export function setEntryColor(timeline, i, color) {
+	const list = [...timeline];
+	if (list[i] == null) return list;
+	const c = color && /^#[0-9a-f]{3,8}$/i.test(color) ? color.toLowerCase() : null;
+	list[i] = entryLine({ ...parseEntry(list[i]), color: c });
+	return list;
 }
 
 export function sortTimeline(list) {
@@ -157,25 +176,31 @@ export function sortTimeline(list) {
 
 // The timeline with calendar events added (worker/calendar.js's shape; start
 // and end are RFC 3339 times, or dates for all-day events). An event already
-// there (same start and title) isn't added again. -> { timeline, added }
+// there (same start and title) isn't added again, but takes the event's
+// color if it has none. -> { timeline, added, colored }
 export function addEvents(timeline, events) {
 	const list = [...timeline];
-	let added = 0;
+	let added = 0, colored = 0;
 	for (const ev of events) {
 		const title = String(ev.title || "(No title)").trim();
 		let e;
-		if (ev.allDay) e = { allDay: true, start: null, end: null, text: title };
+		const color = /^#[0-9a-f]{3,8}$/i.test(ev.color || "") ? ev.color.toLowerCase() : null;
+		if (ev.allDay) e = { allDay: true, start: null, end: null, text: title, color };
 		else {
 			const s = new Date(ev.start), f = new Date(ev.end);
 			const start = s.getHours() * 60 + s.getMinutes();
-			e = { allDay: false, start, end: start + Math.max(0, Math.round((f - s) / 60000)), text: title };
+			e = { allDay: false, start, end: start + Math.max(0, Math.round((f - s) / 60000)), text: title, color };
 		}
-		const have = list.some((l) => { const x = parseEntry(l); return x.text === title && x.allDay === e.allDay && x.start === e.start; });
-		if (have) continue;
+		const at = list.findIndex((l) => { const x = parseEntry(l); return x.text === title && x.allDay === e.allDay && x.start === e.start; });
+		if (at >= 0) {
+			const x = parseEntry(list[at]);
+			if (color && !x.color) { list[at] = entryLine({ ...x, color }); colored++; }
+			continue;
+		}
 		list.push(entryLine(e));
 		added++;
 	}
-	return { timeline: sortTimeline(list), added };
+	return { timeline: sortTimeline(list), added, colored };
 }
 
 // ---- The health note -------------------------------------------------------------
