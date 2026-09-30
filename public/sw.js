@@ -10,7 +10,31 @@ async function cacheShell() {
 	const html = await res.clone().text();
 	const assets = [...html.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((m) => m[1]);
 	await cache.put("/", res);
-	await Promise.all([...assets, SANDBOX].map((a) => cache.add(a).catch(() => {})));
+	let missed = false;
+	await Promise.all([...assets, SANDBOX].map((a) => cache.add(a).catch(() => { missed = true; })));
+	// Pruning reads the new scripts from the cache; with one missing it could
+	// drop lazy parts that are still current, so it waits for a clean pass.
+	if (!missed) await prune(cache, assets);
+}
+
+// Drops files from earlier builds. Kept: the page, the sandbox, what the page
+// points at, and every built file those scripts can load later (lazy parts
+// like export or PDF import, named inside the scripts), cached or not yet.
+async function prune(cache, assets) {
+	const keep = new Set(["/", SANDBOX]);
+	const queue = [...assets];
+	while (queue.length) {
+		const path = queue.pop();
+		if (keep.has(path)) continue;
+		keep.add(path);
+		if (!/\.m?js$/.test(path)) continue;
+		const hit = await cache.match(path);
+		if (!hit) continue;
+		for (const m of (await hit.text()).matchAll(/(?:\.\/|\/?assets\/)([\w.-]+\.(?:m?js|css))/g)) queue.push("/assets/" + m[1]);
+	}
+	for (const req of await cache.keys()) {
+		if (!keep.has(new URL(req.url).pathname)) await cache.delete(req);
+	}
 }
 
 self.addEventListener("install", (e) => {
