@@ -473,8 +473,10 @@ function decorate(state) {
 	const fm = frontmatterLines(doc);
 	if (!fm) return Decoration.none;
 	const open = doc.line(fm.open), close = doc.line(fm.close);
-	const ranges = [];
-	const b = { add: (from, to, d) => ranges.push(d.range(from, to)), finish: () => Decoration.set(ranges, true) };
+	// Added in document order. (Not Decoration.set: an empty property's
+	// widget is a zero-length replace, which RangeSetBuilder takes and
+	// Decoration.range() refuses.)
+	const b = new RangeSetBuilder();
 	if (state.field(folded)) {
 		b.add(open.from, open.from, Decoration.line({ class: "md-fm md-fm-fence md-first md-last" }));
 		b.add(open.from, close.to, Decoration.replace({ widget: new FmWidget("folded", propertyCount(doc, fm)), atomic: true }));
