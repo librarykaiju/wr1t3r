@@ -443,8 +443,11 @@
 				const ul = container.createEl("ul", { cls: "contains-task-list" });
 				for (const t of tasks || []) {
 					const li = ul.createEl("li", { cls: "task-list-item" });
-					const box = li.createEl("input", { attr: { type: "checkbox", disabled: true } });
+					const box = li.createEl("input", { attr: { type: "checkbox" } });
 					box.checked = !!t.checked || !!t.completed;
+					// Ticks the task in its note (the app checks the click was real).
+					if (t.path != null && Number.isInteger(t.line)) box.addEventListener("change", () => parent.postMessage({ type: "tick", path: t.path, line: t.line, text: t.text, checked: box.checked }, "*"));
+					else box.disabled = true;
 					li.appendText(" ");
 					md(t.text || "", li);
 				}

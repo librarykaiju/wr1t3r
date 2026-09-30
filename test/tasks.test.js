@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setTaskLine, taskMark, doneStampChanges, setDoneDates, sortChecklists, setDueChanges, dueOf, dueMark } from "../src/tasks.js";
+import { setTaskLine, taskMark, doneStampChanges, setDoneDates, sortChecklists, setDueChanges, dueOf, dueMark, tickInText } from "../src/tasks.js";
 
 const day = new Date(2026, 8, 30, 14, 5);
 
@@ -91,4 +91,14 @@ test("a due date is overdue only while the task is open", () => {
 	assert.equal(dueMark("- [ ] a 📅 2026-10-01", "2026-09-30").state, "later");
 	assert.equal(dueMark("- [x] a 📅 2026-09-01", "2026-09-30").state, "done");
 	assert.equal(dueMark("- [ ] no date", "2026-09-30"), null);
+});
+
+test("a Dataview tick finds its line, or the one task with its text", () => {
+	const text = "# T\n- [ ] call Sam\n- [ ] buy milk\n";
+	assert.equal(tickInText(text, 1, "call Sam", true, day), "# T\n- [x] call Sam ✅ 2026-09-30\n- [ ] buy milk\n");
+	// The note moved on: found by text.
+	assert.equal(tickInText("new line\n" + text, 1, "call Sam", true, day), "new line\n# T\n- [x] call Sam ✅ 2026-09-30\n- [ ] buy milk\n");
+	assert.equal(tickInText("- [x] a ✅ 2026-09-30\r\n- [ ] b", 0, "a ✅ 2026-09-30", false, day), "- [ ] a\r\n- [ ] b");
+	assert.equal(tickInText("- [ ] a\n- [ ] a\nx", 2, "a", true, day), null);
+	assert.equal(tickInText("- [ ] a", 0, "gone", true, day), null);
 });

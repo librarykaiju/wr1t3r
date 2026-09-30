@@ -18,6 +18,7 @@ import { resolveNote, linkOpener } from "./links.js";
 import { noteLinks } from "./vaultlinks.js";
 import { vaultHost as dvHost, notePath, vaultChanged } from "./vault.js";
 import { runQuery, show, DQLLink, DQLDate } from "./dql.js";
+import { tickInText } from "./tasks.js";
 
 
 const SANDBOX = "/dv-sandbox"; // public/dv-sandbox.html
@@ -108,6 +109,17 @@ function payload(view, code) {
 }
 
 const live = new Set(); // widgets on screen, to re-run when the note changes
+
+// Ticking a task in a Dataview result ticks the real line in its note (with
+// the done date, as ticking it there would). False when it couldn't be found.
+function tick(view, path, line, text, checked) {
+	const host = view.state.facet(dvHost);
+	if (!host?.write || UNTRUSTED.test(path) || host.text(path) == null) return false;
+	const now = path === view.state.facet(notePath) ? view.state.sliceDoc() : host.text(path);
+	if (tickInText(now, line, text, checked) == null) return false;
+	host.write(path, (t) => tickInText(t, line, text, checked) ?? t);
+	return true;
+}
 
 // Folding. Blocks with only blank lines between them are a run (the daily
 // note's health meters) and fold as one, to a strip with each block's summary.
@@ -240,6 +252,10 @@ class DataviewWidget extends WidgetType {
 			else if (d.type === "height") {
 				frame.style.height = Math.min(Math.max(d.h, 0), 20000) + "px";
 				view.requestMeasure();
+			} else if (d.type === "tick") {
+				// Only from a click in the block (the click's activation reaches this page).
+				if (navigator.userActivation && !navigator.userActivation.isActive) return;
+				tick(view, String(d.path || ""), Number(d.line), String(d.text ?? ""), !!d.checked);
 			} else if (d.type === "summary") {
 				wrap.dvSummary = String(d.text || "").slice(0, 120);
 				if (this.fold) updateStrip(view, this.fold.run);
@@ -379,7 +395,12 @@ class QueryWidget extends WidgetType {
 					const box = document.createElement("input");
 					box.type = "checkbox";
 					box.checked = !!t.checked;
-					box.disabled = true;
+					box.disabled = view.state.readOnly || t.path == null;
+					box.title = box.disabled ? "" : "Tick it in its note";
+					box.addEventListener("mousedown", (e) => e.stopPropagation());
+					box.addEventListener("change", () => {
+						if (!tick(view, t.path, t.line, t.text, box.checked)) box.checked = !box.checked;
+					});
 					li.append(box, " " + t.text);
 					ul.append(li);
 				}

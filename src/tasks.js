@@ -161,3 +161,22 @@ export function dueMark(lineText, today) {
 	const state = t.char !== " " ? "done" : m[1] < today ? "overdue" : m[1] === today ? "today" : "later";
 	return { from, to: m.index + m[0].length, day: m[1], state };
 }
+
+// ---- Ticking a task from somewhere else -------------------------------------
+// A Dataview task list ticks the real line in its note: the one at `line`
+// (0-based) if it's still that task, else the one task with that text. The
+// done date is added or taken off as usual. Null when it can't be found for sure.
+export function tickInText(text, line, taskText, checked, date = new Date()) {
+	const nl = text.includes("\r\n") ? "\r\n" : "\n";
+	const lines = text.split(/\r?\n/);
+	const want = String(taskText ?? "").trim();
+	const same = (l) => { const t = taskMark(l); return !!t && l.slice(t.at + 2).trim() === want; };
+	let i = Number.isInteger(line) && line >= 0 && line < lines.length && same(lines[line]) ? line : -1;
+	if (i < 0 && want) {
+		const hits = lines.map((l, n) => (same(l) ? n : -1)).filter((n) => n >= 0);
+		if (hits.length === 1) i = hits[0];
+	}
+	if (i < 0) return null;
+	lines[i] = setTaskLine(lines[i], checked ? "x" : " ", date);
+	return lines.join(nl);
+}
