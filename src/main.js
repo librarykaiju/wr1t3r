@@ -49,7 +49,7 @@ import { prettyOf } from "./pretty.js";
 import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { setCardsHost } from "./cardsblock.js";
-import { setPlannerHost } from "./plannerview.js";
+import { setPlannerHost, importEvents } from "./plannerview.js";
 import { healthPathFor, MEALS, WATER, MOOD } from "./planner.js";
 import { attachmentKind } from "./attachments.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
@@ -2085,10 +2085,17 @@ async function fillTimeline(path, { quiet }) {
 	const events = await timelineEvents(date);
 	if (!events || editor.path !== path) return;
 	const view = editor.view;
+	const where = calendarName(readRaw(DAILY_CAL_KEY));
+	// A planner page keeps its Timeline in the planner block.
+	const planned = importEvents(view, events);
+	if (planned) {
+		if (planned.added) toast(`Added ${planned.added} event${planned.added === 1 ? "" : "s"} from ${where} to the timeline.`);
+		else if (!quiet) toast(events.length ? "The timeline already has every event." : `No events on ${where} ${isoDate(date) === isoDate() ? "today" : "on " + isoDate(date)}.`);
+		return;
+	}
 	const r = timelineChanges(view.state.sliceDoc(), events);
 	if (!r) return toast("This note has no Timeline heading, so no events were added.");
 	if (r.changes.length) view.dispatch({ changes: r.changes, userEvent: "input.timeline" });
-	const where = calendarName(readRaw(DAILY_CAL_KEY));
 	if (r.added) toast(`Added ${r.added} event${r.added === 1 ? "" : "s"} from ${where} to the timeline.`);
 	else if (!events.length) toast(`No events on ${where} ${isoDate(date) === isoDate() ? "today" : "on " + isoDate(date)}.`);
 	else if (quiet) return;

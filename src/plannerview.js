@@ -52,6 +52,17 @@ function saveBlock(view, n, cfg) {
 	view.dispatch({ changes: { from: b.codeFrom, to: b.codeTo, insert: b.code || !text ? text : text + "\n" }, userEvent: "input.planner" });
 }
 
+// Adds calendar events to the note's (first) planner Timeline, skipping ones
+// already there: { added }, or null when the note has no planner.
+export function importEvents(view, events) {
+	const b = dataviewBlocks(view.state, PLANNER)[0];
+	if (!b) return null;
+	const cfg = readPlanner(b.code);
+	const r = addEvents(cfg.timeline, events);
+	if (r.added) saveBlock(view, 0, { ...cfg, timeline: r.timeline });
+	return { added: r.added };
+}
+
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const fmt = (n) => Math.round(n).toLocaleString();
 
