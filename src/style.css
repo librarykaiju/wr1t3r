@@ -1108,6 +1108,8 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .planner-result:last-child { border-bottom: 0; }
 .planner-result:hover, .planner-result:focus-visible { background: var(--sel); outline: none; }
 .planner-result-meta { flex: none; color: var(--muted); font-size: 12px; }
+.planner-result.planner-usda { justify-content: center; color: var(--accent); font-weight: 600; }
+.planner-result.planner-usda-back { color: var(--muted); font-size: 13px; }
 .planner-log-head { margin-top: 2px; font-size: 12px; font-weight: 600; }
 .planner-log { display: flex; gap: 8px; align-items: baseline; font-size: 14px; }
 .planner-log-text { flex: 1; min-width: 0; }

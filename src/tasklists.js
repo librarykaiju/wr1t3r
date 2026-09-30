@@ -14,8 +14,9 @@
 // A day's tasks are the ones due that day, done that day, or written in that
 // day's daily note, and (on today's note) open tasks that are overdue. The
 // tasks stay where they're written; ticking one in any view ticks its line,
-// and a task added from a view goes into the list's own note ("Critical Tasks
-// List", "To Do's List"), due that day when the view is a day's. This file
+// and a task added from a view goes into the list's own note ("Critical
+// Tasks List", "To Do's List", made in _docs/), due that day when the view
+// is a day's. This file
 // works out the lists; src/tasklistview.js draws them.
 
 import { parseYaml } from "./bases.js";

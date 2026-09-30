@@ -335,11 +335,28 @@ export function searchFoods(foods, query, limit = 40) {
 	return scored.sort((a, b) => a.score - b.score || a.f.name.localeCompare(b.f.name)).slice(0, limit).map((x) => x.f);
 }
 
-// "Apple, 1.5" -> { name: "Apple", servings: 1.5 }.
+// The Nutrition Database with a row for `food` (a USDA search result) added
+// after the table's last row, or unchanged if a food of that name is there.
+// Pipes in text would break the table, so they become slashes.
+export function addFoodRow(dbText, food) {
+	if (parseNutrition(dbText).some((f) => f.name.toLowerCase() === food.name.toLowerCase())) return dbText;
+	const nl = dbText.includes("\r\n") ? "\r\n" : "\n";
+	const lines = dbText.split(/\r?\n/);
+	const cell = (v) => String(v ?? "").replace(/\|/g, "/").replace(/\s+/g, " ").trim();
+	const row = `| ${[food.name, food.serving, food.calories, food.fat, food.carbs, food.protein, food.fiber, food.group || "Other", (food.aliases || []).join(", "), ""].map(cell).join(" | ")} |`;
+	let last = -1;
+	lines.forEach((l, i) => { if (l.trim().startsWith("|")) last = i; });
+	if (last < 0) return dbText.replace(/(\r?\n)*$/, "") + nl + nl + "| Food | Serving Size | Calories | Fat (g) | Carbs (g) | Protein (g) | Fiber (g) | Food Group | Aliases | Servings/Container |" + nl + "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |" + nl + row + nl;
+	lines.splice(last + 1, 0, row);
+	return lines.join(nl);
+}
+
+// "Apple, 1.5" -> { name: "Apple", servings: 1.5 }. Names can have commas
+// ("Broccoli, raw, 2"), so the servings are the number after the last one.
 export function foodEntry(text) {
-	const parts = String(text).split(",");
-	const n = parts.length > 1 ? parseFloat(parts[1]) : NaN;
-	return { name: parts[0].trim(), servings: Number.isFinite(n) ? n : 1 };
+	const s = String(text).trim();
+	const m = s.match(/^(.*\S)\s*,\s*(\d*\.?\d+)\s*$/);
+	return m ? { name: m[1].trim(), servings: parseFloat(m[2]) } : { name: s, servings: 1 };
 }
 
 export const foodLine = (food, servings) => `${food.name}, ${+Number(servings).toFixed(2)}`;

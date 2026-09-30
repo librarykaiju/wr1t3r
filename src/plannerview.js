@@ -10,7 +10,7 @@ import { syntaxTree } from "@codemirror/language";
 import { dataviewBlocks } from "./dataview.js";
 import {
 	PLANNER, readPlanner, writePlanner, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
-	parseNutrition, searchFoods, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
+	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
 	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine,
 } from "./planner.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
@@ -28,7 +28,7 @@ const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 
 // Set by main.js: { healthNote(dailyPath) -> Promise<path> (made from the
 // template if needed), events(day) -> Promise<events|null>, image(ref, from),
-// open(path), toast(text) }.
+// open(path), toast(text), usda(query) -> Promise<foods> (worker/usda.js) }.
 let host = null;
 export const setPlannerHost = (h) => { host = h; };
 
@@ -50,6 +50,17 @@ function saveBlock(view, n, cfg) {
 	if (!b || view.state.readOnly) return;
 	const text = writePlanner(cfg);
 	view.dispatch({ changes: { from: b.codeFrom, to: b.codeTo, insert: b.code || !text ? text : text + "\n" }, userEvent: "input.planner" });
+}
+
+// Adds calendar events to the note's (first) planner Timeline, skipping ones
+// already there: { added }, or null when the note has no planner.
+export function importEvents(view, events) {
+	const b = dataviewBlocks(view.state, PLANNER)[0];
+	if (!b) return null;
+	const cfg = readPlanner(b.code);
+	const r = addEvents(cfg.timeline, events);
+	if (r.added) saveBlock(view, 0, { ...cfg, timeline: r.timeline });
+	return { added: r.added };
 }
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -192,13 +203,14 @@ class PlannerWidget extends WidgetType {
 	}
 
 	foodPanel(view, anchor) {
-		const st = { q: "", meal: mealAt(new Date()), servings: "1" };
+		// usda: null, or the USDA search being shown: { q, results, error, loading }.
+		const st = { q: "", meal: mealAt(new Date()), servings: "1", usda: null };
 		openPanel(this.panelKey, "food", anchor, (box) => {
 			box.classList.add("planner-panel");
-			const { foods } = nutrition(view.state, this.cfg);
+			const { foods, path: dbPath } = nutrition(view.state, this.cfg);
 			box.append(el("div", "planner-panel-title", "Log food"));
-			if (!foods.length) {
-				box.append(el("p", "planner-panel-empty", this.cfg.nutrition ? `Couldn't read ${this.cfg.nutrition}.` : "There's no Nutrition Database.md in the vault."));
+			if (!dbPath) {
+				box.append(el("p", "planner-panel-empty", this.cfg.nutrition ? `Couldn't find ${this.cfg.nutrition}.` : "There's no Nutrition Database.md in the vault."));
 				return;
 			}
 			const row = el("div", "planner-food-opts");
@@ -223,8 +235,42 @@ class PlannerWidget extends WidgetType {
 				await this.health$(view, (t) => addUnder(t, st.meal, foodLine(f, n)));
 				host.toast?.(`Logged ${f.name}${n === 1 ? "" : ` ×${n}`} under ${st.meal.replace(/^\p{Extended_Pictographic}️?/u, "")}.`);
 			};
+			const usdaSearch = async () => {
+				const q = st.q.trim();
+				st.usda = { q, loading: true, results: [] };
+				redrawPanel(this.panelKey);
+				try { st.usda = { q, results: await host.usda(q) }; }
+				catch (e) { st.usda = { q, results: [], error: e?.message || String(e) }; }
+				if (st.usda?.q === q) redrawPanel(this.panelKey);
+			};
+			const addAndLog = async (f) => {
+				const vault = view.state.facet(vaultHost);
+				await vault.write(dbPath, (t) => addFoodRow(t, f));
+				await log({ name: f.name });
+				st.usda = null;
+				redrawPanel(this.panelKey);
+			};
 			const fill = () => {
 				list.replaceChildren();
+				if (st.usda) {
+					const back = el("button", "planner-result planner-usda-back", "← Your foods");
+					back.type = "button";
+					back.addEventListener("click", () => { st.usda = null; fill(); });
+					list.append(back);
+					if (st.usda.loading) list.append(el("p", "planner-panel-empty", `Searching USDA for “${st.usda.q}”…`));
+					else if (st.usda.error) list.append(el("p", "planner-panel-empty", st.usda.error));
+					else if (!st.usda.results.length) list.append(el("p", "planner-panel-empty", `USDA has nothing for “${st.usda.q}”.`));
+					for (const f of st.usda.results) {
+						const b = el("button", "planner-result");
+						b.type = "button";
+						b.setAttribute("role", "option");
+						b.title = `${f.name}: ${f.serving}, ${fmt(f.calories)} cal, ${f.fat} g fat, ${f.carbs} g carbs, ${f.protein} g protein, ${f.fiber} g fiber (${f.dataType}). Adds it to the Nutrition Database and logs it.`;
+						b.append(el("span", "planner-result-name", f.name), el("span", "planner-result-meta", `${f.serving} · ${fmt(f.calories)} cal`));
+						b.addEventListener("click", () => addAndLog(f));
+						list.append(b);
+					}
+					return;
+				}
 				const hits = searchFoods(foods, st.q, 40);
 				for (const f of hits) {
 					const b = el("button", "planner-result");
@@ -234,9 +280,15 @@ class PlannerWidget extends WidgetType {
 					b.addEventListener("click", () => log(f));
 					list.append(b);
 				}
-				if (!hits.length) list.append(el("p", "planner-panel-empty", "No food matches. Add it to the Nutrition Database first."));
+				if (!hits.length) list.append(el("p", "planner-panel-empty", "None of your foods match."));
+				if (st.q.trim() && host?.usda) {
+					const b = el("button", "planner-result planner-usda", `Search USDA for “${st.q.trim()}”`);
+					b.type = "button";
+					b.addEventListener("click", usdaSearch);
+					list.append(b);
+				}
 			};
-			q.addEventListener("input", () => { st.q = q.value; fill(); });
+			q.addEventListener("input", () => { st.q = q.value; st.usda = null; fill(); });
 			q.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); list.querySelector("button")?.click(); } });
 			fill();
 			box.append(q, row, list);
