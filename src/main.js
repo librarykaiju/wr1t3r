@@ -3388,12 +3388,14 @@ const dataviewVault = {
 	// A base's "+ New": the note's text as New note would start it.
 	newNoteText: (path) => (/(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"))),
 	// ...then saved (numbered if the name's taken) and opened.
-	async create(folder, noteName, makeText) {
+	// open: false (a task list's new note) saves it without leaving the note you're in.
+	async create(folder, noteName, makeText, { open = true } = {}) {
 		let path = folder + noteName + ".md";
 		for (let n = 2; taken(path); n++) path = `${folder}${noteName} ${n}.md`;
 		const text = makeText(path);
 		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
-		showAdded(folder, path);
+		if (open) showAdded(folder, path);
+		else { renderStatus(); renderTree(); scheduleSync(); }
 		return path;
 	},
 	attachments: () => attachments,

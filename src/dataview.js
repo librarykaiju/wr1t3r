@@ -112,7 +112,7 @@ const live = new Set(); // widgets on screen, to re-run when the note changes
 
 // Ticking a task in a Dataview result ticks the real line in its note (with
 // the done date, as ticking it there would). False when it couldn't be found.
-function tick(view, path, line, text, checked) {
+export function tick(view, path, line, text, checked) {
 	const host = view.state.facet(dvHost);
 	if (!host?.write || UNTRUSTED.test(path) || host.text(path) == null) return false;
 	const now = path === view.state.facet(notePath) ? view.state.sliceDoc() : host.text(path);

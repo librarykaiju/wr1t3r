@@ -1021,6 +1021,29 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .tile.dragging { opacity: 0.4; }
 .tile.drop-before { box-shadow: -4px 0 0 var(--accent); }
 .tile.drop-after { box-shadow: 4px 0 0 var(--accent); }
+/* Master task lists (src/tasklistview.js). */
+.md-tl { margin: 6px 0; padding: 10px 12px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font: 15px/1.5 var(--sans); }
+.md-tl-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.md-tl-title { font-weight: 700; font-size: 16px; }
+.md-tl-day { color: var(--muted); font-size: 13px; }
+.md-tl-count { min-width: 1.6em; padding: 0 6px; border-radius: 999px; background: var(--panel); color: var(--muted); font-size: 12px; text-align: center; }
+.md-tl-tools { margin-left: auto; display: flex; gap: 4px; }
+.md-tl-btn { padding: 1px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); cursor: pointer; }
+.md-tl-group { margin: 8px 0 2px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.md-tl-list { list-style: none; margin: 0; padding: 0; }
+.md-tl-item { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.md-tl-item:last-child { border-bottom: 0; }
+.md-tl-box { flex: none; margin: 0; transform: translateY(2px); cursor: pointer; }
+.md-tl-text { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
+.md-tl-item.done .md-tl-text { text-decoration: line-through; color: var(--muted); }
+.md-tl .md-due { padding: 0 0.45em; border-radius: 999px; background: color-mix(in srgb, var(--muted) 14%, var(--bg)); color: var(--muted); font-size: 12px; white-space: nowrap; }
+.md-tl .md-due-today { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); color: var(--accent); }
+.md-tl .md-due-overdue { background: color-mix(in srgb, var(--bad) 16%, var(--bg)); color: var(--bad); font-weight: 600; }
+.md-tl-src { color: var(--muted); font-size: 12px; text-decoration: none; white-space: nowrap; }
+.md-tl-src:hover { color: var(--accent); }
+.md-tl-empty { color: var(--muted); font-size: 14px; padding: 4px 0; }
+.md-tl-add { width: 100%; margin-top: 8px; padding: 6px 8px; border: 1px dashed var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+.md-tl-add:focus { outline: none; border-style: solid; border-color: var(--accent); }
 /* Cards blocks in a note (src/cardsblock.js): Home's tiles, a bit smaller. */
 .md-cards { position: relative; padding: 6px 0; font-size: 15px; }
 .md-cards-grid { margin: 0; justify-content: flex-start; gap: 10px; }

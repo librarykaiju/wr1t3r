@@ -18,6 +18,7 @@ import { slashSource } from "./slash.js";
 import { stripFrontmatter } from "./count.js";
 import { dataviewJs } from "./dataview.js";
 import { cardsBlocks } from "./cardsblock.js";
+import { taskLists } from "./tasklistview.js";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { backlinks } from "./backlinks.js";
 import { linkSource } from "./linkcomplete.js";
@@ -160,6 +161,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		embeds,
 		dataviewJs,
 		cardsBlocks,
+		taskLists,
 		spellcheck,
 		smartPunctuation,
 		pasteAndDrop,
