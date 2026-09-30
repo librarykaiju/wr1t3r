@@ -12,6 +12,7 @@
 //     - link: "command:Open today's daily note"   a palette command
 //     - link: "https://example.com"      a web page
 //       title: Example                   the tile's name, for any kind
+//     - section: Reading                 a header; the tiles after it are its
 //   ---
 //
 // Without a color a tile takes the next rainbow color in turn; without a
@@ -46,7 +47,19 @@ function fence(lines) {
 	return null;
 }
 
-// The pins in a Home note's text: [{ link, title?, color?, cover?, ... }].
+// A section header in the pins list rather than a tile.
+export const isSection = (p) => p != null && typeof p === "object" && p.section != null && typeof p.section !== "object" && typeof p.link !== "string";
+
+// For each entry, its place among the tiles (headers skipped), or -1 for a
+// header: what a tile's automatic color goes by, so adding a header doesn't
+// change the colors.
+export function tileOrdinals(pins) {
+	let n = 0;
+	return pins.map((p) => (isSection(p) ? -1 : n++));
+}
+
+// The pins in a Home note's text: [{ link, title?, color?, cover?, ... }],
+// with { section } entries for headers.
 export function readPins(text) {
 	const lines = String(text || "").split("\n");
 	const f = fence(lines);
@@ -54,12 +67,27 @@ export function readPins(text) {
 	let y;
 	try { y = parseYaml(lines.slice(f[0] + 1, f[1]).join("\n")); } catch { return []; }
 	if (!y || !Array.isArray(y.pins)) return [];
-	return y.pins
-		.map((p) => (typeof p === "string" ? { link: p } : p))
-		.filter((p) => p && typeof p === "object" && !Array.isArray(p) && typeof p.link === "string" && p.link.trim());
+	return cleanPins(y.pins);
 }
 
-const ORDER = ["link", "title", "color", "cover"];
+function cleanPins(list) {
+	return list
+		.map((p) => (typeof p === "string" ? { link: p } : p))
+		.filter((p) => p && typeof p === "object" && !Array.isArray(p) && ((typeof p.link === "string" && p.link.trim()) || isSection(p)));
+}
+
+// A ```wr1t3r-cards block in a note: the same entries as Home's pins, as a
+// bare YAML list. [] when it can't be read.
+export function readCards(code) {
+	let y;
+	try { y = parseYaml(String(code || "")); } catch { return []; }
+	return Array.isArray(y) ? cleanPins(y) : [];
+}
+export function writeCards(pins) {
+	return pins.length ? pinsYaml(pins).slice(1).map((l) => l.slice(2)).join("\n") : "";
+}
+
+const ORDER = ["section", "link", "title", "color", "cover"];
 
 function yamlValue(v) {
 	if (typeof v === "number" || typeof v === "boolean") return String(v);
@@ -182,6 +210,7 @@ export function pinCover(pin, path, noteText, homeFile) {
 export function retargetPins(pins, moved, oldPaths, newPaths, homeFile, folderFrom = null, folderTo = null) {
 	let changed = false;
 	const out = pins.map((p) => {
+		if (isSection(p)) return p;
 		const k = pinKind(p.link);
 		if (k.kind === "note") {
 			const was = pinPath(p, oldPaths, homeFile);
@@ -200,6 +229,7 @@ export function retargetPins(pins, moved, oldPaths, newPaths, homeFile, folderFr
 
 // Whether a pin opens path (a note), folder, or a folder's view.
 export function pinOpens(pin, { path = null, folder = null, view = null }, paths, homeFile) {
+	if (isSection(pin)) return false;
 	const k = pinKind(pin.link);
 	// A folder: pin opens the corkboard, so it counts as the corkboard's pin too.
 	if (view) return (k.kind === "view" ? k.view === view : k.kind === "folder" && view === "corkboard") && k.folder.toLowerCase() === folder.toLowerCase();

@@ -7,10 +7,10 @@ import { setupKeyboardBar } from "./kbbar.js";
 import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js";
 import { promptFor } from "./prompts.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
-import { noteTags } from "./frontmatter.js";
+import { noteTags, tagHue } from "./frontmatter.js";
 import { vaultChanged } from "./vault.js";
 import { setLivePreview } from "./livepreview.js";
-import { parseQuery, matches, snippet } from "./search.js";
+import { parseQuery, matches, snippet, isArchived, asksForArchive, archiveText } from "./search.js";
 import { openPalette } from "./palette.js";
 import { starterBase } from "./baseconfig.js";
 import { EDIT_ACTIONS, DEFAULT_KEYS, keyName, showKey, usableKey, bindings, rebind, macAlias } from "./hotkeys.js";
@@ -37,7 +37,7 @@ import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
 import { makeMediaNote } from "./media.js";
-import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile } from "./home.js";
+import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
 import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
 import { reorder } from "./drag.js";
 import { drawBoard, drawOutline, folderWords, stopViews } from "./folderview.js";
@@ -48,8 +48,10 @@ import { setProperty } from "./bases.js";
 import { prettyOf } from "./pretty.js";
 import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
+import { setCardsHost } from "./cardsblock.js";
 import { attachmentKind } from "./attachments.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
+import { setDoneDates, sortChecklists } from "./tasks.js";
 import { setPictureHost } from "./paste.js";
 import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
 import { setupToolbar } from "./toolbar.js";
@@ -113,6 +115,8 @@ async function runSync() {
 		refreshAttachments();
 		lastSynced = new Date();
 		lastError = null;
+		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
+		sortPending = null;
 		for (const c of r.conflicts) {
 			toast(`${name(c.path)} was also changed elsewhere. Your version is saved as “${name(c.copy)}”.`, 8000);
 		}
@@ -133,7 +137,27 @@ function onNote(path, note) {
 	if (!note || note.deleted) {
 		toast(`${name(path)} was deleted elsewhere.`);
 		closeTab(path);
-	} else if (!note.dirty) { editor.replace(note); refreshCount(true); }
+	} else if (!note.dirty) { editor.replace(note); refreshCount(true); sortPending = path; }
+}
+
+// Checklists sort (done tasks to the bottom, src/tasks.js) when a note opens
+// or a sync brings in a new version of it, if Aa > Sort checklists is on. The
+// sort waits for a finished sync, so the note is the vault's latest and it
+// never races an edit on its way from Obsidian; it's written only when the
+// order changes, and undoes like any edit.
+let sortPending = null;
+const sortable = (path) => !!path && /\.md$/i.test(path) && !/(^|\/)_(templates|clippings|uploads)\//i.test(path) && !isAppFile(path);
+function sortOpenNote({ quiet = true } = {}) {
+	const view = editor.view;
+	if (!sortable(editor.path) || view.state.readOnly) return quiet || toast("This note's checklists aren't sorted.");
+	const before = view.state.doc.toString(), after = sortChecklists(before);
+	if (after) view.dispatch({ changes: diffChange(before, after), userEvent: "input.sort" });
+	if (!quiet) toast(after ? "Done tasks moved to the bottom." : "The checklists are already in order.", 2500);
+}
+function sortOnOpen(path) {
+	if (!settingOn("sort") || !sortable(path)) return;
+	if (!syncing && !lastError && lastSynced && Date.now() - lastSynced < 60000) sortOpenNote();
+	else { sortPending = path; scheduleSync(0); }
 }
 
 function pending() {
@@ -221,6 +245,26 @@ function vaultTouched() {
 	folderTouched();
 }
 
+// Whether a note is archived (src/search.js), worked out again only when its text changes.
+const archivedCache = new Map();
+function archivedNote(n) {
+	if (n.binary || !n.text) return false;
+	const hit = archivedCache.get(n.path);
+	if (hit && hit.text === n.text) return hit.on;
+	const on = isArchived(n.text);
+	archivedCache.set(n.path, { text: n.text, on });
+	return on;
+}
+
+// Archives the open note, or brings it back.
+function toggleArchive() {
+	const note = notes.get(editor.path);
+	if (!note || note.binary) return;
+	const on = !archivedNote({ ...note, text: editor.view.state.doc.toString() });
+	dataviewVault.write(editor.path, (text) => archiveText(text, on, setProperty));
+	toast(on ? "Archived: it's out of the notes list, but search still finds it (search \"archive\" for all of them)" : "Back in the notes list", 3000);
+}
+
 function renderTree() {
 	vaultTouched();
 	renderHome();
@@ -232,11 +276,20 @@ function renderTree() {
 	const list = visible().filter((n) => !isAppFile(n.path));
 	if (q) {
 		// Words, "phrases", path:, file:, tag:/#tag and -word (src/search.js).
+		// Archived notes are found too; "archive" alone lists them all first.
 		const terms = parseQuery(q);
-		const hits = list.filter((n) => matches(n.binary ? { path: n.path, text: "" } : n, terms, noteTags));
+		let hits = list.filter((n) => matches(n.binary ? { path: n.path, text: "" } : n, terms, noteTags));
+		if (asksForArchive(terms)) {
+			const archived = list.filter(archivedNote);
+			hits = [...archived, ...hits.filter((n) => !archivedNote(n))];
+		}
 		const base = commonFolder(list);
 		for (const n of hits.slice(0, 300)) {
 			const a = link(n, (n.path.startsWith(base) ? n.path.slice(base.length) : n.path).replace(/\.md$/i, ""));
+			if (archivedNote(n)) {
+				a.classList.add("archived");
+				a.prepend(Object.assign(document.createElement("span"), { className: "archived-badge", textContent: "archived" }));
+			}
 			const s = n.binary ? null : snippet(n.text, terms);
 			if (s) {
 				a.classList.add("hit");
@@ -256,11 +309,10 @@ function renderTree() {
 		tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: lastSynced ? "The vault is empty." : "Loading the vault…" }));
 		return;
 	}
-	drawBookmarks(tree);
-	drawTags(tree, list);
-	// Folders first, then notes, like Obsidian.
+	// Folders first, then notes, like Obsidian. Archived notes aren't listed.
 	const root = { folders: new Map(), notes: [] };
 	for (const n of list) {
+		if (archivedNote(n)) continue;
 		const parts = n.path.split("/");
 		let node = root;
 		for (const dir of parts.slice(0, -1)) {
@@ -274,18 +326,22 @@ function renderTree() {
 	let top = root, base = "";
 	const home = commonFolder(list);
 	if (home) {
-		top = root.folders.get(home.slice(0, -1));
+		top = root.folders.get(home.slice(0, -1)) || { folders: new Map(), notes: [] };
 		base = home;
 		root.folders.delete(home.slice(0, -1));
 	}
+	// Top-level folders take the theme's rainbow in turn; subfolders, their
+	// notes and bookmarks of them keep that color.
+	const folderColor = new Map([...top.folders.keys(), ...(top === root ? [] : root.folders.keys())].map((dir, k) => [dir, `var(--f${(k % 7) + 1})`]));
+	drawBookmarks(tree, (p) => (p.startsWith(base) && p.slice(base.length).includes("/") ? folderColor.get(p.slice(base.length).split("/")[0]) : null));
+	drawTags(tree, list);
 	const current = editor.path || (folderTab ? folderTab.slice(FOLDER_TAB.length) : "");
-	let i = 0; // top-level folders take the theme's rainbow in turn
 	const paths = list.map((n) => n.path);
 	const drawFolder = (into, dir, child, prefix, depth) => {
 		const full = prefix + dir + "/";
 		const d = document.createElement("details");
 		// Subfolders keep their parent's color.
-		if (!depth) d.style.setProperty("--fc", `var(--f${(i++ % 7) + 1})`);
+		if (!depth) d.style.setProperty("--fc", folderColor.get(dir) || "var(--mark)");
 		d.open = openFolders.has(full) || current.startsWith(full);
 		const s = document.createElement("summary");
 		s.textContent = dir;
@@ -592,12 +648,14 @@ function sideSection(key, title, into) {
 	return kids;
 }
 
-function drawBookmarks(tree) {
+function drawBookmarks(tree, colorOf) {
 	const marked = bookmarks.filter(isOpenable);
 	if (!marked.length) return;
 	const kids = sideSection("bookmarks", `Bookmarks`, tree);
 	for (const p of marked) {
 		const a = link(notes.get(p), name(p));
+		const c = colorOf(p);
+		if (c) a.style.setProperty("--fc", c); // its folder's color, as in the list below
 		onMenu(a, (x, y) => showMenu([pinEntry(p), ["Remove bookmark", () => toggleBookmark(p)]], x, y));
 		kids.append(a);
 	}
@@ -662,6 +720,7 @@ function pinEntry(item) {
 	return pinIndex(item) >= 0 ? ["Unpin from Home", () => unpinItem(item)] : ["Pin to Home", () => pinItem(item)];
 }
 
+const pinItemHome = (item) => pinItem(item);
 function pinItem(item) {
 	if (!item) return;
 	const list = pins();
@@ -670,6 +729,7 @@ function pinItem(item) {
 	addPin({ link }, itemLabel(item));
 }
 
+const addPinHome = (pin, label) => addPin(pin, label);
 function addPin(pin, label) {
 	savePins([...pins(), pin]);
 	toast(`Pinned “${label}” to Home.`);
@@ -737,13 +797,25 @@ function renderHomeSettings() {
 	if (!box || $("settings").hidden) return;
 	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
 	box.replaceChildren();
+	const ordinal = tileOrdinals(list);
 	list.forEach((pin, i) => {
+		if (isSection(pin)) {
+			const row = document.createElement("button");
+			row.type = "button";
+			row.className = "home-pin home-pin-section";
+			row.title = "Rename, move or remove this section";
+			row.textContent = String(pin.section);
+			row.addEventListener("click", (e) => { e.stopPropagation(); const r = row.getBoundingClientRect(); tileMenu(i, r.left + 12, r.bottom + 2); });
+			onMenu(row, (x, y) => tileMenu(i, x, y));
+			box.append(row);
+			return;
+		}
 		const k = pinKind(pin.link);
 		const path = k.kind === "note" ? pinPath(pin, paths, file) : null;
 		const row = document.createElement("button");
 		row.type = "button";
 		row.className = "home-pin";
-		row.style.setProperty("--tc", pinColor(pin, i));
+		row.style.setProperty("--tc", pinColor(pin, ordinal[i]));
 		row.title = "Change, move or unpin this tile";
 		const what = { note: /\.base$/i.test(path || k.target || "") ? "base" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "one document" : k.view, command: "command", url: "web page" }[k.kind];
 		const nm = document.createElement("span");
@@ -792,11 +864,30 @@ function revealFolder(folder) {
 	}
 }
 
-function tileMenu(i, x, y) {
-	const list = pins(), pin = list[i];
+// Asks for a section's name; null when cancelled or left empty.
+function askSection(now = "") {
+	const t = prompt("Section name:", now);
+	return t == null || !t.trim() ? null : t.trim();
+}
+
+// Where tiles live: Home's pins, or a note's cards block (src/cardsblock.js).
+const homeStore = { list: () => pins(), save: (list) => savePins(list), home: true };
+
+function tileMenu(i, x, y, store = homeStore) {
+	const list = store.list(), pin = list[i];
 	if (!pin) return;
+	const savePins = store.save; // this list's, not always Home's
 	const set = (patch) => savePins(list.map((p, j) => (j === i ? clean({ ...p, ...patch }) : p)));
 	const move = (to) => { const next = [...list]; next.splice(i, 1); next.splice(to, 0, pin); savePins(next); };
+	const startSection = () => { const t = askSection(); if (t) savePins([...list.slice(0, i), { section: t }, ...list.slice(i)]); };
+	if (isSection(pin)) {
+		return showMenu([
+			["Rename…", () => { const t = askSection(String(pin.section)); if (t) set({ section: t }); }],
+			...(i > 0 ? [["Move earlier", () => move(i - 1)]] : []),
+			...(i < list.length - 1 ? [["Move later", () => move(i + 1)]] : []),
+			["Remove section (keeps its tiles)", () => savePins(list.filter((_, j) => j !== i)), "danger"],
+		], x, y);
+	}
 	const k = pinKind(pin.link);
 	const views = k.kind === "folder" || k.kind === "view"
 		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as one document"]]
@@ -814,9 +905,20 @@ function tileMenu(i, x, y) {
 		}],
 		...(i > 0 ? [["Move earlier", () => move(i - 1)]] : []),
 		...(i < list.length - 1 ? [["Move later", () => move(i + 1)]] : []),
-		["Unpin", () => savePins(list.filter((_, j) => j !== i)), "danger"],
+		["Start a section here…", startSection],
+		[store.home ? "Unpin" : "Remove card", () => savePins(list.filter((_, j) => j !== i)), "danger"],
 	], x, y);
 }
+
+// Cards blocks in notes use Home's tiles, menus and picker.
+setCardsHost({
+	paths: () => visible().map((n) => n.path),
+	text: (p) => { const n = notes.get(p); return n && !n.binary ? n.text : null; },
+	image: (ref, from) => tileImage(ref, from),
+	open: (pin, path) => openPin(pin, path),
+	menu: (store, i, x, y) => tileMenu(i, x, y, store),
+	add: (store) => addTile(store),
+});
 
 // Drops keys set to nothing, so they come out of the file.
 const clean = (p) => Object.fromEntries(Object.entries(p).filter(([, v]) => v != null && v !== ""));
@@ -866,10 +968,18 @@ function pickCover(pin, set) {
 	openPalette({ placeholder: images.length ? "Tile picture: pick a vault image or an option…" : "Tile picture…", items });
 }
 
-// The + tile: pin a note, a folder, a command, or a web page.
-function addTile() {
-	const list = visible(), paths = list.map((n) => n.path), home = commonFolder(list), file = homeFile();
-	const have = pins();
+// The + tile: pin a note, a folder, a command, or a web page (to Home, or to
+// a note's cards block).
+function addTile(store = homeStore) {
+	if (typeof store?.list !== "function") store = homeStore;
+	const list = visible(), paths = list.map((n) => n.path), home = commonFolder(list), file = store.home ? homeFile() : editor.path;
+	const have = store.list();
+	const addPin = (pin, label) => {
+		if (store.home) return addPinHome(pin, label);
+		store.save([...store.list(), pin]);
+		toast(`Added “${label}”.`);
+	};
+	const pinItem = (item) => (store.home ? pinItemHome(item) : addPin({ link: item.endsWith("/") ? folderLink(item) : linkFor(item, paths) }, itemLabel(item)));
 	const pinned = (item) => have.some((p) => pinOpens(p, pinTarget(item), paths, file));
 	const notesIn = list.filter((n) => !n.binary && !isAppFile(n.path)).map((n) => n.path);
 	const order = [...recent.filter((p) => notesIn.includes(p)), ...notesIn.filter((p) => !recent.includes(p))];
@@ -888,6 +998,7 @@ function addTile() {
 	};
 	const items = [
 		{ label: "Web page…", detail: "link", keywords: "url https website", run: () => { const u = prompt("Web page address:"); if (u) webLink(u); } },
+		{ label: "Section header…", detail: "a label over the tiles after it", keywords: "section header heading group label divider", run: () => { const t = askSection(); if (t) { store.save([...store.list(), { section: t }]); toast(`Added the section “${t}”; tiles added after it go under it.`); } } },
 		...order.filter((p) => !pinned(p)).map((p) => ({ label: name(p), detail: folderOf(p) || "note", keywords: folderOf(p), run: () => pinItem(p) })),
 		...[...folders].filter((f) => f !== home && f.startsWith(home) && !pinned(f) && !isAppFile(f)).sort()
 			.map((f) => ({ label: folderLabel(f), detail: "folder", keywords: "folder", run: () => pinItem(f) })),
@@ -895,7 +1006,7 @@ function addTile() {
 			.map((c) => ({ label: c.label, detail: "command", keywords: "command " + (c.keywords || ""), run: () => addPin({ link: "command:" + c.label }, c.label) })),
 	];
 	openPalette({
-		placeholder: "Pin to Home: a note, folder, command or web page…",
+		placeholder: store.home ? "Pin to Home: a note, folder, command or web page…" : "Add a card: a note, folder, command or web page…",
 		items,
 		empty: (q) => (/^(https?:\/\/|www\.)\S+$|^\S+\.[a-z]{2,}(\/\S*)?$/i.test(q.trim()) ? { label: `Web page “${q.trim()}”`, detail: "link", run: () => webLink(q) } : null),
 	});
@@ -921,6 +1032,7 @@ function drawTags(tree, list) {
 		const a = document.createElement("a");
 		a.href = "#";
 		a.className = "tag-row";
+		a.style.setProperty("--fc", `var(--f${tagHue(t) + 1})`); // the tag's pill color
 		a.textContent = "#" + t;
 		const n = document.createElement("span");
 		n.className = "count";
@@ -1040,6 +1152,7 @@ function openNote(path, { replace = false, tab = true } = {}) {
 	renderBookmarkButton();
 	refreshCount(true);
 	renderHome();
+	if (has) sortOnOpen(path);
 }
 
 // ---- a folder as a manuscript: corkboard, outliner, scrivenings -----------------
@@ -1499,6 +1612,7 @@ function allCommands() {
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
 		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
+		[editor.path && archivedNote({ path: editor.path, text: view.state.doc.toString() }) ? "Unarchive this note" : "Archive this note", toggleArchive, "archive hide remove from list restore unarchive", true],
 		["Go home", goHome, "home start pinned tiles grid"],
 		["Pin this note to Home", () => pinItem(editor.path), "pin home tile", true],
 		["Add a tile to Home", addTile, "pin home tile folder command link"],
@@ -1514,6 +1628,7 @@ function allCommands() {
 		["Toggle spellcheck", () => toggleSetting("spell"), "spelling spell check dictionary"],
 		["Toggle smart punctuation", () => toggleSetting("smart"), "curly quotes em dash ellipsis autocorrect typography"],
 		["Toggle formatting toolbar", () => toggleSetting("toolbar"), "buttons bold italic format bar"],
+		["Sort checklists", () => sortOpenNote({ quiet: false }), "tasks done checked bottom order todo", true],
 		["Export or print this note", () => exportNote(editor.path), "print pdf word docx html download save", true],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
@@ -2264,6 +2379,8 @@ const ON_OFF = {
 	spell: { key: "wr1t3rSpell", apply: (on) => setSpellcheck(activeView(), on) },
 	smart: { key: "wr1t3rSmart", apply: (on) => setSmartPunctuation(on) },
 	toolbar: { key: "wr1t3rToolbar", apply: (on) => $("app").classList.toggle("no-toolbar", !on) },
+	done: { key: "wr1t3rDoneDates", apply: (on) => setDoneDates(on) },
+	sort: { key: "wr1t3rSortChecklists", apply: () => {} },
 };
 const settingOn = (name) => readRaw(ON_OFF[name].key) !== "off";
 function applySetting(name, on) {
@@ -2274,7 +2391,7 @@ function toggleSetting(name) {
 	const on = !settingOn(name);
 	storeRaw(ON_OFF[name].key, on ? null : "off");
 	applySetting(name, on);
-	toast(`${{ spell: "Spellcheck", smart: "Smart punctuation", toolbar: "Formatting toolbar" }[name]} ${on ? "on" : "off"}`, 2000);
+	toast(`${{ spell: "Spellcheck", smart: "Smart punctuation", toolbar: "Formatting toolbar", done: "Task done dates", sort: "Sorting checklists when a note opens" }[name]} ${on ? "on" : "off"}`, 2000);
 }
 
 function openSettings(on) {
@@ -3271,12 +3388,14 @@ const dataviewVault = {
 	// A base's "+ New": the note's text as New note would start it.
 	newNoteText: (path) => (/(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"))),
 	// ...then saved (numbered if the name's taken) and opened.
-	async create(folder, noteName, makeText) {
+	// open: false (a task list's new note) saves it without leaving the note you're in.
+	async create(folder, noteName, makeText, { open = true } = {}) {
 		let path = folder + noteName + ".md";
 		for (let n = 2; taken(path); n++) path = `${folder}${noteName} ${n}.md`;
 		const text = makeText(path);
 		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
-		showAdded(folder, path);
+		if (open) showAdded(folder, path);
+		else { renderStatus(); renderTree(); scheduleSync(); }
 		return path;
 	},
 	attachments: () => attachments,

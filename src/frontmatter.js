@@ -182,11 +182,12 @@ export function yamlItem(text, flow = false) {
 	return /^[\s\-?:,\[\]{}#&*!|>'"%@`]|: | #|\s$/.test(text) || (flow && /[,\[\]{}]/.test(text)) ? JSON.stringify(text) : text;
 }
 
-// Same tag, same color, everywhere.
+// Same tag, same color, everywhere: 0-6, one of the theme's rainbow colors
+// (--f1..--f7, the sidebar's folder colors), so tags follow the theme.
 export function tagHue(tag) {
 	let h = 0;
 	for (const c of tag.toLowerCase()) h = (h * 31 + c.codePointAt(0)) >>> 0;
-	return h % 8;
+	return h % 7;
 }
 
 // Typed values, read from the text the way Obsidian's property types show

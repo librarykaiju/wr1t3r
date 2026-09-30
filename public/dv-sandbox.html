@@ -443,8 +443,11 @@
 				const ul = container.createEl("ul", { cls: "contains-task-list" });
 				for (const t of tasks || []) {
 					const li = ul.createEl("li", { cls: "task-list-item" });
-					const box = li.createEl("input", { attr: { type: "checkbox", disabled: true } });
+					const box = li.createEl("input", { attr: { type: "checkbox" } });
 					box.checked = !!t.checked || !!t.completed;
+					// Ticks the task in its note (the app checks the click was real).
+					if (t.path != null && Number.isInteger(t.line)) box.addEventListener("change", () => parent.postMessage({ type: "tick", path: t.path, line: t.line, text: t.text, checked: box.checked }, "*"));
+					else box.disabled = true;
 					li.appendText(" ");
 					md(t.text || "", li);
 				}
@@ -530,6 +533,20 @@
 		const h = Math.ceil(document.documentElement.getBoundingClientRect().height);
 		if (h !== lastH) { lastH = h; parent.postMessage({ type: "height", h }, "*"); }
 	}).observe(document.body);
+
+	// A one-line summary (the output's first two bits of text, like a meter's
+	// label and its numbers) for the app to show while the block is folded.
+	let lastSummary = null, summaryTimer = 0;
+	new MutationObserver(() => {
+		clearTimeout(summaryTimer);
+		summaryTimer = setTimeout(() => {
+			const w = document.createTreeWalker(out, NodeFilter.SHOW_TEXT);
+			const parts = [];
+			for (let n; parts.length < 2 && (n = w.nextNode());) { const t = n.nodeValue.trim(); if (t) parts.push(t); }
+			const text = parts.join(" ").slice(0, 120);
+			if (text !== lastSummary) { lastSummary = text; parent.postMessage({ type: "summary", text }, "*"); }
+		}, 100);
+	}).observe(out, { childList: true, subtree: true, characterData: true });
 	parent.postMessage({ type: "ready" }, "*");
 })();
 </script>

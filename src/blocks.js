@@ -10,6 +10,7 @@
 import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
+import { doneStampChanges } from "./tasks.js";
 
 // Obsidian's callout types and aliases, grouped by the color Obsidian gives them.
 const CALLOUT_GROUPS = {
@@ -67,11 +68,14 @@ export function calloutOf(lineText) {
 	};
 }
 
-// The edit that flips the task box whose "[" is at pos, or null if there isn't one.
-export function toggleTask(state, pos) {
+// The edits that flip the task box whose "[" is at pos (with the Tasks plugin's
+// "✅ date" added or taken off), or null if there isn't one.
+export function toggleTask(state, pos, date = new Date()) {
 	const box = state.sliceDoc(pos, pos + 3);
 	if (!/^\[[ xX]\]$/.test(box)) return null;
-	return { from: pos + 1, to: pos + 2, insert: box[1] === " " ? "x" : " " };
+	const flip = { from: pos + 1, to: pos + 2, insert: box[1] === " " ? "x" : " " };
+	const line = state.doc.lineAt(pos);
+	return [flip, ...doneStampChanges(line.text, line.from, box[1] === " ", date)];
 }
 
 class CheckboxWidget extends WidgetType {
@@ -113,6 +117,7 @@ const hide = Decoration.replace({ atomic: true });
 const line = (cls) => Decoration.line({ class: cls });
 const doneText = Decoration.mark({ class: "md-task-done" });
 const calloutHead = Decoration.mark({ class: "md-callout-title" });
+const bullet = Array.from({ length: 7 }, (_, i) => Decoration.mark({ class: `md-bullet md-bullet-${i}` }));
 
 function build(view) {
 	const { state } = view;
@@ -164,6 +169,13 @@ function build(view) {
 				case "HorizontalRule":
 					addLine(node.from, node.from, "md-hr");
 					return false;
+				case "ListMark": {
+					// Bullets and numbers take the theme's rainbow by depth.
+					let depth = -1;
+					for (let p = node.node.parent; p; p = p.parent) if (p.name === "BulletList" || p.name === "OrderedList") depth++;
+					if (depth >= 0) marks.push([node.from, node.to, bullet[depth % 7]]);
+					return false;
+				}
 				case "TaskMarker": {
 					const checked = /x/i.test(state.sliceDoc(node.from, node.to));
 					marks.push([node.from, node.to, Decoration.replace({ widget: new CheckboxWidget(checked) })]);

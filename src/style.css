@@ -185,6 +185,8 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 #tree .hint { color: var(--muted); padding: 6px; }
 #tree a .snippet { display: block; margin-top: 1px; color: var(--muted); font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; }
 #tree a .snippet mark { background: var(--sel); color: inherit; border-radius: 2px; }
+#tree a.archived { color: var(--muted); }
+#tree a .archived-badge { margin-right: 6px; padding: 0 5px; border: 1px solid var(--line); border-radius: 6px; font-size: 0.75em; vertical-align: 1px; }
 
 main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 header {
@@ -701,12 +703,23 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 }
 :is(#editor, #refView) .md-tags { margin-left: 0.4em; display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; cursor: text; }
 :is(#editor, #refView) .md-tag, :is(#editor, #refView) .md-hashtag {
-	--t: #448aff; background: color-mix(in srgb, var(--t) 16%, var(--bg)); color: color-mix(in srgb, var(--t) 75%, var(--fg));
+	background: color-mix(in srgb, var(--t, var(--f6)) 16%, var(--bg)); color: color-mix(in srgb, var(--t, var(--f6)) 75%, var(--fg));
 	border-radius: 999px; padding: 0 0.6em; font: 500 0.95em/1.6 var(--sans);
 }
 :is(#editor, #refView) .md-hashtag { font-size: 0.8em; padding: 0.05em 0.55em; }
-:is(#editor, #refView) .md-tag-0 { --t: #448aff; } :is(#editor, #refView) .md-tag-1 { --t: #08b94e; } :is(#editor, #refView) .md-tag-2 { --t: #e0a800; } :is(#editor, #refView) .md-tag-3 { --t: #f57c00; }
-:is(#editor, #refView) .md-tag-4 { --t: #e5484d; } :is(#editor, #refView) .md-tag-5 { --t: #7c4dff; } :is(#editor, #refView) .md-tag-6 { --t: #00b8d4; } :is(#editor, #refView) .md-tag-7 { --t: #d63384; }
+/* Tag colors are the theme's rainbow (--f1..--f7), as on the sidebar's folders. */
+.md-tag-0 { --t: var(--f1); } .md-tag-1 { --t: var(--f2); } .md-tag-2 { --t: var(--f3); } .md-tag-3 { --t: var(--f4); }
+.md-tag-4 { --t: var(--f5); } .md-tag-5 { --t: var(--f6); } .md-tag-6 { --t: var(--f7); }
+/* Task due dates (src/due.js): a pill, red once past while the task is open. */
+:is(#editor, #refView) .md-due { padding: 0 0.45em; border-radius: 999px; background: color-mix(in srgb, var(--muted) 14%, var(--bg)); color: var(--muted); font: 500 0.8em/1.6 var(--sans); cursor: pointer; white-space: nowrap; }
+:is(#editor, #refView) .md-due-today { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); color: var(--accent); }
+:is(#editor, #refView) .md-due-overdue { background: color-mix(in srgb, var(--bad) 16%, var(--bg)); color: var(--bad); font-weight: 600; }
+:is(#editor, #refView) .md-task-done .md-due { opacity: 0.7; }
+.md-due-picker { position: fixed; z-index: 60; font: 15px var(--sans); color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; color-scheme: light dark; box-shadow: 0 6px 18px rgb(0 0 0 / 0.16); }
+/* List bullets and numbers, colored by how deep the list is. */
+:is(#editor, #refView) .md-bullet, :is(#editor, #refView) .md-bullet .md-mark { color: var(--b); font-weight: 600; }
+.md-bullet-0 { --b: var(--f1); } .md-bullet-1 { --b: var(--f2); } .md-bullet-2 { --b: var(--f3); } .md-bullet-3 { --b: var(--f4); }
+.md-bullet-4 { --b: var(--f5); } .md-bullet-5 { --b: var(--f6); } .md-bullet-6 { --b: var(--f7); }
 :is(#editor, #refView) .md-tag { display: inline-flex; align-items: center; gap: 0.2em; }
 :is(#editor, #refView) .md-tag-x {
 	background: none; border: 0; padding: 0 0 0 0.1em; margin: 0; font: inherit; line-height: 1; color: inherit; opacity: 0.55; cursor: pointer;
@@ -739,9 +752,20 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 /* dataviewjs output (src/dataview.js) */
 .md-dv { position: relative; padding: 4px 0; }
 .md-dv iframe { display: block; width: 100%; height: 40px; border: 0; background: transparent; }
-.md-dv-edit { position: absolute; top: 4px; right: 0; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); opacity: 0; cursor: pointer; }
-.md-dv:hover .md-dv-edit, .md-dv-edit:focus-visible { opacity: 1; }
-@media (hover: none) { .md-dv-edit { opacity: 0.6; } }
+.md-dv-tools { position: absolute; top: 4px; right: 0; display: flex; gap: 4px; opacity: 0; }
+.md-dv-tools button { padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); cursor: pointer; }
+.md-dv:hover .md-dv-tools, .md-dv-tools:focus-within { opacity: 1; }
+@media (hover: none) { .md-dv-tools { opacity: 0.6; } }
+/* Folded: the run's first block shows a one-line strip, the rest nothing. The
+   frames stay laid out at full width (just 0 tall), so they keep running. */
+.md-dv-strip { display: none; width: 100%; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--muted); font: 13px/1.5 var(--sans); text-align: left; cursor: pointer; }
+.md-dv-strip:hover { color: var(--fg); }
+.md-dv-folded .md-dv-strip { display: block; }
+.md-dv-folded { padding: 0; }
+.md-dv-lead.md-dv-folded { padding: 4px 0; }
+.md-dv-folded .md-dv-tools { display: none; }
+.md-dv-folded iframe { height: 0 !important; visibility: hidden; }
+.md-dql.md-dv-folded > :not(.md-dv-strip) { display: none; }
 /* ![[Note]] embeds (src/embeds.js) */
 .md-embed-wrap { padding: 6px 0; }
 .md-embed { position: relative; padding: 6px 12px 8px; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--card); }
@@ -994,6 +1018,40 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .tile.dragging { opacity: 0.4; }
 .tile.drop-before { box-shadow: -4px 0 0 var(--accent); }
 .tile.drop-after { box-shadow: 4px 0 0 var(--accent); }
+/* Master task lists (src/tasklistview.js). */
+.md-tl { margin: 6px 0; padding: 10px 12px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font: 15px/1.5 var(--sans); }
+.md-tl-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.md-tl-title { font-weight: 700; font-size: 16px; }
+.md-tl-day { color: var(--muted); font-size: 13px; }
+.md-tl-count { min-width: 1.6em; padding: 0 6px; border-radius: 999px; background: var(--panel); color: var(--muted); font-size: 12px; text-align: center; }
+.md-tl-tools { margin-left: auto; display: flex; gap: 4px; }
+.md-tl-btn { padding: 1px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); cursor: pointer; }
+.md-tl-group { margin: 8px 0 2px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.md-tl-list { list-style: none; margin: 0; padding: 0; }
+.md-tl-item { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.md-tl-item:last-child { border-bottom: 0; }
+.md-tl-box { flex: none; margin: 0; transform: translateY(2px); cursor: pointer; }
+.md-tl-text { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
+.md-tl-item.done .md-tl-text { text-decoration: line-through; color: var(--muted); }
+.md-tl .md-due { padding: 0 0.45em; border-radius: 999px; background: color-mix(in srgb, var(--muted) 14%, var(--bg)); color: var(--muted); font-size: 12px; white-space: nowrap; }
+.md-tl .md-due-today { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); color: var(--accent); }
+.md-tl .md-due-overdue { background: color-mix(in srgb, var(--bad) 16%, var(--bg)); color: var(--bad); font-weight: 600; }
+.md-tl-src { color: var(--muted); font-size: 12px; text-decoration: none; white-space: nowrap; }
+.md-tl-src:hover { color: var(--accent); }
+.md-tl-empty { color: var(--muted); font-size: 14px; padding: 4px 0; }
+.md-tl-add { width: 100%; margin-top: 8px; padding: 6px 8px; border: 1px dashed var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+.md-tl-add:focus { outline: none; border-style: solid; border-color: var(--accent); }
+/* Cards blocks in a note (src/cardsblock.js): Home's tiles, a bit smaller. */
+.md-cards { position: relative; padding: 6px 0; font-size: 15px; contain: inline-size; }
+.md-cards-grid { margin: 0; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.md-cards-edit { position: absolute; top: 10px; right: 4px; z-index: 1; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); cursor: pointer; opacity: 0; }
+.md-cards:hover .md-cards-edit, .md-cards-edit:focus-visible { opacity: 1; }
+@media (hover: none) { .md-cards-edit { opacity: 0.6; } }
+/* A section header: a full-width row with its label, left-aligned to the grid. */
+.home-grid > .home-section { grid-column: 1 / -1; margin: 12px 0 -4px; padding: 0 2px 4px; border-bottom: 1px solid var(--line); color: var(--muted); font: 600 13px/1.4 var(--sans); letter-spacing: 0.05em; text-transform: uppercase; cursor: default; -webkit-touch-callout: none; }
+.home-grid > .home-section:first-child { margin-top: 0; }
+.home-section.dragging { opacity: 0.4; }
+.home-section.drop-after { box-shadow: 0 3px 0 var(--accent); }
 .tile-add { --tc: var(--mark); background: none; border: 1.5px dashed var(--line); color: var(--muted); font-weight: 500; justify-content: center; align-items: center; gap: 6px; text-align: center; }
 .tile-add .tile-icon { color: var(--muted); }
 @media (hover: hover) { .tile-add:hover { background: var(--card); color: var(--fg); } }
@@ -1005,6 +1063,7 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 }
 .home-pin span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .home-pin small { flex: none; color: var(--muted); font-size: 12px; }
+.home-pin-section { --tc: var(--mark); margin-top: 6px; background: none; border-style: dashed; color: var(--muted); font-weight: 600; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; }
 @media (hover: hover) { .home-pin:hover { background: color-mix(in srgb, var(--tc) 32%, var(--bg)); } }
 .item-menu .swatches { display: grid; grid-template-columns: repeat(4, 32px); gap: 8px; padding: 8px; }
 .item-menu .swatch { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; border: 2px solid transparent; background: var(--sw); }

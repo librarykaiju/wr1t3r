@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { homePath, readPins, writePins, pinKind, pinPath, linkFor, pinTitle, pinColor, pinCover, retargetPins, pinOpens, folderLink, isAppFile } from "../src/home.js";
+import { homePath, readPins, writePins, pinKind, pinPath, linkFor, pinTitle, pinColor, pinCover, retargetPins, pinOpens, folderLink, isAppFile, tileOrdinals, readCards, writeCards } from "../src/home.js";
 
 const HOME = "content/_wr1t3r/Home.md";
 const paths = ["content/Reading log.md", "content/_docs/Books.base", "content/a/Idea.md", "content/b/Idea.md", HOME];
@@ -130,4 +130,25 @@ test("a folder: pin counts as the folder's corkboard pin; wr1t3r's own files are
 	assert.ok(isAppFile("_wr1t3r/Home.md"));
 	assert.ok(!isAppFile("content/my_wr1t3r/Home.md"));
 	assert.ok(!isAppFile("content/Home.md"));
+});
+
+test("section headers live in the pins list and round-trip", () => {
+	const text = '---\npins:\n  - section: Reading\n  - link: "[[Reading log]]"\n  - section: 2026\n  - link: folder:content/_daily\n---\n';
+	const pins = readPins(text);
+	assert.deepEqual(pins, [{ section: "Reading" }, { link: "[[Reading log]]" }, { section: 2026 }, { link: "folder:content/_daily" }]);
+	assert.equal(writePins(text, pins), '---\npins:\n  - section: "Reading"\n  - link: "[[Reading log]]"\n  - section: 2026\n  - link: "folder:content/_daily"\n---\n');
+	// Automatic colors count tiles only, so a header doesn't shift them.
+	assert.deepEqual(tileOrdinals(pins), [-1, 0, -1, 1]);
+	assert.equal(pinOpens(pins[0], { path: "content/Reading log.md" }, paths, HOME), false);
+	assert.equal(retargetPins(pins, new Map([["content/Reading log.md", "content/x/Reading log.md"]]), paths, [...paths, "content/x/Reading log.md"], HOME)[0], pins[0]);
+});
+
+test("a cards block is a bare list of the same entries", () => {
+	const code = '- link: "[[Reading log]]"\n  color: 3\n- section: Today\n- "https://example.com"';
+	const cards = readCards(code);
+	assert.deepEqual(cards, [{ link: "[[Reading log]]", color: 3 }, { section: "Today" }, { link: "https://example.com" }]);
+	assert.equal(writeCards(cards), '- link: "[[Reading log]]"\n  color: 3\n- section: "Today"\n- link: "https://example.com"');
+	assert.deepEqual(readCards(writeCards(cards)), cards);
+	assert.deepEqual(readCards("not: [a list"), []);
+	assert.equal(writeCards([]), "");
 });

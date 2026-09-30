@@ -15,10 +15,11 @@ test("callout types and aliases map to Obsidian's colors", () => {
 	assert.equal(calloutOf("[!note] not quoted"), null);
 });
 
-test("toggleTask flips only the box character", () => {
-	const s = EditorState.create({ doc: "- [ ] a\n- [x] b\n- [X] c\n- a" });
-	assert.deepEqual(toggleTask(s, 2), { from: 3, to: 4, insert: "x" });
-	assert.deepEqual(toggleTask(s, 10), { from: 11, to: 12, insert: " " });
-	assert.deepEqual(toggleTask(s, 18), { from: 19, to: 20, insert: " " });
-	assert.equal(toggleTask(s, 0), null);
+test("toggleTask flips the box and stamps or unstamps the done date", () => {
+	const day = new Date(2026, 8, 30);
+	const s = EditorState.create({ doc: "- [ ] a\n- [x] b ✅ 2026-09-29\n- [X] c\n- a" });
+	assert.deepEqual(toggleTask(s, 2, day), [{ from: 3, to: 4, insert: "x" }, { from: 7, insert: " ✅ 2026-09-30" }]);
+	assert.deepEqual(toggleTask(s, 10, day), [{ from: 11, to: 12, insert: " " }, { from: 15, to: 28, insert: "" }]);
+	assert.deepEqual(toggleTask(s, 31, day), [{ from: 32, to: 33, insert: " " }]);
+	assert.equal(toggleTask(s, 0, day), null);
 });

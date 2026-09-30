@@ -1,8 +1,10 @@
 // Home's grid of tiles (see src/home.js for the pins). A tile opens what it's
 // pinned to; right-click, or a long press on a phone, opens its menu; tiles
 // drag to a new place on screens with a mouse. The last tile adds a pin.
+// Section headers break the grid into labeled groups; they drag and have a
+// menu too.
 
-import { pinKind, pinPath, pinTitle, pinColor, pinCover } from "./home.js";
+import { pinKind, pinPath, pinTitle, pinColor, pinCover, isSection, tileOrdinals } from "./home.js";
 
 const ICONS = {
 	note: '<path d="M7 3.5h7l4 4v13H7z"/><path d="M14 3.5v4h4M9.5 12h6M9.5 15.5h6"/>',
@@ -36,12 +38,57 @@ export function onMenu(el, fn) {
 	el.addEventListener("click", (e) => { if (opened) { e.preventDefault(); e.stopPropagation(); opened = false; } }, true);
 }
 
+// Drag to reorder (mouse), by index into the pins list: drop before the tile
+// under the pointer, or after it past its middle. Dropping on a header puts
+// the item first under it.
+function draggable(el, i, grid, host, header = false) {
+	el.draggable = true;
+	el.addEventListener("dragstart", (e) => {
+		e.dataTransfer.setData("application/x-wr1t3r-pin", String(i));
+		e.dataTransfer.effectAllowed = "move";
+		el.classList.add("dragging");
+	});
+	el.addEventListener("dragend", () => { el.classList.remove("dragging"); clearMarks(grid); });
+	el.addEventListener("dragover", (e) => {
+		if (!e.dataTransfer.types.includes("application/x-wr1t3r-pin")) return;
+		e.preventDefault();
+		const r = el.getBoundingClientRect();
+		const after = header || e.clientX > r.left + r.width / 2;
+		clearMarks(grid);
+		el.classList.add(after ? "drop-after" : "drop-before");
+	});
+	el.addEventListener("dragleave", () => el.classList.remove("drop-before", "drop-after"));
+	el.addEventListener("drop", (e) => {
+		const from = Number(e.dataTransfer.getData("application/x-wr1t3r-pin"));
+		if (!Number.isInteger(from)) return;
+		e.preventDefault();
+		const after = el.classList.contains("drop-after");
+		clearMarks(grid);
+		let to = i + (after ? 1 : 0);
+		if (from < to) to--;
+		if (to !== from) host.reorder(from, to);
+	});
+}
+
 // host: { pins, homeFile, paths, text(path), image(ref, from) -> Promise<src>|null,
-//         open(pin, path), menu(index, x, y), add(), reorder(from, to) }
+//         open(pin, path), menu(index, x, y), add()?, reorder(from, to), emptyLabel? }
 export function drawHome(grid, host) {
 	grid.replaceChildren();
 	const { pins, homeFile, paths } = host;
+	const ordinal = tileOrdinals(pins);
 	pins.forEach((pin, i) => {
+		if (isSection(pin)) {
+			const h = document.createElement("div");
+			h.className = "home-section";
+			h.setAttribute("role", "heading");
+			h.setAttribute("aria-level", "2");
+			h.textContent = String(pin.section).trim() || "Section";
+			h.title = "Right-click (or long-press) to rename, move or remove";
+			onMenu(h, (x, y) => host.menu(i, x, y));
+			draggable(h, i, grid, host, true);
+			grid.append(h);
+			return;
+		}
 		const k = pinKind(pin.link);
 		const path = k.kind === "note" ? pinPath(pin, paths, homeFile) : null;
 		const kind = k.kind === "note" && /\.base$/i.test(path || k.target) ? "base" : k.kind;
@@ -49,7 +96,7 @@ export function drawHome(grid, host) {
 		tile.type = "button";
 		tile.className = "tile";
 		tile.setAttribute("role", "listitem");
-		tile.style.setProperty("--tc", pinColor(pin, i));
+		tile.style.setProperty("--tc", pinColor(pin, ordinal[i]));
 		const missing = k.kind === "note" && !path;
 		tile.classList.toggle("missing", missing);
 		const title = pinTitle(pin, path);
@@ -74,44 +121,18 @@ export function drawHome(grid, host) {
 		tile.append(icon(kind), label);
 		tile.addEventListener("click", () => host.open(pin, path));
 		onMenu(tile, (x, y) => host.menu(i, x, y));
-		// Drag to reorder (mouse): drop before the tile under the pointer, or
-		// after it past its middle.
-		tile.draggable = true;
-		tile.addEventListener("dragstart", (e) => {
-			e.dataTransfer.setData("application/x-wr1t3r-pin", String(i));
-			e.dataTransfer.effectAllowed = "move";
-			tile.classList.add("dragging");
-		});
-		tile.addEventListener("dragend", () => { tile.classList.remove("dragging"); clearMarks(grid); });
-		tile.addEventListener("dragover", (e) => {
-			if (!e.dataTransfer.types.includes("application/x-wr1t3r-pin")) return;
-			e.preventDefault();
-			const r = tile.getBoundingClientRect();
-			const after = e.clientX > r.left + r.width / 2;
-			clearMarks(grid);
-			tile.classList.add(after ? "drop-after" : "drop-before");
-		});
-		tile.addEventListener("dragleave", () => tile.classList.remove("drop-before", "drop-after"));
-		tile.addEventListener("drop", (e) => {
-			const from = Number(e.dataTransfer.getData("application/x-wr1t3r-pin"));
-			if (!Number.isInteger(from)) return;
-			e.preventDefault();
-			const after = tile.classList.contains("drop-after");
-			clearMarks(grid);
-			let to = i + (after ? 1 : 0);
-			if (from < to) to--;
-			if (to !== from) host.reorder(from, to);
-		});
+		draggable(tile, i, grid, host);
 		grid.append(tile);
 	});
+	if (!host.add) return;
 	const add = document.createElement("button");
 	add.type = "button";
 	add.className = "tile tile-add";
-	add.title = "Pin a note, folder, command or web page";
+	add.title = "Pin a note, folder, command or web page, or start a section";
 	add.setAttribute("aria-label", "Add a tile");
 	const label = document.createElement("span");
 	label.className = "tile-name";
-	label.textContent = pins.length ? "Add" : "Pin notes, folders, commands and web pages here";
+	label.textContent = pins.length ? "Add" : host.emptyLabel || "Pin notes, folders, commands and web pages here";
 	add.append(icon("add"), label);
 	add.addEventListener("click", () => host.add());
 	grid.append(add);
