@@ -356,6 +356,11 @@ main:not(.has-note) #panes { display: none; }
 :is(#editor, #refView) .md-a:has(> .md-hashtag), :is(#editor, #refView) .md-hashtag .md-a { text-decoration: none; }
 :is(#editor, #refView) .md-tag { cursor: pointer; }
 .md-footnote { color: var(--accent); font-size: 0.85em; }
+.md-fn-ref { font-size: 0.75em; vertical-align: super; line-height: 0; }
+.footnote-box { position: fixed; z-index: 60; width: 320px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 8px 10px;
+	background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / 0.15); font: 13px var(--sans); }
+.footnote-box label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
+.footnote-box input { font: 15px var(--sans); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 .md-key { color: var(--accent); font-family: var(--mono); font-size: 0.9em; }
 .md-value { font-family: var(--mono); font-size: 0.9em; }
 

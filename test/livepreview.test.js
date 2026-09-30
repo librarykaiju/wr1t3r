@@ -30,5 +30,6 @@ test("leaves cursor lines, code, embeds, images and frontmatter alone", () => {
 	assert.equal(shown("`[[x]]` ![[Embed]] ![alt](https://x.y/p.png)"), "[[x]] ![[Embed]] ![alt](https://x.y/p.png)");
 	assert.equal(shown("---\ntitle: ==a==\n---\n# H"), "---\ntitle: ==a==\n---\nH");
 	assert.equal(shown("| a | **b** |\n|---|---|\n| 1 | 2 |"), "| a | **b** |\n|---|---|\n| 1 | 2 |");
-	assert.equal(shown("text[^1]\n\n[^1]: note"), "text[^1]\n\n[^1]: note");
+	assert.equal(shown("text[^1]\n\n[^1]: note [^2]"), "text1\n\n[^1]: note 2");
+	assert.equal(shown("text[^1]", [1]), "text[^1]");
 });
