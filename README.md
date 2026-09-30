@@ -142,6 +142,8 @@ The order lives in the folder, in a note called `_Binder.md`: a numbered list of
 
 With no note open, the main window shows a quote about writing or making art that changes at local midnight. The list is in `src/quotes.js` and ships with the app, so it works offline; add or remove lines there to change the rotation. Under it is a writing prompt question, also one a day (`src/prompts.js`, 60 of them). Tap it to start a journal entry for it in `journal/`, titled with the prompt and with the frontmatter from `_templates/Journal.md` (you can change the name first), or tap ↻ for another prompt.
 
+Below them are Home's pinned tiles (`src/home.js`, `src/homeview.js`), kept in `_wr1t3r/Home.md` so every device shows the same ones. **Sections** group them under a header: **Section header…** in the **+** tile's list adds one at the end, and a tile's menu has **Start a section here…**. A header is a `- section: Reading` entry in the same `pins:` list, and the tiles after it are its own, so dragging a tile past a header (or onto one) moves it into that section. Right-click or long-press a header to rename, move or remove it (its tiles stay). Headers don't change the tiles' automatic colors.
+
 ## Setup
 
 1. Make a token: a long random string (32+ characters) from your password manager.

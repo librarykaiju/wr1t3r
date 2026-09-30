@@ -1015,6 +1015,11 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .tile.dragging { opacity: 0.4; }
 .tile.drop-before { box-shadow: -4px 0 0 var(--accent); }
 .tile.drop-after { box-shadow: 4px 0 0 var(--accent); }
+/* A section header: a full-width row with its label, left-aligned to the grid. */
+.home-grid > .home-section { flex: 1 0 100%; min-width: 100%; margin: 12px 0 -4px; padding: 0 2px 4px; border-bottom: 1px solid var(--line); color: var(--muted); font: 600 13px/1.4 var(--sans); letter-spacing: 0.05em; text-transform: uppercase; cursor: default; -webkit-touch-callout: none; }
+.home-grid > .home-section:first-child { margin-top: 0; }
+.home-section.dragging { opacity: 0.4; }
+.home-section.drop-after { box-shadow: 0 3px 0 var(--accent); }
 .tile-add { --tc: var(--mark); background: none; border: 1.5px dashed var(--line); color: var(--muted); font-weight: 500; justify-content: center; align-items: center; gap: 6px; text-align: center; }
 .tile-add .tile-icon { color: var(--muted); }
 @media (hover: hover) { .tile-add:hover { background: var(--card); color: var(--fg); } }
@@ -1026,6 +1031,7 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 }
 .home-pin span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .home-pin small { flex: none; color: var(--muted); font-size: 12px; }
+.home-pin-section { --tc: var(--mark); margin-top: 6px; background: none; border-style: dashed; color: var(--muted); font-weight: 600; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; }
 @media (hover: hover) { .home-pin:hover { background: color-mix(in srgb, var(--tc) 32%, var(--bg)); } }
 .item-menu .swatches { display: grid; grid-template-columns: repeat(4, 32px); gap: 8px; padding: 8px; }
 .item-menu .swatch { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; border: 2px solid transparent; background: var(--sw); }

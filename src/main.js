@@ -37,7 +37,7 @@ import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
 import { makeMediaNote } from "./media.js";
-import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile } from "./home.js";
+import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
 import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
 import { reorder } from "./drag.js";
 import { drawBoard, drawOutline, folderWords, stopViews } from "./folderview.js";
@@ -772,13 +772,25 @@ function renderHomeSettings() {
 	if (!box || $("settings").hidden) return;
 	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
 	box.replaceChildren();
+	const ordinal = tileOrdinals(list);
 	list.forEach((pin, i) => {
+		if (isSection(pin)) {
+			const row = document.createElement("button");
+			row.type = "button";
+			row.className = "home-pin home-pin-section";
+			row.title = "Rename, move or remove this section";
+			row.textContent = String(pin.section);
+			row.addEventListener("click", (e) => { e.stopPropagation(); const r = row.getBoundingClientRect(); tileMenu(i, r.left + 12, r.bottom + 2); });
+			onMenu(row, (x, y) => tileMenu(i, x, y));
+			box.append(row);
+			return;
+		}
 		const k = pinKind(pin.link);
 		const path = k.kind === "note" ? pinPath(pin, paths, file) : null;
 		const row = document.createElement("button");
 		row.type = "button";
 		row.className = "home-pin";
-		row.style.setProperty("--tc", pinColor(pin, i));
+		row.style.setProperty("--tc", pinColor(pin, ordinal[i]));
 		row.title = "Change, move or unpin this tile";
 		const what = { note: /\.base$/i.test(path || k.target || "") ? "base" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "one document" : k.view, command: "command", url: "web page" }[k.kind];
 		const nm = document.createElement("span");
@@ -827,11 +839,26 @@ function revealFolder(folder) {
 	}
 }
 
+// Asks for a section's name; null when cancelled or left empty.
+function askSection(now = "") {
+	const t = prompt("Section name:", now);
+	return t == null || !t.trim() ? null : t.trim();
+}
+
 function tileMenu(i, x, y) {
 	const list = pins(), pin = list[i];
 	if (!pin) return;
 	const set = (patch) => savePins(list.map((p, j) => (j === i ? clean({ ...p, ...patch }) : p)));
 	const move = (to) => { const next = [...list]; next.splice(i, 1); next.splice(to, 0, pin); savePins(next); };
+	const startSection = () => { const t = askSection(); if (t) savePins([...list.slice(0, i), { section: t }, ...list.slice(i)]); };
+	if (isSection(pin)) {
+		return showMenu([
+			["Rename…", () => { const t = askSection(String(pin.section)); if (t) set({ section: t }); }],
+			...(i > 0 ? [["Move earlier", () => move(i - 1)]] : []),
+			...(i < list.length - 1 ? [["Move later", () => move(i + 1)]] : []),
+			["Remove section (keeps its tiles)", () => savePins(list.filter((_, j) => j !== i)), "danger"],
+		], x, y);
+	}
 	const k = pinKind(pin.link);
 	const views = k.kind === "folder" || k.kind === "view"
 		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as one document"]]
@@ -849,6 +876,7 @@ function tileMenu(i, x, y) {
 		}],
 		...(i > 0 ? [["Move earlier", () => move(i - 1)]] : []),
 		...(i < list.length - 1 ? [["Move later", () => move(i + 1)]] : []),
+		["Start a section here…", startSection],
 		["Unpin", () => savePins(list.filter((_, j) => j !== i)), "danger"],
 	], x, y);
 }
@@ -923,6 +951,7 @@ function addTile() {
 	};
 	const items = [
 		{ label: "Web page…", detail: "link", keywords: "url https website", run: () => { const u = prompt("Web page address:"); if (u) webLink(u); } },
+		{ label: "Section header…", detail: "a label over the tiles after it", keywords: "section header heading group label divider", run: () => { const t = askSection(); if (t) { savePins([...pins(), { section: t }]); toast(`Added the section “${t}”; tiles added after it go under it.`); } } },
 		...order.filter((p) => !pinned(p)).map((p) => ({ label: name(p), detail: folderOf(p) || "note", keywords: folderOf(p), run: () => pinItem(p) })),
 		...[...folders].filter((f) => f !== home && f.startsWith(home) && !pinned(f) && !isAppFile(f)).sort()
 			.map((f) => ({ label: folderLabel(f), detail: "folder", keywords: "folder", run: () => pinItem(f) })),
