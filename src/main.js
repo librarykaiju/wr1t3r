@@ -949,6 +949,7 @@ setPlannerHost({
 	image: (ref, from) => tileImage(ref, from),
 	open: (path) => openNote(path),
 	toast: (text) => toast(text),
+	usda: (q) => api.usdaSearch(q),
 });
 
 // Drops keys set to nothing, so they come out of the file.

@@ -156,7 +156,7 @@ Below them are Home's pinned tiles (`src/home.js`, `src/homeview.js`), kept in `
 **Cards in a note** (`src/cardsblock.js`): **Cards** in the slash menu adds a ```` ```wr1t3r-cards ```` block, which shows as the same tiles while the cursor is outside it, with the same menus (color, cover, rename, move, sections, remove), dragging and **+**. It holds the same entries as Home's `pins:` list, as a bare YAML list (`- link: "[[Reading log]]"`, `  color: 3`, `- section: Writing`), and each change rewrites only that list, so it works in a template like `_templates/Daily.md`: every daily note made from it gets the cards. **</>** shows the list to edit. Obsidian shows the block as code.
 
 **The Planner** (`src/planner.js`, `src/plannerview.js`): **Planner** in the slash menu adds a ```` ```wr1t3r-planner ```` block and a `# Notes` heading under it; with them in `_templates/Daily.md`, Today makes every daily note a planner page. The block shows the day's title (a `banner:` picture above it if set), five buttons that write to the day's health note (`YYYY-MM-DD Health`, made from `_templates/Daily Health.md` if it isn't there yet), then the **Timeline** beside the Critical Tasks and To Do's lists. The note's properties box is hidden on a planner page; **Properties** in the planner's header shows it, and **Health note** opens the health note.
-- **Food** searches the vault's `Nutrition Database.md` table (names and aliases) and logs `- Banana, 1` under the meal's heading (`### 🍳Breakfast` and so on), with the servings you set. **Water** adds `- 8` (fl oz) under `### 💧 Water` on each click; right-click or long-press it to take the last one back. **Meds** flips `meds:` between true and false. **Exercise** logs `- 07:30 | 🚶 Walk | 3200 steps | 150 cal | note` under `### 🏃 Exercise`. **Mood** logs `- 14:32 | 🙂 Good | note` under `## Mood Log`. The Food, Exercise and Mood panels list the day's entries with × to remove one.
+- **Food** searches the vault's `Nutrition Database.md` table (names and aliases) and logs `- Banana, 1` under the meal's heading (`### 🍳Breakfast` and so on), with the servings you set. A food that isn't there yet: **Search USDA** looks it up in USDA FoodData Central (`worker/usda.js`; the key is the Worker's `USDA_API_KEY`, see [USDA food search](#usda-food-search)), and picking a result adds it to the table as a new row (for one serving: the label's for a branded food, else USDA's first household measure) and logs it. **Water** adds `- 8` (fl oz) under `### 💧 Water` on each click; right-click or long-press it to take the last one back. **Meds** flips `meds:` between true and false. **Exercise** logs `- 07:30 | 🚶 Walk | 3200 steps | 150 cal | note` under `### 🏃 Exercise`. **Mood** logs `- 14:32 | 🙂 Good | note` under `## Mood Log`. The Food, Exercise and Mood panels list the day's entries with × to remove one.
 - After each change the health note's properties are worked out again from those lines: `calories`, `fat_g`, `carbs_g`, `protein_g`, `fiber_g`, `hydration_oz`, `steps`, `activity_kcal`, `mood` (the latest) and their targets, which is what `_docs/Health Trends.md` charts.
 - **Timeline**: an hour a row from 9 AM to 9 PM. Click a row to write in it, click an entry to change it (empty removes it), or type your own time (`10:30 - 11:15 | Dentist`). **Import** adds the day's events from the calendar picked under Aa > Daily note timeline, skipping ones already there. The entries live in the block as `timeline:` lines.
 - The block's other keys, all optional: `title:`, `tasks: [crit, todo]`, `moods: [😄 Great, 🙂 Good, …]`, `exercises: [🚶 Walk, 🏃 Run, 🥾 Hike]`, `calories_target: 2417`, `water_target: 128`, `water_step: 8`, `steps_target: 7000`, `activity_target: 400`, `start: 9` and `end: 21` (the Timeline's hours), and `nutrition:` (another database note). **</>** shows them. Obsidian shows the block as code.
@@ -197,6 +197,16 @@ This is a one-time setup, done in a browser and a terminal on your computer.
 If the agenda ever says the Google sign-in has expired, run `npm run google-auth` again. To cut wr1t3r off, remove it at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
 The first sync downloads every note (a few MB for this vault).
+
+## USDA food search
+
+The planner's Food button can look foods up in USDA FoodData Central. The Worker does the search and holds the key; the page never sees it. Get a free key at [fdc.nal.usda.gov/api-key-signup](https://fdc.nal.usda.gov/api-key-signup), then:
+
+```sh
+npx wrangler secret put USDA_API_KEY
+```
+
+Until it's set, **Search USDA** says the key is missing.
 
 ## Media notes
 

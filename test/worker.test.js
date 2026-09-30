@@ -100,3 +100,41 @@ test("the vault's attachment settings are read from .obsidian/app.json", async (
 	e.VAULT.map.set(".obsidian/app.json", { body: new TextEncoder().encode('{"attachmentFolderPath":"./","useMarkdownLinks":false,"vimMode":true}'), etag: "x" });
 	assert.deepEqual(await (await call(e, "/api/obsidian")).json(), { attachmentFolderPath: "./", useMarkdownLinks: false });
 });
+
+test("USDA search: needs a key, scales to a serving, and maps categories", async () => {
+	const none = await call(env(), "/api/usda/search?q=jif");
+	assert.equal(none.status, 404);
+	assert.match((await none.json()).error, /USDA_API_KEY/);
+
+	const real = globalThis.fetch;
+	let asked = null;
+	globalThis.fetch = async (u) => {
+		asked = new URL(u);
+		return new Response(JSON.stringify({ foods: [
+			{ fdcId: 1, description: "PEANUT BUTTER, CREAMY", dataType: "Branded", brandName: "JIF", foodCategory: "Nut & Seed Butters", servingSize: 32, servingSizeUnit: "g", householdServingFullText: "2 Tbsp",
+				foodNutrients: [{ nutrientId: 1008, unitName: "KCAL", value: 594 }, { nutrientId: 1004, value: 50 }, { nutrientId: 1005, value: 21.9 }, { nutrientId: 1003, value: 21.9 }, { nutrientId: 1079, value: 6.2 }] },
+			{ fdcId: 2, description: "Broccoli, raw", dataType: "SR Legacy", foodCategory: "Vegetables and Vegetable Products",
+				foodMeasures: [{ disseminationText: "Quantity not specified", gramWeight: 50, rank: 1 }, { disseminationText: "1 cup chopped", gramWeight: 91, rank: 2 }],
+				foodNutrients: [{ nutrientId: 1008, unitName: "KCAL", value: 34 }, { nutrientId: 1003, value: 2.82 }] },
+			{ fdcId: 3, description: "Eggs, Grade A, Large", dataType: "Foundation", foodCategory: "Dairy and Egg Products",
+				foodNutrients: [{ nutrientId: 1062, unitName: "kJ", value: 600 }, { nutrientId: 2047, unitName: "KCAL", value: 148 }] },
+		] }), { headers: { "Content-Type": "application/json" } });
+	};
+	try {
+		const r = await call({ ...env(), USDA_API_KEY: "k" }, "/api/usda/search?q=" + encodeURIComponent("peanut butter"));
+		assert.equal(r.status, 200);
+		assert.equal(asked.searchParams.get("api_key"), "k");
+		assert.equal(asked.searchParams.get("query"), "peanut butter");
+		const [pb, broc, egg] = (await r.json()).results;
+		assert.deepEqual(pb, { fdcId: 1, dataType: "Branded", brand: "Jif", serving: "2 Tbsp (32g)", name: "Peanut Butter, Creamy (Jif)", calories: 190, fat: 16, carbs: 7, protein: 7, fiber: 2, group: "Fat/Protein", aliases: ["peanut butter, creamy"] });
+		assert.equal(broc.serving, "1 cup chopped (91g)");
+		assert.equal(broc.calories, 31);
+		assert.equal(broc.protein, 2.6);
+		assert.equal(broc.group, "Produce");
+		assert.equal(egg.serving, "100g");
+		assert.equal(egg.calories, 148);
+		assert.equal(egg.group, "Dairy");
+	} finally {
+		globalThis.fetch = real;
+	}
+});

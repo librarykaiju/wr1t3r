@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
 	readPlanner, writePlanner, parseEntry, timelineRows, setEntry, addEvents, hourLabel, healthPathFor,
 	addUnder, itemsUnder, removeLine, parseNutrition, findFood, searchFoods, waterOz, moodEntry, moodLine,
-	healthDay, syncHealth, toggleMeds, mealAt, MEALS, EXERCISE, exerciseEntry, exerciseLine, moodChoice,
+	healthDay, syncHealth, toggleMeds, mealAt, MEALS, addFoodRow, foodEntry, EXERCISE, exerciseEntry, exerciseLine, moodChoice,
 } from "../src/planner.js";
 
 const DB = `# Nutrition Database
@@ -206,4 +206,18 @@ test("exercise: lines, totals and the choices", () => {
 	assert.equal(writePlanner(cfg), "moods: [😊 Calm, Meh]\nexercises: [🚴 Bike, Yoga]");
 	assert.equal(readPlanner("").exercises.length, 3);
 	assert.equal(readPlanner("").moods.length, 8);
+});
+
+test("a USDA food becomes a Nutrition Database row", () => {
+	const food = { name: "Peanut Butter, Creamy (Jif)", serving: "2 tbsp (32g)", calories: 190, fat: 16, carbs: 8, protein: 7, fiber: 2, group: "Fat/Protein", aliases: ["peanut butter, creamy"] };
+	const t = addFoodRow(DB + "\nMore notes after the table.\n", food);
+	assert.match(t, /\| Peanut Butter \| 2 tbsp \(32g\) \| 190 \| 16 \| 7 \| 7 \| 2 \| Fat\/Protein \| pb \| 15 \(16 oz jar\) \|\n\| Peanut Butter, Creamy \(Jif\) \| 2 tbsp \(32g\) \| 190 \| 16 \| 8 \| 7 \| 2 \| Fat\/Protein \| peanut butter, creamy \|  \|\n\nMore notes/);
+	assert.equal(findFood(parseNutrition(t), "Peanut Butter, Creamy (Jif)").calories, 190);
+	assert.deepEqual(foodEntry("Peanut Butter, Creamy (Jif), 1.5"), { name: "Peanut Butter, Creamy (Jif)", servings: 1.5 });
+	assert.deepEqual(foodEntry("Broccoli, raw"), { name: "Broccoli, raw", servings: 1 });
+	assert.deepEqual(foodEntry("Apple, 2"), { name: "Apple", servings: 2 });
+	assert.deepEqual(foodEntry("Apple"), { name: "Apple", servings: 1 });
+	assert.equal(addFoodRow(t, food), t); // already there
+	assert.match(addFoodRow(DB, { ...food, name: "A | B" }), /\| A \/ B \|/);
+	assert.match(addFoodRow("# Nutrition Database\n", food), /# Nutrition Database\n\n\| Food \|.*\n\| --- \|.*\n\| Peanut Butter, Creamy \(Jif\) \|/);
 });

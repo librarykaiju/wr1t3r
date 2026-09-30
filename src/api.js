@@ -114,6 +114,9 @@ export const api = {
 	async mediaNote(kind, ref, cover, today) {
 		return jsonOrThrow(await call("/api/media/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, ref, cover, today }) }));
 	},
+	async usdaSearch(q) {
+		return (await jsonOrThrow(await call("/api/usda/search?" + new URLSearchParams({ q })))).results;
+	},
 	async remove(path, expected) {
 		const res = await call(q(path), { method: "DELETE", headers: { "If-Match": `"${expected}"` } });
 		if (res.status === 412) return { ok: false, version: (await res.json().catch(() => ({}))).version ?? null };
