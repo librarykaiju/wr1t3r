@@ -117,6 +117,7 @@ const hide = Decoration.replace({ atomic: true });
 const line = (cls) => Decoration.line({ class: cls });
 const doneText = Decoration.mark({ class: "md-task-done" });
 const calloutHead = Decoration.mark({ class: "md-callout-title" });
+const bullet = Array.from({ length: 7 }, (_, i) => Decoration.mark({ class: `md-bullet md-bullet-${i}` }));
 
 function build(view) {
 	const { state } = view;
@@ -168,6 +169,13 @@ function build(view) {
 				case "HorizontalRule":
 					addLine(node.from, node.from, "md-hr");
 					return false;
+				case "ListMark": {
+					// Bullets and numbers take the theme's rainbow by depth.
+					let depth = -1;
+					for (let p = node.node.parent; p; p = p.parent) if (p.name === "BulletList" || p.name === "OrderedList") depth++;
+					if (depth >= 0) marks.push([node.from, node.to, bullet[depth % 7]]);
+					return false;
+				}
 				case "TaskMarker": {
 					const checked = /x/i.test(state.sliceDoc(node.from, node.to));
 					marks.push([node.from, node.to, Decoration.replace({ widget: new CheckboxWidget(checked) })]);

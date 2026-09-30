@@ -7,7 +7,7 @@ import { setupKeyboardBar } from "./kbbar.js";
 import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js";
 import { promptFor } from "./prompts.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
-import { noteTags } from "./frontmatter.js";
+import { noteTags, tagHue } from "./frontmatter.js";
 import { vaultChanged } from "./vault.js";
 import { setLivePreview } from "./livepreview.js";
 import { parseQuery, matches, snippet, isArchived, asksForArchive, archiveText } from "./search.js";
@@ -286,8 +286,6 @@ function renderTree() {
 		tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: lastSynced ? "The vault is empty." : "Loading the vault…" }));
 		return;
 	}
-	drawBookmarks(tree);
-	drawTags(tree, list);
 	// Folders first, then notes, like Obsidian. Archived notes aren't listed.
 	const root = { folders: new Map(), notes: [] };
 	for (const n of list) {
@@ -305,18 +303,22 @@ function renderTree() {
 	let top = root, base = "";
 	const home = commonFolder(list);
 	if (home) {
-		top = root.folders.get(home.slice(0, -1));
+		top = root.folders.get(home.slice(0, -1)) || { folders: new Map(), notes: [] };
 		base = home;
 		root.folders.delete(home.slice(0, -1));
 	}
+	// Top-level folders take the theme's rainbow in turn; subfolders, their
+	// notes and bookmarks of them keep that color.
+	const folderColor = new Map([...top.folders.keys(), ...(top === root ? [] : root.folders.keys())].map((dir, k) => [dir, `var(--f${(k % 7) + 1})`]));
+	drawBookmarks(tree, (p) => (p.startsWith(base) && p.slice(base.length).includes("/") ? folderColor.get(p.slice(base.length).split("/")[0]) : null));
+	drawTags(tree, list);
 	const current = editor.path || (folderTab ? folderTab.slice(FOLDER_TAB.length) : "");
-	let i = 0; // top-level folders take the theme's rainbow in turn
 	const paths = list.map((n) => n.path);
 	const drawFolder = (into, dir, child, prefix, depth) => {
 		const full = prefix + dir + "/";
 		const d = document.createElement("details");
 		// Subfolders keep their parent's color.
-		if (!depth) d.style.setProperty("--fc", `var(--f${(i++ % 7) + 1})`);
+		if (!depth) d.style.setProperty("--fc", folderColor.get(dir) || "var(--mark)");
 		d.open = openFolders.has(full) || current.startsWith(full);
 		const s = document.createElement("summary");
 		s.textContent = dir;
@@ -623,12 +625,14 @@ function sideSection(key, title, into) {
 	return kids;
 }
 
-function drawBookmarks(tree) {
+function drawBookmarks(tree, colorOf) {
 	const marked = bookmarks.filter(isOpenable);
 	if (!marked.length) return;
 	const kids = sideSection("bookmarks", `Bookmarks`, tree);
 	for (const p of marked) {
 		const a = link(notes.get(p), name(p));
+		const c = colorOf(p);
+		if (c) a.style.setProperty("--fc", c); // its folder's color, as in the list below
 		onMenu(a, (x, y) => showMenu([pinEntry(p), ["Remove bookmark", () => toggleBookmark(p)]], x, y));
 		kids.append(a);
 	}
@@ -952,6 +956,7 @@ function drawTags(tree, list) {
 		const a = document.createElement("a");
 		a.href = "#";
 		a.className = "tag-row";
+		a.style.setProperty("--fc", `var(--f${tagHue(t) + 1})`); // the tag's pill color
 		a.textContent = "#" + t;
 		const n = document.createElement("span");
 		n.className = "count";

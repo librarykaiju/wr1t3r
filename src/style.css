@@ -703,12 +703,17 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 }
 :is(#editor, #refView) .md-tags { margin-left: 0.4em; display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; cursor: text; }
 :is(#editor, #refView) .md-tag, :is(#editor, #refView) .md-hashtag {
-	--t: #448aff; background: color-mix(in srgb, var(--t) 16%, var(--bg)); color: color-mix(in srgb, var(--t) 75%, var(--fg));
+	background: color-mix(in srgb, var(--t, var(--f6)) 16%, var(--bg)); color: color-mix(in srgb, var(--t, var(--f6)) 75%, var(--fg));
 	border-radius: 999px; padding: 0 0.6em; font: 500 0.95em/1.6 var(--sans);
 }
 :is(#editor, #refView) .md-hashtag { font-size: 0.8em; padding: 0.05em 0.55em; }
-:is(#editor, #refView) .md-tag-0 { --t: #448aff; } :is(#editor, #refView) .md-tag-1 { --t: #08b94e; } :is(#editor, #refView) .md-tag-2 { --t: #e0a800; } :is(#editor, #refView) .md-tag-3 { --t: #f57c00; }
-:is(#editor, #refView) .md-tag-4 { --t: #e5484d; } :is(#editor, #refView) .md-tag-5 { --t: #7c4dff; } :is(#editor, #refView) .md-tag-6 { --t: #00b8d4; } :is(#editor, #refView) .md-tag-7 { --t: #d63384; }
+/* Tag colors are the theme's rainbow (--f1..--f7), as on the sidebar's folders. */
+.md-tag-0 { --t: var(--f1); } .md-tag-1 { --t: var(--f2); } .md-tag-2 { --t: var(--f3); } .md-tag-3 { --t: var(--f4); }
+.md-tag-4 { --t: var(--f5); } .md-tag-5 { --t: var(--f6); } .md-tag-6 { --t: var(--f7); }
+/* List bullets and numbers, colored by how deep the list is. */
+:is(#editor, #refView) .md-bullet, :is(#editor, #refView) .md-bullet .md-mark { color: var(--b); font-weight: 600; }
+.md-bullet-0 { --b: var(--f1); } .md-bullet-1 { --b: var(--f2); } .md-bullet-2 { --b: var(--f3); } .md-bullet-3 { --b: var(--f4); }
+.md-bullet-4 { --b: var(--f5); } .md-bullet-5 { --b: var(--f6); } .md-bullet-6 { --b: var(--f7); }
 :is(#editor, #refView) .md-tag { display: inline-flex; align-items: center; gap: 0.2em; }
 :is(#editor, #refView) .md-tag-x {
 	background: none; border: 0; padding: 0 0 0 0.1em; margin: 0; font: inherit; line-height: 1; color: inherit; opacity: 0.55; cursor: pointer;
