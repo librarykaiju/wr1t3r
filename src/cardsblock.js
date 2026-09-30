@@ -17,7 +17,7 @@
 import { StateField, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
-import { dataviewBlocks } from "./dataview.js";
+import { dataviewBlocks, blockBodyChange } from "./dataview.js";
 import { readCards, writeCards } from "./home.js";
 import { drawHome } from "./homeview.js";
 import { notePath, vaultChanged } from "./vault.js";
@@ -39,7 +39,7 @@ export function cardsStore(view, n) {
 			const b = block();
 			if (!b || view.state.readOnly) return;
 			const text = writeCards(list);
-			view.dispatch({ changes: { from: b.codeFrom, to: b.codeTo, insert: b.code ? text : text + "\n" }, userEvent: "input.cards" });
+			view.dispatch({ changes: blockBodyChange(view.state, b, text), userEvent: "input.cards" });
 		},
 	};
 }
