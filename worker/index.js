@@ -28,8 +28,15 @@
 //                                  412 {"error", "version"} if the note has moved on
 //   DELETE /api/file?path=         header If-Match: <version> -> 204, 412 as above
 //   GET    /api/attachments        -> {"files": [{path, version, size}]} for images,
-//                                  PDFs, audio and video (read-only in wr1t3r)
+//                                  PDFs, audio and video
 //   GET    /api/attachment?path=   that file's bytes, with its Content-Type
+//   PUT    /api/attachment?path=   body = a new picture's bytes (png, jpg, gif, webp,
+//                                  avif, bmp; up to 20 MB); header If-None-Match: *
+//                                  (pictures are only ever added) -> {"version"},
+//                                  412 if the name is taken
+//   GET    /api/obsidian           the vault's attachment settings from
+//                                  .obsidian/app.json -> {attachmentFolderPath,
+//                                  useMarkdownLinks, newLinkFormat} (those set)
 //   GET    /api/fetch?url=         a public web page for the clipper -> its body and
 //                                  Content-Type, and X-Final-URL after redirects
 //   /api/calendar/...              Google Calendar agenda; see worker/calendar.js
@@ -46,6 +53,9 @@ import { isNotePath, isAttachmentPath, attachmentType } from "../src/paths.js";
 
 // Matches READ_BATCH in src/sync.js.
 const READ_BATCH = 25;
+// Pictures pasted or dropped into a note. No SVG: it can carry scripts.
+const UPLOAD_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp"]);
+const MAX_UPLOAD = 20 * 1024 * 1024;
 
 export default {
 	async fetch(request, env) {
@@ -118,6 +128,28 @@ async function api(request, store, url, isExcluded) {
 		const files = (await store.list()).filter((f) => isAttachmentPath(f.path) && !isExcluded(f.path));
 		files.sort((a, b) => (a.path < b.path ? -1 : 1));
 		return json({ files });
+	}
+
+	if (p === "/api/attachment" && m === "PUT") {
+		const path = url.searchParams.get("path") || "";
+		const type = attachmentType(path);
+		if (!isAttachmentPath(path) || isExcluded(path) || !UPLOAD_TYPES.has(type)) throw new HttpError(400, "Not a picture path: " + String(path).slice(0, 200));
+		if (request.headers.get("If-None-Match") !== "*") throw new HttpError(428, "Send If-None-Match: *");
+		const bytes = new Uint8Array(await request.arrayBuffer());
+		if (!bytes.length || bytes.length > MAX_UPLOAD) throw new HttpError(413, "Pictures can be up to 20 MB");
+		const r = await store.write(path, bytes, null, type);
+		if (!r.ok) throw new HttpError(412, "A file with that name exists", { version: r.version ?? null });
+		return json({ version: r.version });
+	}
+
+	// Only the settings that say where pasted pictures go and how they're linked.
+	if (p === "/api/obsidian" && m === "GET") {
+		const f = await store.read(".obsidian/app.json").catch(() => null);
+		let app = {};
+		try { app = f ? JSON.parse(new TextDecoder().decode(f.bytes)) : {}; } catch {}
+		const out = {};
+		for (const k of ["attachmentFolderPath", "useMarkdownLinks", "newLinkFormat"]) if (app?.[k] !== undefined) out[k] = app[k];
+		return json(out);
 	}
 
 	if (p === "/api/attachment" && m === "GET") {

@@ -32,6 +32,8 @@ import { prettyProperties } from "./pretty.js";
 import { embeds, embedLook } from "./embeds.js";
 import { livePreview } from "./livepreview.js";
 import { bases } from "./basesview.js";
+import { spellcheck, smartPunctuation } from "./writing.js";
+import { pasteAndDrop } from "./paste.js";
 
 const fromSync = Annotation.define();
 
@@ -152,6 +154,9 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		embedLook.of(() => look),
 		embeds,
 		dataviewJs,
+		spellcheck,
+		smartPunctuation,
+		pasteAndDrop,
 		autocompletion({ override: [slashSource(), linkSource], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 	];
