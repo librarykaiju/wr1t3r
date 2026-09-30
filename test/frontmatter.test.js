@@ -128,3 +128,13 @@ test("banner and cover properties are found to hide", () => {
 	assert.deepEqual(imagePropertyLines(d, frontmatterLines(d)), [{ first: 3, last: 3 }, { first: 4, last: 4 }, { first: 5, last: 6 }]);
 	assert.deepEqual(IMAGE_KEYS, ["banner", "banner_position", "cover", "coverImage", "image", "thumbnail"]);
 });
+
+test("the properties box draws notes with empty properties and hidden images", () => {
+	// An empty tags: or date is a zero-length widget; building the box threw
+	// on it, so those notes wouldn't open.
+	for (const doc of [
+		"---\ntitle: T\ntags:\n---\nBody",
+		"---\ncoverImage:\ngenre:\ntags:\nrating:\n---\n",
+		"---\ndate:\nbanner: x.png\ncover: y.png\ntags:\n---\nBody",
+	]) assert.doesNotThrow(() => EditorState.create({ doc, extensions: frontmatterStyle }), doc);
+});
