@@ -48,6 +48,10 @@ import { prettyOf } from "./pretty.js";
 import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { attachmentKind } from "./attachments.js";
+import { setSpellcheck, setSmartPunctuation } from "./writing.js";
+import { setPictureHost } from "./paste.js";
+import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
+import { setupToolbar } from "./toolbar.js";
 
 const $ = (id) => document.getElementById(id);
 const notes = new Map(); // path -> note, mirrors IndexedDB
@@ -1421,6 +1425,10 @@ function allCommands() {
 		["Toggle right sidebar", () => showRight(rightShut()), "calendar agenda contents panel collapse hide show"],
 		["Toggle Live Preview", toggleLivePreview, "markdown symbols hide"],
 		["Toggle readable line length", toggleLineLength, "width wide full center column"],
+		["Toggle spellcheck", () => toggleSetting("spell"), "spelling spell check dictionary"],
+		["Toggle smart punctuation", () => toggleSetting("smart"), "curly quotes em dash ellipsis autocorrect typography"],
+		["Toggle formatting toolbar", () => toggleSetting("toolbar"), "buttons bold italic format bar"],
+		["Export or print this note", () => exportNote(editor.path), "print pdf word docx html download save", true],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
 		["Open corkboard", () => pickFolder("corkboard"), "scrivener index cards folder board order"],
@@ -2068,6 +2076,25 @@ function toggleLineLength() {
 	applyLineLength(full);
 }
 
+// On/off typing settings, per device (on unless turned off): spellcheck,
+// smart punctuation and the formatting toolbar.
+const ON_OFF = {
+	spell: { key: "wr1t3rSpell", apply: (on) => setSpellcheck(activeView(), on) },
+	smart: { key: "wr1t3rSmart", apply: (on) => setSmartPunctuation(on) },
+	toolbar: { key: "wr1t3rToolbar", apply: (on) => $("app").classList.toggle("no-toolbar", !on) },
+};
+const settingOn = (name) => readRaw(ON_OFF[name].key) !== "off";
+function applySetting(name, on) {
+	ON_OFF[name].apply(on);
+	document.querySelectorAll(`[data-setting="${name}"] button`).forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.on === "true") === on)));
+}
+function toggleSetting(name) {
+	const on = !settingOn(name);
+	storeRaw(ON_OFF[name].key, on ? null : "off");
+	applySetting(name, on);
+	toast(`${{ spell: "Spellcheck", smart: "Smart punctuation", toolbar: "Formatting toolbar" }[name]} ${on ? "on" : "off"}`, 2000);
+}
+
 function openSettings(on) {
 	if (on && !$("agenda").hidden) openAgenda(false);
 	$("settings").hidden = !on;
@@ -2109,6 +2136,15 @@ function setupSettings() {
 		storeRaw("wr1t3rLines", b.dataset.lines === "full" ? "full" : null);
 		applyLineLength(b.dataset.lines === "full");
 	});
+	for (const name of Object.keys(ON_OFF)) {
+		applySetting(name, settingOn(name));
+		document.querySelector(`[data-setting="${name}"]`)?.addEventListener("click", (e) => {
+			const b = e.target.closest("button");
+			if (!b) return;
+			storeRaw(ON_OFF[name].key, b.dataset.on === "true" ? null : "off");
+			applySetting(name, b.dataset.on === "true");
+		});
+	}
 	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
 	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
 	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });
@@ -2937,6 +2973,60 @@ async function refreshAttachments() {
 	} catch {}
 }
 
+// Pictures pasted or dropped into a note (src/paste.js): saved in the vault
+// where Obsidian's settings say, and linked the way Obsidian would link them.
+let obsidianApp = null;
+async function uploadPicture(file, notePath) {
+	if (!navigator.onLine) { toast("Adding a picture needs a connection."); throw new Error("offline"); }
+	if (file.size > 20 * 1024 * 1024) { toast("Pictures can be up to 20 MB."); throw new Error("too big"); }
+	obsidianApp ??= await api.obsidian().catch(() => ({}));
+	const from = notePath || commonFolder(visible()) + "x.md";
+	const folder = pictureFolder(obsidianApp.attachmentFolderPath, from);
+	const taken = () => [...attachments.map((f) => f.path), ...notes.keys()];
+	try {
+		for (let tries = 0; tries < 3; tries++) {
+			const path = freePath(folder + pictureName(file), taken());
+			const added = await api.uploadAttachment(path, file);
+			if (!added) { attachments.push({ path, version: "", size: 0 }); continue; } // taken on the vault, not here yet
+			attachments = [...attachments.filter((f) => f.path !== path), added];
+			meta.set("attachments", attachments).catch(() => {});
+			vaultTouched();
+			return pictureLink(path, from, obsidianApp, attachments.map((f) => f.path));
+		}
+		throw new Error("no free name");
+	} catch (e) {
+		toast("Couldn't add the picture: " + e.message);
+		throw e;
+	}
+}
+
+// Export or print one note: the Compile dialog with just that note.
+function exportNote(path) {
+	const note = path && notes.get(path);
+	if (!note || note.deleted || note.binary) return;
+	let settings = {};
+	openCompileDialog({
+		single: true,
+		folder: path,
+		label: name(path),
+		parts: () => [{ kind: "note", path, depth: 0 }],
+		text: (p) => (p === path && editor.path === path ? editor.text() : dataviewVault.text(p)),
+		embed: (nm) => {
+			const p = resolveNote({ note: nm, heading: "", wiki: true }, path, visible().map((n) => n.path));
+			const t = p && dataviewVault.text(p);
+			return t == null ? null : cleanNote(t);
+		},
+		settings: () => ({ headings: "none", ...settings }),
+		async saveSettings(s) { settings = s; },
+		async image(nm) {
+			const p = dataviewVault.resolveAttachment(nm, path);
+			const file = p && attachmentKind(p) === "image" && attachments.find((f) => f.path === p);
+			return file ? attachmentBlob(file, (q) => api.attachment(q)) : null;
+		},
+		toast,
+	});
+}
+
 // The smallest single change that turns a into b.
 function diffChange(a, b) {
 	let from = 0;
@@ -3005,6 +3095,8 @@ async function start() {
 	setupToc();
 	setupColumns();
 	refreshKeyboardBar = setupKeyboardBar($("app"), activeView);
+	setupToolbar($("toolbar"), activeView, { print: () => exportNote(editor.path) });
+	setPictureHost({ upload: uploadPicture });
 	setupFolderView();
 	renderQuote();
 	$("writingPrompt").addEventListener("click", () => newPromptNote($("writingPrompt").textContent));

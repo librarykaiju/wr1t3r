@@ -53,6 +53,19 @@ export const api = {
 		if (!res.ok) await jsonOrThrow(res);
 		return res.blob();
 	},
+	// A new picture; false if the name is taken.
+	async uploadAttachment(path, blob) {
+		const res = await call("/api/attachment?path=" + encodeURIComponent(path), {
+			method: "PUT",
+			headers: { "If-None-Match": "*", "Content-Type": blob.type || "application/octet-stream" },
+			body: blob,
+		});
+		if (res.status === 412) return false;
+		return { path, version: (await jsonOrThrow(res)).version, size: blob.size };
+	},
+	async obsidian() {
+		return jsonOrThrow(await call("/api/obsidian"));
+	},
 	async read(paths) {
 		const out = [];
 		for (let i = 0; i < paths.length; i += READ_BATCH) {

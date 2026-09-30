@@ -103,9 +103,10 @@ export function cleanNote(text) {
 
 // parts: the reading order, [{ kind: "note"|"folder", path, depth }] (see
 // src/scrivenings.js readingOrder). text(path) gives a note's text.
-// opts.render: for HTML and Word (see flatten); opts.titlePage: include one.
+// opts.render: for HTML and Word (see flatten); opts.titlePage: include one;
+// opts.keepAll: include notes marked to be left out (exporting one note).
 // -> { markdown, notes, words }
-export function compileMarkdown(parts, settings, text, { render = false, titlePage = true, embed = null } = {}) {
+export function compileMarkdown(parts, settings, text, { render = false, titlePage = true, embed = null, keepAll = false } = {}) {
 	const s = compileSettings(settings);
 	const out = [];
 	let footnotes = 0, notes = 0, words = 0, lastWasNote = false;
@@ -127,7 +128,7 @@ export function compileMarkdown(parts, settings, text, { render = false, titlePa
 			continue;
 		}
 		const raw = text(p.path);
-		if (raw == null || leftOut(raw)) continue;
+		if (raw == null || (!keepAll && leftOut(raw))) continue;
 		let body = cleanNote(raw);
 		const info = cardInfo(p.path, raw);
 		const level = top + p.depth + 1;

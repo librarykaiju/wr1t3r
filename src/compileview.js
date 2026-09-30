@@ -12,6 +12,9 @@
 //   image(name),                 a vault picture as a Blob, or null
 //   saveToVault(name, text),     keep the markdown as a note
 //   toast(text),
+//   single,                      true when exporting one note: no binder
+//                                settings, headings or separators, and no
+//                                Save to vault
 // }
 
 import { compileMarkdown, compileSettings, HEADINGS, SEPARATORS } from "./compile.js";
@@ -25,14 +28,14 @@ export function openCompile(host) {
 	const wrap = document.createElement("div");
 	wrap.className = "palette compile";
 	wrap.setAttribute("role", "dialog");
-	wrap.setAttribute("aria-label", `Compile ${host.label}`);
+	wrap.setAttribute("aria-label", `${host.single ? "Export" : "Compile"} ${host.label}`);
 	const box = document.createElement("div");
 	box.className = "compile-box";
 
 	const head = document.createElement("header");
 	head.className = "compile-head";
 	const h = document.createElement("h2");
-	h.textContent = `Compile “${host.label}”`;
+	h.textContent = `${host.single ? "Export or print" : "Compile"} “${host.label}”`;
 	const x = document.createElement("button");
 	x.type = "button";
 	x.className = "quiet";
@@ -58,8 +61,9 @@ export function openCompile(host) {
 	};
 	const title = field("Title", text(settings.title, "For a title page (optional)"));
 	const author = field("Author", text(settings.author, "Optional"));
-	const headings = field("Headings", select(HEADINGS, settings.headings));
-	const separator = field("Between notes", select(SEPARATORS, settings.separator));
+	const headings = select(HEADINGS, settings.headings);
+	const separator = select(SEPARATORS, settings.separator);
+	if (!host.single) { field("Headings", headings); field("Between notes", separator); }
 	const stats = document.createElement("p");
 	stats.className = "hint";
 	form.append(stats);
@@ -77,7 +81,9 @@ export function openCompile(host) {
 	form.append(actions);
 	const note = document.createElement("p");
 	note.className = "hint";
-	note.textContent = "Notes with compile: false or status: cut are left out. Properties, %% comments %% and block ids never go in.";
+	note.textContent = host.single
+		? "Properties, %% comments %% and block ids are left out."
+		: "Notes with compile: false or status: cut are left out. Properties, %% comments %% and block ids never go in.";
 	form.append(note);
 
 	const preview = document.createElement("iframe");
@@ -94,7 +100,7 @@ export function openCompile(host) {
 
 	const now = () => compileSettings({ title: title.value, author: author.value, headings: headings.value, separator: separator.value });
 	const fileName = () => (now().title || host.label).replace(/[\\/:*?"<>|#^[\]]/g, "").trim() || "Compiled";
-	const md = (opts) => compileMarkdown(host.parts(), now(), host.text, { embed: host.embed, ...opts });
+	const md = (opts) => compileMarkdown(host.parts(), now(), host.text, { embed: host.embed, keepAll: !!host.single, ...opts });
 
 	let exporter = null;
 	const load = () => (exporter ??= import("./exporter.js"));
@@ -109,7 +115,8 @@ export function openCompile(host) {
 	async function refresh() {
 		const n = ++seq;
 		const plain = md({});
-		stats.textContent = `${plain.notes} note${plain.notes === 1 ? "" : "s"} · ${plain.words.toLocaleString()} word${plain.words === 1 ? "" : "s"}`;
+		const words = `${plain.words.toLocaleString()} word${plain.words === 1 ? "" : "s"}`;
+		stats.textContent = host.single ? words : `${plain.notes} note${plain.notes === 1 ? "" : "s"} · ${words}`;
 		try {
 			const ex = await load();
 			const r = md({ render: true });
@@ -145,7 +152,7 @@ export function openCompile(host) {
 		const r = md({ render: true });
 		download(new Blob([ex.toHTML(r.markdown, { title: fileName(), images: await pictures(r.markdown) })], { type: "text/html" }), fileName() + ".html");
 	});
-	button("PDF", "Print, or save as PDF from the print dialog", async () => {
+	button(host.single ? "Print / PDF" : "PDF", "Print, or save as PDF from the print dialog", async () => {
 		const ex = await load();
 		const r = md({ render: true });
 		printHTML(ex.toHTML(r.markdown, { title: fileName(), images: await pictures(r.markdown) }));
@@ -157,7 +164,7 @@ export function openCompile(host) {
 		const blob = await ex.toDocx(r.markdown, { title: s.title, author: s.author, images: await pictures(r.markdown) });
 		download(blob, fileName() + ".docx");
 	});
-	button("Save to vault", "Keep the compiled markdown as a note in _compiled", async () => host.saveToVault(fileName(), md({}).markdown));
+	if (!host.single) button("Save to vault", "Keep the compiled markdown as a note in _compiled", async () => host.saveToVault(fileName(), md({}).markdown));
 
 	function close() {
 		clearTimeout(timer);

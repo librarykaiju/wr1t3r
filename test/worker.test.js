@@ -81,3 +81,22 @@ test("attachments are listed and read with their type, never excluded or hidden 
 	assert.equal((await call(e, "/api/attachment?path=content%2Fnope.png")).status, 404);
 	assert.equal((await call(e, "/api/attachments", { headers: { Authorization: "Bearer nope" } })).status, 401);
 });
+
+test("pictures can be added, never replaced, and only as pictures", async () => {
+	const e = env();
+	const put = (path, headers = { "If-None-Match": "*" }) => call(e, "/api/attachment?path=" + encodeURIComponent(path), { method: "PUT", headers, body: "PNGDATA" });
+	assert.equal((await put("content/img/new.png")).status, 200);
+	assert.equal(new TextDecoder().decode(e.VAULT.map.get("content/img/new.png").body), "PNGDATA");
+	assert.equal((await put("content/img/x.png", {})).status, 428, "must say it's a new file");
+	assert.equal((await put("content/img/x.svg")).status, 400, "no SVG");
+	assert.equal((await put("_includes/x.png")).status, 400, "not in excluded folders");
+	assert.equal((await put(".obsidian/x.png")).status, 400);
+	assert.equal((await put("content/x.md")).status, 400);
+});
+
+test("the vault's attachment settings are read from .obsidian/app.json", async () => {
+	const e = env();
+	assert.deepEqual(await (await call(e, "/api/obsidian")).json(), {});
+	e.VAULT.map.set(".obsidian/app.json", { body: new TextEncoder().encode('{"attachmentFolderPath":"./","useMarkdownLinks":false,"vimMode":true}'), etag: "x" });
+	assert.deepEqual(await (await call(e, "/api/obsidian")).json(), { attachmentFolderPath: "./", useMarkdownLinks: false });
+});

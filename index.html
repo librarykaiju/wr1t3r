@@ -73,6 +73,7 @@
 					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M14.5 4.5v15"/></svg>
 				</button>
 			</header>
+			<div id="toolbar"></div>
 			<div id="panes">
 				<div id="editor"></div>
 				<aside id="ref" aria-label="Reference note" hidden>
@@ -151,6 +152,21 @@
 			<div class="seg" id="lineLength" title="On keeps lines short and centers the note on the screen">
 				<button type="button" data-lines="readable">On</button>
 				<button type="button" data-lines="full">Off</button>
+			</div>
+			<h2>Spellcheck</h2>
+			<div class="seg" data-setting="spell" title="Underline misspelled words, using the browser's dictionary">
+				<button type="button" data-on="true">On</button>
+				<button type="button" data-on="false">Off</button>
+			</div>
+			<h2>Smart punctuation</h2>
+			<div class="seg" data-setting="smart" title="Curly quotes, -- as an em dash and ... as an ellipsis while you type (Backspace undoes one)">
+				<button type="button" data-on="true">On</button>
+				<button type="button" data-on="false">Off</button>
+			</div>
+			<h2>Formatting toolbar</h2>
+			<div class="seg" data-setting="toolbar" title="Buttons for bold, lists, links, pictures and printing above the note">
+				<button type="button" data-on="true">On</button>
+				<button type="button" data-on="false">Off</button>
 			</div>
 			<h2>Text size</h2>
 			<div class="seg">

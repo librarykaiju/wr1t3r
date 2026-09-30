@@ -225,6 +225,20 @@ header {
 
 #panes { flex: 1; min-height: 0; display: flex; }
 #editor { flex: 1; min-height: 0; min-width: 0; }
+/* The formatting toolbar: wide screens with a note open (phones have the keyboard bar). */
+#toolbar {
+	display: flex; align-items: center; gap: 2px; flex-wrap: wrap; justify-content: center;
+	border-bottom: 1px solid var(--line); padding: 3px 8px; color: var(--muted);
+}
+#toolbar button { min-width: 30px; height: 30px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; border-radius: 6px; }
+#toolbar button:hover { color: var(--fg); background: var(--sel); }
+#toolbar .tb-heading, #toolbar .tb-bold { font-weight: 700; }
+#toolbar .tb-italic { font-style: italic; font-family: Georgia, serif; }
+#toolbar .tb-strikethrough { text-decoration: line-through; }
+#toolbar .tb-highlight { background: var(--hl); color: var(--fg); height: 22px; margin: 0 2px; }
+#toolbar .tb-sep { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
+main:not(.has-note) #toolbar, main.has-folder #toolbar, #app.no-toolbar #toolbar { display: none; }
+@media (max-width: 699px), (pointer: coarse) and (max-width: 1023px) { #toolbar { display: none; } }
 /* The reference pane: another note, read-only, beside the one being edited (wide screens). */
 #ref { flex: 0 0 42%; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--bg); }
 #ref[hidden] { display: none; }
@@ -1062,7 +1076,7 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .compile-form input, .compile-form select { margin: 0; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; }
 .compile-form .hint { margin: 0; font-size: 13px; color: var(--muted); }
 .compile-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.compile-actions button:last-child { grid-column: 1 / -1; }
+.compile-actions button:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .compile-preview { width: 100%; height: 100%; border: 0; background: #fff; }
 @media (max-width: 720px) {
 	.compile-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
