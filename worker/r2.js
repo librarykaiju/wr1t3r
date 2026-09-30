@@ -25,11 +25,11 @@ export function r2Backend(bucket, prefix) {
 		},
 
 		// expected: the version the caller last saw, or null to create a new note.
-		async write(path, bytes, expected) {
+		async write(path, bytes, expected, contentType = "text/markdown; charset=utf-8") {
 			const onlyIf = new Headers(expected ? { "If-Match": `"${expected}"` } : { "If-None-Match": "*" });
 			const o = await bucket.put(prefix + path, bytes, {
 				onlyIf,
-				httpMetadata: { contentType: "text/markdown; charset=utf-8" },
+				httpMetadata: { contentType },
 			});
 			if (o) return { ok: true, version: o.etag };
 			const now = await bucket.head(prefix + path);
