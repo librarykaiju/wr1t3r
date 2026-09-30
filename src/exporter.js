@@ -40,6 +40,11 @@ ul, ol { padding-left: 1.6em; }
 .footnotes-sep { margin-top: 3em; }
 .footnotes-sep::after { content: none; }
 .footnotes-sep { border-top: 1px solid #ccc; width: 30%; margin-left: 0; }
+main.manuscript { max-width: 6.5in; font: 12pt/2 "Times New Roman", Times, serif; }
+main.manuscript p { margin: 0; text-indent: 0.5in; }
+main.manuscript :is(blockquote, li, .footnotes, .title-page) p { text-indent: 0; }
+main.manuscript :is(blockquote, li, .footnotes) { line-height: 1.65; }
+main.manuscript hr { margin: 1em 0; }
 @page { margin: 1in; }
 @media print { main { margin: 0 auto; max-width: none; padding: 0; } .title-page { padding-top: 35%; } }
 `;
@@ -68,7 +73,7 @@ export async function prepareImages(markdown, resolve) {
 }
 
 // A whole HTML page, styled like a printed book.
-export function toHTML(markdown, { title = "", images = new Map() } = {}) {
+export function toHTML(markdown, { title = "", images = new Map(), layout = "book" } = {}) {
 	const md = parser();
 	const img = md.renderer.rules.image;
 	md.renderer.rules.image = (tokens, i, options, env, self) => {
@@ -90,7 +95,7 @@ export function toHTML(markdown, { title = "", images = new Map() } = {}) {
 <title>${esc(title || "Compiled")}</title>
 <style>${BOOK_CSS}</style>
 </head>
-<body><main>
+<body><main${layout === "manuscript" ? ' class="manuscript"' : ""}>
 ${body}</main></body>
 </html>
 `;
@@ -98,7 +103,8 @@ ${body}</main></body>
 
 // ---- Word ------------------------------------------------------------------------
 
-export async function toDocx(markdown, { title = "", author = "", images = new Map() } = {}) {
+export async function toDocx(markdown, { title = "", author = "", images = new Map(), layout = "book" } = {}) {
+	const ms = layout === "manuscript";
 	const d = await import("docx");
 	const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink, FootnoteReferenceRun, PageBreak, ImageRun, Table, TableRow, TableCell, WidthType, BorderStyle, LevelFormat } = d;
 	const env = {};
@@ -161,7 +167,7 @@ export async function toDocx(markdown, { title = "", author = "", images = new M
 					else opts.bullet = { level: Math.min(lists.length - 1, 5) };
 					if (l.used) { delete opts.numbering; delete opts.bullet; opts.indent = { left: 720 * lists.length }; }
 					l.used = true;
-				}
+				} else if (ms && !quote) opts.indent = { firstLine: 720 };
 				para(opts);
 				i += 2;
 				break;
@@ -254,7 +260,7 @@ export async function toDocx(markdown, { title = "", author = "", images = new M
 		creator: author || "wr1t3r",
 		title: title || undefined,
 		styles: {
-			default: { document: { run: { font: "Times New Roman", size: 24 }, paragraph: { spacing: { after: 160, line: 360 } } } },
+			default: { document: { run: { font: "Times New Roman", size: 24 }, paragraph: { spacing: ms ? { after: 0, line: 480 } : { after: 160, line: 360 } } } },
 		},
 		numbering: {
 			config: [{

@@ -17,13 +17,17 @@
 //                                Save to vault
 // }
 
-import { compileMarkdown, compileSettings, HEADINGS, SEPARATORS } from "./compile.js";
+import { compileMarkdown, compileSettings, HEADINGS, SEPARATORS, LAYOUTS } from "./compile.js";
+import { isManuscript } from "./manuscript.js";
 
 let open = null;
 
 export function openCompile(host) {
 	open?.close();
-	const settings = compileSettings(host.settings());
+	// With no layout saved, notes marked cssclasses: manuscript pick it.
+	const raw = host.settings() || {};
+	const auto = raw.layout ? {} : { layout: host.parts().some((p) => p.kind === "note" && isManuscript(host.text(p.path))) ? "manuscript" : "book" };
+	const settings = compileSettings({ ...raw, ...auto });
 	const back = document.activeElement;
 	const wrap = document.createElement("div");
 	wrap.className = "palette compile";
@@ -64,6 +68,7 @@ export function openCompile(host) {
 	const headings = select(HEADINGS, settings.headings);
 	const separator = select(SEPARATORS, settings.separator);
 	if (!host.single) { field("Headings", headings); field("Between notes", separator); }
+	const layout = field("Layout", select(LAYOUTS, settings.layout));
 	const stats = document.createElement("p");
 	stats.className = "hint";
 	form.append(stats);
@@ -98,7 +103,7 @@ export function openCompile(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const now = () => compileSettings({ title: title.value, author: author.value, headings: headings.value, separator: separator.value });
+	const now = () => compileSettings({ title: title.value, author: author.value, headings: headings.value, separator: separator.value, layout: layout.value });
 	const fileName = () => (now().title || host.label).replace(/[\\/:*?"<>|#^[\]]/g, "").trim() || "Compiled";
 	const md = (opts) => compileMarkdown(host.parts(), now(), host.text, { embed: host.embed, keepAll: !!host.single, ...opts });
 
@@ -120,7 +125,7 @@ export function openCompile(host) {
 		try {
 			const ex = await load();
 			const r = md({ render: true });
-			const html = ex.toHTML(r.markdown, { title: fileName(), images: await pictures(r.markdown) });
+			const html = ex.toHTML(r.markdown, { title: fileName(), images: await pictures(r.markdown), layout: now().layout });
 			if (n === seq) preview.srcdoc = html;
 		} catch (e) {
 			if (n === seq) preview.srcdoc = `<p style="font:14px sans-serif;padding:1em">The preview needs a connection the first time (${String(e.message).replace(/[<>&]/g, "")}).</p>`;
@@ -135,7 +140,7 @@ export function openCompile(host) {
 		b.textContent = "Working…";
 		try {
 			const s = now();
-			const saved = compileSettings(host.settings());
+			const saved = compileSettings({ ...host.settings(), ...auto });
 			if (JSON.stringify(s) !== JSON.stringify(saved)) await host.saveSettings(s);
 			await run();
 		} catch (e) {
@@ -150,18 +155,18 @@ export function openCompile(host) {
 	button("HTML", "Download a web page", async () => {
 		const ex = await load();
 		const r = md({ render: true });
-		download(new Blob([ex.toHTML(r.markdown, { title: fileName(), images: await pictures(r.markdown) })], { type: "text/html" }), fileName() + ".html");
+		download(new Blob([ex.toHTML(r.markdown, { title: fileName(), images: await pictures(r.markdown), layout: now().layout })], { type: "text/html" }), fileName() + ".html");
 	});
 	button(host.single ? "Print / PDF" : "PDF", "Print, or save as PDF from the print dialog", async () => {
 		const ex = await load();
 		const r = md({ render: true });
-		printHTML(ex.toHTML(r.markdown, { title: fileName(), images: await pictures(r.markdown) }));
+		printHTML(ex.toHTML(r.markdown, { title: fileName(), images: await pictures(r.markdown), layout: now().layout }));
 	});
 	button("Word", "Download a .docx file", async () => {
 		const ex = await load();
 		const r = md({ render: true, titlePage: false });
 		const s = now();
-		const blob = await ex.toDocx(r.markdown, { title: s.title, author: s.author, images: await pictures(r.markdown) });
+		const blob = await ex.toDocx(r.markdown, { title: s.title, author: s.author, images: await pictures(r.markdown), layout: s.layout });
 		download(blob, fileName() + ".docx");
 	});
 	if (!host.single) button("Save to vault", "Keep the compiled markdown as a note in _compiled", async () => host.saveToVault(fileName(), md({}).markdown));

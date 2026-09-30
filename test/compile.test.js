@@ -61,7 +61,7 @@ test("cleaning and leaving out", () => {
 
 test("settings are saved in the binder and read back", () => {
 	const t = writeCompileSettings("---\ntags: [a]\ncompile:\n  title: Old\n---\n1. [[One]]\n", { title: "New: Book", author: "Me", headings: "none", separator: "blank" });
-	assert.equal(t, '---\ntags: [a]\ncompile:\n  title: "New: Book"\n  author: Me\n  headings: none\n  separator: blank\n---\n1. [[One]]\n');
-	assert.deepEqual(compileSettings(readBinder(t).compile), { title: "New: Book", author: "Me", headings: "none", separator: "blank" });
-	assert.equal(writeCompileSettings("1. [[One]]\n", {}), "---\ncompile:\n  headings: title\n  separator: scene\n---\n1. [[One]]\n");
+	assert.equal(t, '---\ntags: [a]\ncompile:\n  title: "New: Book"\n  author: Me\n  headings: none\n  separator: blank\n  layout: book\n---\n1. [[One]]\n');
+	assert.deepEqual(compileSettings(readBinder(t).compile), { title: "New: Book", author: "Me", headings: "none", separator: "blank", layout: "book" });
+	assert.equal(writeCompileSettings("1. [[One]]\n", { layout: "manuscript" }), "---\ncompile:\n  headings: title\n  separator: scene\n  layout: manuscript\n---\n1. [[One]]\n");
 });
