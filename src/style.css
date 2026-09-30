@@ -1087,7 +1087,7 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .planner-hour.now .planner-hour-label { color: var(--accent); font-weight: 700; }
 .planner-hour.now { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent); }
 .planner-hour-items { display: flex; flex-direction: column; gap: 3px; padding: 4px 0; min-width: 0; cursor: text; }
-.planner-entry { display: flex; gap: 6px; align-items: baseline; padding: 1px 8px; border-left: 3px solid var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 9%, var(--bg)); cursor: pointer; overflow-wrap: anywhere; }
+.planner-entry { display: flex; gap: 6px; align-items: baseline; padding: 1px 8px; border-left: 3px solid var(--ev, var(--accent)); border-radius: 4px; background: color-mix(in srgb, var(--ev, var(--accent)) 14%, var(--bg)); cursor: pointer; overflow-wrap: anywhere; }
 .planner-entry-time { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .planner-entry-input { width: 100%; box-sizing: border-box; padding: 2px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
 .planner-entry-input:focus { outline: none; }

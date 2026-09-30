@@ -59,7 +59,7 @@ export function importEvents(view, events) {
 	if (!b) return null;
 	const cfg = readPlanner(b.code);
 	const r = addEvents(cfg.timeline, events);
-	if (r.added) saveBlock(view, 0, { ...cfg, timeline: r.timeline });
+	if (r.added || r.colored) saveBlock(view, 0, { ...cfg, timeline: r.timeline });
 	return { added: r.added };
 }
 
@@ -431,7 +431,7 @@ class PlannerWidget extends WidgetType {
 					if (!events) return;
 					const cur = readPlanner(dataviewBlocks(view.state, PLANNER)[this.n]?.code);
 					const r = addEvents(cur.timeline, events);
-					if (r.added) saveBlock(view, this.n, { ...cur, timeline: r.timeline });
+					if (r.added || r.colored) saveBlock(view, this.n, { ...cur, timeline: r.timeline });
 					host.toast?.(r.added ? `Added ${r.added} event${r.added === 1 ? "" : "s"} to the timeline.` : events.length ? "The timeline already has every event." : "No events that day.");
 				} finally { imp.disabled = false; }
 			});
@@ -454,6 +454,7 @@ class PlannerWidget extends WidgetType {
 			for (const e of items) {
 				const onSlot = hour != null && e.start === hour * 60 && (e.end == null || e.end === hour * 60 + 60);
 				const item = el("span", "planner-entry");
+				if (e.color) item.style.setProperty("--ev", e.color);
 				if (!onSlot && !e.allDay && e.start != null) item.append(el("span", "planner-entry-time", timeText(clock(e.start)) + (e.end != null ? `–${timeText(clock(e.end))}` : "")));
 				item.append(el("span", "planner-entry-text", e.text));
 				if (!ro) item.addEventListener("click", (ev) => { ev.stopPropagation(); this.editEntry(item, e, hour ?? cfg.start, save); });

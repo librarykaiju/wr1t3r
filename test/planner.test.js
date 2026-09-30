@@ -63,8 +63,8 @@ test("the block: defaults, a round trip, and unknown keys kept", () => {
 });
 
 test("timeline entries: parsing, rows by hour, edits and imports", () => {
-	assert.deepEqual(parseEntry("09:30 - 10:15 | Dentist"), { allDay: false, start: 570, end: 615, text: "Dentist" });
-	assert.deepEqual(parseEntry("All day | Trip"), { allDay: true, start: null, end: null, text: "Trip" });
+	assert.deepEqual(parseEntry("09:30 - 10:15 | Dentist"), { allDay: false, start: 570, end: 615, text: "Dentist", color: null });
+	assert.deepEqual(parseEntry("All day | Trip"), { allDay: true, start: null, end: null, text: "Trip", color: null });
 	assert.equal(parseEntry("call Sam").start, null);
 	assert.equal(hourLabel(9), "9 AM");
 	assert.equal(hourLabel(12), "12 PM");
@@ -220,4 +220,24 @@ test("a USDA food becomes a Nutrition Database row", () => {
 	assert.equal(addFoodRow(t, food), t); // already there
 	assert.match(addFoodRow(DB, { ...food, name: "A | B" }), /\| A \/ B \|/);
 	assert.match(addFoodRow("# Nutrition Database\n", food), /# Nutrition Database\n\n\| Food \|.*\n\| --- \|.*\n\| Peanut Butter, Creamy \(Jif\) \|/);
+});
+
+test("timeline entries keep their calendar color", () => {
+	assert.deepEqual(parseEntry("10:30 - 11:15 | Dentist {#039BE5}"), { allDay: false, start: 630, end: 675, text: "Dentist", color: "#039be5" });
+	assert.equal(parseEntry("All day | Trip {#7986cb}").color, "#7986cb");
+	assert.equal(parseEntry("Standup").color, null);
+	const events = [
+		{ title: "Dentist", start: "2026-09-30T10:30:00", end: "2026-09-30T11:15:00", color: "#039BE5" },
+		{ title: "Staff Meeting", start: "2026-09-30T14:00:00", end: "2026-09-30T15:00:00", color: "#d50000" },
+		{ title: "Trip", allDay: true, start: "2026-09-30", end: "2026-10-01", color: "" },
+	];
+	const r = addEvents(["14:00 - 15:00 | Staff Meeting"], events);
+	assert.equal(r.added, 2);
+	assert.equal(r.colored, 1);
+	assert.deepEqual(r.timeline, ["All day | Trip", "10:30 - 11:15 | Dentist {#039be5}", "14:00 - 15:00 | Staff Meeting {#d50000}"]);
+	const again = addEvents(r.timeline, events);
+	assert.equal(again.added + again.colored, 0);
+	// Editing an entry's text keeps its color; the round trip through the block keeps it too.
+	assert.equal(setEntry(r.timeline, 1, "Dentist (cleaning)", 10)[1], "10:30 - 11:15 | Dentist (cleaning) {#039be5}");
+	assert.deepEqual(readPlanner(writePlanner({ ...readPlanner(""), timeline: r.timeline })).timeline, r.timeline);
 });
