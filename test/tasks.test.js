@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setTaskLine, taskMark, doneStampChanges, setDoneDates, sortChecklists } from "../src/tasks.js";
+import { setTaskLine, taskMark, doneStampChanges, setDoneDates, sortChecklists, setDueChanges, dueOf, dueMark } from "../src/tasks.js";
 
 const day = new Date(2026, 8, 30, 14, 5);
 
@@ -71,4 +71,24 @@ test("nothing to sort gives null; the Timeline, code, numbered lists and blank-l
 	assert.equal(sortChecklists("- [x] a\n\n- [ ] b"), null);
 	assert.equal(sortChecklists("---\ntags:\n- [x]\n- [ ]\n---\n"), null);
 	assert.equal(sortChecklists("- [x] a\r\n- [ ] b"), "- [ ] b\r\n- [x] a");
+});
+
+test("due dates go in as the Tasks plugin writes them, before a done date and a block id", () => {
+	const apply = (line, day) => { let s = line; for (const c of setDueChanges(line, 0, day).sort((a, b) => b.from - a.from)) s = s.slice(0, c.from) + c.insert + s.slice(c.to ?? c.from); return s; };
+	assert.equal(apply("- [ ] Call Sam", "2026-10-03"), "- [ ] Call Sam 📅 2026-10-03");
+	assert.equal(apply("- [ ] Call Sam 📅 2026-10-03", "2026-10-05"), "- [ ] Call Sam 📅 2026-10-05");
+	assert.equal(apply("- [ ] Call Sam 📅 2026-10-03 ^id", null), "- [ ] Call Sam ^id");
+	assert.equal(apply("- [x] a ✅ 2026-09-30 ^id", "2026-10-01"), "- [x] a 📅 2026-10-01 ✅ 2026-09-30 ^id");
+	assert.equal(apply("- [ ] a ^id", "2026-10-01"), "- [ ] a 📅 2026-10-01 ^id");
+	assert.deepEqual(setDueChanges("plain line", 0, "2026-10-01"), []);
+	assert.equal(dueOf("- [ ] a 📅 2026-10-03"), "2026-10-03");
+	assert.equal(dueOf("- a 📅 2026-10-03"), null);
+});
+
+test("a due date is overdue only while the task is open", () => {
+	assert.deepEqual(dueMark("- [ ] a 📅 2026-09-29", "2026-09-30"), { from: 8, to: 21, day: "2026-09-29", state: "overdue" });
+	assert.equal(dueMark("- [ ] a 📅 2026-09-30", "2026-09-30").state, "today");
+	assert.equal(dueMark("- [ ] a 📅 2026-10-01", "2026-09-30").state, "later");
+	assert.equal(dueMark("- [x] a 📅 2026-09-01", "2026-09-30").state, "done");
+	assert.equal(dueMark("- [ ] no date", "2026-09-30"), null);
 });

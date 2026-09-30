@@ -22,6 +22,7 @@ import { backlinks } from "./backlinks.js";
 import { linkSource } from "./linkcomplete.js";
 import { tableKeymap, tableStyle } from "./table.js";
 import { blockStyle } from "./blocks.js";
+import { dueDates } from "./due.js";
 import { frontmatterStyle, tagHue, foldProperties } from "./frontmatter.js";
 import { linkClicks, linkOpener } from "./links.js";
 import { tableGrid } from "./tablegrid.js";
@@ -120,6 +121,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		EditorView.lineWrapping,
 		tableStyle,
 		blockStyle,
+		dueDates,
 		yamlFrontmatter({ content: markdown({ base: markdownLanguage }) }),
 		syntaxHighlighting(style),
 		marks(/\[\[[^\]\n]+\]\]/g, "md-wikilink"),

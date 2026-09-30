@@ -710,6 +710,12 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 /* Tag colors are the theme's rainbow (--f1..--f7), as on the sidebar's folders. */
 .md-tag-0 { --t: var(--f1); } .md-tag-1 { --t: var(--f2); } .md-tag-2 { --t: var(--f3); } .md-tag-3 { --t: var(--f4); }
 .md-tag-4 { --t: var(--f5); } .md-tag-5 { --t: var(--f6); } .md-tag-6 { --t: var(--f7); }
+/* Task due dates (src/due.js): a pill, red once past while the task is open. */
+:is(#editor, #refView) .md-due { padding: 0 0.45em; border-radius: 999px; background: color-mix(in srgb, var(--muted) 14%, var(--bg)); color: var(--muted); font: 500 0.8em/1.6 var(--sans); cursor: pointer; white-space: nowrap; }
+:is(#editor, #refView) .md-due-today { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); color: var(--accent); }
+:is(#editor, #refView) .md-due-overdue { background: color-mix(in srgb, var(--bad) 16%, var(--bg)); color: var(--bad); font-weight: 600; }
+:is(#editor, #refView) .md-task-done .md-due { opacity: 0.7; }
+.md-due-picker { position: fixed; z-index: 60; font: 15px var(--sans); color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; color-scheme: light dark; box-shadow: 0 6px 18px rgb(0 0 0 / 0.16); }
 /* List bullets and numbers, colored by how deep the list is. */
 :is(#editor, #refView) .md-bullet, :is(#editor, #refView) .md-bullet .md-mark { color: var(--b); font-weight: 600; }
 .md-bullet-0 { --b: var(--f1); } .md-bullet-1 { --b: var(--f2); } .md-bullet-2 { --b: var(--f3); } .md-bullet-3 { --b: var(--f4); }

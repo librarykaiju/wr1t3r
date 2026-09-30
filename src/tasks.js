@@ -120,3 +120,44 @@ export function sortChecklists(text) {
 	const after = out.join(nl);
 	return after === lines.join(nl) ? null : after;
 }
+
+// ---- Due dates --------------------------------------------------------------
+// "📅 2026-10-03", as the Tasks plugin writes a due date. It goes before a done
+// date and a block id (Tasks' order), or replaces the one already there.
+
+const DUE = / ?📅️? ?(\d{4}-\d{2}-\d{2})/u;
+
+// The task's due date ("YYYY-MM-DD"), or null.
+export function dueOf(lineText) {
+	return taskMark(lineText) ? lineText.match(DUE)?.[1] ?? null : null;
+}
+
+// The changes that set a task's due date to day ("YYYY-MM-DD"), or take it off
+// (null). Empty for a line that isn't a task, or when nothing changes.
+export function setDueChanges(lineText, lineFrom, day) {
+	if (!taskMark(lineText)) return [];
+	const m = lineText.match(DUE);
+	if (m) {
+		if (m[1] === day) return [];
+		const at = lineFrom + m.index;
+		if (!day) return [{ from: at, to: at + m[0].length, insert: "" }];
+		const d = at + m[0].length - 10;
+		return [{ from: d, to: d + 10, insert: day }];
+	}
+	if (!day) return [];
+	const done = lineText.match(/ ?✅ ?\d{4}-\d{2}-\d{2}/u);
+	const id = lineText.match(BLOCK_ID);
+	const end = done ? done.index : id ? id.index : lineText.trimEnd().length;
+	return [{ from: lineFrom + end, insert: ` 📅 ${day}` }];
+}
+
+// Where each due date is in a task line, and how it stands on `today`:
+// { from, to, day, state: "overdue" | "today" | "done" | "later" }, or null.
+export function dueMark(lineText, today) {
+	const t = taskMark(lineText);
+	const m = t && lineText.match(DUE);
+	if (!m) return null;
+	const from = m.index + (m[0].startsWith(" ") ? 1 : 0);
+	const state = t.char !== " " ? "done" : m[1] < today ? "overdue" : m[1] === today ? "today" : "later";
+	return { from, to: m.index + m[0].length, day: m[1], state };
+}

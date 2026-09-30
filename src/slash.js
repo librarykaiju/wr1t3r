@@ -7,6 +7,7 @@ import { snippet } from "@codemirror/autocomplete";
 import { addProperty } from "./frontmatter.js";
 import { editBanner, editCover } from "./pretty.js";
 import { insertFootnote } from "./footnotes.js";
+import { dueCommand } from "./due.js";
 import { inTable, addRow, addColumn, deleteRow, deleteColumn, formatTable } from "./table.js";
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
@@ -36,6 +37,7 @@ export const COMMANDS = [
 	{ label: "Banner image", run: editBanner, keywords: "banner header picture properties pretty" },
 	{ label: "Cover image", run: editCover, keywords: "cover poster picture properties pretty" },
 	{ label: "Date", template: () => today() + "${}", keywords: "today" },
+	{ label: "Due date", run: dueCommand, keywords: "task deadline due calendar tasks 📅" },
 	// Only offered with the cursor in a table.
 	{ label: "Add row below", run: addRow, keywords: "table insert", table: true },
 	{ label: "Add column after", run: addColumn, keywords: "table insert col", table: true },
