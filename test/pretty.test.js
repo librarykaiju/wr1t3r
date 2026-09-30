@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Text } from "@codemirror/state";
-import { readProperties, imageRef, prettyOf } from "../src/pretty.js";
+import { readProperties, imageRef, prettyOf, bannerPositionChange, draggedPosition } from "../src/pretty.js";
 
 const doc = (s) => Text.of(s.split("\n"));
 
@@ -36,4 +36,17 @@ test("banner and cover with Pretty Properties' keys and defaults", () => {
 	assert.deepEqual(prettyOf(doc("---\nthumbnail: https://t.com/t.jpg\n---\n")).cover.ref, { url: "https://t.com/t.jpg" });
 	assert.equal(prettyOf(doc("---\nbanner:\n---\n")).banner, null);
 	assert.equal(prettyOf(doc("---\nbanner: a.png\n---\n")).banner.position, 50);
+});
+
+test("Reposition writes banner_position", () => {
+
+	const apply = (s, ch) => s.slice(0, ch.from) + ch.insert + s.slice(ch.to ?? ch.from);
+	const a = "---\nbanner: \"[[x.png]]\"\ntitle: T\n---\nBody";
+	assert.equal(apply(a, bannerPositionChange(doc(a), 23.6)), "---\nbanner: \"[[x.png]]\"\nbanner_position: 24\ntitle: T\n---\nBody");
+	const b = "---\nbanner_position: 50 # middle\nbanner: x.png\n---\n";
+	assert.equal(apply(b, bannerPositionChange(doc(b), 140)), "---\nbanner_position: 100 # middle\nbanner: x.png\n---\n");
+	assert.equal(bannerPositionChange(doc("---\ntitle: T\n---\n"), 10), null);
+	assert.equal(draggedPosition(50, 50, 100), 0); // dragged down half the hidden height: the top shows
+	assert.equal(draggedPosition(50, -25, 100), 75);
+	assert.equal(draggedPosition(50, 10, 0), 50); // nothing cut off, nothing to move
 });

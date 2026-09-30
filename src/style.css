@@ -54,25 +54,28 @@
 	--f1: #cb3a2a; --f2: #a34d14; --f3: #846e15; --f4: #14710a; --f5: #036a96; --f6: #644ac9; --f7: #a3144d;
 	color-scheme: light;
 }
-/* Rosé Pine (rosepinetheme.com) and its light variant, Dawn. */
+/* Rosé Pine (rosepinetheme.com) and its light variant, Dawn. Its own roles
+   keep it apart from Tokyo Night: rose for links and buttons, iris for
+   headings, gold for highlights. */
 :root[data-theme=rosepine] {
 	--bg: #191724; --fg: #e0def4; --muted: #908caa; --line: #403d52; --card: #1f1d2e; --sel: #403d52;
-	--accent: #c4a7e7; --bad: #eb6f92; --hl: #4d3f2f;
+	--accent: #ebbcba; --bad: #eb6f92; --hl: #5a4a30; --heading: #c4a7e7;
 	--panel: #1f1d2e; --mark: #6e6a86; --code-bg: #26233a;
 	--f1: #eb6f92; --f2: #f6c177; --f3: #ebbcba; --f4: #9ccfd8; --f5: #31748f; --f6: #c4a7e7; --f7: #908caa;
 	color-scheme: dark;
 }
 :root[data-theme=rosepine-dawn] {
 	--bg: #faf4ed; --fg: #575279; --muted: #797593; --line: #dfdad9; --card: #fffaf3; --sel: #dfdad9;
-	--accent: #907aa9; --bad: #b4637a; --hl: #f6dfb8;
+	--accent: #b4637a; --bad: #b4637a; --hl: #f6dfb8; --heading: #907aa9;
 	--panel: #f2e9e1; --mark: #9893a5; --code-bg: #f2e9e1;
 	--f1: #b4637a; --f2: #ea9d34; --f3: #d7827e; --f4: #56949f; --f5: #286983; --f6: #907aa9; --f7: #797593;
 	color-scheme: light;
 }
 
 /* Tokyo Night (github.com/folke/tokyonight.nvim): Night, and Day for light.
-   Day's text is Tokyo Night Light's #343b58, since Day's own blue text is too
-   faint on the tinted sidebar rows. */
+   Day's gray-blue background washes out its own blue text, so Day's text,
+   muted text and markdown symbols are darkened from its palette (text at
+   12:1 on the background, muted 7.6:1, symbols 4.3:1). */
 :root[data-theme=tokyonight] {
 	--bg: #1a1b26; --fg: #c0caf5; --muted: #a9b1d6; --line: #292e42; --card: #1f2335; --sel: #283457;
 	--accent: #7aa2f7; --bad: #f7768e; --hl: #3d59a1;
@@ -81,9 +84,9 @@
 	color-scheme: dark;
 }
 :root[data-theme=tokyonight-day] {
-	--bg: #e1e2e7; --fg: #343b58; --muted: #4c5a8c; --line: #c4c8da; --card: #e9e9ed; --sel: #b7c1e3;
-	--accent: #3760bf; --bad: #f52a65; --hl: #e8d8b5;
-	--panel: #d0d5e3; --mark: #848cb5; --code-bg: #d0d5e3;
+	--bg: #e1e2e7; --fg: #1f2335; --muted: #3b4261; --line: #c4c8da; --card: #e9e9ed; --sel: #b7c1e3;
+	--accent: #2959aa; --bad: #c4194f; --hl: #e8d8b5;
+	--panel: #d0d5e3; --mark: #5a64a0; --code-bg: #d0d5e3;
 	--f1: #f52a65; --f2: #b15c00; --f3: #8c6c3e; --f4: #587539; --f5: #007197; --f6: #2e7de9; --f7: #9854f1;
 	color-scheme: light;
 }
@@ -198,7 +201,8 @@ header {
 #path:focus { border-color: var(--line); background: var(--bg); font-weight: 400; }
 #closeNote { flex: none; background: none; border: 0; color: var(--muted); font-size: 18px; line-height: 1; padding: 4px 8px; border-radius: 6px; min-height: 0; }
 #closeNote:hover, #closeNote:focus-visible { background: var(--sel); color: var(--fg); }
-#status { font-size: 13px; color: var(--muted); background: none; border-color: transparent; white-space: nowrap; }
+#status { font-size: 12px; color: var(--muted); background: color-mix(in srgb, var(--card) 88%, transparent); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; min-height: 0; white-space: nowrap; }
+#status:empty { display: none; }
 #status.warn { color: var(--bad); }
 
 .pop {
@@ -261,12 +265,15 @@ main:not(.has-note) #toolbar, main.has-folder #toolbar, #app.no-toolbar #toolbar
 /* The reference pane: another note, read-only, beside the one being edited (wide screens). */
 #ref { flex: 0 0 42%; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--bg); }
 #ref[hidden] { display: none; }
+/* After Edit in the pane, the pane is on the left and the editor on the right,
+   each at the size the other had, so neither note moves. */
+#panes.ref-left #ref { order: -1; flex-basis: 58%; border-left: 0; border-right: 1px solid var(--line); }
 .ref-top { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 #refPick { flex: 1; min-width: 0; font: 14px var(--sans); }
 #refClose { font-size: 18px; line-height: 1; padding: 4px 8px; }
 #refView { flex: 1; min-height: 0; }
 #refView .cm-editor { height: 100%; }
-#refView .md-fm-add, #refView .md-tag-input, #refView .md-tag-x { display: none; }
+#refView .md-fm-add, #refView .md-fm-images, #refView .md-tag-input, #refView .md-tag-x { display: none; }
 #refView .cm-scroller { font-size: calc(var(--editor-size) * 0.9); padding-bottom: 24px; }
 #refBtn { display: none; }
 @media (min-width: 900px) { #refBtn { display: inline-flex; } }
@@ -327,6 +334,7 @@ main:not(.has-note) #panes { display: none; }
 :is(#editor, #refView) .cm-activeLine { background: transparent; }
 :is(#editor, #refView) .cm-selectionBackground, :is(#editor, #refView) .cm-focused .cm-selectionBackground { background: var(--sel) !important; }
 :is(#editor, #refView) .cm-placeholder { color: var(--mark); }
+.md-h1, .md-h2, .md-h3 { color: var(--heading, inherit); }
 .md-h1 { font-size: 1.6em; font-weight: 700; }
 .md-h2 { font-size: 1.35em; font-weight: 700; }
 .md-h3 { font-size: 1.15em; font-weight: 700; }
@@ -539,20 +547,33 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-grid-addr { font-family: var(--mono); color: var(--accent); font-weight: 600; min-width: 3ch; padding-right: 4px; }
 :is(#editor, #refView) .md-grid-hint { color: var(--mark); padding-left: 4px; }
 
-#toast {
-	position: fixed; left: 50%; bottom: calc(max(4px, env(safe-area-inset-bottom)) + 40px); transform: translateX(-50%);
-	background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 8px; max-width: calc(100% - 32px);
-	font-size: 14px;
+/* Notices: one stack in the bottom-right corner, above the bar under the
+   note, with the last sync time (tap it to sync) always at its foot. */
+#notices {
+	position: fixed; right: 12px; bottom: calc(max(4px, env(safe-area-inset-bottom)) + 38px); z-index: 70;
+	display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: min(360px, calc(100% - 24px)); pointer-events: none;
 }
+#noticeList { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+#notices .notice, #notices #status { pointer-events: auto; }
+.notice {
+	display: flex; align-items: flex-start; gap: 8px; background: var(--fg); color: var(--bg); padding: 8px 6px 8px 12px; border-radius: 8px;
+	font-size: 14px; line-height: 1.35; box-shadow: 0 4px 14px rgb(0 0 0 / 0.18); animation: notice-in .15s ease-out;
+}
+.notice-text { min-width: 0; overflow-wrap: anywhere; }
+.notice-x { flex: none; background: none; border: 0; color: inherit; opacity: 0.7; font-size: 16px; line-height: 1; padding: 0 4px; min-height: 0; cursor: pointer; }
+.notice-x:hover { opacity: 1; }
+@keyframes notice-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .notice { animation: none; } }
 
 #scrim { display: none; }
 /* Phones: the tab takes the free space, so the name isn't squeezed. */
 @media (max-width: 760px) {
 	#tabs { flex: 1 1 auto; min-width: 33%; }
 	#tab { flex: 1 1 auto; max-width: none; min-width: 0; }
-	#status { white-space: normal; font-size: 11px; line-height: 1.15; text-align: right; padding-inline: 4px; }
 	#tab #path { flex: 1; }
 	header .spacer { display: none; }
+	/* Notices sit above the floating menu button. */
+	#notices { bottom: calc(max(2px, env(safe-area-inset-bottom)) + 104px); }
 }
 @media (max-width: 760px) {
 	/* The menu button floats bottom right, above the word-count bar, in thumb reach. */
@@ -621,7 +642,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
    The vertical corner radius grows by the border so the inner corners stay 8px round. */
 :is(#editor, #refView) .md-fm.md-last { border-bottom: 0.6em solid transparent; background-clip: padding-box; border-bottom-left-radius: 8px calc(8px + 0.6em); border-bottom-right-radius: 8px calc(8px + 0.6em); }
 :is(#editor, #refView) .md-fm-fence { color: var(--mark); }
-:is(#editor, #refView) .md-fm-toggle, :is(#editor, #refView) .md-fm-add {
+:is(#editor, #refView) .md-fm-toggle, :is(#editor, #refView) .md-fm-add, :is(#editor, #refView) .md-fm-images {
 	background: none; border: 0; padding: 0; font: 600 1em var(--sans); color: var(--muted); cursor: pointer;
 }
 :is(#editor, #refView) .md-fm-toggle { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.92em; }
@@ -629,11 +650,26 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-fm-toggle:hover, :is(#editor, #refView) .md-fm-add:hover { color: var(--fg); }
 /* Banners and covers from properties, as Pretty Properties draws them (src/pretty.js).
    Spacing is padding, never margin (see above). */
-:is(#editor, #refView) .md-banner { padding: 0 0 6px; }
-:is(#editor, #refView) .md-banner img { display: block; width: 100%; height: 150px; object-fit: cover; border-radius: 10px 10px 0 0;
+/* The banner spans the whole note pane (pretty.js measures --bleed-left and
+   --bleed-w), not just the readable column. */
+:is(#editor, #refView) .md-banner { position: relative; padding: 0 0 6px; margin-left: calc(-1 * var(--bleed-left, 0px)); width: var(--bleed-w, auto); box-sizing: border-box; }
+:is(#editor, #refView) .md-banner img { display: block; width: 100%; height: 150px; object-fit: cover; cursor: pointer;
 	-webkit-mask-image: linear-gradient(to bottom, black 25%, transparent); mask-image: linear-gradient(to bottom, black 25%, transparent); }
+:is(#editor, #refView) .md-banner-move, :is(#editor, #refView) .md-banner-bar button {
+	font: 12px/1 var(--sans); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+:is(#editor, #refView) .md-banner-move { position: absolute; top: 10px; right: 12px; opacity: 0; transition: opacity 0.15s; }
+:is(#editor, #refView) .md-banner:hover .md-banner-move, :is(#editor, #refView) .md-banner-move:focus-visible { opacity: 0.92; }
+@media (hover: none) { :is(#editor, #refView) .md-banner-move { opacity: 0.85; } }
+:is(#editor, #refView) .md-banner-moving .md-banner-move { display: none; }
+:is(#editor, #refView) .md-banner-moving img { cursor: grab; -webkit-mask-image: none; mask-image: none; touch-action: none; outline: 2px solid var(--accent); outline-offset: -2px; }
+:is(#editor, #refView) .md-banner-moving { touch-action: none; user-select: none; }
+:is(#editor, #refView) .md-banner-bar { position: absolute; top: 10px; right: 12px; display: flex; gap: 6px; align-items: center; font: 12px/1 var(--sans); }
+:is(#editor, #refView) .md-banner-bar span { background: var(--card); color: var(--muted); padding: 6px 8px; border-radius: 6px; }
+:is(#editor, #refView) .md-cover { cursor: pointer; }
+:is(#editor, #refView) .md-fm-images { margin-left: 14px; font-weight: 400; color: var(--muted); }
+:is(#editor, #refView) .md-fm-images:hover { color: var(--fg); }
 :is(#editor, #refView) .md-banner.gone, :is(#editor, #refView) .md-cover.gone { display: none; }
-:is(#editor, #refView) .md-cover { display: block; width: var(--cover-w); max-width: 100%; font-size: 0; line-height: 0; cursor: default; }
+:is(#editor, #refView) .md-cover { display: block; width: var(--cover-w); max-width: 100%; font-size: 0; line-height: 0; }
 :is(#editor, #refView) .md-cover img { display: block; width: 100%; height: auto; max-height: 500px; object-fit: cover; border-radius: 6px; }
 :is(#editor, #refView) .md-cover.vertical-cover img, :is(#editor, #refView) .md-cover.vertical-contain img { aspect-ratio: 0.63; object-position: top; }
 :is(#editor, #refView) .md-cover.horizontal-cover img, :is(#editor, #refView) .md-cover.horizontal-contain img { aspect-ratio: 4 / 3; }
@@ -697,6 +733,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 #kbbar button.s { text-decoration: line-through; }
 #kbbar button:active { background: var(--sel); }
 #app.kb-open #menu { display: none; }
+#app.kb-open #notices #status { display: none; }
 #app.kb-open :is(#editor, #refView) .cm-scroller { padding-bottom: 60px; }
 
 /* dataviewjs output (src/dataview.js) */
@@ -933,8 +970,11 @@ html.base-resizing, html.base-resizing * { cursor: col-resize !important; user-s
    sidebar's folder rows, so text keeps its contrast in every theme. */
 #homeBtn { display: inline-flex; }
 main:not(.has-note) #homeBtn { color: var(--accent); }
-.home-grid { width: 100%; max-width: 1080px; margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
-@media (max-width: 480px) { .home-grid { grid-template-columns: 1fr 1fr; gap: 10px; } }
+/* Tiles 170-220px wide, as many to a row as fit, every row centered under
+   the quote (a short last row too). Phones: two to a row. */
+.home-grid { width: 100%; max-width: 1080px; margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
+.home-grid > * { flex: 0 1 200px; min-width: 170px; }
+@media (max-width: 480px) { .home-grid { gap: 10px; } .home-grid > * { flex-basis: calc(50% - 5px); min-width: 0; } }
 .tile {
 	position: relative; overflow: hidden; aspect-ratio: 4 / 3; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start;
 	padding: 12px; border: 1px solid color-mix(in srgb, var(--tc) 45%, var(--bg)); border-radius: 12px;

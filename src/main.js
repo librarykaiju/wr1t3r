@@ -13,7 +13,7 @@ import { setLivePreview } from "./livepreview.js";
 import { parseQuery, matches, snippet } from "./search.js";
 import { openPalette } from "./palette.js";
 import { starterBase } from "./baseconfig.js";
-import { EDIT_ACTIONS, DEFAULT_KEYS, keyName, showKey, usableKey, bindings, rebind } from "./hotkeys.js";
+import { EDIT_ACTIONS, DEFAULT_KEYS, keyName, showKey, usableKey, bindings, rebind, macAlias } from "./hotkeys.js";
 import { templatesIn, insertTemplate } from "./templates.js";
 import { COMMANDS, setSlashExtras } from "./slash.js";
 import { runCommand } from "./kbbar.js";
@@ -1506,7 +1506,7 @@ function allCommands() {
 		["Delete this note", () => removeNote(editor.path), "remove", true],
 		["Close this tab", () => closeTab(editor.path), "close", true],
 		["Show reference pane", () => showRef(!ref.on), "split side", true],
-		["Contents", () => openToc(!tocOpen()), "outline headings toc", true],
+		["Contents", () => showToc(!tocOpen()), "outline headings toc", true],
 		["Toggle left sidebar", () => showLeft(leftShut()), "notes list panel collapse hide show"],
 		["Toggle right sidebar", () => showRight(rightShut()), "calendar agenda contents panel collapse hide show"],
 		["Toggle Live Preview", toggleLivePreview, "markdown symbols hide"],
@@ -1534,6 +1534,7 @@ function allCommands() {
 		...COMMANDS.map((c) => ({ label: c.label, keywords: c.keywords, table: !!c.table, run: EDIT_ACTIONS[c.label] || ((v) => runCommand(v, c)) })),
 		{ label: "Indent", keywords: "tab nest", run: EDIT_ACTIONS.Indent },
 		{ label: "Outdent", keywords: "unindent dedent", run: EDIT_ACTIONS.Outdent },
+		{ label: "Delete line", keywords: "remove cut line erase", run: EDIT_ACTIONS["Delete line"] },
 	].map((c) => ({ ...c, editor: true, needsNote: true }));
 	return [...app, ...edits];
 }
@@ -1558,11 +1559,15 @@ function onHotkey(e) {
 	if (capturing || e.defaultPrevented || e.isComposing) return;
 	const name = keyName(e, MAC);
 	if (!usableKey(name)) return;
-	const label = keys.byKey.get(name);
+	const label = keys.byKey.get(name) || (MAC && keys.byKey.get(macAlias(name)));
 	const c = label && allCommands().find((x) => x.label === label);
 	if (!c) return;
 	const view = activeView();
 	if (c.needsNote && !editor.path && !(c.editor && view !== editor.view)) return;
+	// A note just opened from the list has the cursor but not the focus: an
+	// editing key still goes to it rather than doing nothing.
+	const idle = !document.activeElement || document.activeElement === document.body;
+	if (c.editor && idle && editor.path && !view.state.readOnly) view.focus();
 	if (c.editor && (document.activeElement !== view.contentDOM || (c.table && !inTable(view.state)))) return;
 	e.preventDefault();
 	e.stopPropagation();
@@ -1663,8 +1668,10 @@ const saveRef = () => writeJSON(REF_KEY, ref);
 
 function showRef(on, path = ref.path) {
 	if (on && (!path || !isOpenable(path))) path = [...tabs].reverse().find((p) => p !== editor.path && isOpenable(p)) || editor.path;
-	ref = { on: !!on && !!path, path: path || ref.path };
+	// A pane opened afresh sits on the right; Edit swaps sides (editInPlace).
+	ref = { on: !!on && !!path, path: path || ref.path, left: !!on && !!ref.on && !!ref.left };
 	saveRef();
+	layoutRef();
 	$("ref").hidden = !ref.on;
 	$("refBtn").setAttribute("aria-expanded", String(ref.on));
 	if (ref.on) {
@@ -1672,6 +1679,28 @@ function showRef(on, path = ref.path) {
 		reader.show(notes.get(ref.path));
 	}
 	renderRefPick();
+}
+
+// Edit: the pane's note becomes editable where it is. The editor and the pane
+// trade sides (and sizes), so each note stays put on the screen, scrolled
+// where it was; the note you were editing shows in the pane.
+function editInPlace() {
+	const was = editor.path, p = ref.path;
+	if (!p || p === was) return;
+	const topOf = (v) => v.lineBlockAtHeight(Math.max(0, v.scrollDOM.scrollTop)).from;
+	const refTop = reader ? topOf(reader.view) : 0, edTop = was ? topOf(editor.view) : 0;
+	ref.left = !ref.left;
+	openNote(p);
+	if (was) showRef(true, was);
+	else layoutRef();
+	const at = (v, pos) => v.dispatch({ effects: EditorView.scrollIntoView(Math.min(pos, v.state.doc.length), { y: "start" }) });
+	at(editor.view, refTop);
+	if (was && reader) requestAnimationFrame(() => at(reader.view, edTop));
+	editor.view.focus();
+}
+
+function layoutRef() {
+	$("panes").classList.toggle("ref-left", ref.on && !!ref.left);
 }
 
 function renderRefPick() {
@@ -2105,7 +2134,11 @@ const MEDIA_COMMANDS = { movie: "movie/TV", book: "book", music: "music", game: 
 async function newMediaNote(k) {
 	if (!navigator.onLine) return toast("Media lookups need a connection.");
 	try {
-		const made = await makeMediaNote(k, api, (text) => (text ? toast(text, 60000) : ($("toast").hidden = true)));
+		let progress = null;
+		const made = await makeMediaNote(k, api, (text) => {
+			if (text) progress ? progress.set(text) : (progress = toast(text, 60000));
+			else { progress?.close(); progress = null; }
+		});
 		if (!made) return;
 		const path = await addNote(made.folder, made.name, made.text);
 		toast(`Made “${name(path)}”.`);
@@ -2127,13 +2160,40 @@ function clipFromHash() {
 
 // ---- small things ----------------------------------------------------------------
 
-let toastTimer;
-function toast(text, ms = 4000) {
-	const t = $("toast");
-	t.textContent = text;
-	t.hidden = false;
-	clearTimeout(toastTimer);
-	toastTimer = setTimeout(() => (t.hidden = true), ms);
+// Notices (messages, calendar reminders, the focus timer) stack in one corner,
+// above the last sync time, newest at the bottom; each goes after ms or with
+// its ×. The same text again just stays up longer. Returns { set, close }.
+const MAX_NOTICES = 4;
+function toast(text, ms = 4000, title = "") {
+	const list = $("noticeList");
+	let el = [...list.children].find((n) => n.dataset.text === title + "\n" + text);
+	if (!el) {
+		el = document.createElement("div");
+		el.className = "notice";
+		const body = document.createElement("div");
+		body.className = "notice-text";
+		const x = document.createElement("button");
+		x.type = "button";
+		x.className = "notice-x";
+		x.setAttribute("aria-label", "Dismiss");
+		x.textContent = "×";
+		x.addEventListener("click", () => close());
+		el.append(body, x);
+		list.append(el);
+		while (list.children.length > MAX_NOTICES) list.firstElementChild.remove();
+	}
+	const set = (t) => {
+		el.dataset.text = title + "\n" + t;
+		const body = el.querySelector(".notice-text");
+		body.textContent = "";
+		if (title) body.append(Object.assign(document.createElement("strong"), { textContent: title }), document.createElement("br"));
+		body.append(t);
+	};
+	const close = () => { clearTimeout(el.timer); el.remove(); };
+	set(text);
+	clearTimeout(el.timer);
+	el.timer = setTimeout(close, ms);
+	return { set, close };
 }
 
 async function signOut(message) {
@@ -2337,6 +2397,13 @@ function openToc(on) {
 	if (on) { openSettings(false); openAgenda(false); renderToc(); }
 }
 
+// Opening Contents by hand in the right column folds the agenda above it, so
+// the outline has the room.
+function showToc(on) {
+	openToc(on);
+	if (on && wide.matches && !agendaFolded()) foldAgenda(true);
+}
+
 function renderToc() {
 	if (!tocOpen() || !editor.path) return;
 	tocItems = toc.outline(toc.headings(editor.view.state));
@@ -2401,7 +2468,7 @@ function markActive(fromScroll = false) {
 function setupToc() {
 	$("tocBtn").addEventListener("click", (e) => {
 		e.stopPropagation();
-		if (wide.matches && rightShut()) { showRight(true); openToc(true); } else openToc(!tocOpen());
+		if (wide.matches && rightShut()) { showRight(true); showToc(true); } else showToc(!tocOpen());
 	});
 	$("tocClose").addEventListener("click", () => openToc(false));
 	$("tocTop").addEventListener("click", () => jumpTo(0));
@@ -2496,7 +2563,7 @@ function timerDone(phase) {
 
 // Toast, chime and buzz; and a system notification when wr1t3r isn't in front.
 function alertUser(title, text) {
-	toast(text, 15000);
+	toast(text, 15000, title);
 	chime();
 	navigator.vibrate?.([200, 100, 200]);
 	if (document.visibilityState !== "visible" && window.Notification?.permission === "granted") {
@@ -2877,7 +2944,7 @@ function showSidebar() {
 function layoutColumns() {
 	const app = $("app"), col = $("rightcol"), cols = wide.matches;
 	if (cols && $("agenda").parentElement !== col) col.append($("agenda"), $("toc"));
-	if (!cols && $("agenda").parentElement === col) $("toast").before($("toc"), $("agenda"));
+	if (!cols && $("agenda").parentElement === col) $("notices").before($("toc"), $("agenda"));
 	app.classList.toggle("cols", cols);
 	app.classList.toggle("left-shut", leftShut());
 	app.classList.toggle("right-shut", cols && rightShut());
@@ -2933,9 +3000,12 @@ function showAddEvent(on, day = null) {
 	$("evDate").value = agenda.dayKey(day || start);
 	$("evStart").value = hm(start);
 	$("evEnd").value = hm(new Date(start.getTime() + 3600000));
+	evPrevStart = $("evStart").value;
 	allDayFields();
 	$("evTitle").focus();
 }
+
+let evPrevStart = ""; // the start time the end was last set from
 
 // Calendars you can add to, main one first; the last one used is picked.
 function fillCalendars() {
@@ -3041,6 +3111,12 @@ function setupAgenda() {
 	$("addEventBtn").addEventListener("click", () => showAddEvent($("addEvent").hidden));
 	$("evCancel").addEventListener("click", () => showAddEvent(false));
 	$("evAllDay").addEventListener("change", allDayFields);
+	// Events are hour blocks: moving the start moves the end with it (keeping
+	// a length you set); the end can still be changed on its own.
+	$("evStart").addEventListener("change", () => {
+		$("evEnd").value = agenda.endAfterStart($("evStart").value, evPrevStart, $("evEnd").value);
+		evPrevStart = $("evStart").value;
+	});
 	$("evCalendar").addEventListener("change", () => pickColor(eventColor));
 	$("evDate").addEventListener("change", () => { if ($("evEndDate").value < $("evDate").value) $("evEndDate").value = $("evDate").value; });
 	$("addEvent").addEventListener("submit", addEvent);
@@ -3272,12 +3348,7 @@ async function start() {
 	$("refBtn").addEventListener("click", () => showRef(!ref.on));
 	$("refClose").addEventListener("click", () => showRef(false));
 	$("refPick").addEventListener("change", () => showRef(true, $("refPick").value));
-	$("refOpen").addEventListener("click", () => {
-		const was = editor.path, p = ref.path;
-		if (!p || p === was) return;
-		openNote(p);
-		if (was) showRef(true, was); // swap: the note you were editing moves to the pane
-	});
+	$("refOpen").addEventListener("click", editInPlace);
 	$("tree").addEventListener("click", (e) => {
 		const a = e.target.closest("a");
 		if (!a) return;

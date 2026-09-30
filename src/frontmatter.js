@@ -6,7 +6,7 @@
 // untouched, and folding is display only.
 
 import { snippet } from "@codemirror/autocomplete";
-import { StateField, StateEffect, RangeSetBuilder, Prec, Text } from "@codemirror/state";
+import { EditorState, StateField, StateEffect, RangeSetBuilder, Prec, Text } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType, keymap } from "@codemirror/view";
 import { linkOpener } from "./links.js";
 
@@ -373,6 +373,45 @@ export function propertyCount(doc, fm) {
 	return n;
 }
 
+// Banner and cover properties (src/pretty.js) stay out of the box: they show
+// once you click the banner or cover (or the box's "Images" button), or when
+// something puts the cursor on one (the Banner image and Cover image commands).
+export const IMAGE_KEYS = ["banner", "banner_position", "cover", "coverImage", "image", "thumbnail"];
+
+// The image properties that have a value, as { first, last } line numbers
+// (last > first when the value is a list under the key).
+export function imagePropertyLines(doc, fm) {
+	const out = [];
+	for (let n = fm.open + 1; n < fm.close; n++) {
+		const m = doc.line(n).text.match(/^([^\s#-][^:]*?)\s*:[ \t]*(.*)$/);
+		if (!m || !IMAGE_KEYS.includes(m[1])) continue;
+		let last = n;
+		while (last + 1 < fm.close && /^\s+\S/.test(doc.line(last + 1).text)) last++;
+		const hasValue = m[2].replace(/\s+#.*$/, "").trim() !== "" && !/^(""|''|\[\])$/.test(m[2].trim());
+		if (hasValue || last > n) out.push({ first: n, last });
+		n = last;
+	}
+	return out;
+}
+
+export const showImageProps = StateEffect.define();
+// Whether the image properties are showing in this note's box.
+export const imagePropsShown = (state) => !!state.field(imagesShown, false);
+const imagesShown = StateField.define({
+	create: () => false,
+	update(value, tr) {
+		for (const e of tr.effects) if (e.is(showImageProps)) value = e.value;
+		// A click lands beside a hidden line, never in it, so only a cursor
+		// put there by a command (or search, or undo) shows them.
+		if (!value && tr.selection && !tr.isUserEvent("select.pointer")) {
+			const fm = frontmatterLines(tr.state.doc);
+			const doc = tr.state.doc;
+			if (fm && imagePropertyLines(doc, fm).some((g) => tr.state.selection.ranges.some((r) => r.head >= doc.line(g.first).from && r.head <= doc.line(g.last).to))) value = true;
+		}
+		return value;
+	},
+});
+
 // Folded or not is one setting for every note, remembered on this device.
 const FOLD_KEY = "wr1t3rPropsFolded";
 const remembered = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
@@ -400,14 +439,24 @@ const folded = StateField.define({
 
 class FmWidget extends WidgetType {
 	// kind: "open" (the Properties header), "folded" (header with a count), "add" (the button).
-	constructor(kind, count = 0) { super(); this.kind = kind; this.count = count; }
-	eq(o) { return o.kind === this.kind && o.count === this.count; }
+	// images (on "add"): null, or whether the image properties are showing.
+	constructor(kind, count = 0, images = null) { super(); this.kind = kind; this.count = count; this.images = images; }
+	eq(o) { return o.kind === this.kind && o.count === this.count && o.images === this.images; }
 	toDOM() {
 		const b = document.createElement("button");
 		b.type = "button";
 		if (this.kind === "add") {
 			b.className = "md-fm-add";
 			b.textContent = "+ Add property";
+			if (this.images == null) return b;
+			const wrap = document.createElement("span");
+			const img = document.createElement("button");
+			img.type = "button";
+			img.className = "md-fm-images";
+			img.setAttribute("aria-pressed", String(this.images));
+			img.textContent = this.images ? "Hide image properties" : "Image properties";
+			wrap.append(b, img);
+			return wrap;
 		} else {
 			b.className = "md-fm-toggle";
 			b.setAttribute("aria-expanded", String(this.kind === "open"));
@@ -423,7 +472,8 @@ function decorate(state) {
 	const fm = frontmatterLines(doc);
 	if (!fm) return Decoration.none;
 	const open = doc.line(fm.open), close = doc.line(fm.close);
-	const b = new RangeSetBuilder();
+	const ranges = [];
+	const b = { add: (from, to, d) => ranges.push(d.range(from, to)), finish: () => Decoration.set(ranges, true) };
 	if (state.field(folded)) {
 		b.add(open.from, open.from, Decoration.line({ class: "md-fm md-fm-fence md-first md-last" }));
 		b.add(open.from, close.to, Decoration.replace({ widget: new FmWidget("folded", propertyCount(doc, fm)), atomic: true }));
@@ -434,13 +484,20 @@ function decorate(state) {
 	const pills = tagsIn(doc, fm);
 	const typed = new Map(propertiesIn(doc, fm).map((p) => [p.line, p]));
 	const hidden = (n) => (pills && n > pills.first && n <= pills.last) || [...typed.values()].some((p) => p.list && n > p.list.first && n <= p.list.last);
+	const images = imagePropertyLines(doc, fm), showImages = state.field(imagesShown);
 	for (let n = fm.open; n <= fm.close; n++) {
+		const group = !showImages && images.find((g) => g.first === n);
+		if (group) { // hidden, with the line break before it
+			b.add(doc.line(n - 1).to, doc.line(group.last).to, Decoration.replace({ atomic: true }));
+			n = group.last;
+			continue;
+		}
 		if (hidden(n)) continue; // folded into a pills line
 		const l = doc.line(n);
 		const fence = n === fm.open || n === fm.close;
 		const cls = "md-fm" + (fence ? " md-fm-fence" : "") + (n === fm.open ? " md-first" : "") + (n === fm.close ? " md-last" : "");
 		b.add(l.from, l.from, Decoration.line({ class: cls }));
-		if (fence) b.add(l.from, l.to, Decoration.replace({ widget: new FmWidget(n === fm.open ? "open" : "add"), atomic: true }));
+		if (fence) b.add(l.from, l.to, Decoration.replace({ widget: new FmWidget(n === fm.open ? "open" : "add", 0, n === fm.close && images.length ? showImages : null), atomic: true }));
 		if (pills && n === pills.first) b.add(pills.from, pills.to, Decoration.replace({ widget: new TagsWidget(pills.tags), atomic: true }));
 		const p = typed.get(n);
 		if (p) {
@@ -455,7 +512,7 @@ function decorate(state) {
 const decorations = StateField.define({
 	create: decorate,
 	update(value, tr) {
-		const refold = tr.effects.some((e) => e.is(setFolded)) || tr.startState.field(folded) !== tr.state.field(folded);
+		const refold = tr.effects.some((e) => e.is(setFolded)) || tr.startState.field(folded) !== tr.state.field(folded) || tr.startState.field(imagesShown) !== tr.state.field(imagesShown);
 		return tr.docChanged || tr.selection || refold ? decorate(tr.state) : value;
 	},
 	provide: (f) => [
@@ -478,6 +535,11 @@ const clicks = EditorView.domEventHandlers({
 			view.dispatch({ effects: setFolded.of(next) });
 			return true;
 		}
+		if (t.classList?.contains("md-fm-images")) {
+			e.preventDefault();
+			view.dispatch({ effects: showImageProps.of(!view.state.field(imagesShown)) });
+			return true;
+		}
 		if (t.classList?.contains("md-fm-add")) {
 			e.preventDefault();
 			addProperty(view);
@@ -493,4 +555,30 @@ export function foldProperties(view) {
 	if (frontmatterLines(view.state.doc)) view.dispatch({ effects: setFolded.of(true) });
 }
 
-export const frontmatterStyle = [folded, decorations, clicks, Prec.high(keymap.of([{ key: "Enter", run: enter }]))];
+// Where the note's body starts: just after the closing fence's line break, or
+// null when there's no frontmatter (or nothing after it).
+export function bodyStart(doc) {
+	const fm = frontmatterLines(doc);
+	if (!fm || fm.close >= doc.lines) return null;
+	return doc.line(fm.close + 1).from;
+}
+
+// Deleting from the body never reaches into the properties: Backspace at the
+// body's start does nothing, and a delete that started in the body (Ctrl+
+// Backspace, Delete line...) stops at the closing fence. Selections that
+// reach into the properties delete as usual.
+const guardBody = EditorState.changeFilter.of((tr) => {
+	if (!tr.docChanged || !tr.isUserEvent("delete")) return true;
+	const start = bodyStart(tr.startState.doc);
+	if (start == null || tr.startState.selection.ranges.some((r) => r.from < start)) return true;
+	return [0, start];
+});
+
+function backspaceAtBody(view) {
+	const sel = view.state.selection;
+	const start = bodyStart(view.state.doc);
+	return start != null && sel.ranges.every((r) => r.empty && r.head === start);
+}
+
+export const frontmatterStyle = [folded, imagesShown, decorations, clicks, guardBody,
+	Prec.high(keymap.of([{ key: "Enter", run: enter }, { key: "Backspace", run: backspaceAtBody }, { key: "Mod-Backspace", run: backspaceAtBody }]))];

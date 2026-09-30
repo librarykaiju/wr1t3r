@@ -5,7 +5,7 @@
 
 import { ViewPlugin } from "@codemirror/view";
 import { cells, format, tableAt } from "./table.js";
-import { readFormulas, writeFormulas, recalc } from "./formula.js";
+import { readFormulas, writeFormulas, recalc, isColumnFormula, colName, cellName } from "./formula.js";
 
 const alignOf = (d) => (/^:-+:$/.test(d) ? "center" : /-:$/.test(d) ? "right" : /^:/.test(d) ? "left" : "");
 const dashes = { center: ":-:", right: "--:", left: ":--", "": "---" };
@@ -50,12 +50,32 @@ export function blockAt(state, pos) {
 	return { from: t.from, to: fline ? below.to : t.to, tableTo: t.to, lines: t.lines, fline, firstLine: t.firstLine };
 }
 
+// Cells typed as markdown that start with "=" (under the header) become
+// formulas, as they would in the grid: "| 35 | 7 | =A1*B1 |". True if any did.
+export function takeTypedFormulas(model) {
+	let found = false;
+	model.rows.forEach((row, r) => {
+		if (r < 1) return;
+		row.forEach((text, c) => {
+			const t = text.trim();
+			if (!/^=\s*\S/.test(t)) return;
+			const src = t.slice(1).trim();
+			const f = model.formulas;
+			if (isColumnFormula(src)) { f.set(colName(c), src); f.delete(cellName(r, c)); }
+			else f.set(cellName(r, c), src);
+			found = true;
+		});
+	});
+	return found;
+}
+
 // The change that brings a table's formula results up to date, or null.
 export function recalcChange(state, blk) {
 	const model = readModel(blk.lines, blk.fline);
+	const typed = takeTypedFormulas(model);
 	if (!model.formulas.size) return null;
 	const next = recalcModel(model);
-	if (next.rows.every((r, i) => r.every((c, j) => c === model.rows[i][j]))) return null;
+	if (!typed && next.rows.every((r, i) => r.every((c, j) => c === model.rows[i][j]))) return null;
 	return { from: blk.from, to: blk.to, insert: writeModel(next, state.lineBreak) };
 }
 

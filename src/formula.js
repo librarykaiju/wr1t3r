@@ -8,18 +8,22 @@
 //   | Sum  |      |     | $6.00 |
 //   <!-- wr1t3r formulas: D = B*C; D3 = SUM(D:D) -->
 //
-// Row 1 is the header, row 2 the first row under it; column A is the first
-// column. "D3 = ..." is one cell. "D = B*C" is the whole column: every row
+// Row 1 is the first row under the header (the header itself is row 0, so a
+// formula in the first row reads "=A1*B1"); column A is the first column.
+// "D3 = ..." is one cell. "D = B*C" is the whole column: every row
 // but the header works it out with its own row's B and C, except rows with a
 // formula of their own ("D5 =" with nothing after it keeps a typed value).
 // B:B is column B's rows (not the header, not the cell asking).
 // Nothing here touches the DOM; tablecalc.js and tablegrid.js use it.
 
-const MARK = /^\s*<!--\s*wr1t3r formulas:\s*([\s\S]*?)\s*-->\s*$/;
+// "formulas:" lines written before rows were counted from under the header
+// counted the header as row 1; "formulas v2:" lines count the first row under
+// it as row 1. Old lines are read with their row numbers moved down one.
+const MARK = /^\s*<!--\s*wr1t3r formulas( v2)?:\s*([\s\S]*?)\s*-->\s*$/;
 
 export const colName = (c) => (c >= 26 ? colName(Math.floor(c / 26) - 1) : "") + String.fromCharCode(65 + (c % 26));
 export const colIndex = (s) => [...s.toUpperCase()].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
-export const cellName = (row, col) => colName(col) + (row + 1); // row/col from 0
+export const cellName = (row, col) => colName(col) + row; // row/col from 0; row 0 is the header
 
 // Split on ";" outside "strings".
 function splitList(s) {
@@ -39,9 +43,13 @@ export function readFormulas(line) {
 	const m = MARK.exec(line ?? "");
 	if (!m) return null;
 	const map = new Map();
-	for (const part of splitList(m[1])) {
+	const old = !m[1];
+	for (const part of splitList(m[2])) {
 		const eq = /^\$?([A-Za-z]{1,3})\$?(\d*)\s*=([\s\S]*)$/.exec(part);
-		if (eq) map.set(eq[1].toUpperCase() + eq[2], eq[3].trim());
+		if (!eq) continue;
+		const src = eq[3].trim();
+		const row = eq[2] && old ? String(Math.max(0, Number(eq[2]) - 1)) : eq[2];
+		map.set(eq[1].toUpperCase() + row, old ? renumber(src) : src);
 	}
 	return map;
 }
@@ -49,7 +57,21 @@ export function readFormulas(line) {
 export function writeFormulas(map) {
 	if (!map.size) return null;
 	const parts = [...map].map(([k, f]) => (f ? `${k} = ${f.replace(/-->/g, "- ->")}` : `${k} =`));
-	return `<!-- wr1t3r formulas: ${parts.join("; ")} -->`;
+	return `<!-- wr1t3r formulas v2: ${parts.join("; ")} -->`;
+}
+
+// An old formula's cell names with the header no longer counted: B2 -> B1.
+function renumber(src) {
+	let ts;
+	try { ts = tokens(src); } catch { return src; }
+	let out = "", last = 0;
+	for (const t of ts) {
+		if (t.t !== "ref" || t.row == null) continue;
+		const text = src.slice(t.at, t.end);
+		out += src.slice(last, t.at) + text.replace(/\d+$/, (n) => String(Math.max(0, Number(n) - 1)));
+		last = t.end;
+	}
+	return out + src.slice(last);
 }
 
 // ---- Parsing --------------------------------------------------------------
@@ -74,7 +96,7 @@ export function tokens(src) {
 			const r = /^\$?([A-Za-z]{1,3})\$?(\d*)$/.exec(m[4]);
 			const word = m[4].toUpperCase();
 			if (!r[2] && (word === "TRUE" || word === "FALSE")) out.push({ t: "bool", v: word === "TRUE", at: start, end: TOKEN.lastIndex });
-			else out.push({ t: "ref", col: colIndex(r[1]), row: r[2] ? Number(r[2]) - 1 : null, at: start, end: TOKEN.lastIndex });
+			else out.push({ t: "ref", col: colIndex(r[1]), row: r[2] ? Number(r[2]) : null, at: start, end: TOKEN.lastIndex });
 		} else if (m[5] != null) {
 			const word = m[5].toUpperCase();
 			if (word === "TRUE" || word === "FALSE") out.push({ t: "bool", v: word === "TRUE", at: start, end: TOKEN.lastIndex });
@@ -218,7 +240,7 @@ export function recalc(rows, formulas) {
 		const m = /^([A-Z]{1,3})(\d*)$/.exec(key);
 		if (!m) continue;
 		const c = colIndex(m[1]);
-		if (m[2]) cellF.set(`${Number(m[2]) - 1},${c}`, src);
+		if (m[2]) cellF.set(`${Number(m[2])},${c}`, src);
 		else colF.set(c, src);
 	}
 	const formulaAt = (r, c) => {
@@ -498,11 +520,11 @@ export function shiftFormulas(formulas, axis, at, delta) {
 	const out = new Map();
 	for (const [key, src] of formulas) {
 		const m = /^([A-Z]{1,3})(\d*)$/.exec(key);
-		let c = colIndex(m[1]), r = m[2] ? Number(m[2]) - 1 : null;
+		let c = colIndex(m[1]), r = m[2] ? Number(m[2]) : null;
 		if (axis === "col") c = moveIdx(c);
 		else if (r != null) r = moveIdx(r);
 		if (c == null || (m[2] && r == null)) continue; // its cell or column is gone
-		out.set(colName(c) + (r == null ? "" : r + 1), shiftSource(src, axis, at, delta, moveIdx));
+		out.set(colName(c) + (r == null ? "" : r), shiftSource(src, axis, at, delta, moveIdx));
 	}
 	return out;
 }
@@ -511,7 +533,7 @@ function shiftSource(src, axis, at, delta, moveIdx) {
 	let ts;
 	try { ts = tokens(src); } catch { return src; }
 	let out = "", last = 0;
-	const refText = (row, col) => colName(col) + (row == null ? "" : row + 1);
+	const refText = (row, col) => colName(col) + (row == null ? "" : row);
 	for (let i = 0; i < ts.length; i++) {
 		const t = ts[i];
 		if (t.t !== "ref") continue;
