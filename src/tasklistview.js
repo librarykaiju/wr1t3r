@@ -34,16 +34,18 @@ function saveConfig(view, n, cfg) {
 }
 
 // Where a list's new tasks go: the block's inbox: note, else the list's own
-// note ("Critical Tasks List.md") at the top of the notes, made if needed.
+// note ("Critical Tasks List.md") wherever it is, else made in _docs/.
 async function addTask(view, cfg, day, text) {
 	const host = view.state.facet(vaultHost);
 	const paths = host.paths();
 	const line = newTaskLine(text, cfg.list, day);
 	const title = cfg.title || listName(cfg.list).replace(/^#/, "");
 	const root = paths.some((p) => p.startsWith("content/")) ? "content/" : "";
-	const target = cfg.inbox ? resolveNote({ note: cfg.inbox.replace(/^\[\[|\]\]$/g, "").split("|")[0], heading: "", wiki: true }, view.state.facet(notePath), paths) : paths.find((p) => p.toLowerCase() === (root + title + ".md").toLowerCase());
+	const file = title.replace(/[\\/:*?"<>|]/g, "") + ".md";
+	const target = cfg.inbox ? resolveNote({ note: cfg.inbox.replace(/^\[\[|\]\]$/g, "").split("|")[0], heading: "", wiki: true }, view.state.facet(notePath), paths)
+		: paths.filter((p) => p.split("/").pop().toLowerCase() === file.toLowerCase() && !/(^|\/)_templates\//i.test(p)).sort((a, b) => a.length - b.length)[0];
 	if (target) await host.write(target, (t) => appendTask(t, line));
-	else await host.create(root, title.replace(/[\\/:*?"<>|]/g, ""), () => `# ${title}\n\n${line}\n`, { open: false });
+	else await host.create(root + "_docs/", file.slice(0, -3), () => `# ${title}\n\n${line}\n`, { open: false });
 }
 
 function setTaskDue(view, t, day) {
