@@ -647,6 +647,9 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-fm-toggle, :is(#editor, #refView) .md-fm-add, :is(#editor, #refView) .md-fm-images {
 	background: none; border: 0; padding: 0; font: 600 1em var(--sans); color: var(--muted); cursor: pointer;
 }
+:is(#editor, #refView) .md-fm-hidden { display: flex; justify-content: flex-end; padding: 2px 0 4px; }
+:is(#editor, #refView) .md-fm-toggle.md-fm-pill { padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); font: 11px/1.6 var(--sans); letter-spacing: 0.04em; text-transform: none; }
+:is(#editor, #refView) .md-fm-toggle.md-fm-pill:hover { color: var(--accent); border-color: var(--accent); }
 :is(#editor, #refView) .md-fm-toggle { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.92em; }
 :is(#editor, #refView) .md-fm-add { font-weight: 400; color: var(--accent); }
 :is(#editor, #refView) .md-fm-toggle:hover, :is(#editor, #refView) .md-fm-add:hover { color: var(--fg); }
@@ -1047,6 +1050,86 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .md-cards-edit { position: absolute; top: 10px; right: 4px; z-index: 1; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); cursor: pointer; opacity: 0; }
 .md-cards:hover .md-cards-edit, .md-cards-edit:focus-visible { opacity: 1; }
 @media (hover: none) { .md-cards-edit { opacity: 0.6; } }
+/* The planner (plannerview.js): banner and title, the health buttons, then
+   the agenda beside the task lists; one column on a narrow screen. Button
+   colors come from the theme's rainbow. */
+.planner { position: relative; padding: 4px 0 10px; font: 15px/1.5 var(--sans); contain: inline-size; }
+.planner-banner img { display: block; width: 100%; height: 220px; object-fit: cover; border-radius: 12px; }
+.planner-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin: 14px 0 12px; }
+.planner-title { margin: 0; font: 700 26px/1.2 var(--sans); color: var(--heading, var(--fg)); }
+.planner-today { flex: none; white-space: nowrap; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, var(--bg)); color: var(--accent); font-size: 12px; font-weight: 600; }
+.planner-links { margin-left: auto; display: flex; gap: 6px; flex: none; }
+.planner-link { padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); font: 12px/1.5 var(--sans); cursor: pointer; }
+.planner-link:hover { color: var(--accent); border-color: var(--accent); }
+.planner-buttons { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.planner-btn { --c: var(--accent); position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 92px; padding: 10px 6px 14px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--c) 35%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--c) 9%, var(--card)); color: var(--fg); font: inherit; text-align: center; cursor: pointer; transition: transform 0.08s, background 0.15s; }
+.planner-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--c) 16%, var(--card)); }
+.planner-btn:active:not(:disabled) { transform: scale(0.97); }
+.planner-btn:disabled { cursor: default; opacity: 0.55; }
+.planner-btn:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+.planner-food { --c: var(--f2); } .planner-water { --c: var(--f6); } .planner-meds { --c: var(--f4); } .planner-exercise { --c: var(--f5); } .planner-mood { --c: var(--f7); }
+.planner-btn-icon { font-size: 26px; line-height: 1.2; }
+.planner-btn-label { font-weight: 700; }
+.planner-btn-status { color: var(--muted); font-size: 13px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.planner-btn-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: color-mix(in srgb, var(--c) 15%, transparent); }
+.planner-btn-bar > span { display: block; height: 100%; background: var(--c); transition: width 0.4s ease; }
+.planner-meds[aria-pressed=true] { background: color-mix(in srgb, var(--c) 22%, var(--card)); border-color: var(--c); }
+.planner-meds[aria-pressed=true] .planner-btn-status { color: var(--c); font-weight: 600; }
+.planner-pop { animation: planner-pop 0.35s ease; }
+@keyframes planner-pop { 40% { transform: scale(1.04); } }
+.planner-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.planner-cols.planner-one { grid-template-columns: minmax(0, 1fr); }
+.planner-tasks { display: flex; flex-direction: column; gap: 12px; }
+.planner-tasks .md-tl, .planner-timeline { margin: 0; }
+.planner-hours { display: flex; flex-direction: column; }
+.planner-hour { display: grid; grid-template-columns: 52px minmax(0, 1fr); min-height: 34px; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.planner-hour-label { padding: 6px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.planner-hour.now .planner-hour-label { color: var(--accent); font-weight: 700; }
+.planner-hour.now { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent); }
+.planner-hour-items { display: flex; flex-direction: column; gap: 3px; padding: 4px 0; min-width: 0; cursor: text; }
+.planner-entry { display: flex; gap: 6px; align-items: baseline; padding: 1px 8px; border-left: 3px solid var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 9%, var(--bg)); cursor: pointer; overflow-wrap: anywhere; }
+.planner-entry-time { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.planner-entry-input { width: 100%; box-sizing: border-box; padding: 2px 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+.planner-entry-input:focus { outline: none; }
+.planner-edit { position: absolute; top: 8px; right: 4px; z-index: 1; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); cursor: pointer; opacity: 0; }
+.planner:hover .planner-edit, .planner-edit:focus-visible { opacity: 1; }
+@media (hover: none) { .planner-edit { opacity: 0.6; } }
+.planner-panel-title { font-weight: 700; font-size: 15px; }
+.planner-panel-sub { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.planner-panel-empty { margin: 0; color: var(--muted); }
+.planner-search { width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+.planner-search:focus { outline: none; border-color: var(--accent); }
+.planner-food-opts { display: flex; gap: 8px; align-items: center; }
+.planner-food-opts select { flex: 1; padding: 5px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+.planner-servings { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.planner-servings input { width: 64px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+.planner-results { display: flex; flex-direction: column; max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+.planner-result { display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.planner-result:last-child { border-bottom: 0; }
+.planner-result:hover, .planner-result:focus-visible { background: var(--sel); outline: none; }
+.planner-result-meta { flex: none; color: var(--muted); font-size: 12px; }
+.planner-log-head { margin-top: 2px; font-size: 12px; font-weight: 600; }
+.planner-log { display: flex; gap: 8px; align-items: baseline; font-size: 14px; }
+.planner-log-text { flex: 1; min-width: 0; }
+.planner-log-meta { color: var(--muted); font-size: 12px; }
+.planner-log-x { padding: 0 6px; border: 0; background: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+.planner-log-x:hover { color: var(--bad); }
+.planner-moods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.planner-moodpick { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: 12px var(--sans); cursor: pointer; }
+.planner-moodpick:hover { border-color: var(--f7); background: color-mix(in srgb, var(--f7) 10%, var(--bg)); }
+.planner-mood-emoji { font-size: 24px; line-height: 1.1; }
+.planner-moodpick[aria-pressed=true] { border-color: var(--f5); background: color-mix(in srgb, var(--f5) 16%, var(--bg)); font-weight: 600; }
+.planner-field { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; color: var(--muted); font-size: 12px; }
+.planner-field input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: 14px var(--sans); }
+.planner-field input:focus { outline: none; border-color: var(--accent); }
+.planner-log-btn { padding: 8px; border: 0; border-radius: 8px; background: var(--accent); color: var(--bg); font: 600 14px var(--sans); cursor: pointer; }
+.planner-log-btn:disabled { background: var(--line); color: var(--muted); cursor: default; }
+@media (max-width: 720px) {
+	.planner-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+	.planner-cols { grid-template-columns: minmax(0, 1fr); }
+	.planner-banner img { height: 160px; }
+	.planner-title { font-size: 22px; }
+}
 /* A section header: a full-width row with its label, left-aligned to the grid. */
 .home-grid > .home-section { grid-column: 1 / -1; margin: 12px 0 -4px; padding: 0 2px 4px; border-bottom: 1px solid var(--line); color: var(--muted); font: 600 13px/1.4 var(--sans); letter-spacing: 0.05em; text-transform: uppercase; cursor: default; -webkit-touch-callout: none; }
 .home-grid > .home-section:first-child { margin-top: 0; }

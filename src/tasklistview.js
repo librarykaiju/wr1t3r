@@ -17,7 +17,7 @@ const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 const baseName = (p) => p.split("/").pop().replace(/\.md$/i, "");
 
 // Every note's text, the open one as it is in the editor.
-function allNotes(state) {
+export function allNotes(state) {
 	const host = state.facet(vaultHost), path = state.facet(notePath);
 	const out = {};
 	for (const p of host.paths()) out[p] = p === path ? state.sliceDoc() : host.text(p);
@@ -60,7 +60,9 @@ function setTaskDue(view, t, day) {
 	});
 }
 
-class TaskListWidget extends WidgetType {
+// n: the block's place among the note's task blocks, or null for a list drawn
+// inside another block (the planner), which has no settings of its own.
+export class TaskListWidget extends WidgetType {
 	constructor(cfg, result, n, from, path) {
 		super();
 		Object.assign(this, { cfg, result, n, from, path });
@@ -88,8 +90,8 @@ class TaskListWidget extends WidgetType {
 		if (result.day) head.append(el("span", "md-tl-day", result.day === today ? "Today" : new Date(result.day + "T12:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })));
 		head.append(el("span", "md-tl-count", String(result.count)));
 		const tools = el("span", "md-tl-tools");
-		if (!ro) tools.append(button("md-tl-btn", "⚙", "Set up this list", (e) => this.settings(view, e.clientX, e.clientY)));
-		tools.append(button("md-tl-btn", "</>", "Show the block's settings as text", () => {
+		if (!ro && this.n != null) tools.append(button("md-tl-btn", "⚙", "Set up this list", (e) => this.settings(view, e.clientX, e.clientY)));
+		if (this.n != null) tools.append(button("md-tl-btn", "</>", "Show the block's settings as text", () => {
 			let pos = this.from;
 			try { pos = view.posAtDOM(wrap); } catch {}
 			const line = view.state.doc.lineAt(pos);

@@ -49,6 +49,8 @@ import { prettyOf } from "./pretty.js";
 import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { setCardsHost } from "./cardsblock.js";
+import { setPlannerHost } from "./plannerview.js";
+import { healthPathFor, MEALS, WATER, MOOD } from "./planner.js";
 import { attachmentKind } from "./attachments.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
 import { setDoneDates, sortChecklists } from "./tasks.js";
@@ -918,6 +920,35 @@ setCardsHost({
 	open: (pin, path) => openPin(pin, path),
 	menu: (store, i, x, y) => tileMenu(i, x, y, store),
 	add: (store) => addTile(store),
+});
+
+// Planner blocks: the day's health note (made the way Today makes it, from
+// _templates/Daily Health.md, when it isn't there yet) and calendar events.
+setPlannerHost({
+	async healthNote(dailyPath) {
+		const path = healthPathFor(dailyPath);
+		const have = visible().find((n) => n.path.toLowerCase() === path.toLowerCase());
+		if (have) return have.path;
+		const title = name(path), date = noteDay(dailyPath) || new Date();
+		const t = findTemplate(visible().map((n) => n.path), "_templates/Daily Health.md");
+		const text = t ? renderTemplate(notes.get(t.path).text, { title, date }).text
+			: `---\ntitle: Daily Health\ndate: "${isoDate(date)}"\n---\n\n## Nutrition Log\n${MEALS.map((m) => `### ${m}\n- \n`).join("")}\n## ${WATER.parent}\n### ${WATER.heading}\n- \n\n## ${MOOD.heading}\n- \n`;
+		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+		renderTree();
+		scheduleSync();
+		return path;
+	},
+	async events(date) {
+		if (!readRaw(DAILY_CAL_KEY)) {
+			openSettings(true);
+			toast("Pick a calendar under Daily note timeline first.");
+			return null;
+		}
+		return timelineEvents(date);
+	},
+	image: (ref, from) => tileImage(ref, from),
+	open: (path) => openNote(path),
+	toast: (text) => toast(text),
 });
 
 // Drops keys set to nothing, so they come out of the file.
