@@ -124,7 +124,8 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		syntaxHighlighting(style),
 		marks(/\[\[[^\]\n]+\]\]/g, "md-wikilink"),
 		marks(/==[^=\n]+==/g, "md-highlight"),
-		marks(/\[\^[^\]\s]+\]:?/g, "md-footnote"),
+		marks(/\[\^[^\]\s]+\](?!:)/g, "md-footnote md-fn-ref"), // [^1] in the text
+		marks(/^\[\^[^\]\s]+\]:/gm, "md-footnote"), // its definition
 		marks(/\^\[[^\]\n]*\]/g, "md-footnote md-inline-note"), // ^[inline footnote]
 		marks(/(?<=\s)\^[A-Za-z0-9-]+$/gm, "md-blockid"), // "... ^block-id" at a line's end
 		marks(/<\/?[a-zA-Z][\w-]*(?:\s[^<>\n]*)?\/?>/g, "md-html"), // raw HTML tags

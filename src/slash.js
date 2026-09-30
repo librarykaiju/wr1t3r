@@ -6,6 +6,7 @@
 import { snippet } from "@codemirror/autocomplete";
 import { addProperty } from "./frontmatter.js";
 import { editBanner, editCover } from "./pretty.js";
+import { insertFootnote } from "./footnotes.js";
 import { inTable, addRow, addColumn, deleteRow, deleteColumn, formatTable } from "./table.js";
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
@@ -25,7 +26,7 @@ export const COMMANDS = [
 	{ label: "Link", template: "[${text}](${url})", keywords: "url href" },
 	{ label: "Wikilink", template: "[[${}]]", keywords: "internal note" },
 	{ label: "Image", template: "![${alt}](${url})", keywords: "picture img" },
-	{ label: "Footnote", template: "[^${1}]", keywords: "reference note" },
+	{ label: "Footnote", run: insertFootnote, keywords: "reference note footnote endnote cite", hug: true },
 	{ label: "Bold", template: "**${}**", keywords: "strong" },
 	{ label: "Italic", template: "*${}*", keywords: "emphasis" },
 	{ label: "Strikethrough", template: "~~${}~~", keywords: "strike delete" },
@@ -75,7 +76,9 @@ export function slashSource(commands) {
 				boost: (c.table ? 100 : 0) + (c.label.toLowerCase().startsWith(q) ? 50 - i : -i),
 				apply: (view, completion, from, to) => {
 					if (c.run) {
-						view.dispatch({ changes: { from: slashAt, to }, selection: { anchor: slashAt } });
+						// A footnote sits right after the word: drop the space typed to open the menu.
+						const at = c.hug && /\S $/.test(view.state.sliceDoc(slashAt - 2, slashAt)) ? slashAt - 1 : slashAt;
+						view.dispatch({ changes: { from: at, to }, selection: { anchor: at } });
 						c.run(view);
 						return;
 					}

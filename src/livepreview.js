@@ -1,7 +1,7 @@
 // Live Preview (a setting, off by default): markdown symbols are hidden on
 // every line except the ones the cursor is on, as in Obsidian's Live Preview.
 // **bold** shows as bold, [text](url) as the link text, [[Note|alias]] as
-// "alias", ## as a heading, `code` as code, ==marks== as a highlight. Moving
+// "alias", [^1] as a raised 1, ## as a heading, `code` as code, ==marks== as a highlight. Moving
 // onto a line shows its markdown again, so it's still edited as typed. Code
 // blocks, tables and the properties box are left as they are. Nothing here
 // changes the note.
@@ -22,7 +22,7 @@ export function setLivePreview(view, on) {
 }
 
 const SKIP = /^(FencedCode|CodeBlock|Table|HTMLBlock|CommentBlock|Frontmatter|FrontmatterContent)$/;
-const INLINE = /(\[\[)([^\[\]\n|]+\|)?[^\[\]\n]+?(\]\])|(==)[^=\n]+?(==)/g;
+const INLINE = /(\[\[)([^\[\]\n|]+\|)?[^\[\]\n]+?(\]\])|(==)[^=\n]+?(==)|(\[\^)[^\]\s]+\](?!:)/g;
 
 // The spans to hide in [from, to) of state, skipping lines in cursorLines
 // (a Set of line numbers): [[from, to]], sorted.
@@ -61,11 +61,12 @@ export function hiddenRanges(state, from, to, cursorLines = new Set()) {
 	for (let n = doc.lineAt(from).number, last = doc.lineAt(to).number; n <= last; n++) {
 		if (cursorLines.has(n)) continue;
 		const line = doc.line(n);
-		if (!line.text.includes("[[") && !line.text.includes("==")) continue;
+		if (!line.text.includes("[[") && !line.text.includes("==") && !line.text.includes("[^")) continue;
 		for (const m of line.text.matchAll(INLINE)) {
 			const a = line.from + m.index, b = a + m[0].length;
 			if (inCode(a, b) || (m[1] && line.text[m.index - 1] === "!")) continue; // ![[embeds]] are drawn elsewhere
-			if (m[1]) out.push([a, a + 2 + (m[2] ? m[2].length : 0)], [b - 2, b]);
+			if (m[6]) out.push([a, a + 2], [b - 1, b]); // [^1] -> 1, drawn raised
+			else if (m[1]) out.push([a, a + 2 + (m[2] ? m[2].length : 0)], [b - 2, b]);
 			else out.push([a, a + 2], [b - 2, b]);
 		}
 	}
