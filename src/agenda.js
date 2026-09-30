@@ -106,6 +106,20 @@ export function formEvent({ title, allDay, date, endDate, startTime, endTime, re
 	return body;
 }
 
+// The add-event form's end time after the start moves to `start` ("HH:MM"):
+// the same length as before (prevStart to prevEnd, past midnight counting),
+// or an hour when there was none. Wraps past midnight like formEvent.
+export function endAfterStart(start, prevStart, prevEnd) {
+	const min = (t) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ""); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+	const s = min(start);
+	if (s == null) return prevEnd || "";
+	const a = min(prevStart), b = min(prevEnd);
+	let len = a != null && b != null ? (b - a + 1440) % 1440 : 60;
+	if (!len) len = 60;
+	const e = (s + len) % 1440;
+	return `${String(Math.floor(e / 60)).padStart(2, "0")}:${String(e % 60).padStart(2, "0")}`;
+}
+
 // A calendar's name as the agenda shows it. Google names your main calendar
 // after your email address, so an address is never shown: the main calendar
 // reads "Main", any other one "b•••@gmail.com".

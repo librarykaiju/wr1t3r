@@ -39,9 +39,22 @@ test("Ctrl+Enter cycles a checkbox like Obsidian", () => {
 	assert.equal(cyc("\t1. step|"), "\t1. [ ] step");
 	assert.equal(cyc("> - [ ] quoted|"), "> - [x] quoted");
 	assert.equal(cyc("|"), "- [ ] ");
+	// The cursor lands after the new box, so typing goes into the task.
+	const after = (doc) => show(apply(at(doc), cycleCheckbox(at(doc))));
+	assert.equal(after("|"), "- [ ] |");
+	assert.equal(after("|buy milk"), "- [ ] |buy milk");
+	assert.equal(after("- |buy"), "- [ ] |buy");
+	assert.equal(after("- [ ] buy|"), "- [x] buy|");
 });
 
-import { keyName, showKey, usableKey, bindings, rebind, DEFAULT_KEYS } from "../src/hotkeys.js";
+test("Ctrl/Cmd+D deletes the line; Ctrl+Enter works on a Mac too", () => {
+	assert.equal(DEFAULT_KEYS["Delete line"], "Mod-d");
+	assert.equal(bindings().byKey.get("Mod-d"), "Delete line");
+	assert.equal(macAlias("Ctrl-Enter"), "Mod-Enter");
+	assert.equal(macAlias("Ctrl-b"), null); // the Mac's own Ctrl keys stay free
+});
+
+import { keyName, showKey, usableKey, bindings, rebind, DEFAULT_KEYS, macAlias } from "../src/hotkeys.js";
 
 const ev = (code, key, mods = {}) => ({ code, key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...mods });
 

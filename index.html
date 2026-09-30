@@ -58,7 +58,6 @@
 					</div>
 				</div>
 				<span class="spacer"></span>
-				<button id="status" type="button" title="Sync now"></button>
 				<button id="calBtn" type="button" class="quiet" aria-label="Agenda" aria-expanded="false" aria-controls="agenda">
 					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
 					<span id="calNext"></span>
@@ -287,7 +286,11 @@
 			<div id="agendaList"></div>
 			<p id="agendaNote" class="hint"></p>
 		</div>
-		<div id="toast" role="status" hidden></div>
+		<!-- Every notice in one corner: messages stack above the last sync time. -->
+		<div id="notices">
+			<div id="noticeList" role="status" aria-live="polite"></div>
+			<button id="status" type="button" title="Sync now"></button>
+		</div>
 	</div>
 	<script type="module" src="/src/main.js"></script>
 </body>

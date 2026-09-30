@@ -1,10 +1,10 @@
 // Hotkeys: Obsidian's defaults (Ctrl/Cmd+B bold, +I italic, +K link, +Enter to
-// cycle a checkbox, +] / +[ indent, +O, +P, +Shift+F ...), which anyone can
+// cycle a checkbox, +D delete the line, +] / +[ indent, +O, +P, +Shift+F ...), which anyone can
 // change on their device under Settings > Hotkeys. This file has the editing
 // actions and the key handling; main.js has the commands and runs the keys.
 
 import { EditorSelection } from "@codemirror/state";
-import { indentMore, indentLess } from "@codemirror/commands";
+import { indentMore, indentLess, deleteLine } from "@codemirror/commands";
 
 // Wraps each selection in mark, or takes the mark off when it's already there
 // (inside the selection or just around it). With nothing selected, the cursor
@@ -70,7 +70,9 @@ export function cycleCheckbox(state) {
 			else changes.push({ from: lead, insert: "- [ ] " });
 		}
 	}
-	return { changes };
+	// A cursor where "- [ ] " goes in ends up after it, so typing fills the task.
+	const set = state.changes(changes);
+	return { changes: set, selection: state.selection.map(set, 1) };
 }
 
 const edit = (fn) => (view) => {
@@ -90,6 +92,7 @@ export const EDIT_ACTIONS = {
 	"Task": edit(cycleCheckbox),
 	"Indent": (view) => indentMore(view),
 	"Outdent": (view) => indentLess(view),
+	"Delete line": (view) => !view.state.readOnly && deleteLine(view),
 };
 
 // Obsidian's defaults, by command label. Keys are written the way
@@ -108,6 +111,7 @@ export const DEFAULT_KEYS = {
 	"Task": "Mod-Enter",
 	"Indent": "Mod-]",
 	"Outdent": "Mod-[",
+	"Delete line": "Mod-d",
 };
 
 // Punctuation by physical key, so Shift doesn't turn "[" into "{".
@@ -116,6 +120,13 @@ const CODES = {
 	Semicolon: ";", Quote: "'", Minus: "-", Equal: "=", Backquote: "`", Space: "Space",
 };
 const MODS = new Set(["Control", "Meta", "Alt", "Shift", "OS", "AltGraph", "CapsLock"]);
+
+// On a Mac, Ctrl+Enter does what Cmd+Enter does (unless it has a key of its
+// own): the checkbox hotkey is written "Ctrl/Cmd+Enter", and Ctrl+Enter means
+// nothing else there. Other Ctrl keys stay free for the Mac's own text keys.
+export function macAlias(name) {
+	return /^Ctrl-(Shift-|Alt-)*Enter$/.test(name) ? name.replace("Ctrl-", "Mod-") : null;
+}
 
 // A keydown as a key name ("Mod-Shift-f"), or null for a lone modifier. On a
 // Mac, Cmd is Mod and Control stays Ctrl; elsewhere Control is Mod.

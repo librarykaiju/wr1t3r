@@ -1,10 +1,12 @@
 // Tables drawn as real grids you edit in place, like a spreadsheet. Click a
-// cell to type in it; Tab, Enter and the up/down arrows move between cells,
-// Esc stops. A bar over the table adds and removes rows and columns, and its
-// Markdown button shows the table as text (as does moving the cursor into it
-// with the keyboard). Typing "=" starts a formula (formula.js): "=B2*C2" for
-// one cell, "=B*C" for the whole column; clicking a cell while typing one
-// adds its name. Links in a cell open like links anywhere else.
+// cell to type in it; Tab, Enter and the arrows move between cells (left and
+// right once the caret is at that end of the cell's text), Esc stops. A bar
+// over the table adds and removes rows and columns, and its Markdown button
+// shows the table as text (as does moving the cursor into it with the
+// keyboard). Typing "=" starts a formula (formula.js): "=B1*C1" for one cell
+// (row 1 is the first row under the header), "=B*C" for the whole column;
+// clicking a cell while typing one adds its name. Links in a cell open like
+// links anywhere else.
 // Only the cells you change are rewritten, with the table lined up; formula
 // results are worked out again on every change.
 
@@ -205,6 +207,18 @@ export function insertRef(input, name, range) {
 	input.setRangeText(name, start, e, "end");
 }
 
+// Left/Right leave the cell for the one beside it when the caret is already
+// at that edge of the text, or the whole text is selected (as it is on
+// arriving in a cell); otherwise they move the caret. Null: stay.
+export function arrowTarget(input, dir, at, cols) {
+	const len = input.value.length, s = input.selectionStart ?? len, e = input.selectionEnd ?? s;
+	const all = s === 0 && e === len;
+	const atEdge = s === e && (dir < 0 ? s === 0 : s === len);
+	if (!all && !atEdge) return null;
+	const col = at.col + dir;
+	return col >= 0 && col < cols ? { row: at.row, col } : null;
+}
+
 const BAR = [
 	["addRow", "+ Row", "Add a row below"],
 	["addColumn", "+ Column", "Add a column to the right"],
@@ -273,6 +287,10 @@ function setup(wrap, view) {
 			else go(null, (m) => ({ ...ops.addRow(m, { row: rows - 1, col: 0 }), col: 0 }));
 		} else if (e.key === "ArrowUp" && at.row > 0) go({ row: at.row - 1, col: at.col });
 		else if (e.key === "ArrowDown" && at.row < rows - 1) go({ row: at.row + 1, col: at.col });
+		else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+			const to = arrowTarget(input, e.key === "ArrowLeft" ? -1 : 1, at, cols);
+			if (to) go(to);
+		}
 		else if (e.key === "Escape") { e.preventDefault(); leave(view, wrap, false); }
 	});
 	// Clicking or tabbing away from the grid saves the cell.
@@ -353,7 +371,7 @@ class GridWidget extends WidgetType {
 			if (edit) {
 				const th = document.createElement("th");
 				th.className = "md-grid-num" + (r === edit.row ? " md-grid-here" : "");
-				th.textContent = r + 1;
+				th.textContent = r || ""; // rows under the header count from 1
 				tr.append(th);
 			}
 			row.forEach((text, c) => {
@@ -383,7 +401,7 @@ class GridWidget extends WidgetType {
 		wrap.bar.hidden = !edit;
 		wrap.classList.toggle("md-grid-active", !!edit);
 		if (edit) {
-			wrap.addr.textContent = cellName(edit.row, edit.col);
+			wrap.addr.textContent = edit.row ? cellName(edit.row, edit.col) : `${colName(edit.col)} header`;
 			wrap.buttons.deleteRow.hidden = edit.row < 1;
 			wrap.buttons.deleteColumn.hidden = nCols < 2;
 			wrap.buttons.clearColumnFormula.hidden = !model.formulas.get(colName(edit.col));
@@ -399,10 +417,23 @@ class GridWidget extends WidgetType {
 			}
 			wrap.showHint();
 			input.focus({ preventScroll: true });
-			input.scrollIntoView?.({ block: "nearest", inline: "nearest" });
 		} else wrap.loaded = null;
 		wrap.rendering = false;
-		view.requestMeasure();
+		// Bring the cell into view once the editor has laid itself out again.
+		// Scrolling from here (scrollIntoView mid-update) read the old layout
+		// and could throw a long note to its bottom.
+		view.requestMeasure(edit ? {
+			key: wrap,
+			read: () => input.isConnected && { cell: input.getBoundingClientRect(), box: view.scrollDOM.getBoundingClientRect(), wrap: wrap.getBoundingClientRect() },
+			write: (m) => {
+				if (!m) return;
+				const { cell, box } = m, pad = 8;
+				if (cell.top < box.top) view.scrollDOM.scrollTop -= box.top - cell.top + pad;
+				else if (cell.bottom > box.bottom) view.scrollDOM.scrollTop += cell.bottom - box.bottom + pad;
+				if (cell.left < m.wrap.left) wrap.scrollLeft -= m.wrap.left - cell.left + pad;
+				else if (cell.right > m.wrap.right) wrap.scrollLeft += cell.right - m.wrap.right + pad;
+			},
+		} : undefined);
 	}
 	ignoreEvent() { return true; }
 }

@@ -121,3 +121,12 @@ test("month grid: six weeks from the Sunday on or before the 1st", () => {
 	assert.equal(A.dayKey(g[41]), "2026-10-10");
 	assert.equal(A.dayKey(A.addMonths(new Date(2026, 0, 31), 1)), "2026-02-01");
 });
+
+test("the add-event form's end follows its start", () => {
+	assert.equal(A.endAfterStart("14:00", "", ""), "15:00"); // an hour by default
+	assert.equal(A.endAfterStart("14:00", "09:30", "10:30"), "15:00");
+	assert.equal(A.endAfterStart("14:00", "09:00", "11:30"), "16:30"); // keeps a length you set
+	assert.equal(A.endAfterStart("23:30", "10:00", "11:00"), "00:30"); // past midnight
+	assert.equal(A.endAfterStart("08:00", "10:00", "10:00"), "09:00");
+	assert.equal(A.endAfterStart("", "10:00", "11:00"), "11:00");
+});

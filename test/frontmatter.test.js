@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Text } from "@codemirror/state";
-import { frontmatterLines, propertyEdit, propertyCount, propertyEnter, tagsIn, tagHue, tagAddEdit, tagRemoveEdit, tagName, newNoteFrontmatter, propertiesIn, valueText, yamlItem } from "../src/frontmatter.js";
+import { Text, EditorState } from "@codemirror/state";
+import { deleteCharBackward, deleteGroupBackward } from "@codemirror/commands";
+import { frontmatterStyle, bodyStart, imagePropertyLines, IMAGE_KEYS, frontmatterLines, propertyEdit, propertyCount, propertyEnter, tagsIn, tagHue, tagAddEdit, tagRemoveEdit, tagName, newNoteFrontmatter, propertiesIn, valueText, yamlItem } from "../src/frontmatter.js";
 
 const doc = (s) => Text.of(s.split("\n"));
 
@@ -103,4 +104,27 @@ test("list properties: adding fills a blank item, flow items keep their quotes",
 test("flow lists don't split on commas inside quotes", () => {
 	const d = doc('---\ncast: [Ann, "C, D", \'E, F\']\n---');
 	assert.deepEqual(propertiesIn(d, frontmatterLines(d))[0].list.tags, ["Ann", "C, D", "E, F"]);
+});
+
+test("deleting from the body stops at the properties", () => {
+	const doc = "---\ntitle: A\n---\nBody\nmore";
+	const run = (cmd, anchor, head = anchor) => {
+		let state = EditorState.create({ doc, selection: { anchor, head }, extensions: frontmatterStyle });
+		cmd({ state, dispatch: (tr) => { state = tr.state; } });
+		return state.sliceDoc();
+	};
+	const start = doc.indexOf("Body");
+	assert.equal(bodyStart(Text.of(doc.split("\n"))), start);
+	assert.equal(run(deleteCharBackward, start), doc);
+	assert.equal(run(deleteGroupBackward, start), doc);
+	assert.equal(run(deleteCharBackward, start + 2), "---\ntitle: A\n---\nBdy\nmore");
+	// In the properties, and selections reaching into them, delete as usual.
+	assert.equal(run(deleteCharBackward, doc.indexOf("A") + 1), "---\ntitle: \n---\nBody\nmore");
+	assert.equal(run(deleteCharBackward, 0, doc.length), "");
+});
+
+test("banner and cover properties are found to hide", () => {
+	const d = Text.of("---\ntitle: T\nbanner: x.png\nbanner_position: 30\ncover:\n  - y.png\nimage:\nthumbnail: \"\"\n---\nBody".split("\n"));
+	assert.deepEqual(imagePropertyLines(d, frontmatterLines(d)), [{ first: 3, last: 3 }, { first: 4, last: 4 }, { first: 5, last: 6 }]);
+	assert.deepEqual(IMAGE_KEYS, ["banner", "banner_position", "cover", "coverImage", "image", "thumbnail"]);
 });

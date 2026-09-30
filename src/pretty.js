@@ -12,13 +12,17 @@
 //   cover_position: left (default) | right | top | bottom
 // An image is a web address (https), [[a vault file]], [text](a/vault/file),
 // a bare vault path ending in an image type, or data:image/... A YouTube
-// watch link shows its thumbnail. Nothing here changes the note.
+// watch link shows its thumbnail.
+// These properties stay out of the properties box until you click the banner
+// or cover (frontmatter.js). The banner spans the whole note pane, and its
+// Reposition button lets you drag it up or down, which writes
+// banner_position; nothing else here changes the note.
 
 import { StateField, StateEffect } from "@codemirror/state";
 import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
 import { snippet } from "@codemirror/autocomplete";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
-import { frontmatterLines, propertiesFolded } from "./frontmatter.js";
+import { frontmatterLines, propertiesFolded, showImageProps, imagePropsShown } from "./frontmatter.js";
 import { attachmentKind } from "./attachments.js";
 
 export const BANNER_KEY = "banner";
@@ -125,12 +129,104 @@ function imageEl(view, src, onGone) {
 
 const sameSrc = (a, b) => a.url === b.url && a.path === b.path && a.version === b.version;
 
+// The change that sets banner_position to value (0-100, whole numbers): its
+// line rewritten, or a new line under banner:. Null without a banner line.
+export function bannerPositionChange(doc, value) {
+	const fm = frontmatterLines(doc);
+	if (!fm) return null;
+	const v = String(Math.round(Math.min(100, Math.max(0, value))));
+	let bannerEnd = null;
+	for (let n = fm.open + 1; n < fm.close; n++) {
+		const l = doc.line(n);
+		const m = l.text.match(/^(banner_position\s*:[ \t]*)(.*?)[ \t]*(#.*)?$/);
+		if (m) {
+			const from = l.from + m[1].length;
+			return { from, to: from + m[2].length, insert: v };
+		}
+		if (/^banner\s*:/.test(l.text)) {
+			let last = n;
+			while (last + 1 < fm.close && /^\s+\S/.test(doc.line(last + 1).text)) last++;
+			bannerEnd = doc.line(last).to;
+		}
+	}
+	return bannerEnd == null ? null : { from: bannerEnd, insert: `\n${BANNER_POSITION_KEY}: ${v}` };
+}
+
+// Where a vertical drag of dy pixels moves the banner's focal point, from
+// start (0-100): dragging the picture down shows more of its top.
+export function draggedPosition(start, dy, overflow) {
+	if (!(overflow > 0)) return start;
+	return Math.min(100, Math.max(0, start - (dy / overflow) * 100));
+}
+
+function reposition(view, wrap, img, start) {
+	if (view.state.readOnly || wrap.classList.contains("md-banner-moving")) return;
+	let pos = start;
+	wrap.classList.add("md-banner-moving");
+	const bar = document.createElement("div");
+	bar.className = "md-banner-bar";
+	const hint = document.createElement("span");
+	hint.textContent = "Drag the picture up or down";
+	const done = document.createElement("button");
+	done.type = "button";
+	done.textContent = "Save";
+	const cancel = document.createElement("button");
+	cancel.type = "button";
+	cancel.textContent = "Cancel";
+	bar.append(hint, cancel, done);
+	wrap.append(bar);
+	const show = (p) => img.style.setProperty("object-position", `center ${p}%`);
+	// How much of the picture is cut off top and bottom, at its drawn width.
+	const overflow = () => {
+		const w = img.clientWidth, h = img.clientHeight;
+		return img.naturalWidth ? img.naturalHeight * (w / img.naturalWidth) - h : 0;
+	};
+	let drag = null;
+	const down = (e) => {
+		if (e.button !== 0 || e.target.closest(".md-banner-bar")) return;
+		e.preventDefault();
+		drag = { y: e.clientY, from: pos, overflow: overflow() };
+		wrap.setPointerCapture?.(e.pointerId);
+	};
+	const move = (e) => {
+		if (!drag) return;
+		pos = draggedPosition(drag.from, e.clientY - drag.y, drag.overflow);
+		show(pos);
+	};
+	const up = () => { drag = null; };
+	const finish = (save) => {
+		wrap.removeEventListener("pointerdown", down);
+		wrap.removeEventListener("pointermove", move);
+		wrap.removeEventListener("pointerup", up);
+		wrap.removeEventListener("pointercancel", up);
+		document.removeEventListener("keydown", esc, true);
+		bar.remove();
+		wrap.classList.remove("md-banner-moving");
+		const change = save && Math.round(pos) !== Math.round(start) && bannerPositionChange(view.state.doc, pos);
+		if (change) view.dispatch({ changes: change, userEvent: "input.banner" });
+		else show(start);
+	};
+	const esc = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(false); } };
+	wrap.addEventListener("pointerdown", down);
+	wrap.addEventListener("pointermove", move);
+	wrap.addEventListener("pointerup", up);
+	wrap.addEventListener("pointercancel", up);
+	document.addEventListener("keydown", esc, true);
+	for (const b of [done, cancel]) b.addEventListener("pointerdown", (e) => e.preventDefault());
+	done.addEventListener("click", () => finish(true));
+	cancel.addEventListener("click", () => finish(false));
+}
+
+// Clicking the banner or cover shows (or hides again) the image properties.
+const toggleImageProps = (view) => view.dispatch({ effects: showImageProps.of(!imagePropsShown(view.state)) });
+
 class BannerWidget extends WidgetType {
 	constructor(src, position) { super(); this.src = src; this.position = position; }
 	eq(o) { return sameSrc(o.src, this.src) && o.position === this.position; }
 	updateDOM(dom) {
 		if (!sameSrc(dom.wr1t3rSrc || {}, this.src)) return false;
-		dom.querySelector("img")?.style.setProperty("object-position", `center ${this.position}%`);
+		dom.wr1t3rPosition = this.position;
+		if (!dom.classList.contains("md-banner-moving")) dom.querySelector("img")?.style.setProperty("object-position", `center ${this.position}%`);
 		return true;
 	}
 	get estimatedHeight() { return 150; }
@@ -138,13 +234,49 @@ class BannerWidget extends WidgetType {
 		const wrap = document.createElement("div");
 		wrap.className = "md-banner";
 		wrap.wr1t3rSrc = this.src;
+		wrap.wr1t3rPosition = this.position;
 		const img = imageEl(view, this.src, () => { wrap.classList.add("gone"); view.requestMeasure(); });
 		img.style.objectPosition = `center ${this.position}%`;
+		img.title = "Click to show the banner's properties";
+		img.addEventListener("mousedown", (e) => e.preventDefault());
+		img.addEventListener("click", () => { if (!wrap.classList.contains("md-banner-moving")) toggleImageProps(view); });
 		wrap.append(img);
+		if (!view.state.readOnly) {
+			const move = document.createElement("button");
+			move.type = "button";
+			move.className = "md-banner-move";
+			move.textContent = "Reposition";
+			move.title = "Drag the banner to pick which part shows";
+			move.addEventListener("mousedown", (e) => e.preventDefault());
+			move.addEventListener("click", () => reposition(view, wrap, img, wrap.wr1t3rPosition));
+			wrap.append(move);
+		}
 		return wrap;
 	}
 	ignoreEvent() { return true; }
 }
+
+// The banner reaches across the whole note pane, past the readable line
+// length's margins: measured from the editor's scroller and content.
+const bannerFit = ViewPlugin.fromClass(class {
+	constructor(view) { this.view = view; this.measure(); }
+	update(u) { if (u.geometryChanged || u.viewportChanged || u.docChanged) this.measure(); }
+	measure() {
+		this.view.requestMeasure({
+			key: this,
+			read: (view) => {
+				const s = view.scrollDOM, c = view.contentDOM;
+				const sr = s.getBoundingClientRect(), cr = c.getBoundingClientRect();
+				return { left: cr.left - sr.left - s.clientLeft, width: s.clientWidth };
+			},
+			write: ({ left, width }, view) => {
+				const style = view.contentDOM.style;
+				if (style.getPropertyValue("--bleed-left") !== left + "px") style.setProperty("--bleed-left", left + "px");
+				if (style.getPropertyValue("--bleed-w") !== width + "px") style.setProperty("--bleed-w", width + "px");
+			},
+		});
+	}
+});
 
 class CoverWidget extends WidgetType {
 	constructor(src, shape, position) { super(); this.src = src; this.shape = shape; this.position = position; }
@@ -154,7 +286,9 @@ class CoverWidget extends WidgetType {
 		wrap.className = `md-cover ${this.shape} ${this.position}`;
 		wrap.style.setProperty("--cover-w", COVER_WIDTHS[this.shape] + "px");
 		wrap.append(imageEl(view, this.src, () => { wrap.classList.add("gone"); view.requestMeasure(); }));
+		wrap.title = "Click to show the cover's properties";
 		wrap.addEventListener("mousedown", (e) => e.preventDefault());
+		wrap.addEventListener("click", () => toggleImageProps(view));
 		return wrap;
 	}
 	ignoreEvent() { return true; }
@@ -262,4 +396,4 @@ export const editCover = (view) => {
 	return editProperty(view, COVER_KEYS.find((k) => k in have) || COVER_KEYS[0]);
 };
 
-export const prettyProperties = [reserve, decorations, coverFit];
+export const prettyProperties = [reserve, decorations, coverFit, bannerFit];
