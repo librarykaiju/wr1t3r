@@ -109,9 +109,95 @@ function payload(view, code) {
 
 const live = new Set(); // widgets on screen, to re-run when the note changes
 
+// Folding. Blocks with only blank lines between them are a run (the daily
+// note's health meters) and fold as one, to a strip with each block's summary.
+// Remembered per device and keyed by the blocks' code, so every note made from
+// the same template folds alike. The note's text never changes.
+const FOLD_KEY = "wr1t3rDvFolded";
+function foldedRuns() {
+	try { return JSON.parse(localStorage.getItem(FOLD_KEY) || "[]"); } catch { return []; }
+}
+const isFolded = (run) => foldedRuns().includes(run);
+function setFolded(run, on) {
+	const list = foldedRuns().filter((r) => r !== run);
+	if (on) list.push(run);
+	try { localStorage.setItem(FOLD_KEY, JSON.stringify(list.slice(-200))); } catch {}
+}
+
+export function runKey(codes) {
+	let h = 5381;
+	for (const ch of codes.join("\0")) h = (h * 33 + ch.codePointAt(0)) >>> 0;
+	return h.toString(36);
+}
+
+// Groups sorted blocks into runs: [[blk, ...], ...].
+export function blockRuns(blocks, gap) {
+	const runs = [];
+	for (const blk of blocks) {
+		const prev = runs.at(-1)?.at(-1);
+		if (prev && !gap(prev.to, blk.from).trim()) runs.at(-1).push(blk);
+		else runs.push([blk]);
+	}
+	return runs;
+}
+
+const runWraps = (view, run) => [...view.dom.querySelectorAll(".md-dv")].filter((w) => w.dataset.run === run);
+
+function updateStrip(view, run) {
+	const wraps = runWraps(view, run);
+	const strip = wraps.find((w) => w.classList.contains("md-dv-lead"))?.querySelector(".md-dv-strip-text");
+	if (!strip) return;
+	const parts = wraps.map((w) => w.dvSummary).filter(Boolean);
+	strip.textContent = parts.join(" · ") || (wraps.length > 1 ? `${wraps.length} blocks` : "Folded");
+}
+
+function toggleFold(view, run) {
+	const on = !isFolded(run);
+	setFolded(run, on);
+	for (const w of runWraps(view, run)) w.classList.toggle("md-dv-folded", on);
+	updateStrip(view, run);
+	view.requestMeasure();
+}
+
+// The fold button, and (on the run's first block) the strip shown while folded.
+function foldControls(view, wrap, fold, tools) {
+	if (!fold) return;
+	wrap.dataset.run = fold.run;
+	wrap.classList.toggle("md-dv-folded", isFolded(fold.run));
+	if (!fold.lead) return;
+	wrap.classList.add("md-dv-lead");
+	const noCursor = (e) => e.preventDefault();
+	const btn = document.createElement("button");
+	btn.type = "button";
+	btn.className = "md-dv-fold";
+	btn.textContent = "▾";
+	btn.title = fold.count > 1 ? "Fold these blocks" : "Fold this block";
+	btn.addEventListener("mousedown", noCursor);
+	btn.addEventListener("click", () => toggleFold(view, fold.run));
+	tools.prepend(btn);
+	const strip = document.createElement("button");
+	strip.type = "button";
+	strip.className = "md-dv-strip";
+	strip.title = "Unfold";
+	const text = document.createElement("span");
+	text.className = "md-dv-strip-text";
+	strip.append("▸ ", text);
+	strip.addEventListener("mousedown", noCursor);
+	strip.addEventListener("click", () => toggleFold(view, fold.run));
+	wrap.prepend(strip);
+	requestAnimationFrame(() => updateStrip(view, fold.run)); // once the run's blocks are in the page
+}
+
+function toolsBar(wrap) {
+	const tools = document.createElement("div");
+	tools.className = "md-dv-tools";
+	wrap.append(tools);
+	return tools;
+}
+
 class DataviewWidget extends WidgetType {
-	constructor(code, path, from) { super(); this.code = code; this.path = path; this.from = from; }
-	eq(o) { return o.code === this.code && o.path === this.path; }
+	constructor(code, path, from, fold) { super(); this.code = code; this.path = path; this.from = from; this.fold = fold; }
+	eq(o) { return o.code === this.code && o.path === this.path && o.fold?.run === this.fold?.run && o.fold?.lead === this.fold?.lead; }
 	toDOM(view) {
 		const wrap = document.createElement("div");
 		wrap.className = "md-dv";
@@ -134,7 +220,9 @@ class DataviewWidget extends WidgetType {
 			view.dispatch({ selection: { anchor: at }, scrollIntoView: true });
 			view.focus();
 		});
-		wrap.append(frame, edit);
+		wrap.append(frame);
+		toolsBar(wrap).append(edit);
+		foldControls(view, wrap, this.fold, wrap.querySelector(".md-dv-tools"));
 
 		const host = view.state.facet(dvHost);
 		let ready = false;
@@ -152,6 +240,9 @@ class DataviewWidget extends WidgetType {
 			else if (d.type === "height") {
 				frame.style.height = Math.min(Math.max(d.h, 0), 20000) + "px";
 				view.requestMeasure();
+			} else if (d.type === "summary") {
+				wrap.dvSummary = String(d.text || "").slice(0, 120);
+				if (this.fold) updateStrip(view, this.fold.run);
 			} else if (d.type === "load") {
 				let p = String(d.path || "").replace(/^\/+/, "");
 				const paths = host.paths();
@@ -211,8 +302,18 @@ const fmt = (v) => {
 	try { return JSON.stringify(v, (k, x) => (x instanceof DQLLink ? "L:" + x.path : x instanceof DQLDate ? "D:" + x.ms : x)); } catch { return String(Math.random()); }
 };
 
+// What a folded query block says in its strip.
+export function querySummary(r) {
+	const n = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
+	if (r.error) return "Dataview error";
+	if (r.type === "TABLE") return n(r.rows.length, "result");
+	if (r.type === "LIST") return n(r.items.length, "item");
+	const tasks = r.groups.flatMap((g) => g.tasks);
+	return `${tasks.filter((t) => t.checked).length} of ${n(tasks.length, "task")} done`;
+}
+
 class QueryWidget extends WidgetType {
-	constructor(code, path, from, result) { super(); this.code = code; this.path = path; this.from = from; this.result = result; this.key = code + "\0" + path + "\0" + fmt(result); }
+	constructor(code, path, from, result, fold) { super(); this.code = code; this.path = path; this.from = from; this.result = result; this.fold = fold; this.key = code + "\0" + path + "\0" + fmt(result) + "\0" + fold?.run + "\0" + fold?.lead; }
 	eq(o) { return o.key === this.key; }
 	toDOM(view) {
 		const wrap = document.createElement("div");
@@ -299,7 +400,9 @@ class QueryWidget extends WidgetType {
 			view.dispatch({ selection: { anchor: Math.min(line.to + 1, view.state.doc.length) }, scrollIntoView: true });
 			view.focus();
 		});
-		wrap.append(edit);
+		toolsBar(wrap).append(edit);
+		wrap.dvSummary = querySummary(r);
+		foldControls(view, wrap, this.fold, wrap.querySelector(".md-dv-tools"));
 		return wrap;
 	}
 	ignoreEvent() { return true; }
@@ -311,12 +414,17 @@ function build(state) {
 	if (!state.facet(dvHost) || !path || UNTRUSTED.test(path)) return b.finish();
 	const sel = state.selection.ranges;
 	const found = [
-		...dataviewBlocks(state).map((blk) => ({ ...blk, widget: () => new DataviewWidget(blk.code, path, blk.from) })),
-		...dataviewBlocks(state, "dataview").map((blk) => ({ ...blk, widget: () => new QueryWidget(blk.code, path, blk.from, queryResult(state, blk.code, path)) })),
+		...dataviewBlocks(state).map((blk) => ({ ...blk, widget: (fold) => new DataviewWidget(blk.code, path, blk.from, fold) })),
+		...dataviewBlocks(state, "dataview").map((blk) => ({ ...blk, widget: (fold) => new QueryWidget(blk.code, path, blk.from, queryResult(state, blk.code, path), fold) })),
 	].sort((a, b) => a.from - b.from);
-	for (const blk of found) {
-		if (sel.some((r) => r.to >= blk.from && r.from <= blk.to)) continue; // being edited
-		b.add(blk.from, blk.to, Decoration.replace({ widget: blk.widget(), block: true }));
+	for (const run of blockRuns(found, (f, t) => state.sliceDoc(f, t))) {
+		const key = runKey(run.map((blk) => blk.code));
+		let lead = true;
+		for (const blk of run) {
+			if (sel.some((r) => r.to >= blk.from && r.from <= blk.to)) continue; // being edited
+			b.add(blk.from, blk.to, Decoration.replace({ widget: blk.widget({ run: key, lead, count: run.length }), block: true }));
+			lead = false;
+		}
 	}
 	return b.finish();
 }

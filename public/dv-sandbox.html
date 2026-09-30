@@ -530,6 +530,20 @@
 		const h = Math.ceil(document.documentElement.getBoundingClientRect().height);
 		if (h !== lastH) { lastH = h; parent.postMessage({ type: "height", h }, "*"); }
 	}).observe(document.body);
+
+	// A one-line summary (the output's first two bits of text, like a meter's
+	// label and its numbers) for the app to show while the block is folded.
+	let lastSummary = null, summaryTimer = 0;
+	new MutationObserver(() => {
+		clearTimeout(summaryTimer);
+		summaryTimer = setTimeout(() => {
+			const w = document.createTreeWalker(out, NodeFilter.SHOW_TEXT);
+			const parts = [];
+			for (let n; parts.length < 2 && (n = w.nextNode());) { const t = n.nodeValue.trim(); if (t) parts.push(t); }
+			const text = parts.join(" ").slice(0, 120);
+			if (text !== lastSummary) { lastSummary = text; parent.postMessage({ type: "summary", text }, "*"); }
+		}, 100);
+	}).observe(out, { childList: true, subtree: true, characterData: true });
 	parent.postMessage({ type: "ready" }, "*");
 })();
 </script>

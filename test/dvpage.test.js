@@ -4,7 +4,7 @@ import { parseFrontmatter, listItems, pageFrom, linkedNames } from "../src/dvpag
 import { EditorState } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { ensureSyntaxTree } from "@codemirror/language";
-import { dataviewBlocks } from "../src/dataview.js";
+import { dataviewBlocks, blockRuns, runKey, querySummary } from "../src/dataview.js";
 
 test("frontmatter values come out typed, as Dataview reads them", () => {
 	const fm = parseFrontmatter('---\ntitle: Daily Timeline\npublish: false\ndate: "2026-09-28"\nmeds:\nfiber_g: 0\nsteps_health: 5234\ntags: [a, b]\naliases:\n  - One\n  - Two\n---\nbody');
@@ -32,4 +32,23 @@ test("finds closed dataviewjs fences only", () => {
 	assert.equal(b.length, 1);
 	assert.equal(b[0].code, "const x = 1;");
 	assert.equal(doc.slice(b[0].from, b[0].to), "```dataviewjs\nconst x = 1;\n```");
+});
+
+test("blocks with only blank lines between them fold as one run", () => {
+	const doc = "```dataviewjs\na\n```\n```dataviewjs\nb\n```\n\n```dataview\nLIST\n```\ntext\n```dataviewjs\nc\n```";
+	const state = EditorState.create({ doc, extensions: [markdown({ base: markdownLanguage })] });
+	ensureSyntaxTree(state, state.doc.length, 5000);
+	const found = [...dataviewBlocks(state), ...dataviewBlocks(state, "dataview")].sort((a, b) => a.from - b.from);
+	const runs = blockRuns(found, (f, t) => doc.slice(f, t));
+	assert.deepEqual(runs.map((r) => r.map((b) => b.code)), [["a", "b", "LIST"], ["c"]]);
+	// Same code, same key, so every daily note folds alike.
+	assert.equal(runKey(["a", "b"]), runKey(["a", "b"]));
+	assert.notEqual(runKey(["a", "b"]), runKey(["ab"]));
+});
+
+test("a folded query says what it holds", () => {
+	assert.equal(querySummary({ type: "TABLE", rows: [[1]] }), "1 result");
+	assert.equal(querySummary({ type: "LIST", items: [] }), "0 items");
+	assert.equal(querySummary({ type: "TASK", groups: [{ tasks: [{ checked: true }, { checked: false }] }] }), "1 of 2 tasks done");
+	assert.equal(querySummary({ error: "x" }), "Dataview error");
 });
