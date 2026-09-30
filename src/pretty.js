@@ -229,7 +229,7 @@ class BannerWidget extends WidgetType {
 		if (!dom.classList.contains("md-banner-moving")) dom.querySelector("img")?.style.setProperty("object-position", `center ${this.position}%`);
 		return true;
 	}
-	get estimatedHeight() { return 150; }
+	get estimatedHeight() { return 306; }
 	toDOM(view) {
 		const wrap = document.createElement("div");
 		wrap.className = "md-banner";

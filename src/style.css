@@ -653,7 +653,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 /* The banner spans the whole note pane (pretty.js measures --bleed-left and
    --bleed-w), not just the readable column. */
 :is(#editor, #refView) .md-banner { position: relative; padding: 0 0 6px; margin-left: calc(-1 * var(--bleed-left, 0px)); width: var(--bleed-w, auto); box-sizing: border-box; }
-:is(#editor, #refView) .md-banner img { display: block; width: 100%; height: 150px; object-fit: cover; cursor: pointer;
+:is(#editor, #refView) .md-banner img { display: block; width: 100%; height: 300px; object-fit: cover; cursor: pointer;
 	-webkit-mask-image: linear-gradient(to bottom, black 25%, transparent); mask-image: linear-gradient(to bottom, black 25%, transparent); }
 :is(#editor, #refView) .md-banner-move, :is(#editor, #refView) .md-banner-bar button {
 	font: 12px/1 var(--sans); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
@@ -970,11 +970,8 @@ html.base-resizing, html.base-resizing * { cursor: col-resize !important; user-s
    sidebar's folder rows, so text keeps its contrast in every theme. */
 #homeBtn { display: inline-flex; }
 main:not(.has-note) #homeBtn { color: var(--accent); }
-/* Tiles 170-220px wide, as many to a row as fit, every row centered under
-   the quote (a short last row too). Phones: two to a row. */
-.home-grid { width: 100%; max-width: 1080px; margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
-.home-grid > * { flex: 0 1 200px; min-width: 170px; }
-@media (max-width: 480px) { .home-grid { gap: 10px; } .home-grid > * { flex-basis: calc(50% - 5px); min-width: 0; } }
+.home-grid { width: 100%; max-width: 1080px; margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+@media (max-width: 480px) { .home-grid { grid-template-columns: 1fr 1fr; gap: 10px; } }
 .tile {
 	position: relative; overflow: hidden; aspect-ratio: 4 / 3; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start;
 	padding: 12px; border: 1px solid color-mix(in srgb, var(--tc) 45%, var(--bg)); border-radius: 12px;
