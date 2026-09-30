@@ -2109,6 +2109,12 @@ function setupSettings() {
 		storeRaw("wr1t3rLines", b.dataset.lines === "full" ? "full" : null);
 		applyLineLength(b.dataset.lines === "full");
 	});
+	// Which Aa sections are unfolded, per device (Appearance until changed).
+	const openSecs = (readRaw("wr1t3rSettingsOpen") ?? "look").split(",");
+	document.querySelectorAll("#settings .set-sec").forEach((d) => {
+		d.open = openSecs.includes(d.dataset.sec);
+		d.addEventListener("toggle", () => storeRaw("wr1t3rSettingsOpen", [...document.querySelectorAll("#settings .set-sec[open]")].map((x) => x.dataset.sec).join(",")));
+	});
 	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
 	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
 	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });

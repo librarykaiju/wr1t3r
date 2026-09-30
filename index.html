@@ -127,56 +127,71 @@
 		</main>
 		<aside id="rightcol" aria-label="Calendar and contents"></aside>
 		<div id="settings" class="pop" hidden>
-			<h2>Theme</h2>
-			<div class="seg" id="themeFamilies">
-				<button type="button" data-family="default">Default</button>
-				<button type="button" data-family="sepia">Sepia</button>
-				<button type="button" data-family="dracula">Dracula</button>
-				<button type="button" data-family="rosepine">Rosé Pine</button>
-				<button type="button" data-family="tokyonight">Tokyo Night</button>
-				<button type="button" data-family="catppuccin">Catppuccin</button>
-				<button type="button" data-family="kanagawa">Kanagawa</button>
-			</div>
-			<div class="seg" id="themes">
-				<button type="button" data-theme="auto">Auto</button>
-				<button type="button" data-theme="light">Light</button>
-				<button type="button" data-theme="dark">Dark</button>
-			</div>
-			<h2>Markdown symbols</h2>
-			<div class="seg" id="modes" title="Live Preview hides symbols like ** and ## except on the line you're editing">
-				<button type="button" data-mode="source">Always show</button>
-				<button type="button" data-mode="live">Live Preview</button>
-			</div>
-			<h2>Readable line length</h2>
-			<div class="seg" id="lineLength" title="On keeps lines short and centers the note on the screen">
-				<button type="button" data-lines="readable">On</button>
-				<button type="button" data-lines="full">Off</button>
-			</div>
-			<h2>Text size</h2>
-			<div class="seg">
-				<button id="smaller" type="button" aria-label="Smaller text">A&minus;</button>
-				<span id="sizeVal" class="val">19</span>
-				<button id="larger" type="button" aria-label="Larger text">A+</button>
-			</div>
-			<h2>Focus length</h2>
-			<div class="seg">
-				<button id="workLess" type="button" aria-label="Shorter focus blocks">&minus;</button>
-				<span id="workVal" class="val"></span>
-				<button id="workMore" type="button" aria-label="Longer focus blocks">+</button>
-			</div>
-			<h2>Break length</h2>
-			<div class="seg">
-				<button id="breakLess" type="button" aria-label="Shorter breaks">&minus;</button>
-				<span id="breakVal" class="val"></span>
-				<button id="breakMore" type="button" aria-label="Longer breaks">+</button>
-			</div>
-			<h2>Daily note timeline</h2>
-			<div class="seg"><select id="dailyCal" aria-label="Calendar for the daily note's Timeline"><option value="">Off</option></select></div>
-			<p class="hint">Events from this calendar go into the Timeline when Today makes the note, or any time with “Add calendar events to the timeline”.</p>
-			<h2>Hotkeys</h2>
-			<div class="seg"><button id="hotkeysBtn" type="button">Change hotkeys</button></div>
-			<h2>Clip from any page</h2>
-			<p class="hint">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page. On iPhone, see the README for adding it to Safari.</p>
+			<details class="set-sec" data-sec="look" open>
+				<summary>Appearance</summary>
+				<h2>Theme</h2>
+				<div class="seg" id="themeFamilies">
+					<button type="button" data-family="default">Default</button>
+					<button type="button" data-family="sepia">Sepia</button>
+					<button type="button" data-family="dracula">Dracula</button>
+					<button type="button" data-family="rosepine">Rosé Pine</button>
+					<button type="button" data-family="tokyonight">Tokyo Night</button>
+					<button type="button" data-family="catppuccin">Catppuccin</button>
+					<button type="button" data-family="kanagawa">Kanagawa</button>
+				</div>
+				<div class="seg" id="themes">
+					<button type="button" data-theme="auto">Auto</button>
+					<button type="button" data-theme="light">Light</button>
+					<button type="button" data-theme="dark">Dark</button>
+				</div>
+				<h2>Text size</h2>
+				<div class="seg">
+					<button id="smaller" type="button" aria-label="Smaller text">A&minus;</button>
+					<span id="sizeVal" class="val">19</span>
+					<button id="larger" type="button" aria-label="Larger text">A+</button>
+				</div>
+				<h2>Readable line length</h2>
+				<div class="seg" id="lineLength" title="On keeps lines short and centers the note on the screen">
+					<button type="button" data-lines="readable">On</button>
+					<button type="button" data-lines="full">Off</button>
+				</div>
+			</details>
+			<details class="set-sec" data-sec="writing">
+				<summary>Writing</summary>
+				<h2>Markdown symbols</h2>
+				<div class="seg" id="modes" title="Live Preview hides symbols like ** and ## except on the line you're editing">
+					<button type="button" data-mode="source">Always show</button>
+					<button type="button" data-mode="live">Live Preview</button>
+				</div>
+			</details>
+			<details class="set-sec" data-sec="timer">
+				<summary>Focus timer</summary>
+				<h2>Focus length</h2>
+				<div class="seg">
+					<button id="workLess" type="button" aria-label="Shorter focus blocks">&minus;</button>
+					<span id="workVal" class="val"></span>
+					<button id="workMore" type="button" aria-label="Longer focus blocks">+</button>
+				</div>
+				<h2>Break length</h2>
+				<div class="seg">
+					<button id="breakLess" type="button" aria-label="Shorter breaks">&minus;</button>
+					<span id="breakVal" class="val"></span>
+					<button id="breakMore" type="button" aria-label="Longer breaks">+</button>
+				</div>
+			</details>
+			<details class="set-sec" data-sec="daily">
+				<summary>Daily note</summary>
+				<h2>Timeline calendar</h2>
+				<div class="seg"><select id="dailyCal" aria-label="Calendar for the daily note's Timeline"><option value="">Off</option></select></div>
+				<p class="hint">Events from this calendar go into the Timeline when Today makes the note, or any time with “Add calendar events to the timeline”.</p>
+			</details>
+			<details class="set-sec" data-sec="tools">
+				<summary>Hotkeys and clipping</summary>
+				<h2>Hotkeys</h2>
+				<div class="seg"><button id="hotkeysBtn" type="button">Change hotkeys</button></div>
+				<h2>Clip from any page</h2>
+				<p class="hint">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page. On iPhone, see the README for adding it to Safari.</p>
+			</details>
 		</div>
 		<nav id="toc" class="pop" aria-label="Table of contents" hidden>
 			<div class="toc-top">
