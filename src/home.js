@@ -67,9 +67,24 @@ export function readPins(text) {
 	let y;
 	try { y = parseYaml(lines.slice(f[0] + 1, f[1]).join("\n")); } catch { return []; }
 	if (!y || !Array.isArray(y.pins)) return [];
-	return y.pins
+	return cleanPins(y.pins);
+}
+
+function cleanPins(list) {
+	return list
 		.map((p) => (typeof p === "string" ? { link: p } : p))
 		.filter((p) => p && typeof p === "object" && !Array.isArray(p) && ((typeof p.link === "string" && p.link.trim()) || isSection(p)));
+}
+
+// A ```wr1t3r-cards block in a note: the same entries as Home's pins, as a
+// bare YAML list. [] when it can't be read.
+export function readCards(code) {
+	let y;
+	try { y = parseYaml(String(code || "")); } catch { return []; }
+	return Array.isArray(y) ? cleanPins(y) : [];
+}
+export function writeCards(pins) {
+	return pins.length ? pinsYaml(pins).slice(1).map((l) => l.slice(2)).join("\n") : "";
 }
 
 const ORDER = ["section", "link", "title", "color", "cover"];

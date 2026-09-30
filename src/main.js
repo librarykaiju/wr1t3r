@@ -48,6 +48,7 @@ import { setProperty } from "./bases.js";
 import { prettyOf } from "./pretty.js";
 import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
+import { setCardsHost } from "./cardsblock.js";
 import { attachmentKind } from "./attachments.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
 import { setDoneDates, sortChecklists } from "./tasks.js";
@@ -719,6 +720,7 @@ function pinEntry(item) {
 	return pinIndex(item) >= 0 ? ["Unpin from Home", () => unpinItem(item)] : ["Pin to Home", () => pinItem(item)];
 }
 
+const pinItemHome = (item) => pinItem(item);
 function pinItem(item) {
 	if (!item) return;
 	const list = pins();
@@ -727,6 +729,7 @@ function pinItem(item) {
 	addPin({ link }, itemLabel(item));
 }
 
+const addPinHome = (pin, label) => addPin(pin, label);
 function addPin(pin, label) {
 	savePins([...pins(), pin]);
 	toast(`Pinned “${label}” to Home.`);
@@ -867,9 +870,13 @@ function askSection(now = "") {
 	return t == null || !t.trim() ? null : t.trim();
 }
 
-function tileMenu(i, x, y) {
-	const list = pins(), pin = list[i];
+// Where tiles live: Home's pins, or a note's cards block (src/cardsblock.js).
+const homeStore = { list: () => pins(), save: (list) => savePins(list), home: true };
+
+function tileMenu(i, x, y, store = homeStore) {
+	const list = store.list(), pin = list[i];
 	if (!pin) return;
+	const savePins = store.save; // this list's, not always Home's
 	const set = (patch) => savePins(list.map((p, j) => (j === i ? clean({ ...p, ...patch }) : p)));
 	const move = (to) => { const next = [...list]; next.splice(i, 1); next.splice(to, 0, pin); savePins(next); };
 	const startSection = () => { const t = askSection(); if (t) savePins([...list.slice(0, i), { section: t }, ...list.slice(i)]); };
@@ -899,9 +906,19 @@ function tileMenu(i, x, y) {
 		...(i > 0 ? [["Move earlier", () => move(i - 1)]] : []),
 		...(i < list.length - 1 ? [["Move later", () => move(i + 1)]] : []),
 		["Start a section here…", startSection],
-		["Unpin", () => savePins(list.filter((_, j) => j !== i)), "danger"],
+		[store.home ? "Unpin" : "Remove card", () => savePins(list.filter((_, j) => j !== i)), "danger"],
 	], x, y);
 }
+
+// Cards blocks in notes use Home's tiles, menus and picker.
+setCardsHost({
+	paths: () => visible().map((n) => n.path),
+	text: (p) => { const n = notes.get(p); return n && !n.binary ? n.text : null; },
+	image: (ref, from) => tileImage(ref, from),
+	open: (pin, path) => openPin(pin, path),
+	menu: (store, i, x, y) => tileMenu(i, x, y, store),
+	add: (store) => addTile(store),
+});
 
 // Drops keys set to nothing, so they come out of the file.
 const clean = (p) => Object.fromEntries(Object.entries(p).filter(([, v]) => v != null && v !== ""));
@@ -951,10 +968,18 @@ function pickCover(pin, set) {
 	openPalette({ placeholder: images.length ? "Tile picture: pick a vault image or an option…" : "Tile picture…", items });
 }
 
-// The + tile: pin a note, a folder, a command, or a web page.
-function addTile() {
-	const list = visible(), paths = list.map((n) => n.path), home = commonFolder(list), file = homeFile();
-	const have = pins();
+// The + tile: pin a note, a folder, a command, or a web page (to Home, or to
+// a note's cards block).
+function addTile(store = homeStore) {
+	if (typeof store?.list !== "function") store = homeStore;
+	const list = visible(), paths = list.map((n) => n.path), home = commonFolder(list), file = store.home ? homeFile() : editor.path;
+	const have = store.list();
+	const addPin = (pin, label) => {
+		if (store.home) return addPinHome(pin, label);
+		store.save([...store.list(), pin]);
+		toast(`Added “${label}”.`);
+	};
+	const pinItem = (item) => (store.home ? pinItemHome(item) : addPin({ link: item.endsWith("/") ? folderLink(item) : linkFor(item, paths) }, itemLabel(item)));
 	const pinned = (item) => have.some((p) => pinOpens(p, pinTarget(item), paths, file));
 	const notesIn = list.filter((n) => !n.binary && !isAppFile(n.path)).map((n) => n.path);
 	const order = [...recent.filter((p) => notesIn.includes(p)), ...notesIn.filter((p) => !recent.includes(p))];
@@ -973,7 +998,7 @@ function addTile() {
 	};
 	const items = [
 		{ label: "Web page…", detail: "link", keywords: "url https website", run: () => { const u = prompt("Web page address:"); if (u) webLink(u); } },
-		{ label: "Section header…", detail: "a label over the tiles after it", keywords: "section header heading group label divider", run: () => { const t = askSection(); if (t) { savePins([...pins(), { section: t }]); toast(`Added the section “${t}”; tiles added after it go under it.`); } } },
+		{ label: "Section header…", detail: "a label over the tiles after it", keywords: "section header heading group label divider", run: () => { const t = askSection(); if (t) { store.save([...store.list(), { section: t }]); toast(`Added the section “${t}”; tiles added after it go under it.`); } } },
 		...order.filter((p) => !pinned(p)).map((p) => ({ label: name(p), detail: folderOf(p) || "note", keywords: folderOf(p), run: () => pinItem(p) })),
 		...[...folders].filter((f) => f !== home && f.startsWith(home) && !pinned(f) && !isAppFile(f)).sort()
 			.map((f) => ({ label: folderLabel(f), detail: "folder", keywords: "folder", run: () => pinItem(f) })),
@@ -981,7 +1006,7 @@ function addTile() {
 			.map((c) => ({ label: c.label, detail: "command", keywords: "command " + (c.keywords || ""), run: () => addPin({ link: "command:" + c.label }, c.label) })),
 	];
 	openPalette({
-		placeholder: "Pin to Home: a note, folder, command or web page…",
+		placeholder: store.home ? "Pin to Home: a note, folder, command or web page…" : "Add a card: a note, folder, command or web page…",
 		items,
 		empty: (q) => (/^(https?:\/\/|www\.)\S+$|^\S+\.[a-z]{2,}(\/\S*)?$/i.test(q.trim()) ? { label: `Web page “${q.trim()}”`, detail: "link", run: () => webLink(q) } : null),
 	});

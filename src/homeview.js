@@ -71,7 +71,7 @@ function draggable(el, i, grid, host, header = false) {
 }
 
 // host: { pins, homeFile, paths, text(path), image(ref, from) -> Promise<src>|null,
-//         open(pin, path), menu(index, x, y), add(), reorder(from, to) }
+//         open(pin, path), menu(index, x, y), add()?, reorder(from, to), emptyLabel? }
 export function drawHome(grid, host) {
 	grid.replaceChildren();
 	const { pins, homeFile, paths } = host;
@@ -124,6 +124,7 @@ export function drawHome(grid, host) {
 		draggable(tile, i, grid, host);
 		grid.append(tile);
 	});
+	if (!host.add) return;
 	const add = document.createElement("button");
 	add.type = "button";
 	add.className = "tile tile-add";
@@ -131,7 +132,7 @@ export function drawHome(grid, host) {
 	add.setAttribute("aria-label", "Add a tile");
 	const label = document.createElement("span");
 	label.className = "tile-name";
-	label.textContent = pins.length ? "Add" : "Pin notes, folders, commands and web pages here";
+	label.textContent = pins.length ? "Add" : host.emptyLabel || "Pin notes, folders, commands and web pages here";
 	add.append(icon("add"), label);
 	add.addEventListener("click", () => host.add());
 	grid.append(add);

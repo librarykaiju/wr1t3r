@@ -38,6 +38,7 @@ export const COMMANDS = [
 	{ label: "Cover image", run: editCover, keywords: "cover poster picture properties pretty" },
 	{ label: "Date", template: () => today() + "${}", keywords: "today" },
 	{ label: "Due date", run: dueCommand, keywords: "task deadline due calendar tasks 📅" },
+	{ label: "Cards", template: "```wr1t3r-cards\n```\n${}", keywords: "tiles cards pins links home grid" },
 	// Only offered with the cursor in a table.
 	{ label: "Add row below", run: addRow, keywords: "table insert", table: true },
 	{ label: "Add column after", run: addColumn, keywords: "table insert col", table: true },

@@ -1021,6 +1021,14 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .tile.dragging { opacity: 0.4; }
 .tile.drop-before { box-shadow: -4px 0 0 var(--accent); }
 .tile.drop-after { box-shadow: 4px 0 0 var(--accent); }
+/* Cards blocks in a note (src/cardsblock.js): Home's tiles, a bit smaller. */
+.md-cards { position: relative; padding: 6px 0; font-size: 15px; }
+.md-cards-grid { margin: 0; justify-content: flex-start; gap: 10px; }
+.md-cards-grid > * { flex: 0 1 170px; min-width: 140px; }
+@media (max-width: 480px) { .md-cards-grid > * { flex-basis: calc(50% - 5px); min-width: 0; } }
+.md-cards-edit { position: absolute; top: 10px; right: 4px; z-index: 1; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); cursor: pointer; opacity: 0; }
+.md-cards:hover .md-cards-edit, .md-cards-edit:focus-visible { opacity: 1; }
+@media (hover: none) { .md-cards-edit { opacity: 0.6; } }
 /* A section header: a full-width row with its label, left-aligned to the grid. */
 .home-grid > .home-section { flex: 1 0 100%; min-width: 100%; margin: 12px 0 -4px; padding: 0 2px 4px; border-bottom: 1px solid var(--line); color: var(--muted); font: 600 13px/1.4 var(--sans); letter-spacing: 0.05em; text-transform: uppercase; cursor: default; -webkit-touch-callout: none; }
 .home-grid > .home-section:first-child { margin-top: 0; }

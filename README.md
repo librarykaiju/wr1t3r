@@ -148,6 +148,8 @@ With no note open, the main window shows a quote about writing or making art tha
 
 Below them are Home's pinned tiles (`src/home.js`, `src/homeview.js`), kept in `_wr1t3r/Home.md` so every device shows the same ones. **Sections** group them under a header: **Section header…** in the **+** tile's list adds one at the end, and a tile's menu has **Start a section here…**. A header is a `- section: Reading` entry in the same `pins:` list, and the tiles after it are its own, so dragging a tile past a header (or onto one) moves it into that section. Right-click or long-press a header to rename, move or remove it (its tiles stay). Headers don't change the tiles' automatic colors.
 
+**Cards in a note** (`src/cardsblock.js`): **Cards** in the slash menu adds a ```` ```wr1t3r-cards ```` block, which shows as the same tiles while the cursor is outside it, with the same menus (color, cover, rename, move, sections, remove), dragging and **+**. It holds the same entries as Home's `pins:` list, as a bare YAML list (`- link: "[[Reading log]]"`, `  color: 3`, `- section: Writing`), and each change rewrites only that list, so it works in a template like `_templates/Daily.md`: every daily note made from it gets the cards. **</>** shows the list to edit. Obsidian shows the block as code.
+
 ## Setup
 
 1. Make a token: a long random string (32+ characters) from your password manager.
