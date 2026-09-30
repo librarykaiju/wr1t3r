@@ -36,7 +36,7 @@ import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
 import { makeMediaNote } from "./media.js";
-import { homePath, readPins, writePins, pinKind, pinPath, linkFor, folderLink, viewLink, pinOpens, retargetPins } from "./home.js";
+import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile } from "./home.js";
 import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
 import { reorder } from "./drag.js";
 import { drawBoard, drawOutline, folderWords, stopViews } from "./folderview.js";
@@ -185,10 +185,12 @@ function vaultTouched() {
 function renderTree() {
 	vaultTouched();
 	renderHome();
+	renderHomeSettings();
 	const tree = $("tree");
 	const q = $("filter").value.trim();
 	tree.replaceChildren();
-	const list = visible();
+	// wr1t3r's own files (the Home note) are edited from Aa > Home instead.
+	const list = visible().filter((n) => !isAppFile(n.path));
 	if (q) {
 		// Words, "phrases", path:, file:, tag:/#tag and -word (src/search.js).
 		const terms = parseQuery(q);
@@ -606,6 +608,7 @@ async function savePins(list) {
 		scheduleSync();
 	}
 	renderHome(true);
+	renderHomeSettings();
 }
 
 const pinTarget = (item) => (item.endsWith("/") ? { folder: item } : { path: item });
@@ -687,12 +690,46 @@ function renderHome(force = false) {
 	});
 }
 
+// Aa > Home: the pins as a list, each with its tile menu, plus adding a tile
+// and opening the Home note itself (it isn't in the notes list).
+function renderHomeSettings() {
+	const box = $("homePins");
+	if (!box || $("settings").hidden) return;
+	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
+	box.replaceChildren();
+	list.forEach((pin, i) => {
+		const k = pinKind(pin.link);
+		const path = k.kind === "note" ? pinPath(pin, paths, file) : null;
+		const row = document.createElement("button");
+		row.type = "button";
+		row.className = "home-pin";
+		row.style.setProperty("--tc", pinColor(pin, i));
+		row.title = "Change, move or unpin this tile";
+		const what = { note: /\.base$/i.test(path || k.target || "") ? "base" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "one document" : k.view, command: "command", url: "web page" }[k.kind];
+		const nm = document.createElement("span");
+		nm.textContent = pinTitle(pin, path);
+		const kind = document.createElement("small");
+		kind.textContent = what;
+		row.append(nm, kind);
+		row.addEventListener("click", (e) => { e.stopPropagation(); const r = row.getBoundingClientRect(); tileMenu(i, r.left + 12, r.bottom + 2); });
+		onMenu(row, (x, y) => tileMenu(i, x, y));
+		box.append(row);
+	});
+	if (!list.length) box.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "Nothing pinned yet." }));
+}
+
+async function editHomeNote() {
+	if (homeText() == null) await savePins(pins());
+	openSettings(false);
+	openNote(homeFile());
+}
+
 function openPin(pin, path) {
 	const k = pinKind(pin.link);
 	if (k.kind === "url") return void window.open(k.url, "_blank", "noopener");
 	if (k.kind === "note") return path ? openNote(path) : toast(`There's no note at “${k.target}” any more.`);
-	if (k.kind === "folder") return revealFolder(k.folder);
-	if (k.kind === "view") return openFolderView(k.folder, k.view);
+	// A pinned folder opens as a corkboard; an outliner: or scrivenings: pin as that.
+	if (k.kind === "folder" || k.kind === "view") return openFolderView(k.folder, k.kind === "view" ? k.view : "corkboard");
 	const c = allCommands().find((x) => x.label.toLowerCase() === k.command.toLowerCase());
 	if (!c) return toast(`There's no command called “${k.command}”.`);
 	if (c.needsNote) return toast(`“${c.label}” needs a note open.`);
@@ -720,7 +757,15 @@ function tileMenu(i, x, y) {
 	if (!pin) return;
 	const set = (patch) => savePins(list.map((p, j) => (j === i ? clean({ ...p, ...patch }) : p)));
 	const move = (to) => { const next = [...list]; next.splice(i, 1); next.splice(to, 0, pin); savePins(next); };
+	const k = pinKind(pin.link);
+	const views = k.kind === "folder" || k.kind === "view"
+		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as one document"]]
+			.filter(([v]) => v !== (k.kind === "view" ? k.view : "corkboard"))
+			.map(([v, label]) => [label, () => set({ link: v === "corkboard" ? folderLink(k.folder) : viewLink(v, k.folder) })])
+		: [];
 	showMenu([
+		...views,
+		...(views.length ? [["Show in the notes list", () => revealFolder(k.folder)]] : []),
 		["Color…", () => colorMenu(pin, set, x, y)],
 		["Cover…", () => pickCover(pin, set)],
 		["Rename…", () => {
@@ -786,7 +831,7 @@ function addTile() {
 	const list = visible(), paths = list.map((n) => n.path), home = commonFolder(list), file = homeFile();
 	const have = pins();
 	const pinned = (item) => have.some((p) => pinOpens(p, pinTarget(item), paths, file));
-	const notesIn = list.filter((n) => !n.binary && n.path !== file).map((n) => n.path);
+	const notesIn = list.filter((n) => !n.binary && !isAppFile(n.path)).map((n) => n.path);
 	const order = [...recent.filter((p) => notesIn.includes(p)), ...notesIn.filter((p) => !recent.includes(p))];
 	const folders = new Set();
 	for (const p of paths) {
@@ -804,7 +849,7 @@ function addTile() {
 	const items = [
 		{ label: "Web page…", detail: "link", keywords: "url https website", run: () => { const u = prompt("Web page address:"); if (u) webLink(u); } },
 		...order.filter((p) => !pinned(p)).map((p) => ({ label: name(p), detail: folderOf(p) || "note", keywords: folderOf(p), run: () => pinItem(p) })),
-		...[...folders].filter((f) => f !== home && f.startsWith(home) && !pinned(f)).sort()
+		...[...folders].filter((f) => f !== home && f.startsWith(home) && !pinned(f) && !isAppFile(f)).sort()
 			.map((f) => ({ label: folderLabel(f), detail: "folder", keywords: "folder", run: () => pinItem(f) })),
 		...allCommands().filter((c) => !c.needsNote && !c.editor)
 			.map((c) => ({ label: c.label, detail: "command", keywords: "command " + (c.keywords || ""), run: () => addPin({ link: "command:" + c.label }, c.label) })),
@@ -1328,7 +1373,7 @@ const folderOf = (p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")).replac
 // Ctrl/Cmd+O: jump to a note by name, recent ones first; Enter on a name
 // that isn't a note offers to make it.
 function quickSwitcher() {
-	const all = visible().filter((n) => !n.binary).map((n) => n.path);
+	const all = visible().filter((n) => !n.binary && !isAppFile(n.path)).map((n) => n.path);
 	const set = new Set(all);
 	const order = [...recent.filter((p) => set.has(p) && p !== editor.path), ...all.filter((p) => !recent.includes(p))];
 	openPalette({
@@ -2099,7 +2144,7 @@ function openSettings(on) {
 	if (on && !$("agenda").hidden) openAgenda(false);
 	$("settings").hidden = !on;
 	$("settingsBtn").setAttribute("aria-expanded", String(on));
-	if (on) { fillCalendarSetting(); if (!cal?.calendars && calState !== "setup") loadAgenda(); }
+	if (on) { fillCalendarSetting(); renderHomeSettings(); if (!cal?.calendars && calState !== "setup") loadAgenda(); }
 }
 
 function setupSettings() {
@@ -2151,11 +2196,15 @@ function setupSettings() {
 			applySetting(name, b.dataset.on === "true");
 		});
 	}
+	$("homeAdd").addEventListener("click", (e) => { e.stopPropagation(); addTile(); });
+	$("homeEdit").addEventListener("click", editHomeNote);
 	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
 	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
 	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });
 	document.addEventListener("click", (e) => {
-		if (!$("settings").hidden && !e.target.closest("#settings, #settingsBtn")) openSettings(false);
+		// A menu item removes itself before this runs; menus and the palette
+		// opened from Aa > Home keep the panel open.
+		if (!$("settings").hidden && e.target.isConnected && !e.target.closest("#settings, #settingsBtn, .item-menu, .palette")) openSettings(false);
 	});
 	document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("settings").hidden) openSettings(false); });
 }

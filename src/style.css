@@ -955,6 +955,15 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .tile-add { --tc: var(--mark); background: none; border: 1.5px dashed var(--line); color: var(--muted); font-weight: 500; justify-content: center; align-items: center; gap: 6px; text-align: center; }
 .tile-add .tile-icon { color: var(--muted); }
 @media (hover: hover) { .tile-add:hover { background: var(--card); color: var(--fg); } }
+/* Aa > Home: the pins as rows in their tile colors; a row opens its tile menu. */
+.home-pins { display: flex; flex-direction: column; gap: 6px; }
+.home-pin {
+	display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; text-align: left;
+	border: 1px solid color-mix(in srgb, var(--tc) 45%, var(--bg)); border-radius: 8px; background: color-mix(in srgb, var(--tc) 22%, var(--bg)); color: var(--fg); font-size: 14px;
+}
+.home-pin span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.home-pin small { flex: none; color: var(--muted); font-size: 12px; }
+@media (hover: hover) { .home-pin:hover { background: color-mix(in srgb, var(--tc) 32%, var(--bg)); } }
 .item-menu .swatches { display: grid; grid-template-columns: repeat(4, 32px); gap: 8px; padding: 8px; }
 .item-menu .swatch { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; border: 2px solid transparent; background: var(--sw); }
 .item-menu .swatch.auto { background: conic-gradient(var(--f1), var(--f2), var(--f3), var(--f4), var(--f5), var(--f6), var(--f7), var(--f1)); }
