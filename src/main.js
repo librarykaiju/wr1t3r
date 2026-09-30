@@ -12,6 +12,7 @@ import { vaultChanged } from "./vault.js";
 import { setLivePreview } from "./livepreview.js";
 import { parseQuery, matches, snippet } from "./search.js";
 import { openPalette } from "./palette.js";
+import { starterBase } from "./baseconfig.js";
 import { EDIT_ACTIONS, DEFAULT_KEYS, keyName, showKey, usableKey, bindings, rebind } from "./hotkeys.js";
 import { templatesIn, insertTemplate } from "./templates.js";
 import { COMMANDS, setSlashExtras } from "./slash.js";
@@ -360,6 +361,7 @@ function itemMenu(item, x, y) {
 			["Outliner", () => openFolderView(item, "outliner")],
 			["Scrivenings", () => openFolderView(item, "scrivenings")],
 			["Compile…", () => openCompile(item)],
+			["New base…", () => newBase(item)],
 		] : []),
 		pinEntry(item),
 		["Rename…", () => renameItem(item)],
@@ -1408,6 +1410,7 @@ function allCommands() {
 		["Run a command", commandPalette, "palette"],
 		["New note", () => newNote(), "create"],
 		["New note from template", newFromTemplate, "templater"],
+		["New base", () => newBase(), "create database table grid gallery kanban view bases"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
@@ -1710,6 +1713,42 @@ async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = 
 	// Focus goes back to the New button once the name prompt closes; take it
 	// back so typing lands in the note (a space would press New again).
 	requestAnimationFrame(() => editor.view.focus());
+	scheduleSync();
+}
+
+// "New base": pick the folder it shows (the palette's first row is every
+// note), then its name; it's saved in that folder as "<Folder>.base" unless
+// renamed, and opens in its Grid.
+function newBase(folder = null) {
+	if (folder != null) return nameBase(folder);
+	const list = visible(), home = commonFolder(list);
+	const folders = new Set();
+	for (const n of list) {
+		const parts = n.path.split("/").slice(0, -1);
+		for (let i = 1; i <= parts.length; i++) folders.add(parts.slice(0, i).join("/") + "/");
+	}
+	const here = currentFolder();
+	const all = [...folders].filter((f) => f.startsWith(home) && f !== home)
+		.sort((a, b) => (b === here) - (a === here) || a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+	openPalette({
+		placeholder: "Which notes should the base show?",
+		items: [
+			{ label: "Every note", detail: "vault", keywords: "all whole", run: () => nameBase("") },
+			...all.map((f) => ({ label: folderLabel(f), detail: "folder", run: () => nameBase(f) })),
+		],
+	});
+}
+
+async function nameBase(folder) {
+	const home = folder || commonFolder(visible());
+	const input = prompt("New base (folders with /):", home + (folder ? itemLabel(folder) : "Untitled") + ".base");
+	if (input == null) return;
+	const path = input.trim().replace(/^\/+/, "").replace(/(\.base)?$/i, ".base");
+	if (!isNotePath(path)) return toast("That isn't a usable name.");
+	if (taken(path)) return openNote([...notes.keys()].find((p) => p.toLowerCase() === path.toLowerCase() && !notes.get(p).deleted));
+	const text = starterBase(folder, visible().filter((n) => n.path.startsWith(folder) && /\.md$/i.test(n.path) && !n.binary).map((n) => n.text));
+	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	openNote(path);
 	scheduleSync();
 }
 
