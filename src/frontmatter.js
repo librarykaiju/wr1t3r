@@ -9,6 +9,7 @@ import { snippet } from "@codemirror/autocomplete";
 import { EditorState, StateField, StateEffect, RangeSetBuilder, Prec, Text } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType, keymap } from "@codemirror/view";
 import { linkOpener } from "./links.js";
+import { notePath } from "./vault.js";
 
 const FENCE = /^---[ \t]*$/;
 const CLOSE = /^(?:---|\.\.\.)[ \t]*$/;
@@ -413,17 +414,33 @@ const imagesShown = StateField.define({
 	},
 });
 
-// Folded or not is one setting for every note, remembered on this device.
-const FOLD_KEY = "wr1t3rPropsFolded";
-const remembered = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
-const remember = (v) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch {} };
+// The properties box starts hidden, shown as a small "Properties" button at
+// the top of the note, except in logs/ and sketchbooks/, whose properties
+// (covers, ratings, shelves) are what the notes are for. A planner page
+// (src/plannerview.js) hides it with no button at all; the planner's header
+// has one. Showing or hiding it is remembered per note until the page reloads.
+const SHOWN_FOLDERS = /(^|\/)(logs|sketchbooks)\//i;
+const PLANNER_FENCE = /(^|\n)```wr1t3r-planner[ \t]*\r?\n/;
+export const isPlannerPage = (doc) => PLANNER_FENCE.test(doc.sliceString(0, Math.min(doc.length, 20000)));
+const chosen = new Map(); // path -> hidden
+
+function startsHidden(state) {
+	const path = state.facet(notePath);
+	if (path && chosen.has(path)) return chosen.get(path);
+	return isPlannerPage(state.doc) || !SHOWN_FOLDERS.test(path || "");
+}
 
 const setFolded = StateEffect.define();
-// Whether the properties box is folded to its header line (src/pretty.js
-// leaves the cover out then).
+// Whether the properties box is hidden (src/pretty.js leaves the cover out then).
 export const propertiesFolded = (state) => !!state.field(folded, false);
+// Shows or hides the box, remembering the choice for the note.
+export function setPropertiesHidden(view, hidden) {
+	const path = view.state.facet(notePath);
+	if (path) chosen.set(path, hidden);
+	view.dispatch({ effects: setFolded.of(hidden) });
+}
 const folded = StateField.define({
-	create: () => remembered(),
+	create: startsHidden,
 	update(value, tr) {
 		for (const e of tr.effects) if (e.is(setFolded)) value = e.value;
 		// Something put the cursor inside the folded block (search, undo): open it.
@@ -461,7 +478,15 @@ class FmWidget extends WidgetType {
 		} else {
 			b.className = "md-fm-toggle";
 			b.setAttribute("aria-expanded", String(this.kind === "open"));
-			b.textContent = this.kind === "open" ? "▾ Properties" : `▸ Properties · ${this.count}`;
+			b.textContent = this.kind === "open" ? "▾ Properties" : `Properties · ${this.count}`;
+			b.title = this.kind === "open" ? "Hide the properties" : "Show the properties";
+		}
+		if (this.kind === "folded") {
+			const row = document.createElement("div");
+			row.className = "md-fm-hidden";
+			b.classList.add("md-fm-pill");
+			row.append(b);
+			return row;
 		}
 		return b;
 	}
@@ -478,8 +503,8 @@ function decorate(state) {
 	// Decoration.range() refuses.)
 	const b = new RangeSetBuilder();
 	if (state.field(folded)) {
-		b.add(open.from, open.from, Decoration.line({ class: "md-fm md-fm-fence md-first md-last" }));
-		b.add(open.from, close.to, Decoration.replace({ widget: new FmWidget("folded", propertyCount(doc, fm)), atomic: true }));
+		const planner = isPlannerPage(doc);
+		b.add(open.from, close.to, Decoration.replace({ widget: planner ? undefined : new FmWidget("folded", propertyCount(doc, fm)), block: true, atomic: true }));
 		return b.finish();
 	}
 	// The styling stays put while editing: fences are always the header and
@@ -533,9 +558,7 @@ const clicks = EditorView.domEventHandlers({
 		const t = e.target;
 		if (t.classList?.contains("md-fm-toggle")) {
 			e.preventDefault();
-			const next = !view.state.field(folded);
-			remember(next);
-			view.dispatch({ effects: setFolded.of(next) });
+			setPropertiesHidden(view, !view.state.field(folded));
 			return true;
 		}
 		if (t.classList?.contains("md-fm-images")) {

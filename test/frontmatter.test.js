@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Text, EditorState } from "@codemirror/state";
 import { deleteCharBackward, deleteGroupBackward } from "@codemirror/commands";
-import { frontmatterStyle, bodyStart, imagePropertyLines, IMAGE_KEYS, frontmatterLines, propertyEdit, propertyCount, propertyEnter, tagsIn, tagHue, tagAddEdit, tagRemoveEdit, tagName, newNoteFrontmatter, propertiesIn, valueText, yamlItem } from "../src/frontmatter.js";
+import { notePath } from "../src/vault.js";
+import { frontmatterStyle, propertiesFolded, bodyStart, imagePropertyLines, IMAGE_KEYS, frontmatterLines, propertyEdit, propertyCount, propertyEnter, tagsIn, tagHue, tagAddEdit, tagRemoveEdit, tagName, newNoteFrontmatter, propertiesIn, valueText, yamlItem } from "../src/frontmatter.js";
 
 const doc = (s) => Text.of(s.split("\n"));
 
@@ -136,5 +137,14 @@ test("the properties box draws notes with empty properties and hidden images", (
 		"---\ntitle: T\ntags:\n---\nBody",
 		"---\ncoverImage:\ngenre:\ntags:\nrating:\n---\n",
 		"---\ndate:\nbanner: x.png\ncover: y.png\ntags:\n---\nBody",
-	]) assert.doesNotThrow(() => EditorState.create({ doc, extensions: frontmatterStyle }), doc);
+	]) assert.doesNotThrow(() => EditorState.create({ doc, extensions: [frontmatterStyle, notePath.of("content/logs/books/B.md")] }), doc);
+});
+
+test("the properties box starts hidden, except in logs and sketchbooks", () => {
+	const hidden = (path, doc = "---\ntitle: T\n---\nBody") => propertiesFolded(EditorState.create({ doc, extensions: [frontmatterStyle, notePath.of(path)] }));
+	assert.equal(hidden("content/journal/Entry.md"), true);
+	assert.equal(hidden("content/_daily/2026-09-30.md"), true);
+	assert.equal(hidden("content/logs/books/Dune.md"), false);
+	assert.equal(hidden("content/sketchbooks/Summer.md"), false);
+	assert.equal(hidden("content/logs/Plan.md", "---\ntitle: T\n---\n```wr1t3r-planner\n```\n"), true);
 });

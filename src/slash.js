@@ -40,6 +40,7 @@ export const COMMANDS = [
 	{ label: "Due date", run: dueCommand, keywords: "task deadline due calendar tasks 📅" },
 	{ label: "Critical Tasks List", template: "```wr1t3r-tasks\nlist: crit\n```\n${}", keywords: "crit critical master task list planner todo" },
 	{ label: "To Do's List", template: "```wr1t3r-tasks\nlist: todo\n```\n${}", keywords: "todo to do master task list planner" },
+	{ label: "Planner", template: "```wr1t3r-planner\n```\n\n# Notes\n\n${}", keywords: "planner daily day agenda health food water meds mood tasks" },
 	{ label: "Cards", template: "```wr1t3r-cards\n```\n${}", keywords: "tiles cards pins links home grid" },
 	// Only offered with the cursor in a table.
 	{ label: "Add row below", run: addRow, keywords: "table insert", table: true },
