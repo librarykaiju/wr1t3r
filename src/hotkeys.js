@@ -5,6 +5,7 @@
 
 import { EditorSelection } from "@codemirror/state";
 import { indentMore, indentLess, deleteLine } from "@codemirror/commands";
+import { doneStampChanges } from "./tasks.js";
 
 // Wraps each selection in mark, or takes the mark off when it's already there
 // (inside the selection or just around it). With nothing selected, the cursor
@@ -53,9 +54,9 @@ export function insertLink(state) {
 
 // Obsidian's "Toggle checkbox status": a plain line or bullet becomes "- [ ] ",
 // an open box gets ticked, a ticked one is opened again.
-export function cycleCheckbox(state) {
+export function cycleCheckbox(state, date = new Date()) {
 	const seen = new Set();
-	const changes = [];
+	const changes = [], stamps = [];
 	for (const r of state.selection.ranges) {
 		for (let n = state.doc.lineAt(r.from).number, last = state.doc.lineAt(r.to).number; n <= last; n++) {
 			if (seen.has(n)) continue;
@@ -66,13 +67,16 @@ export function cycleCheckbox(state) {
 			if (m[3] !== undefined) {
 				const box = lead + m[2].length + 2; // the character inside [ ]
 				changes.push({ from: box, to: box + 1, insert: m[3] === " " ? "x" : " " });
+				stamps.push(...doneStampChanges(line.text, line.from, m[3] === " ", date));
 			} else if (m[2]) changes.push({ from: lead + m[2].length + 1, insert: "[ ] " });
 			else changes.push({ from: lead, insert: "- [ ] " });
 		}
 	}
-	// A cursor where "- [ ] " goes in ends up after it, so typing fills the task.
+	// A cursor where "- [ ] " goes in ends up after it, so typing fills the task;
+	// one where a "✅ date" goes in stays before it.
 	const set = state.changes(changes);
-	return { changes: set, selection: state.selection.map(set, 1) };
+	const stamp = state.changes(stamps).map(set);
+	return { changes: set.compose(stamp), selection: state.selection.map(set, 1).map(stamp, -1) };
 }
 
 const edit = (fn) => (view) => {

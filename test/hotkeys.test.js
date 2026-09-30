@@ -31,20 +31,22 @@ test("Ctrl+K makes a markdown link", () => {
 });
 
 test("Ctrl+Enter cycles a checkbox like Obsidian", () => {
-	const cyc = (doc) => apply(at(doc), cycleCheckbox(at(doc))).sliceDoc();
+	const day = new Date(2026, 8, 30, 14, 5);
+	const cyc = (doc) => apply(at(doc), cycleCheckbox(at(doc), day)).sliceDoc();
 	assert.equal(cyc("buy milk|"), "- [ ] buy milk");
 	assert.equal(cyc("- buy milk|"), "- [ ] buy milk");
-	assert.equal(cyc("- [ ] buy milk|"), "- [x] buy milk");
-	assert.equal(cyc("- [x] buy milk|"), "- [ ] buy milk");
+	assert.equal(cyc("- [ ] buy milk|"), "- [x] buy milk ✅ 2026-09-30");
+	assert.equal(cyc("- [x] buy milk ✅ 2026-09-30|"), "- [ ] buy milk");
 	assert.equal(cyc("\t1. step|"), "\t1. [ ] step");
-	assert.equal(cyc("> - [ ] quoted|"), "> - [x] quoted");
+	assert.equal(cyc("> - [ ] quoted|"), "> - [x] quoted ✅ 2026-09-30");
 	assert.equal(cyc("|"), "- [ ] ");
-	// The cursor lands after the new box, so typing goes into the task.
-	const after = (doc) => show(apply(at(doc), cycleCheckbox(at(doc))));
+	// The cursor lands after the new box, so typing goes into the task, and
+	// stays before a new done date.
+	const after = (doc) => show(apply(at(doc), cycleCheckbox(at(doc), day)));
 	assert.equal(after("|"), "- [ ] |");
 	assert.equal(after("|buy milk"), "- [ ] |buy milk");
 	assert.equal(after("- |buy"), "- [ ] |buy");
-	assert.equal(after("- [ ] buy|"), "- [x] buy|");
+	assert.equal(after("- [ ] buy|"), "- [x] buy| ✅ 2026-09-30");
 });
 
 test("Ctrl/Cmd+D deletes the line; Ctrl+Enter works on a Mac too", () => {

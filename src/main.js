@@ -50,6 +50,7 @@ import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { attachmentKind } from "./attachments.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
+import { setDoneDates } from "./tasks.js";
 import { setPictureHost } from "./paste.js";
 import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
 import { setupToolbar } from "./toolbar.js";
@@ -2264,6 +2265,7 @@ const ON_OFF = {
 	spell: { key: "wr1t3rSpell", apply: (on) => setSpellcheck(activeView(), on) },
 	smart: { key: "wr1t3rSmart", apply: (on) => setSmartPunctuation(on) },
 	toolbar: { key: "wr1t3rToolbar", apply: (on) => $("app").classList.toggle("no-toolbar", !on) },
+	done: { key: "wr1t3rDoneDates", apply: (on) => setDoneDates(on) },
 };
 const settingOn = (name) => readRaw(ON_OFF[name].key) !== "off";
 function applySetting(name, on) {
@@ -2274,7 +2276,7 @@ function toggleSetting(name) {
 	const on = !settingOn(name);
 	storeRaw(ON_OFF[name].key, on ? null : "off");
 	applySetting(name, on);
-	toast(`${{ spell: "Spellcheck", smart: "Smart punctuation", toolbar: "Formatting toolbar" }[name]} ${on ? "on" : "off"}`, 2000);
+	toast(`${{ spell: "Spellcheck", smart: "Smart punctuation", toolbar: "Formatting toolbar", done: "Task done dates" }[name]} ${on ? "on" : "off"}`, 2000);
 }
 
 function openSettings(on) {
