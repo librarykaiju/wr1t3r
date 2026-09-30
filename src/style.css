@@ -185,6 +185,8 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 #tree .hint { color: var(--muted); padding: 6px; }
 #tree a .snippet { display: block; margin-top: 1px; color: var(--muted); font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; }
 #tree a .snippet mark { background: var(--sel); color: inherit; border-radius: 2px; }
+#tree a.archived { color: var(--muted); }
+#tree a .archived-badge { margin-right: 6px; padding: 0 5px; border: 1px solid var(--line); border-radius: 6px; font-size: 0.75em; vertical-align: 1px; }
 
 main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 header {

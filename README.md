@@ -41,6 +41,8 @@ A line holding just `![[Note]]` shows that note in a box, as Obsidian does (`src
 
 **Templates** (`src/templates.js`): **New note from template** and **Insert template** (both in the command palette) list everything in `_templates/`. A new note is named first; inserting puts the template's text at the cursor and adds only the properties the note doesn't have yet. Templater tags (dates, the title) and Obsidian's core `{{title}}`, `{{date}}`, `{{time}}` and `{{date:FORMAT}}` are filled in without running anything; plugin fields like `{{LIST:director}}` come out empty.
 
+**Archived notes:** a note with `archived: true` in its properties, or `status: archived`, is left out of the notes list. Search still finds it (marked *archived*), and searching `archive` on its own lists every archived note first. **Archive this note** in the command palette adds `archived: true` (leaving `status` alone); **Unarchive this note** takes that line off, or empties a `status: archived`.
+
 **Bookmarks and tags:** the ☆ in a note's tab bookmarks it; bookmarked notes are listed at the top of the sidebar (on this device). Below them, **Tags** lists every tag with how many notes have it; click one to see them.
 
 **Tabs:** every note opened from the sidebar (or New, Today, a search) gets a tab across the top; following a link opens it in the current tab, as Obsidian does. Close a tab with × (or a middle-click). Open tabs are remembered on the device. On a phone only the current tab shows, and the number beside it lists the others.

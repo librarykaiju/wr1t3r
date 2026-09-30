@@ -67,3 +67,44 @@ export function snippet(text, terms, width = 90) {
 		after: text.slice(at + len, to).replace(/\s+$/, "") + (to < end ? "…" : ""),
 	};
 }
+
+// Archived notes are left out of the notes list but still found by search.
+// A note is archived when its frontmatter says `archived: true` or has
+// `archived` as its `status` (scalar, [flow] list or "- item" list).
+const FRONTMATTER = /^﻿?---[ \t]*\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
+const bare = (s) => s.replace(/\s+#.*$/, "").trim().replace(/^["']|["']$/g, "").trim().toLowerCase();
+export function isArchived(text) {
+	const fm = text?.match(FRONTMATTER)?.[1];
+	if (!fm || !/archived/i.test(fm)) return false;
+	const lines = fm.split(/\r?\n/);
+	for (let i = 0; i < lines.length; i++) {
+		const m = lines[i].match(/^(archived|status)[ \t]*:(.*)$/i);
+		if (!m) continue;
+		const key = m[1].toLowerCase(), value = m[2].trim();
+		if (key === "archived") { if (/^(true|yes)$/.test(bare(value))) return true; continue; }
+		const items = value.startsWith("[") ? value.replace(/^\[|\].*$/g, "").split(",") : value ? [value] : [];
+		for (let j = i + 1; !value && j < lines.length && /^\s*-\s|^\s*$/.test(lines[j]); j++) items.push(lines[j].replace(/^\s*-\s*/, ""));
+		if (items.some((x) => bare(x) === "archived")) return true;
+	}
+	return false;
+}
+
+// "archive" or "archived" alone as the search lists every archived note.
+export const asksForArchive = (terms) => terms.length === 1 && !terms[0].not && terms[0].kind === "word" && /^archived?$/.test(terms[0].value);
+
+// The note's text archived (`archived: true` added, status left alone) or not
+// (an `archived:` line dropped, and a `status: archived` emptied). setProperty
+// is src/bases.js's, passed in so this file stays free of it.
+export function archiveText(text, on, setProperty) {
+	if (on) return isArchived(text) ? text : setProperty(text, "archived", true);
+	let out = text;
+	const m = text.match(FRONTMATTER);
+	if (m) {
+		const start = m.index + m[0].indexOf(m[1]);
+		const lines = m[1].split(/(?<=\n)/);
+		const kept = lines.filter((l) => !/^archived[ \t]*:/i.test(l));
+		if (!kept.length) out = setProperty(text, "archived", null);
+		else if (kept.length < lines.length) out = text.slice(0, start) + kept.join("").replace(/\r?\n$/, "") + text.slice(start + m[1].length);
+	}
+	return isArchived(out) ? setProperty(out, "status", null) : out;
+}

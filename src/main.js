@@ -10,7 +10,7 @@ import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags } from "./frontmatter.js";
 import { vaultChanged } from "./vault.js";
 import { setLivePreview } from "./livepreview.js";
-import { parseQuery, matches, snippet } from "./search.js";
+import { parseQuery, matches, snippet, isArchived, asksForArchive, archiveText } from "./search.js";
 import { openPalette } from "./palette.js";
 import { starterBase } from "./baseconfig.js";
 import { EDIT_ACTIONS, DEFAULT_KEYS, keyName, showKey, usableKey, bindings, rebind, macAlias } from "./hotkeys.js";
@@ -222,6 +222,26 @@ function vaultTouched() {
 	folderTouched();
 }
 
+// Whether a note is archived (src/search.js), worked out again only when its text changes.
+const archivedCache = new Map();
+function archivedNote(n) {
+	if (n.binary || !n.text) return false;
+	const hit = archivedCache.get(n.path);
+	if (hit && hit.text === n.text) return hit.on;
+	const on = isArchived(n.text);
+	archivedCache.set(n.path, { text: n.text, on });
+	return on;
+}
+
+// Archives the open note, or brings it back.
+function toggleArchive() {
+	const note = notes.get(editor.path);
+	if (!note || note.binary) return;
+	const on = !archivedNote({ ...note, text: editor.view.state.doc.toString() });
+	dataviewVault.write(editor.path, (text) => archiveText(text, on, setProperty));
+	toast(on ? "Archived: it's out of the notes list, but search still finds it (search \"archive\" for all of them)" : "Back in the notes list", 3000);
+}
+
 function renderTree() {
 	vaultTouched();
 	renderHome();
@@ -233,11 +253,20 @@ function renderTree() {
 	const list = visible().filter((n) => !isAppFile(n.path));
 	if (q) {
 		// Words, "phrases", path:, file:, tag:/#tag and -word (src/search.js).
+		// Archived notes are found too; "archive" alone lists them all first.
 		const terms = parseQuery(q);
-		const hits = list.filter((n) => matches(n.binary ? { path: n.path, text: "" } : n, terms, noteTags));
+		let hits = list.filter((n) => matches(n.binary ? { path: n.path, text: "" } : n, terms, noteTags));
+		if (asksForArchive(terms)) {
+			const archived = list.filter(archivedNote);
+			hits = [...archived, ...hits.filter((n) => !archivedNote(n))];
+		}
 		const base = commonFolder(list);
 		for (const n of hits.slice(0, 300)) {
 			const a = link(n, (n.path.startsWith(base) ? n.path.slice(base.length) : n.path).replace(/\.md$/i, ""));
+			if (archivedNote(n)) {
+				a.classList.add("archived");
+				a.prepend(Object.assign(document.createElement("span"), { className: "archived-badge", textContent: "archived" }));
+			}
 			const s = n.binary ? null : snippet(n.text, terms);
 			if (s) {
 				a.classList.add("hit");
@@ -259,9 +288,10 @@ function renderTree() {
 	}
 	drawBookmarks(tree);
 	drawTags(tree, list);
-	// Folders first, then notes, like Obsidian.
+	// Folders first, then notes, like Obsidian. Archived notes aren't listed.
 	const root = { folders: new Map(), notes: [] };
 	for (const n of list) {
+		if (archivedNote(n)) continue;
 		const parts = n.path.split("/");
 		let node = root;
 		for (const dir of parts.slice(0, -1)) {
@@ -1500,6 +1530,7 @@ function allCommands() {
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
 		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
+		[editor.path && archivedNote({ path: editor.path, text: view.state.doc.toString() }) ? "Unarchive this note" : "Archive this note", toggleArchive, "archive hide remove from list restore unarchive", true],
 		["Go home", goHome, "home start pinned tiles grid"],
 		["Pin this note to Home", () => pinItem(editor.path), "pin home tile", true],
 		["Add a tile to Home", addTile, "pin home tile folder command link"],
