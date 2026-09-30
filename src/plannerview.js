@@ -7,7 +7,7 @@
 import { StateField, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
-import { dataviewBlocks } from "./dataview.js";
+import { dataviewBlocks, blockBodyChange } from "./dataview.js";
 import {
 	PLANNER, readPlanner, writePlanner, setEntryColor, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
 	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
@@ -33,6 +33,9 @@ const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 let host = null;
 export const setPlannerHost = (h) => { host = h; };
 
+// The health note writes waiting their turn (see health$).
+let healthWrites = Promise.resolve();
+
 // The Nutrition Database's foods, read again only when its text changes.
 let foodCache = { text: null, foods: [] };
 function nutrition(state, cfg) {
@@ -50,7 +53,7 @@ function saveBlock(view, n, cfg) {
 	const b = dataviewBlocks(view.state, PLANNER)[n];
 	if (!b || view.state.readOnly) return;
 	const text = writePlanner(cfg);
-	view.dispatch({ changes: { from: b.codeFrom, to: b.codeTo, insert: b.code || !text ? text : text + "\n" }, userEvent: "input.planner" });
+	view.dispatch({ changes: blockBodyChange(view.state, b, text), userEvent: "input.planner" });
 }
 
 // Adds calendar events to the note's (first) planner Timeline, skipping ones
@@ -164,7 +167,7 @@ class PlannerWidget extends WidgetType {
 		}, { pct: (h.waterOz / cfg.water_target) * 100 });
 		if (!off) onMenu(water, (x, y) => menu([
 			[`Add ${cfg.water_step} oz`, () => this.health$(view, (t) => addUnder(t, WATER.heading, String(cfg.water_step), { parent: WATER.parent }))],
-			...(h.water.length ? [["Remove the last one", () => { const w = h.water.at(-1); this.health$(view, (t) => removeLine(t, w.line, w.text)); }]] : []),
+			...(h.water.length ? [["Remove the last one", () => this.health$(view, (t) => { const w = healthDay(t, []).water.at(-1); return w ? removeLine(t, w.line, w.text) : t; })]] : []),
 			null,
 			["Open the health note", () => host.open(healthPathFor(this.path))],
 		], x, y));
@@ -179,19 +182,24 @@ class PlannerWidget extends WidgetType {
 	}
 
 	// Writes to the day's health note (made first if needed), then copies its
-	// totals into its properties.
-	async health$(view, fn) {
-		if (!host || !this.day) return;
+	// totals into its properties. Writes run one at a time, in order, so quick
+	// clicks can't both make the note or write over each other.
+	health$(view, fn) {
+		if (!host || !this.day) return Promise.resolve();
 		const vault = view.state.facet(vaultHost);
-		try {
-			const path = await host.healthNote(this.path);
-			if (!path) return;
-			const { foods } = nutrition(view.state, this.cfg);
-			await vault.write(path, (t) => syncHealth(fn(t), foods, this.cfg));
-			redrawPanel(this.panelKey);
-		} catch (e) {
-			host.toast?.("Couldn't write to the health note: " + (e?.message || e));
-		}
+		const run = async () => {
+			try {
+				const path = await host.healthNote(this.path);
+				if (!path) return;
+				const { foods } = nutrition(view.state, this.cfg);
+				await vault.write(path, (t) => syncHealth(fn(t), foods, this.cfg));
+				redrawPanel(this.panelKey);
+			} catch (e) {
+				host.toast?.("Couldn't write to the health note: " + (e?.message || e));
+			}
+		};
+		healthWrites = healthWrites.then(run, run);
+		return healthWrites;
 	}
 
 	get panelKey() { return "planner:" + this.path; }
@@ -238,11 +246,15 @@ class PlannerWidget extends WidgetType {
 			};
 			const usdaSearch = async () => {
 				const q = st.q.trim();
-				st.usda = { q, loading: true, results: [] };
+				const asked = st.usda = { q, loading: true, results: [] };
 				redrawPanel(this.panelKey);
-				try { st.usda = { q, results: await host.usda(q) }; }
-				catch (e) { st.usda = { q, results: [], error: e?.message || String(e) }; }
-				if (st.usda?.q === q) redrawPanel(this.panelKey);
+				let done;
+				try { done = { q, results: await host.usda(q) }; }
+				catch (e) { done = { q, results: [], error: e?.message || String(e) }; }
+				// Only if the search is still the one on screen (not typed over or backed out of).
+				if (st.usda !== asked) return;
+				st.usda = done;
+				redrawPanel(this.panelKey);
 			};
 			const addAndLog = async (f) => {
 				const vault = view.state.facet(vaultHost);

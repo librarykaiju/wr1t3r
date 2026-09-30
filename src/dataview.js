@@ -56,6 +56,15 @@ export function dataviewBlocks(state, lang = "dataviewjs") {
 	return out;
 }
 
+// The change that makes a fenced block's body `text`: everything between its
+// opening and closing fence lines, so an empty body (or one left as a blank
+// line) gets the text on lines of its own, never glued onto a fence.
+export function blockBodyChange(state, block, text) {
+	const from = Math.min(state.doc.lineAt(block.from).to + 1, state.doc.lineAt(block.to).from);
+	const to = state.doc.lineAt(block.to).from;
+	return { from, to, insert: text ? text.replace(/\n+$/, "") + state.lineBreak : "" };
+}
+
 // Theme colors for the sandbox, under the names Obsidian scripts use.
 function theme() {
 	const cs = getComputedStyle(document.documentElement);

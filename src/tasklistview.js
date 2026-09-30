@@ -6,7 +6,7 @@
 import { StateField, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
-import { dataviewBlocks, tick } from "./dataview.js";
+import { dataviewBlocks, tick, blockBodyChange } from "./dataview.js";
 import { TASKS_BLOCK, readConfig, writeConfig, taskList, shownText, newTaskLine, appendTask, listName, noteDay } from "./tasklists.js";
 import { setDueChanges, isoDay } from "./tasks.js";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
@@ -30,7 +30,7 @@ function saveConfig(view, n, cfg) {
 	const b = dataviewBlocks(view.state, TASKS_BLOCK)[n];
 	if (!b || view.state.readOnly) return;
 	const text = writeConfig(cfg);
-	view.dispatch({ changes: { from: b.codeFrom, to: b.codeTo, insert: b.code ? text : text + "\n" }, userEvent: "input.tasks" });
+	view.dispatch({ changes: blockBodyChange(view.state, b, text), userEvent: "input.tasks" });
 }
 
 // Where a list's new tasks go: the block's inbox: note, else the list's own

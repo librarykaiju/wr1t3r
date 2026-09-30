@@ -3538,7 +3538,8 @@ async function start() {
 		e.preventDefault();
 		const path = decodeURIComponent(a.hash.slice(1));
 		// A note found by opening folders: they fold back up behind it.
-		if (a.closest("details")) {
+		// (Bookmarks and tags are sections, not folders.)
+		if (a.closest("details:not(.side-section)")) {
 			openFolders = new Set([...openFolders].filter((f) => !path.startsWith(f)));
 			writeJSON(OPEN_KEY, [...openFolders]);
 		}
