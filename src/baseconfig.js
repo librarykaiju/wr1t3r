@@ -346,3 +346,24 @@ export function laneKeys(row, prop) {
 	if (Array.isArray(v)) return v.length ? [...new Set(v.map(show))] : [""];
 	return [v == null ? "" : show(v)];
 }
+
+// ---- New bases --------------------------------------------------------------
+
+// What "New base" writes: a Grid over the notes in folder (every note when
+// folder is empty), as Obsidian lays out a .base. texts, the notes' text,
+// pick its columns: the file name, then the properties most of them have.
+export function starterBase(folder = "", texts = []) {
+	const f = folder.replace(/^\/+|\/+$/g, "");
+	const count = new Map();
+	for (const t of texts) {
+		const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(t || "");
+		if (!fm) continue;
+		for (const m of fm[1].matchAll(/^([A-Za-z_][\w -]*?):/gm)) count.set(m[1], (count.get(m[1]) || 0) + 1);
+	}
+	count.delete("title");
+	const props = [...count].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k]) => k);
+	return writeYaml({
+		...(f ? { filters: writeSource({ folders: [f], tags: [], rest: [], mode: "and" }) } : {}),
+		views: [{ type: "table", name: "Grid", ...(props.length ? { order: ["file.name", ...props] } : {}) }],
+	});
+}

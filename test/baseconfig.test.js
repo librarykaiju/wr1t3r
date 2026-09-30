@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseYaml, readBase, runView, parseExpr } from "../src/bases.js";
-import { writeYaml, readFilters, writeFilters, rowExpr, parseRow, readSource, writeSource, prefill, moveValue, lanesFor, laneKeys, propRef, propType, freshName } from "../src/baseconfig.js";
+import { writeYaml, readFilters, writeFilters, rowExpr, parseRow, readSource, writeSource, prefill, moveValue, lanesFor, laneKeys, propRef, propType, freshName, starterBase } from "../src/baseconfig.js";
 
 const BOOKS = `views:
   - type: table
@@ -131,4 +131,14 @@ test("binder order sorts by each folder's corkboard", () => {
 	const base = readBase("views:\n  - type: table\n    name: T\n    wr1t3r:\n      sort: binder\n");
 	const rank = { "content/n/C.md": 0, "content/n/A.md": 1, "content/n/B.md": 2 };
 	assert.deepEqual(runView(base, 0, files, { rank: (p) => rank[p] }).rows.map((x) => x.path), ["content/n/C.md", "content/n/A.md", "content/n/B.md"]);
+});
+
+test("starterBase is a Grid over one folder, or every note", () => {
+	const text = starterBase("content/logs/books/");
+	assert.equal(text, 'filters:\n  and:\n    - file.inFolder("content/logs/books")\nviews:\n  - type: table\n    name: Grid\n');
+	const base = readBase(text);
+	assert.equal(starterBase(""), "views:\n  - type: table\n    name: Grid\n");
+	const notes = ["---\ntitle: A\nauthor: X\npages: 3\n---\nhi", "---\ntitle: B\npages: 4\nmy rating: 5\n---\n", "no properties"];
+	assert.equal(starterBase("content/books", notes), 'filters:\n  and:\n    - file.inFolder("content/books")\nviews:\n  - type: table\n    name: Grid\n    order:\n      - file.name\n      - pages\n      - author\n      - my rating\n');
+	assert.ok(base.views.length === 1);
 });
