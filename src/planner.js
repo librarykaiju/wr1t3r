@@ -160,6 +160,15 @@ export function setEntry(timeline, i, text, hour) {
 	return sortTimeline(list);
 }
 
+// The timeline with entry i's color set (null takes it off).
+export function setEntryColor(timeline, i, color) {
+	const list = [...timeline];
+	if (list[i] == null) return list;
+	const c = color && /^#[0-9a-f]{3,8}$/i.test(color) ? color.toLowerCase() : null;
+	list[i] = entryLine({ ...parseEntry(list[i]), color: c });
+	return list;
+}
+
 export function sortTimeline(list) {
 	const key = (s) => { const e = parseEntry(s); return e.allDay ? -1 : e.start ?? 1e9; };
 	return list.map((s, n) => ({ s, n })).sort((a, b) => key(a.s) - key(b.s) || a.n - b.n).map((x) => x.s);

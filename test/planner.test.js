@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
 	readPlanner, writePlanner, parseEntry, timelineRows, setEntry, addEvents, hourLabel, healthPathFor,
 	addUnder, itemsUnder, removeLine, parseNutrition, findFood, searchFoods, waterOz, moodEntry, moodLine,
-	healthDay, syncHealth, toggleMeds, mealAt, MEALS, addFoodRow, foodEntry, EXERCISE, exerciseEntry, exerciseLine, moodChoice,
+	healthDay, syncHealth, toggleMeds, mealAt, MEALS, addFoodRow, foodEntry, setEntryColor, EXERCISE, exerciseEntry, exerciseLine, moodChoice,
 } from "../src/planner.js";
 
 const DB = `# Nutrition Database
@@ -240,4 +240,12 @@ test("timeline entries keep their calendar color", () => {
 	// Editing an entry's text keeps its color; the round trip through the block keeps it too.
 	assert.equal(setEntry(r.timeline, 1, "Dentist (cleaning)", 10)[1], "10:30 - 11:15 | Dentist (cleaning) {#039be5}");
 	assert.deepEqual(readPlanner(writePlanner({ ...readPlanner(""), timeline: r.timeline })).timeline, r.timeline);
+});
+
+test("an entry's color can be picked or taken off", () => {
+	const t = ["09:00 - 10:00 | Standup", "13:00 - 14:00 | Write {#039be5}"];
+	assert.deepEqual(setEntryColor(t, 0, "#D50000"), ["09:00 - 10:00 | Standup {#d50000}", "13:00 - 14:00 | Write {#039be5}"]);
+	assert.deepEqual(setEntryColor(t, 1, null), ["09:00 - 10:00 | Standup", "13:00 - 14:00 | Write"]);
+	assert.deepEqual(setEntryColor(t, 0, "red"), t);
+	assert.deepEqual(setEntryColor(t, 5, "#d50000"), t);
 });

@@ -1155,6 +1155,8 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .item-menu .swatch.auto { background: conic-gradient(var(--f1), var(--f2), var(--f3), var(--f4), var(--f5), var(--f6), var(--f7), var(--f1)); }
 .item-menu .swatch[aria-pressed=true] { border-color: var(--fg); box-shadow: inset 0 0 0 2px var(--card); }
 .item-menu .swatch:hover { background: var(--sw); transform: scale(1.08); }
+.item-menu .swatch.none { background: color-mix(in srgb, var(--accent) 18%, var(--card)); border-color: var(--accent); }
+.item-menu .swatch.none[aria-pressed=true] { border-color: var(--fg); }
 .item-menu .swatch.auto:hover { background: conic-gradient(var(--f1), var(--f2), var(--f3), var(--f4), var(--f5), var(--f6), var(--f7), var(--f1)); }
 #tree summary.flash { outline: 2px solid var(--accent); outline-offset: -2px; }
 
