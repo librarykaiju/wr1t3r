@@ -7,7 +7,8 @@
 //     - link: "[[Reading log]]"          a note or a .base
 //       color: 3                         1-7: the theme's rainbow (--f1..--f7), or "#hex"
 //       cover: "[[covers/reading.jpg]]"  any image Pretty Properties takes, or "none"
-//     - link: "folder:content/_daily"    a folder: opens it in the sidebar
+//     - link: "folder:content/_daily"    a folder: opens it as a corkboard
+//     - link: "outliner:content/Novel"   a folder as an outline (or scrivenings:, corkboard:)
 //     - link: "command:Open today's daily note"   a palette command
 //     - link: "https://example.com"      a web page
 //       title: Example                   the tile's name, for any kind
@@ -25,6 +26,10 @@ import { prettyOf, imageRef } from "./pretty.js";
 export const HOME_FOLDER = "_wr1t3r/";
 export const HOME_NAME = "Home.md";
 export const HOME_BODY = "Pinned tiles for wr1t3r's Home screen, in order. Pin and change them from Home, or edit the list above.\n";
+
+// Whether path is one of wr1t3r's own files (the Home note's _wr1t3r/ folder),
+// which the notes list leaves out. They still sync like any note.
+export const isAppFile = (path) => /(^|\/)_wr1t3r\//i.test(path);
 
 // Where the Home note is: an existing _wr1t3r/Home.md anywhere, else one in
 // the notes' folder (root: "content/" or "").
@@ -196,7 +201,8 @@ export function retargetPins(pins, moved, oldPaths, newPaths, homeFile, folderFr
 // Whether a pin opens path (a note), folder, or a folder's view.
 export function pinOpens(pin, { path = null, folder = null, view = null }, paths, homeFile) {
 	const k = pinKind(pin.link);
-	if (view) return k.kind === "view" && k.view === view && k.folder.toLowerCase() === folder.toLowerCase();
+	// A folder: pin opens the corkboard, so it counts as the corkboard's pin too.
+	if (view) return (k.kind === "view" ? k.view === view : k.kind === "folder" && view === "corkboard") && k.folder.toLowerCase() === folder.toLowerCase();
 	if (folder) return k.kind === "folder" && k.folder.toLowerCase() === folder.toLowerCase();
 	return k.kind === "note" && pinPath(pin, paths, homeFile) === path;
 }

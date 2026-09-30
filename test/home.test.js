@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { homePath, readPins, writePins, pinKind, pinPath, linkFor, pinTitle, pinColor, pinCover, retargetPins, pinOpens, folderLink } from "../src/home.js";
+import { homePath, readPins, writePins, pinKind, pinPath, linkFor, pinTitle, pinColor, pinCover, retargetPins, pinOpens, folderLink, isAppFile } from "../src/home.js";
 
 const HOME = "content/_wr1t3r/Home.md";
 const paths = ["content/Reading log.md", "content/_docs/Books.base", "content/a/Idea.md", "content/b/Idea.md", HOME];
@@ -120,4 +120,14 @@ test("a folder's corkboard, outliner or scrivenings can be pinned, and follows t
 	assert.ok(pinOpens(pin, { folder: "content/novel/", view: "corkboard" }, [], HOME));
 	assert.ok(!pinOpens(pin, { folder: "content/Novel/", view: "outliner" }, [], HOME));
 	assert.deepEqual(retargetPins([pin], new Map(), [], [], HOME, "content/Novel/", "content/Books/Novel/"), [{ link: "corkboard:content/Books/Novel" }]);
+});
+
+test("a folder: pin counts as the folder's corkboard pin; wr1t3r's own files are app files", () => {
+	const pin = { link: "folder:content/Novel" };
+	assert.ok(pinOpens(pin, { folder: "content/novel/", view: "corkboard" }, [], HOME));
+	assert.ok(!pinOpens(pin, { folder: "content/Novel/", view: "outliner" }, [], HOME));
+	assert.ok(isAppFile("content/_wr1t3r/Home.md"));
+	assert.ok(isAppFile("_wr1t3r/Home.md"));
+	assert.ok(!isAppFile("content/my_wr1t3r/Home.md"));
+	assert.ok(!isAppFile("content/Home.md"));
 });
