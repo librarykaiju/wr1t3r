@@ -50,6 +50,7 @@ import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { setCardsHost } from "./cardsblock.js";
 import { setPlannerHost, importEvents } from "./plannerview.js";
+import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
 import { healthPathFor, MEALS, WATER, MOOD } from "./planner.js";
 import { attachmentKind } from "./attachments.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
@@ -1579,9 +1580,14 @@ function templateItems(run) {
 	return vaultTemplates().map((t) => ({ label: t.name, detail: "template", run: () => run(t) }));
 }
 
-// A new note from any template, named first (in the current note's folder).
+// A new note from any template, named first: in its kind's folder for the
+// templates src/newnotes.js knows (Journal, the logs...), else the current note's.
 function newFromTemplate() {
-	const items = templateItems((t) => newNote(currentFolder() + "Untitled.md", (path) => renderFor(t.path, name(path))));
+	const items = templateItems((t) => {
+		const kind = kindForTemplate(t.path);
+		if (kind) return newKindNote(kind);
+		newNote(currentFolder() + "Untitled.md", (path) => renderFor(t.path, name(path)));
+	});
 	if (!items.length) return toast("There's no _templates folder in the vault.");
 	openPalette({ placeholder: "New note from template…", items });
 }
@@ -1638,6 +1644,7 @@ function allCommands() {
 		["Run a command", commandPalette, "palette"],
 		["New note", () => newNote(), "create"],
 		["New note from template", newFromTemplate, "templater"],
+		...NEW_NOTE_KINDS.map((k) => [k.label, () => newKindNote(k), `create template ${k.template.toLowerCase()} ${k.keywords}`]),
 		["New base", () => newBase(), "create database table grid gallery kanban view bases"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
@@ -1971,6 +1978,24 @@ async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = 
 	openNote(path);
 	// Focus goes back to the New button once the name prompt closes; take it
 	// back so typing lands in the note (a space would press New again).
+	requestAnimationFrame(() => editor.view.focus());
+	scheduleSync();
+}
+
+// A note of one kind (src/newnotes.js): asks for its title, fills in the kind's
+// template the way Templater would, and saves it in the kind's folder (numbered
+// if the name's taken). The sidebar's folders are left as they are.
+async function newKindNote(kind) {
+	const paths = visible().map((n) => n.path);
+	const tmpl = findTemplate(paths, `_templates/${kind.template}.md`);
+	if (!tmpl) return toast(`There's no _templates/${kind.template}.md in the vault.`);
+	const title = prompt(`${kind.label.replace(/^New /, "")}: title`)?.trim();
+	if (!title) return;
+	const folder = kindFolder(kind, tmpl.root, mediaKinds);
+	const path = freeNotePath(folder, noteFileName(title), paths);
+	const text = renderTemplate(notes.get(tmpl.path).text, { title: title.replaceAll('"', "'"), date: new Date() }).text;
+	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	openNote(path);
 	requestAnimationFrame(() => editor.view.focus());
 	scheduleSync();
 }
