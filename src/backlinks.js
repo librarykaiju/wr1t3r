@@ -82,6 +82,19 @@ function deco(state, v) {
 	return b.finish();
 }
 
+// Whether an edit could change what the note links to: only when a line it
+// touches, before or after, has link or code syntax. Plain typing skips
+// rescanning the whole note, which lagged long notes.
+const LINKISH = /[[\]()`~]/;
+function touchesLinks(tr) {
+	let hit = false;
+	const lines = (doc, from, to) => doc.sliceString(doc.lineAt(from).from, doc.lineAt(to).to);
+	tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+		if (!hit && (LINKISH.test(lines(tr.startState.doc, fromA, toA)) || LINKISH.test(lines(tr.state.doc, fromB, toB)))) hit = true;
+	});
+	return hit;
+}
+
 const make = (state, side, to) => { const v = { ...side, to }; return { v, deco: deco(state, v) }; };
 
 export const backlinks = StateField.define({
@@ -89,6 +102,7 @@ export const backlinks = StateField.define({
 	update(cur, tr) {
 		const vault = tr.effects.some((e) => e.is(vaultChanged));
 		if (!vault && !tr.docChanged) return cur;
+		if (!vault && !touchesLinks(tr)) return { v: cur.v, deco: cur.deco.map(tr.changes) };
 		const to = outgoing(tr.state);
 		const side = vault ? vaultSide(tr.state) : cur.v;
 		if (!vault && JSON.stringify(to) === JSON.stringify(cur.v.to)) return { v: cur.v, deco: cur.deco.map(tr.changes) };

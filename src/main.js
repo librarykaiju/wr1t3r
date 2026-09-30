@@ -55,7 +55,26 @@ import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js
 import { setupToolbar } from "./toolbar.js";
 
 const $ = (id) => document.getElementById(id);
-const notes = new Map(); // path -> note, mirrors IndexedDB
+// path -> note, mirrors IndexedDB. version changes when a note arrives, goes,
+// or is marked deleted or binary, not on every keystroke's save, so visible()
+// can keep its sorted list between those.
+class NoteMap extends Map {
+	version = 0;
+	set(path, note) {
+		const cur = super.get(path);
+		if (!cur || !cur.deleted !== !note?.deleted || !cur.binary !== !note?.binary) this.version++;
+		return super.set(path, note);
+	}
+	delete(path) {
+		if (super.has(path)) this.version++;
+		return super.delete(path);
+	}
+	clear() {
+		this.version++;
+		super.clear();
+	}
+}
+const notes = new NoteMap();
 let editor;
 
 // ---- storage: one write chain so saves land in order ----------------------
@@ -151,9 +170,28 @@ function writeJSON(key, value) {
 
 const name = (path) => path.split("/").pop().replace(/\.md$/i, "");
 
+// One collator: localeCompare with options builds a new one on every call,
+// which made sorting a big vault slow enough to lag typing.
+const byPath = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+let order = { version: -1, paths: [] };
+
 function visible() {
-	return [...notes.values()].filter((n) => !n.deleted).sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: "base" }));
+	if (order.version !== notes.version) {
+		const paths = [...notes.values()].filter((n) => !n.deleted).map((n) => n.path).sort(byPath.compare);
+		order = { version: notes.version, paths };
+	}
+	return order.paths.map((p) => notes.get(p));
 }
+
+// The same array until the vault changes, so src/links.js can index it once.
+function cachedPaths(key, pick) {
+	const hit = pathLists.get(key);
+	if (hit && hit.version === notes.version) return hit.paths;
+	const paths = visible().filter(pick).map((n) => n.path);
+	pathLists.set(key, { version: notes.version, paths });
+	return paths;
+}
+const pathLists = new Map();
 
 function link(note, label) {
 	const a = document.createElement("a");
@@ -3133,8 +3171,8 @@ function diffChange(a, b) {
 // What dataviewjs blocks (src/dataview.js) may read: notes on this device, and
 // public web pages through the Worker, as the clipper fetches them.
 const dataviewVault = {
-	paths: () => visible().filter((n) => !n.binary && !/\.base$/i.test(n.path)).map((n) => n.path),
-	files: () => visible().filter((n) => !n.binary).map((n) => n.path),
+	paths: () => cachedPaths("notes", (n) => !n.binary && !/\.base$/i.test(n.path)),
+	files: () => cachedPaths("files", (n) => !n.binary),
 	// A base changing a note's property: the open note through the editor (so
 	// it can be undone there), others saved and synced like any edit.
 	async write(path, fn) {
