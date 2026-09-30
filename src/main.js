@@ -337,14 +337,14 @@ function renderTree() {
 	const folderColor = new Map([...top.folders.keys(), ...(top === root ? [] : root.folders.keys())].map((dir, k) => [dir, `var(--f${(k % 7) + 1})`]));
 	drawBookmarks(tree, (p) => (p.startsWith(base) && p.slice(base.length).includes("/") ? folderColor.get(p.slice(base.length).split("/")[0]) : null));
 	drawTags(tree, list);
-	const current = editor.path || (folderTab ? folderTab.slice(FOLDER_TAB.length) : "");
 	const paths = list.map((n) => n.path);
 	const drawFolder = (into, dir, child, prefix, depth) => {
 		const full = prefix + dir + "/";
 		const d = document.createElement("details");
 		// Subfolders keep their parent's color.
 		if (!depth) d.style.setProperty("--fc", folderColor.get(dir) || "var(--mark)");
-		d.open = openFolders.has(full) || current.startsWith(full);
+		// Open or shut as you left it; syncing and switching notes never open one.
+		d.open = openFolders.has(full);
 		const s = document.createElement("summary");
 		s.textContent = dir;
 		itemRow(s, full);
