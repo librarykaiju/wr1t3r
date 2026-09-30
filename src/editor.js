@@ -34,6 +34,7 @@ import { livePreview } from "./livepreview.js";
 import { bases } from "./basesview.js";
 import { spellcheck, smartPunctuation } from "./writing.js";
 import { pasteAndDrop } from "./paste.js";
+import { manuscriptLayout } from "./manuscriptview.js";
 
 const fromSync = Annotation.define();
 
@@ -157,6 +158,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		spellcheck,
 		smartPunctuation,
 		pasteAndDrop,
+		manuscriptLayout,
 		autocompletion({ override: [slashSource(), linkSource], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 	];

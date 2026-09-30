@@ -10,9 +10,11 @@
 
 import { stripFrontmatter } from "./count.js";
 import { frontmatterOf, cardInfo } from "./binder.js";
+import { paragraphLines } from "./manuscript.js";
 
 export const HEADINGS = { title: "Note titles as headings", none: "Text only" };
 export const SEPARATORS = { scene: "Scene break (* * *)", blank: "Blank line", page: "New page" };
+export const LAYOUTS = { book: "Book", manuscript: "Manuscript (double-spaced, indented)" };
 export const PAGE_BREAK = '<div class="pagebreak"></div>';
 
 // The settings as saved in the binder's `compile:` property, with defaults.
@@ -23,6 +25,7 @@ export function compileSettings(raw = {}) {
 		author: s(raw.author),
 		headings: raw.headings in HEADINGS ? raw.headings : "title",
 		separator: raw.separator in SEPARATORS ? raw.separator : "scene",
+		layout: raw.layout in LAYOUTS ? raw.layout : "book",
 	};
 }
 
@@ -141,6 +144,7 @@ export function compileMarkdown(parts, settings, text, { render = false, titlePa
 		const r = renumberFootnotes(body, footnotes);
 		footnotes = r.next;
 		body = flatten(r.text, { render, embed });
+		if (render && s.layout === "manuscript") body = paragraphLines(body);
 		sep();
 		if (s.headings === "title") out.push("#".repeat(Math.min(6, level)) + " " + info.title);
 		if (body) out.push(body);
@@ -160,6 +164,7 @@ export function writeCompileSettings(text, settings) {
 	if (s.title) block.push("  title: " + q(s.title));
 	if (s.author) block.push("  author: " + q(s.author));
 	block.push("  headings: " + s.headings, "  separator: " + s.separator);
+	block.push("  layout: " + s.layout);
 	const nl = text.includes("\r\n") ? "\r\n" : "\n";
 	const lines = String(text).split(/\r?\n/);
 	let close = -1;

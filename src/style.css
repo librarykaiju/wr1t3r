@@ -1111,3 +1111,8 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 	.compile-form { border-right: 0; border-bottom: 1px solid var(--line); max-height: 52vh; }
 	.compile-preview { min-height: 40vh; }
 }
+
+/* Manuscript layout (cssclasses: manuscript, src/manuscriptview.js):
+   double-spaced prose, first line of each paragraph indented. Only paragraph
+   lines change; headings, lists, quotes and code keep their look. */
+.cm-editor.ms-layout .cm-line.ms-para { line-height: 2; text-indent: 2.5em; }
