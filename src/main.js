@@ -50,7 +50,7 @@ import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { attachmentKind } from "./attachments.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
-import { setDoneDates } from "./tasks.js";
+import { setDoneDates, sortChecklists } from "./tasks.js";
 import { setPictureHost } from "./paste.js";
 import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
 import { setupToolbar } from "./toolbar.js";
@@ -114,6 +114,8 @@ async function runSync() {
 		refreshAttachments();
 		lastSynced = new Date();
 		lastError = null;
+		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
+		sortPending = null;
 		for (const c of r.conflicts) {
 			toast(`${name(c.path)} was also changed elsewhere. Your version is saved as “${name(c.copy)}”.`, 8000);
 		}
@@ -134,7 +136,27 @@ function onNote(path, note) {
 	if (!note || note.deleted) {
 		toast(`${name(path)} was deleted elsewhere.`);
 		closeTab(path);
-	} else if (!note.dirty) { editor.replace(note); refreshCount(true); }
+	} else if (!note.dirty) { editor.replace(note); refreshCount(true); sortPending = path; }
+}
+
+// Checklists sort (done tasks to the bottom, src/tasks.js) when a note opens
+// or a sync brings in a new version of it, if Aa > Sort checklists is on. The
+// sort waits for a finished sync, so the note is the vault's latest and it
+// never races an edit on its way from Obsidian; it's written only when the
+// order changes, and undoes like any edit.
+let sortPending = null;
+const sortable = (path) => !!path && /\.md$/i.test(path) && !/(^|\/)_(templates|clippings|uploads)\//i.test(path) && !isAppFile(path);
+function sortOpenNote({ quiet = true } = {}) {
+	const view = editor.view;
+	if (!sortable(editor.path) || view.state.readOnly) return quiet || toast("This note's checklists aren't sorted.");
+	const before = view.state.doc.toString(), after = sortChecklists(before);
+	if (after) view.dispatch({ changes: diffChange(before, after), userEvent: "input.sort" });
+	if (!quiet) toast(after ? "Done tasks moved to the bottom." : "The checklists are already in order.", 2500);
+}
+function sortOnOpen(path) {
+	if (!settingOn("sort") || !sortable(path)) return;
+	if (!syncing && !lastError && lastSynced && Date.now() - lastSynced < 60000) sortOpenNote();
+	else { sortPending = path; scheduleSync(0); }
 }
 
 function pending() {
@@ -1105,6 +1127,7 @@ function openNote(path, { replace = false, tab = true } = {}) {
 	renderBookmarkButton();
 	refreshCount(true);
 	renderHome();
+	if (has) sortOnOpen(path);
 }
 
 // ---- a folder as a manuscript: corkboard, outliner, scrivenings -----------------
@@ -1580,6 +1603,7 @@ function allCommands() {
 		["Toggle spellcheck", () => toggleSetting("spell"), "spelling spell check dictionary"],
 		["Toggle smart punctuation", () => toggleSetting("smart"), "curly quotes em dash ellipsis autocorrect typography"],
 		["Toggle formatting toolbar", () => toggleSetting("toolbar"), "buttons bold italic format bar"],
+		["Sort checklists", () => sortOpenNote({ quiet: false }), "tasks done checked bottom order todo", true],
 		["Export or print this note", () => exportNote(editor.path), "print pdf word docx html download save", true],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
@@ -2331,6 +2355,7 @@ const ON_OFF = {
 	smart: { key: "wr1t3rSmart", apply: (on) => setSmartPunctuation(on) },
 	toolbar: { key: "wr1t3rToolbar", apply: (on) => $("app").classList.toggle("no-toolbar", !on) },
 	done: { key: "wr1t3rDoneDates", apply: (on) => setDoneDates(on) },
+	sort: { key: "wr1t3rSortChecklists", apply: () => {} },
 };
 const settingOn = (name) => readRaw(ON_OFF[name].key) !== "off";
 function applySetting(name, on) {
@@ -2341,7 +2366,7 @@ function toggleSetting(name) {
 	const on = !settingOn(name);
 	storeRaw(ON_OFF[name].key, on ? null : "off");
 	applySetting(name, on);
-	toast(`${{ spell: "Spellcheck", smart: "Smart punctuation", toolbar: "Formatting toolbar", done: "Task done dates" }[name]} ${on ? "on" : "off"}`, 2000);
+	toast(`${{ spell: "Spellcheck", smart: "Smart punctuation", toolbar: "Formatting toolbar", done: "Task done dates", sort: "Sorting checklists when a note opens" }[name]} ${on ? "on" : "off"}`, 2000);
 }
 
 function openSettings(on) {

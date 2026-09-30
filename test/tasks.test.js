@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setTaskLine, taskMark, doneStampChanges, setDoneDates } from "../src/tasks.js";
+import { setTaskLine, taskMark, doneStampChanges, setDoneDates, sortChecklists } from "../src/tasks.js";
 
 const day = new Date(2026, 8, 30, 14, 5);
 
@@ -30,4 +30,45 @@ test("the setting turns stamping off, but unticking still cleans up", () => {
 		assert.equal(setTaskLine("- [ ] a", "x", day), "- [x] a");
 		assert.equal(setTaskLine("- [x] a ✅ 2026-09-30", " ", day), "- [ ] a");
 	} finally { setDoneDates(true); }
+});
+
+test("done tasks sink, children move with them and sort too", () => {
+	const text = [
+		"# List",
+		"- [x] done one ✅ 2026-09-29",
+		"  - [ ] child of done",
+		"- [ ] open one",
+		"- plain bullet",
+		"- [X] done two",
+		"- [ ] open two",
+		"  - [x] sub done",
+		"  - [ ] sub open",
+		"    more text",
+		"",
+		"after",
+	].join("\n");
+	assert.equal(sortChecklists(text), [
+		"# List",
+		"- [ ] open one",
+		"- plain bullet",
+		"- [ ] open two",
+		"  - [ ] sub open",
+		"    more text",
+		"  - [x] sub done",
+		"- [x] done one ✅ 2026-09-29",
+		"  - [ ] child of done",
+		"- [X] done two",
+		"",
+		"after",
+	].join("\n"));
+});
+
+test("nothing to sort gives null; the Timeline, code, numbered lists and blank-line breaks hold", () => {
+	assert.equal(sortChecklists("- [ ] a\n- [x] b\n"), null);
+	assert.equal(sortChecklists("# Timeline\n- [x] 09:00 | a\n- [ ] 10:00 | b\n# Notes\n- [x] c\n- [ ] d"), "# Timeline\n- [x] 09:00 | a\n- [ ] 10:00 | b\n# Notes\n- [ ] d\n- [x] c");
+	assert.equal(sortChecklists("```\n- [x] a\n- [ ] b\n```"), null);
+	assert.equal(sortChecklists("1. [x] a\n2. [ ] b"), null);
+	assert.equal(sortChecklists("- [x] a\n\n- [ ] b"), null);
+	assert.equal(sortChecklists("---\ntags:\n- [x]\n- [ ]\n---\n"), null);
+	assert.equal(sortChecklists("- [x] a\r\n- [ ] b"), "- [ ] b\r\n- [x] a");
 });
