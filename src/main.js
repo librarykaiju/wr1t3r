@@ -3511,7 +3511,13 @@ async function start() {
 		const a = e.target.closest("a");
 		if (!a) return;
 		e.preventDefault();
-		openNote(decodeURIComponent(a.hash.slice(1)));
+		const path = decodeURIComponent(a.hash.slice(1));
+		// A note found by opening folders: they fold back up behind it.
+		if (a.closest("details")) {
+			openFolders = new Set([...openFolders].filter((f) => !path.startsWith(f)));
+			writeJSON(OPEN_KEY, [...openFolders]);
+		}
+		openNote(path);
 	});
 	window.addEventListener("hashchange", () => {
 		if (clipFromHash()) return;
