@@ -48,7 +48,7 @@ import { mountScrivenings, readingOrder } from "./scrivenings.js";
 import { cleanNote, writeCompileSettings } from "./compile.js";
 import { openCompile as openCompileDialog } from "./compileview.js";
 import { setProperty } from "./bases.js";
-import { prettyOf } from "./pretty.js";
+import { prettyOf, draggedPosition } from "./pretty.js";
 import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { setCardsHost } from "./cardsblock.js";
@@ -940,12 +940,98 @@ function homeBanner() {
 	return text == null ? null : prettyOf(Text.of(text.split("\n"))).banner;
 }
 
+// Home's banner: banner: and banner_position: in _wr1t3r/Home.md, set from
+// Home itself: "Add a banner" (none yet), or Change, Reposition and Remove
+// over the picture. patch: { banner, banner_position } (null removes one).
+async function setHomeBanner(patch) {
+	if (homeText() == null) await savePins(pins());
+	await dataviewVault.write(homeFile(), (t) => {
+		for (const [k, v] of Object.entries(patch)) {
+			if (v == null) {
+				const fm = /^(\uFEFF?---\r?\n)([\s\S]*?)(\r?\n---)/.exec(t);
+				if (fm) t = fm[1] + fm[2].split(/\r?\n/).filter((l) => !new RegExp(`^${k}\\s*:`).test(l)).join("\n") + t.slice(fm[1].length + fm[2].length);
+			} else t = setProperty(t, k, v);
+		}
+		return t;
+	});
+	homeKey = null;
+	renderHome(true);
+}
+
+function pickHomeBanner(current) {
+	const images = attachments.filter((f) => attachmentKind(f.path) === "image").map((f) => f.path);
+	const nameOf = (p) => p.split("/").pop();
+	openPalette({
+		placeholder: images.length ? "Home banner: pick a vault image or paste a web address…" : "Home banner…",
+		items: [
+			{ label: "Web image…", detail: "paste an https address", run: () => {
+				const u = (prompt("Image address (https://…):", /^https:/.test(current || "") ? current : "") || "").trim();
+				if (!u) return;
+				if (!/^https:\/\/\S+$/i.test(u)) return toast("That needs to be an https:// address.");
+				setHomeBanner({ banner: u, banner_position: null });
+			} },
+			...(current ? [{ label: "No banner", detail: "remove it", run: () => setHomeBanner({ banner: null, banner_position: null }) }] : []),
+			...images.map((p) => ({
+				label: nameOf(p), detail: p.slice(0, -nameOf(p).length - 1).replace(/^content\//, ""), keywords: p,
+				run: () => setHomeBanner({ banner: `[[${images.filter((q) => nameOf(q).toLowerCase() === nameOf(p).toLowerCase()).length > 1 ? p : nameOf(p)}]]`, banner_position: null }),
+			})),
+		],
+	});
+}
+
+// Dragging the picture up or down picks the part that shows; Save writes it.
+function repositionHomeBanner(box, img, start) {
+	if (box.classList.contains("moving")) return;
+	let pos = start, drag = null;
+	box.classList.add("moving");
+	const bar = document.createElement("div");
+	bar.className = "home-banner-bar moving-bar";
+	const hint = Object.assign(document.createElement("span"), { textContent: "Drag the picture up or down" });
+	const cancel = Object.assign(document.createElement("button"), { type: "button", textContent: "Cancel" });
+	const save = Object.assign(document.createElement("button"), { type: "button", textContent: "Save" });
+	bar.append(hint, cancel, save);
+	box.append(bar);
+	const show = (p) => { img.style.objectPosition = `center ${p}%`; };
+	const overflow = () => (img.naturalWidth ? img.naturalHeight * (img.clientWidth / img.naturalWidth) - img.clientHeight : 0);
+	const down = (e) => { if (e.button !== 0 || e.target.closest(".home-banner-bar")) return; e.preventDefault(); drag = { y: e.clientY, from: pos, overflow: overflow() }; box.setPointerCapture?.(e.pointerId); };
+	const move = (e) => { if (!drag) return; pos = draggedPosition(drag.from, e.clientY - drag.y, drag.overflow); show(pos); };
+	const up = () => { drag = null; };
+	const esc = (e) => { if (e.key === "Escape") { e.preventDefault(); finish(false); } };
+	function finish(keep) {
+		box.removeEventListener("pointerdown", down);
+		box.removeEventListener("pointermove", move);
+		box.removeEventListener("pointerup", up);
+		box.removeEventListener("pointercancel", up);
+		document.removeEventListener("keydown", esc, true);
+		bar.remove();
+		box.classList.remove("moving");
+		if (keep && Math.round(pos) !== Math.round(start)) setHomeBanner({ banner_position: Math.round(pos) });
+		else show(start);
+	}
+	box.addEventListener("pointerdown", down);
+	box.addEventListener("pointermove", move);
+	box.addEventListener("pointerup", up);
+	box.addEventListener("pointercancel", up);
+	document.addEventListener("keydown", esc, true);
+	cancel.addEventListener("click", () => finish(false));
+	save.addEventListener("click", () => finish(true));
+}
+
 function drawHomeBanner(banner, file) {
 	const box = $("homeBanner");
 	const src = banner && tileImage(banner.ref, file);
 	box.replaceChildren();
-	box.hidden = !src;
-	if (!src) return;
+	box.classList.toggle("empty", !src);
+	box.hidden = false;
+	if (!src) {
+		const add = Object.assign(document.createElement("button"), { type: "button", className: "home-banner-add", textContent: "+ Add a banner" });
+		add.addEventListener("click", () => pickHomeBanner(null));
+		box.append(add);
+		return;
+	}
+	const bar = document.createElement("div");
+	bar.className = "home-banner-bar";
+	const btn = (text, run) => { const b = Object.assign(document.createElement("button"), { type: "button", textContent: text }); b.addEventListener("click", run); bar.append(b); };
 	const img = document.createElement("img");
 	img.alt = "";
 	img.decoding = "async";
@@ -954,7 +1040,10 @@ function drawHomeBanner(banner, file) {
 	img.style.objectPosition = `center ${banner.position}%`;
 	img.addEventListener("error", () => { box.hidden = true; });
 	Promise.resolve(src).then((u) => { img.src = u; }, () => { box.hidden = true; });
-	box.append(img);
+	btn("Change", () => pickHomeBanner(banner.ref));
+	btn("Reposition", () => repositionHomeBanner(box, img, banner.position));
+	btn("Remove", () => setHomeBanner({ banner: null, banner_position: null }));
+	box.append(img, bar);
 }
 
 let homeKey = null;
