@@ -40,13 +40,15 @@ function cachedPage(path, text, paths) {
 }
 
 // The dataviewjs fences in a note: [{ from, to, code }] (from/to cover the whole fence).
+// lang: a fence's language, or a list of them.
 export function dataviewBlocks(state, lang = "dataviewjs") {
+	const langs = Array.isArray(lang) ? lang : [lang];
 	const out = [];
 	syntaxTree(state).iterate({
 		enter(n) {
 			if (n.name !== "FencedCode") return;
 			const info = n.node.getChild("CodeInfo");
-			if (!info || state.sliceDoc(info.from, info.to).trim().toLowerCase() !== lang) return false;
+			if (!info || !langs.includes(state.sliceDoc(info.from, info.to).trim().toLowerCase())) return false;
 			const text = n.node.getChild("CodeText");
 			const last = state.doc.lineAt(n.to);
 			if (!/^\s*(`{3,}|~{3,})\s*$/.test(last.text) || last.number === state.doc.lineAt(n.from).number) return false; // not closed yet

@@ -11,7 +11,7 @@ import { dataviewBlocks, blockBodyChange } from "./dataview.js";
 import {
 	PLANNER, readPlanner, writePlanner, setEntryColor, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
 	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
-	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine, cardColor, editPlannerBlock, CARD_COLORS,
+	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine, cardColor, editPlannerBlock,
 } from "./planner.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
@@ -23,7 +23,8 @@ import { propertiesFolded, setPropertiesHidden } from "./frontmatter.js";
 import { openPanel, redrawPanel } from "./basesui.js";
 import { onMenu } from "./homeview.js";
 import { EVENT_COLORS } from "./agenda.js";
-import { menu } from "./basesui.js";
+import { menu, cardColorPicker } from "./basesui.js";
+import { isOpen, openAsText } from "./drawnblocks.js";
 
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 
@@ -105,9 +106,7 @@ class PlannerWidget extends WidgetType {
 			e.preventDefault();
 			let pos = this.from;
 			try { pos = view.posAtDOM(wrap); } catch {}
-			const line = view.state.doc.lineAt(pos);
-			view.dispatch({ selection: { anchor: Math.min(line.to + 1, view.state.doc.length) }, scrollIntoView: true });
-			view.focus();
+			openAsText(view, pos);
 		});
 		wrap.append(edit);
 		return wrap;
@@ -612,41 +611,6 @@ function colorPicker(current, x, y, pick) {
 	box.querySelector("[aria-pressed=true]")?.focus();
 }
 
-// The theme's rainbow (--f1..--f7) and Default, for a card.
-function cardColorPicker(current, x, y, pick) {
-	document.querySelector(".item-menu")?.remove();
-	const box = el("div", "item-menu planner-colors");
-	box.setAttribute("role", "dialog");
-	box.setAttribute("aria-label", "Card color");
-	const row = el("div", "swatches");
-	const swatch = (n, label) => {
-		const b = el("button", "swatch" + (n ? "" : " none"));
-		b.type = "button";
-		b.title = label;
-		b.setAttribute("aria-label", label);
-		b.setAttribute("aria-pressed", String((current || null) === n));
-		if (n) b.style.setProperty("--sw", `var(--f${n})`);
-		b.addEventListener("click", () => { close(); pick(n); });
-		row.append(b);
-	};
-	swatch(null, "Default");
-	for (let n = 1; n <= CARD_COLORS; n++) swatch(n, `Color ${n}`);
-	box.append(row);
-	document.body.append(box);
-	const r = box.getBoundingClientRect();
-	box.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
-	box.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
-	const away = (ev) => { if (!box.contains(ev.target)) close(); };
-	const esc = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); close(); } };
-	function close() {
-		box.remove();
-		document.removeEventListener("pointerdown", away, true);
-		document.removeEventListener("keydown", esc, true);
-	}
-	setTimeout(() => { document.addEventListener("pointerdown", away, true); document.addEventListener("keydown", esc, true); });
-	box.querySelector("[aria-pressed=true]")?.focus();
-}
-
 function timeText(hhmm) {
 	if (!hhmm) return "";
 	const [h, m] = hhmm.split(":").map(Number);
@@ -664,14 +628,12 @@ function build(state) {
 	if (!vault || !path || UNTRUSTED.test(path)) return b.finish();
 	const blocks = dataviewBlocks(state, PLANNER);
 	if (!blocks.length) return b.finish();
-	const sel = state.selection.ranges;
 	const today = isoDay(new Date());
 	const day = noteDay(path);
 	let notes = null;
 	blocks.forEach((blk, n) => {
-		// Being edited: the cursor inside it. A cursor just before it (where a
-		// daily note opens) leaves the planner drawn.
-		if (sel.some((r) => r.to > blk.from && r.from <= blk.to)) return;
+		// Opened as text with its </> button (src/drawnblocks.js).
+		if (isOpen(state, blk)) return;
 		const cfg = readPlanner(blk.code);
 		const { foods } = nutrition(state, cfg);
 		const health = healthDay(day ? vault.text(healthPathFor(path)) : null, foods);

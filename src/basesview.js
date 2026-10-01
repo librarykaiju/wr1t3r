@@ -25,8 +25,9 @@ import {
 	writeYaml, viewsOf, freshName, extra, VIEW_TYPES, viewLabel, sameProp, propType, conditionsFor,
 	readFilters, writeFilters, rawText, readSource, writeSource, prefill, moveValue, lanesFor, laneKeys,
 } from "./baseconfig.js";
-import { el, button, onMenu, menu, openPanel, closePanel, redrawPanel, panelOpen, select, suggestions, valuesOf, editValue } from "./basesui.js";
+import { el, button, onMenu, menu, openPanel, closePanel, redrawPanel, panelOpen, select, suggestions, valuesOf, editValue, cardColorPicker } from "./basesui.js";
 import { makeCard } from "./cards.js";
+import { isOpen, openAsText } from "./drawnblocks.js";
 import { sortable, reorder } from "./drag.js";
 import { binderOrder, binderPath } from "./binder.js";
 import { imageRef } from "./pretty.js";
@@ -34,6 +35,22 @@ import { parseFrontmatter } from "./dvpage.js";
 import { noteTags } from "./frontmatter.js";
 
 const isBase = (path) => /\.base$/i.test(path || "");
+// A board in a note: ```board (what wr1t3r writes), or Obsidian's ```base.
+export const BOARD_FENCES = ["board", "base"];
+// A board block's own look, from its top-level wr1t3r: key:
+//   wr1t3r: { title: Reading, color: 3, width: full }
+// -> { title, color (1-7) or null, full }.
+export function boardLook(code) {
+	let w = null;
+	try { w = parseYaml(code)?.wr1t3r; } catch {}
+	if (!w || typeof w !== "object" || Array.isArray(w)) w = {};
+	const color = Number(w.color);
+	return {
+		title: w.title == null ? "" : String(w.title).trim(),
+		color: Number.isInteger(color) && color >= 1 && color <= 7 ? color : null,
+		full: String(w.width || "").toLowerCase() === "full",
+	};
+}
 const IMAGE = /^https?:\/\/\S+\.(?:png|jpe?g|gif|webp|avif|svg)(?:[?#]\S*)?$/i;
 // Properties whose web links are pictures even without an image extension.
 const IMAGE_PROP = /cover|image|poster|thumb|banner|artwork|photo/i;
@@ -131,10 +148,67 @@ function stamp(r) {
 	return [r.index, r.columns.join(","), JSON.stringify(r.view), JSON.stringify(r.base.filters ?? null), r.base.views.map((v) => v.name + v.type).join(), rows, r.errors.join()].join("\u0004");
 }
 
-// Where a base's YAML is: the whole note, or the inside of its ```base block.
+// A board block's card: its title (click to rename), a color dot and the
+// width toggle, all kept under the block's wr1t3r: key.
+function boardHead(ctx, wrap, look, editable) {
+	wrap.classList.add("md-board");
+	if (look.color) { wrap.classList.add("md-colored"); wrap.style.setProperty("--card-c", `var(--f${look.color})`); }
+	if (look.full) wrap.classList.add("md-board-full");
+	const setLook = (patch) => ctx.save((cfg) => {
+		const w = { ...(cfg.wr1t3r && typeof cfg.wr1t3r === "object" ? cfg.wr1t3r : {}), ...patch };
+		for (const k of Object.keys(w)) if (w[k] == null || w[k] === "") delete w[k];
+		if (Object.keys(w).length) cfg.wr1t3r = w; else delete cfg.wr1t3r;
+	});
+	const head = el("div", "md-board-head");
+	const title = el("span", "md-board-title" + (look.title ? "" : " empty"), look.title || (editable ? "Untitled board" : ""));
+	head.append(title);
+	if (editable) {
+		title.title = "Rename the board";
+		title.tabIndex = 0;
+		const rename = () => {
+			const input = el("input", "md-board-title-input");
+			Object.assign(input, { type: "text", value: look.title, placeholder: "Board title" });
+			let done = false;
+			const finish = (keep) => {
+				if (done) return;
+				done = true;
+				const v = input.value.trim();
+				if (keep && v !== look.title) setLook({ title: v || null });
+				else input.replaceWith(title);
+			};
+			input.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") { e.preventDefault(); finish(true); }
+				else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(false); }
+			});
+			input.addEventListener("blur", () => finish(true));
+			title.replaceWith(input);
+			input.focus();
+			input.select();
+		};
+		title.addEventListener("click", rename);
+		title.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); rename(); } });
+		const tools = el("span", "md-board-headtools");
+		const width = button("md-board-width", look.full ? "Fit column" : "Full width", () => setLook({ width: look.full ? null : "full" }));
+		width.title = look.full ? "Keep the board inside the note's column" : "Let the board use the pane's whole width";
+		const dot = el("button", "planner-card-dot" + (look.color ? "" : " none"));
+		dot.type = "button";
+		dot.title = "Board color";
+		dot.setAttribute("aria-label", "Board color");
+		dot.addEventListener("mousedown", (e) => e.preventDefault());
+		dot.addEventListener("click", () => {
+			const r = dot.getBoundingClientRect();
+			cardColorPicker(look.color, r.left, r.bottom + 6, (n) => setLook({ color: n }));
+		});
+		tools.append(width, dot);
+		head.append(tools);
+	}
+	if (look.title || editable) wrap.append(head);
+}
+
+// Where a board's YAML is: the whole note, or the inside of its block.
 function codeAt(state, t) {
 	if (t.whole) return { from: 0, to: state.doc.length, code: state.sliceDoc() };
-	const b = dataviewBlocks(state, "base")[t.index];
+	const b = dataviewBlocks(state, BOARD_FENCES)[t.index];
 	return b ? { from: b.codeFrom, to: b.codeTo, code: b.code } : null;
 }
 
@@ -158,7 +232,7 @@ function commit(cm, t, fn) {
 // The latest result for a base (after a commit, the widget's own is stale).
 function latest(cm, t) {
 	const at = codeAt(cm.state, t);
-	return at ? resultFor(cm.state, at.code, cm.state.facet(notePath), t.key) : { error: "The base is gone." };
+	return at ? resultFor(cm.state, at.code, cm.state.facet(notePath), t.key) : { error: "The board is gone." };
 }
 
 // ---- Properties ----------------------------------------------------------------
@@ -264,7 +338,7 @@ class BaseWidget extends WidgetType {
 	constructor(t, path, result, editable) {
 		super();
 		this.t = t; this.key = t.key; this.path = path; this.result = result; this.canEdit = editable;
-		this.stamp = stamp(result) + (editable ? "" : "\u0005ro") + JSON.stringify(pick(t.key).sort);
+		this.stamp = stamp(result) + (editable ? "" : "\u0005ro") + JSON.stringify(pick(t.key).sort) + JSON.stringify(t.look || null);
 	}
 	eq(o) { return o.key === this.key && o.stamp === this.stamp && o.t.whole === this.t.whole; }
 	// CodeMirror also calls this when it keeps the same DOM for an equal
@@ -283,9 +357,10 @@ class BaseWidget extends WidgetType {
 		const save = (fn, { redraw = true } = {}) => { commit(cm, t, fn); if (redraw) redrawPanel(key); };
 		const ctx = { cm, t, key, host, open, save, repick, fresh: () => latest(cm, t), path: this.path };
 
+		if (!t.whole) boardHead(ctx, wrap, t.look, editable);
 		wrap.append(toolbar(ctx, r, editable, wrap));
 		if (r.error) {
-			wrap.append(el("div", "md-dql-error", "Base: " + r.error));
+			wrap.append(el("div", "md-dql-error", "Board: " + r.error));
 			return wrap;
 		}
 		for (const msg of r.errors.slice(0, 3)) wrap.append(el("div", "md-dql-error", msg));
@@ -299,7 +374,7 @@ class BaseWidget extends WidgetType {
 			if (type === "table" && r.total) grid(ctx, r, editable, cells, wrap);
 			else if (type === "cards" && r.total) gallery(ctx, r, editable, cells, wrap);
 			else if (type === "list" && r.total) list(ctx, r, editable, cells, wrap);
-			if (editable && host?.create) wrap.append(button("md-base-new", "+ New", () => newNote(ctx), "New note in this base"));
+			if (editable && host?.create) wrap.append(button("md-base-new", "+ New", () => newNote(ctx), "New note in this board"));
 		}
 		return wrap;
 	}
@@ -369,14 +444,14 @@ function toolbar(ctx, r, editable, wrap) {
 	}
 	const src = el("button", "md-dv-edit md-base-src", "</>");
 	src.type = "button";
-	src.title = t.whole ? "Edit the base's YAML" : "Edit the base";
+	src.title = t.whole ? "Edit the board's settings (YAML)" : "Edit the board's settings";
 	src.addEventListener("mousedown", (e) => {
 		e.preventDefault();
 		closePanel();
 		if (t.whole) cm.dispatch({ effects: setSource.of(true), selection: { anchor: 0 } });
 		else {
 			const at = codeAt(cm.state, t);
-			if (at) cm.dispatch({ selection: { anchor: at.from }, scrollIntoView: true });
+			if (at) openAsText(cm, at.from);
 		}
 		cm.focus();
 	});
@@ -427,7 +502,7 @@ function sourcePanel(box, ctx) {
 	if (r.error) return false;
 	const host = ctx.host;
 	const src = readSource(r.base.filters);
-	heading(box, "Source", "Which notes this base shows. A note has to match every folder and tag here. Leave it empty for every note in the vault.");
+	heading(box, "Source", "Which notes this board shows. A note has to match every folder and tag here. Leave it empty for every note in the vault.");
 	const put = (fn) => ctx.save((cfg) => { const s = readSource(cfg.filters); fn(s); const f = writeSource(s); if (f) cfg.filters = f; else delete cfg.filters; });
 	const chips = el("div", "base-chips");
 	src.folders.forEach((f, i) => chips.append(chip("📁 " + f.replace(/^content\//, ""), () => put((s) => s.folders.splice(i, 1)))));
@@ -561,7 +636,7 @@ function filterPanel(box, ctx) {
 function rawRow(text, row, remove) {
 	const line = el("div", "base-row base-raw");
 	line.append(el("code", null, text ?? rawText(row.raw)), button("base-x", "×", remove, "Remove"));
-	line.title = "Written by hand in the base's YAML. It still applies; edit it with </>.";
+	line.title = "Written by hand in the board's settings. It still applies; edit it with </>.";
 	return line;
 }
 
@@ -913,7 +988,7 @@ function kanban(ctx, r, editable, cells, wrap) {
 	const prop = g?.property ? String(g.property) : null;
 	const key = prop && noteKey(prop);
 	if (!prop) {
-		wrap.append(el("div", "md-base-empty", editable ? "Pick the property whose values become the lanes (Kanban > Lanes from)." : "This board has no lanes set."));
+		wrap.append(el("div", "md-base-empty", editable ? "Pick the property whose values become the lanes (Kanban > Lanes from)." : "This Kanban view has no lanes set."));
 		return;
 	}
 	const x = v.wr1t3r || {};
@@ -1059,7 +1134,7 @@ class SourceBar extends WidgetType {
 	eq() { return true; }
 	toDOM(view) {
 		const bar = el("div", "md-base-sourcebar");
-		const b = el("button", "md-base-back", "▦ Show base");
+		const b = el("button", "md-base-back", "▦ Show board");
 		b.type = "button";
 		b.addEventListener("mousedown", (e) => { e.preventDefault(); view.dispatch({ effects: setSource.of(false) }); });
 		bar.append(b);
@@ -1084,10 +1159,9 @@ function build(state) {
 		}
 		return b.finish();
 	}
-	const sel = state.selection.ranges;
-	dataviewBlocks(state, "base").forEach((blk, i) => {
-		if (sel.some((r) => r.to >= blk.from && r.from <= blk.to)) return; // being edited
-		const t = { whole: false, index: i, key: path + "\0" + i };
+	dataviewBlocks(state, BOARD_FENCES).forEach((blk, i) => {
+		if (isOpen(state, blk)) return; // opened as text with its </> button
+		const t = { whole: false, index: i, key: path + "\0" + i, look: boardLook(blk.code) };
 		b.add(blk.from, blk.to, Decoration.replace({ widget: new BaseWidget(t, path, resultFor(state, blk.code, path, t.key), editable), block: true }));
 	});
 	return b.finish();

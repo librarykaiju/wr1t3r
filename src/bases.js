@@ -676,7 +676,7 @@ export function displayName(id, base) {
 // The base's YAML -> { views, filters, formulas, properties } or throws.
 export function readBase(text) {
 	const cfg = parseYaml(text);
-	if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) throw new BaseError("This base isn't YAML Obsidian would read.");
+	if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) throw new BaseError("This board's settings aren't YAML wr1t3r can read.");
 	const views = Array.isArray(cfg.views) && cfg.views.length ? cfg.views : [{ type: "table", name: "Table" }];
 	return { ...cfg, views: views.map((v, i) => ({ ...v, type: String(v?.type || "table"), name: String(v?.name || `View ${i + 1}`) })) };
 }
