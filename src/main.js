@@ -48,7 +48,7 @@ import { mountScrivenings, readingOrder } from "./scrivenings.js";
 import { cleanNote, writeCompileSettings } from "./compile.js";
 import { openCompile as openCompileDialog } from "./compileview.js";
 import { setProperty } from "./bases.js";
-import { prettyOf } from "./pretty.js";
+import { prettyOf, draggedPosition } from "./pretty.js";
 import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { setCardsHost } from "./cardsblock.js";
@@ -940,12 +940,98 @@ function homeBanner() {
 	return text == null ? null : prettyOf(Text.of(text.split("\n"))).banner;
 }
 
+// Home's banner: banner: and banner_position: in _wr1t3r/Home.md, set from
+// Home itself: "Add a banner" (none yet), or Change, Reposition and Remove
+// over the picture. patch: { banner, banner_position } (null removes one).
+async function setHomeBanner(patch) {
+	if (homeText() == null) await savePins(pins());
+	await dataviewVault.write(homeFile(), (t) => {
+		for (const [k, v] of Object.entries(patch)) {
+			if (v == null) {
+				const fm = /^(\uFEFF?---\r?\n)([\s\S]*?)(\r?\n---)/.exec(t);
+				if (fm) t = fm[1] + fm[2].split(/\r?\n/).filter((l) => !new RegExp(`^${k}\\s*:`).test(l)).join("\n") + t.slice(fm[1].length + fm[2].length);
+			} else t = setProperty(t, k, v);
+		}
+		return t;
+	});
+	homeKey = null;
+	renderHome(true);
+}
+
+function pickHomeBanner(current) {
+	const images = attachments.filter((f) => attachmentKind(f.path) === "image").map((f) => f.path);
+	const nameOf = (p) => p.split("/").pop();
+	openPalette({
+		placeholder: images.length ? "Home banner: pick a vault image or paste a web address…" : "Home banner…",
+		items: [
+			{ label: "Web image…", detail: "paste an https address", run: () => {
+				const u = (prompt("Image address (https://…):", /^https:/.test(current || "") ? current : "") || "").trim();
+				if (!u) return;
+				if (!/^https:\/\/\S+$/i.test(u)) return toast("That needs to be an https:// address.");
+				setHomeBanner({ banner: u, banner_position: null });
+			} },
+			...(current ? [{ label: "No banner", detail: "remove it", run: () => setHomeBanner({ banner: null, banner_position: null }) }] : []),
+			...images.map((p) => ({
+				label: nameOf(p), detail: p.slice(0, -nameOf(p).length - 1).replace(/^content\//, ""), keywords: p,
+				run: () => setHomeBanner({ banner: `[[${images.filter((q) => nameOf(q).toLowerCase() === nameOf(p).toLowerCase()).length > 1 ? p : nameOf(p)}]]`, banner_position: null }),
+			})),
+		],
+	});
+}
+
+// Dragging the picture up or down picks the part that shows; Save writes it.
+function repositionHomeBanner(box, img, start) {
+	if (box.classList.contains("moving")) return;
+	let pos = start, drag = null;
+	box.classList.add("moving");
+	const bar = document.createElement("div");
+	bar.className = "home-banner-bar moving-bar";
+	const hint = Object.assign(document.createElement("span"), { textContent: "Drag the picture up or down" });
+	const cancel = Object.assign(document.createElement("button"), { type: "button", textContent: "Cancel" });
+	const save = Object.assign(document.createElement("button"), { type: "button", textContent: "Save" });
+	bar.append(hint, cancel, save);
+	box.append(bar);
+	const show = (p) => { img.style.objectPosition = `center ${p}%`; };
+	const overflow = () => (img.naturalWidth ? img.naturalHeight * (img.clientWidth / img.naturalWidth) - img.clientHeight : 0);
+	const down = (e) => { if (e.button !== 0 || e.target.closest(".home-banner-bar")) return; e.preventDefault(); drag = { y: e.clientY, from: pos, overflow: overflow() }; box.setPointerCapture?.(e.pointerId); };
+	const move = (e) => { if (!drag) return; pos = draggedPosition(drag.from, e.clientY - drag.y, drag.overflow); show(pos); };
+	const up = () => { drag = null; };
+	const esc = (e) => { if (e.key === "Escape") { e.preventDefault(); finish(false); } };
+	function finish(keep) {
+		box.removeEventListener("pointerdown", down);
+		box.removeEventListener("pointermove", move);
+		box.removeEventListener("pointerup", up);
+		box.removeEventListener("pointercancel", up);
+		document.removeEventListener("keydown", esc, true);
+		bar.remove();
+		box.classList.remove("moving");
+		if (keep && Math.round(pos) !== Math.round(start)) setHomeBanner({ banner_position: Math.round(pos) });
+		else show(start);
+	}
+	box.addEventListener("pointerdown", down);
+	box.addEventListener("pointermove", move);
+	box.addEventListener("pointerup", up);
+	box.addEventListener("pointercancel", up);
+	document.addEventListener("keydown", esc, true);
+	cancel.addEventListener("click", () => finish(false));
+	save.addEventListener("click", () => finish(true));
+}
+
 function drawHomeBanner(banner, file) {
 	const box = $("homeBanner");
 	const src = banner && tileImage(banner.ref, file);
 	box.replaceChildren();
-	box.hidden = !src;
-	if (!src) return;
+	box.classList.toggle("empty", !src);
+	box.hidden = false;
+	if (!src) {
+		const add = Object.assign(document.createElement("button"), { type: "button", className: "home-banner-add", textContent: "+ Add a banner" });
+		add.addEventListener("click", () => pickHomeBanner(null));
+		box.append(add);
+		return;
+	}
+	const bar = document.createElement("div");
+	bar.className = "home-banner-bar";
+	const btn = (text, run) => { const b = Object.assign(document.createElement("button"), { type: "button", textContent: text }); b.addEventListener("click", run); bar.append(b); };
 	const img = document.createElement("img");
 	img.alt = "";
 	img.decoding = "async";
@@ -954,12 +1040,16 @@ function drawHomeBanner(banner, file) {
 	img.style.objectPosition = `center ${banner.position}%`;
 	img.addEventListener("error", () => { box.hidden = true; });
 	Promise.resolve(src).then((u) => { img.src = u; }, () => { box.hidden = true; });
-	box.append(img);
+	btn("Change", () => pickHomeBanner(banner.ref));
+	btn("Reposition", () => repositionHomeBanner(box, img, banner.position));
+	btn("Remove", () => setHomeBanner({ banner: null, banner_position: null }));
+	box.append(img, bar);
 }
 
 let homeKey = null;
 function renderHome(force = false) {
 	if (!editor || editor.path) return;
+	renderHomeBoards();
 	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
 	// Redraw only when something a tile shows changed (a sync redraws the
 	// sidebar often; the pictures would flicker).
@@ -981,6 +1071,68 @@ function renderHome(force = false) {
 			next.splice(to, 0, moved);
 			savePins(next);
 		},
+	});
+}
+
+// Boards under Home's tiles: the ```board blocks in _wr1t3r/Home Boards.md
+// (beside Home.md, out of the notes list), shown in a live editor the way
+// Scrivenings shows a note, so the boards work in full. "Add a board" picks
+// the folder it shows and adds one; the note is made the first time.
+let homeBoards = null; // { path, ed }
+const homeBoardsPath = () => homeFile().replace(/[^/]*$/, "Home Boards.md");
+
+function renderHomeBoards() {
+	const box = $("homeBoards");
+	if (!box) return;
+	const path = homeBoardsPath(), n = notes.get(path);
+	const note = n && !n.deleted && !n.binary && /```(board|base)\b/i.test(n.text) ? n : null;
+	if (homeBoards && (!note || homeBoards.path !== path)) { homeBoards.ed.destroy(); homeBoards = null; box.replaceChildren(); }
+	if (!box.firstChild) {
+		const head = document.createElement("div");
+		head.className = "home-boards-head";
+		const add = Object.assign(document.createElement("button"), { type: "button", className: "home-boards-add", textContent: "+ Add a board" });
+		add.addEventListener("click", addHomeBoard);
+		head.append(Object.assign(document.createElement("h2"), { textContent: "Boards" }), add);
+		const body = document.createElement("div");
+		body.className = "home-boards-body scriv-body";
+		box.append(head, body);
+	}
+	box.classList.toggle("empty", !note);
+	if (!note) return;
+	if (!homeBoards) {
+		homeBoards = { path, ed: editor.section(box.querySelector(".home-boards-body"), note, { edits: (text) => onEdit(path, text), focus: () => {}, edge: () => false }) };
+	} else if (!note.dirty && note.text !== homeBoards.ed.text()) homeBoards.ed.replace(note);
+}
+
+function addHomeBoard() {
+	const list = visible(), home = commonFolder(list);
+	const folders = new Set();
+	for (const n of list) {
+		const parts = n.path.split("/").slice(0, -1);
+		for (let i = 1; i <= parts.length; i++) folders.add(parts.slice(0, i).join("/") + "/");
+	}
+	const all = [...folders].filter((f) => f.startsWith(home) && f !== home && !isAppFile(f))
+		.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+	const make = async (folder) => {
+		const path = homeBoardsPath();
+		const f = folder.replace(/\/+$/, "");
+		const texts = list.filter((n) => n.path.startsWith(folder) && /\.md$/i.test(n.path) && !n.binary).slice(0, 200).map((n) => n.text);
+		const title = folder ? itemLabel(folder) : "Every note";
+		const block = "```board\n" + `wr1t3r:\n  title: ${JSON.stringify(title)}\n` + starterBase(f, texts).replace(/\n$/, "") + "\n```\n";
+		await change(path, (cur) => {
+			const text = cur && !cur.deleted ? cur.text.replace(/\s*$/, "\n\n") + block : block;
+			return { ...(cur || { path, base: null }), path, text, dirty: true, deleted: false };
+		});
+		renderHomeBoards();
+		requestAnimationFrame(() => $("homeBoards")?.lastElementChild?.lastElementChild?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }));
+		scheduleSync();
+	};
+	openPalette({
+		placeholder: "Which notes should the board show?",
+		items: [
+			...all.map((f) => ({ label: folderLabel(f), detail: "folder", run: () => make(f) })),
+			{ label: "Every note", detail: "vault", keywords: "all whole", run: () => make("") },
+		],
 	});
 }
 
