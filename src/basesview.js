@@ -30,7 +30,8 @@ import { makeCard } from "./cards.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
 import { isArchived } from "./search.js";
 import { sortable, reorder } from "./drag.js";
-import { binderOrder, binderPath } from "./binder.js";
+import { binderOrder, binderPath, isBinder } from "./binder.js";
+import { isAppFile } from "./home.js";
 import { imageRef } from "./pretty.js";
 import { parseFrontmatter } from "./dvpage.js";
 import { noteTags } from "./frontmatter.js";
@@ -103,7 +104,9 @@ function filesFor(state, host, path) {
 	const out = [];
 	for (const p of paths) {
 		const text = p === path ? state.sliceDoc() : host.text(p);
-		// Archived notes stay out of boards (only a search that asks finds them).
+		// Archived notes stay out of boards (only a search that asks finds them),
+		// and so do folders' _Binder.md (their order) and wr1t3r's own notes.
+		if (p !== path && (isBinder(p) || isAppFile(p))) continue;
 		if (text != null && (p === path || !isArchived(text))) out.push({ path: p, text });
 	}
 	return out;
