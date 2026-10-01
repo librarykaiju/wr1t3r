@@ -595,6 +595,15 @@ function build(state) {
 	return b.finish();
 }
 
+// The Food panel without a planner on screen, for "Log food" (main.js): the
+// day's planner block's settings when its daily note has one, else the
+// defaults. anchor: anything with getBoundingClientRect(), under which it opens.
+export function openFoodPanel(view, dailyPath, dailyText, anchor) {
+	const code = String(dailyText || "").match(/```wr1t3r-planner[ \t]*\r?\n([\s\S]*?)\r?\n```/)?.[1] ?? "";
+	const w = new PlannerWidget({ cfg: readPlanner(code), n: 0, path: dailyPath, day: noteDay(dailyPath), health: null, tasks: [] });
+	w.foodPanel(view, anchor);
+}
+
 export const plannerBlocks = StateField.define({
 	create: build,
 	update(deco, tr) {

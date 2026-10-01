@@ -56,6 +56,7 @@ import { setPlannerHost, importEvents } from "./plannerview.js";
 import { openPropertyCleanup } from "./propcleanview.js";
 import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
 import { healthPathFor, MEALS, WATER, MOOD } from "./planner.js";
+import { openFoodPanel } from "./plannerview.js";
 import { attachmentKind } from "./attachments.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
 import { setDoneDates, sortChecklists } from "./tasks.js";
@@ -1777,6 +1778,7 @@ function insertFromTemplate() {
 // Each template in the slash menu too: /name inserts it at the cursor.
 setSlashExtras(() => [
 	{ label: "Transcript", detail: "of a video or audio file", keywords: "transcribe speech speakers video audio", run: () => transcribeIntoNote() },
+	{ label: "Log food", detail: "to the day's health note", keywords: "food eat meal nutrition calories usda", run: () => logFood() },
 	...vaultTemplates().map((t) => ({
 		label: t.name, detail: "template", keywords: "template " + t.name.toLowerCase(),
 		run: () => insertTemplateAt(t),
@@ -1842,6 +1844,27 @@ function transcribeIntoNote() {
 	input.click();
 }
 
+// "Log food": the planner's Food panel from anywhere, for the open daily or
+// health note's day, else today. It writes to that day's health note (made
+// from the template if need be), as the planner's button does.
+function logFood() {
+	const view = editor.view;
+	if (!view) return;
+	const open = editor.path ? editor.path.replace(/ Health\.md$/i, ".md") : null;
+	const paths = visible().map((n) => n.path);
+	let daily = open && noteDay(open) ? open : null;
+	if (!daily) {
+		const tmpl = findTemplate(paths) || findTemplate(paths, "_templates/Daily Health.md");
+		const root = tmpl ? tmpl.root : paths.some((p) => p.startsWith("content/")) ? "content/" : "";
+		daily = root + DAILY_FOLDER + isoDate(new Date()) + ".md";
+	}
+	const have = paths.find((p) => p.toLowerCase() === daily.toLowerCase());
+	if (have) daily = have;
+	const r = view.scrollDOM.getBoundingClientRect();
+	const anchor = { getBoundingClientRect: () => ({ left: Math.max(8, r.left + r.width / 2 - 180), bottom: r.top + 8 }) };
+	openFoodPanel(view, daily, have ? notes.get(have)?.text : "", anchor);
+}
+
 // Every command, for the palette and the hotkeys. editor: runs on the open
 // note's editor (and only while it has the cursor, from a hotkey).
 function allCommands() {
@@ -1856,6 +1879,7 @@ function allCommands() {
 		["Clean up properties", cleanUpProperties, "yaml frontmatter properties empty rename merge delete tidy vault"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
+		["Log food", logFood, "eat meal nutrition calories health usda planner"],
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
 		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
