@@ -11,6 +11,9 @@
 //                                          description, reminder, calendarId}
 //                                          -> {event}; calendarId defaults to
 //                                          the main calendar
+//   DELETE /api/calendar/events?calendar=&id=
+//                                          deletes that event (one occurrence,
+//                                          for a repeating one) -> {deleted: true}
 //
 // Settings: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
 // (secrets). GOOGLE_TOKEN_URL and GOOGLE_API are only for testing.
@@ -101,6 +104,14 @@ export async function calendarApi(request, env, url) {
 		// Google itself refuses calendars you can't write to.
 		const made = await google(env, `/calendars/${encodeURIComponent(id)}/events`, { method: "POST", body: JSON.stringify(event) });
 		return { event: slimEvent(made, { id }) };
+	}
+
+	if (url.pathname === "/api/calendar/events" && request.method === "DELETE") {
+		const calendar = url.searchParams.get("calendar") || "", id = url.searchParams.get("id") || "";
+		if (!calendar || !id || calendar.length > 300 || id.length > 1024) throw new HttpError(400, "calendar and id: the event to delete");
+		// Google itself refuses calendars you can't write to.
+		await google(env, `/calendars/${encodeURIComponent(calendar)}/events/${encodeURIComponent(id)}`, { method: "DELETE" });
+		return { deleted: true };
 	}
 	return null;
 }

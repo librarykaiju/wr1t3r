@@ -55,7 +55,7 @@ import { setCardsHost } from "./cardsblock.js";
 import { setPlannerHost, importEvents } from "./plannerview.js";
 import { openPropertyCleanup } from "./propcleanview.js";
 import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
-import { healthPathFor, MEALS, WATER, MOOD } from "./planner.js";
+import { healthPathFor, MEALS, WATER, MOOD, removeEvent, editPlannerBlock } from "./planner.js";
 import { openFoodPanel } from "./plannerview.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
 import { attachmentKind } from "./attachments.js";
@@ -3613,9 +3613,50 @@ function eventRow(e, now) {
 			a.textContent = "Open in Google";
 			acts.append(a);
 		}
+		if (cal?.calendars?.find((c) => c.id === e.calendar)?.writable) {
+			const del = document.createElement("button");
+			del.type = "button";
+			del.className = "danger";
+			del.textContent = "Delete";
+			del.addEventListener("click", () => deleteEvent(e, del));
+			acts.append(del);
+		}
 		row.append(acts);
 	}
 	return row;
+}
+
+// Deletes an event from Google Calendar (one occurrence of a repeating one),
+// and its line from that day's planner Timeline when it was brought in there.
+async function deleteEvent(e, button) {
+	if (!navigator.onLine) return toast("Deleting an event needs a connection.");
+	const when = agenda.timeLabel(e);
+	if (!confirm(`Delete “${e.title}” (${when}) from Google Calendar?` + (/_\d{8}(T\d{6}Z)?$/.test(e.id) ? "\n\nIt repeats: only this occurrence is deleted." : ""))) return;
+	button.disabled = true;
+	try {
+		await api.deleteEvent(e.calendar, e.id);
+	} catch (err) {
+		button.disabled = false;
+		if (err instanceof AuthError) return signOut("That token no longer works.");
+		return toast("Couldn't delete it: " + err.message, 8000);
+	}
+	const gone = (list) => list.filter((x) => !(x.calendar === e.calendar && x.id === e.id));
+	if (cal?.events) { cal = { ...cal, events: gone(cal.events) }; writeJSON(AGENDA_KEY, cal); }
+	if (pickData) pickData = { ...pickData, events: gone(pickData.events) };
+	if (monthData) monthData = { ...monthData, events: gone(monthData.events) };
+	openEvent = null;
+	renderAgenda();
+	// The day's Timeline, if the event was imported into it.
+	const day = e.allDay ? e.start : agenda.dayKey(new Date(e.start));
+	const daily = visible().find((n) => !n.binary && new RegExp(`(^|/)${day}\\.md$`).test(n.path) && /```wr1t3r-planner/.test(n.text));
+	let fromTimeline = false;
+	if (daily) {
+		await dataviewVault.write(daily.path, (t) => {
+			const next = editPlannerBlock(t, (c) => { const r = removeEvent(c.timeline, e); fromTimeline = r.removed > 0; return { ...c, timeline: r.timeline }; });
+			return fromTimeline && next != null ? next : t;
+		});
+	}
+	toast(`Deleted “${e.title}”` + (fromTimeline ? ` and took it off ${day}'s Timeline.` : "."));
 }
 
 // ---- three columns ------------------------------------------------------------------

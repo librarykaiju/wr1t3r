@@ -280,3 +280,18 @@ test("card colors: read, shared from the template, written back into the block",
 	const day = "```wr1t3r-planner\ntasks: [crit]\ntimeline:\n  - 09:00 - 10:00 | A\n```";
 	assert.equal(editPlannerBlock(day, (c) => ({ ...c, colors: { crit: 2 } })), "```wr1t3r-planner\ntasks: [crit]\ncolors: {crit: 2}\ntimeline:\n  - 09:00 - 10:00 | A\n```");
 });
+
+test("a deleted calendar event comes off the timeline it was imported into", async () => {
+	const { addEvents, removeEvent } = await import("../src/planner.js");
+	const at = (h, m) => new Date(2026, 9, 1, h, m).toISOString();
+	const ev = { title: "Staff Meeting", start: at(14, 0), end: at(15, 0), color: "#3f51b5" };
+	const day = { title: "Trip", allDay: true, start: "2026-10-01", end: "2026-10-01" };
+	const { timeline } = addEvents(["10:00 - 11:00 | Write", "14:00 - 15:00 | Something else"], [ev, day]);
+	assert.equal(timeline.length, 4);
+	const r = removeEvent(timeline, ev);
+	assert.equal(r.removed, 1);
+	assert.ok(!r.timeline.some((l) => l.includes("Staff Meeting")));
+	assert.ok(r.timeline.includes("14:00 - 15:00 | Something else"));
+	assert.equal(removeEvent(r.timeline, day).timeline.length, 2);
+	assert.equal(removeEvent(r.timeline, { ...ev, title: "Not there" }).removed, 0);
+});
