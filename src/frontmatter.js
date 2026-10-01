@@ -362,7 +362,7 @@ export function newNoteFrontmatter(title, date) {
 		"status: seed",
 		`date: "${date}"`,
 		"sticky: false",
-		"callout:",
+		"eyebrow:",
 		"---",
 		"",
 	].join("\n");

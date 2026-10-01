@@ -69,7 +69,7 @@ test("adding and removing tags edits only that property", () => {
 
 test("new notes get the Note template's properties with a fixed date", () => {
 	const fm = newNoteFrontmatter('Say "hi"', "2026-09-28");
-	assert.equal(fm, '---\ntitle: "Say \\"hi\\""\npublish: false\ntags:\nstatus: seed\ndate: "2026-09-28"\nsticky: false\ncallout:\n---\n');
+	assert.equal(fm, '---\ntitle: "Say \\"hi\\""\npublish: false\ntags:\nstatus: seed\ndate: "2026-09-28"\nsticky: false\neyebrow:\n---\n');
 	assert.deepEqual(frontmatterLines(doc(fm)), { open: 1, close: 9 });
 });
 
