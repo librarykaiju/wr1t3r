@@ -28,6 +28,7 @@ import {
 import { el, button, onMenu, menu, openPanel, closePanel, redrawPanel, panelOpen, select, suggestions, valuesOf, editValue, cardColorPicker } from "./basesui.js";
 import { makeCard } from "./cards.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
+import { isArchived } from "./search.js";
 import { sortable, reorder } from "./drag.js";
 import { binderOrder, binderPath } from "./binder.js";
 import { imageRef } from "./pretty.js";
@@ -102,7 +103,8 @@ function filesFor(state, host, path) {
 	const out = [];
 	for (const p of paths) {
 		const text = p === path ? state.sliceDoc() : host.text(p);
-		if (text != null) out.push({ path: p, text });
+		// Archived notes stay out of boards (only a search that asks finds them).
+		if (text != null && (p === path || !isArchived(text))) out.push({ path: p, text });
 	}
 	return out;
 }

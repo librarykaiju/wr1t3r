@@ -1367,7 +1367,11 @@ let focusedSection = null; // { view, path }: the Scrivenings section last typed
 
 const viewOf = (folder) => (VIEWS.includes(folderViews[folder]) ? folderViews[folder] : "corkboard");
 const shownFolder = () => (folderTab ? folderTab.slice(FOLDER_TAB.length) : null);
-const orderOf = (folder) => binderOrder(folder, visible().map((n) => n.path), dataviewVault.text(binderPath(folder)));
+// A folder's notes and subfolders in order, for the corkboard, outliner,
+// Scrivenings and Compile. Archived notes aren't shown (only a search that
+// asks for them finds them); fullOrderOf keeps them, for saving the order.
+const fullOrderOf = (folder) => binderOrder(folder, visible().map((n) => n.path), dataviewVault.text(binderPath(folder)));
+const orderOf = (folder) => binderOrder(folder, visible().filter((n) => !archivedNote(n)).map((n) => n.path), dataviewVault.text(binderPath(folder)));
 
 // The editor commands act on: a Scrivenings section while one has been typed
 // in, else the editor.
@@ -1541,6 +1545,15 @@ function cardCover(path, text) {
 // Saves a folder's order in its _Binder.md (made the first time).
 async function saveOrder(folder, items) {
 	const path = binderPath(folder), paths = visible().map((n) => n.path);
+	// Archived notes keep their places: each goes back in after the item it followed.
+	const full = fullOrderOf(folder), shown = new Set(items.map((it) => it.path));
+	for (let i = 0; i < full.length; i++) {
+		if (shown.has(full[i].path)) continue;
+		const after = full.slice(0, i).reverse().find((it) => shown.has(it.path));
+		const at = after ? items.findIndex((it) => it.path === after.path) + 1 : 0;
+		items = [...items.slice(0, at), full[i], ...items.slice(at)];
+		shown.add(full[i].path);
+	}
 	if (dataviewVault.text(path) != null) await dataviewVault.write(path, (t) => writeBinder(t, items, paths));
 	else {
 		const text = writeBinder("", items, paths);

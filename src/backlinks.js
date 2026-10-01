@@ -10,6 +10,7 @@ import { EditorView, Decoration, WidgetType } from "@codemirror/view";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { backlinksTo, outgoingLinks, unlinkedMentions } from "./vaultlinks.js";
 import { linkOpener } from "./links.js";
+import { isArchived } from "./search.js";
 
 const open = { from: true, to: true, mentions: false }; // which parts are unfolded, kept across notes
 
@@ -18,7 +19,8 @@ function vaultSide(state) {
 	const path = state.facet(notePath);
 	if (!host || !path) return { from: [], mentions: [] };
 	const paths = host.paths();
-	const notes = paths.map((p) => ({ path: p, text: host.text(p) }));
+	// Archived notes aren't listed (only a search that asks finds them).
+	const notes = paths.map((p) => ({ path: p, text: host.text(p) })).filter((n) => !isArchived(n.text));
 	return { from: backlinksTo(path, notes, paths), mentions: unlinkedMentions(path, notes) };
 }
 
