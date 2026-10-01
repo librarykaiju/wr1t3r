@@ -456,13 +456,23 @@ const folded = StateField.define({
 });
 
 class FmWidget extends WidgetType {
-	// kind: "open" (the Properties header), "folded" (header with a count), "add" (the button).
+	// kind: "open" (the Properties header), "folded" (header with a count), "add" (the button),
+	// "none" (a note with no properties: a pill that starts them).
 	// images (on "add"): null, or whether the image properties are showing.
 	constructor(kind, count = 0, images = null) { super(); this.kind = kind; this.count = count; this.images = images; }
 	eq(o) { return o.kind === this.kind && o.count === this.count && o.images === this.images; }
 	toDOM() {
 		const b = document.createElement("button");
 		b.type = "button";
+		if (this.kind === "none") {
+			const row = document.createElement("div");
+			row.className = "md-fm-hidden md-fm-none";
+			b.className = "md-fm-add md-fm-pill";
+			b.textContent = "+ Properties";
+			b.title = "Add properties to this note";
+			row.append(b);
+			return row;
+		}
 		if (this.kind === "add") {
 			b.className = "md-fm-add";
 			b.textContent = "+ Add property";
@@ -496,7 +506,10 @@ class FmWidget extends WidgetType {
 function decorate(state) {
 	const doc = state.doc;
 	const fm = frontmatterLines(doc);
-	if (!fm) return Decoration.none;
+	if (!fm) {
+		if (state.readOnly || isPlannerPage(doc)) return Decoration.none;
+		return Decoration.set(Decoration.widget({ widget: new FmWidget("none"), block: true, side: -1 }).range(0));
+	}
 	const open = doc.line(fm.open), close = doc.line(fm.close);
 	// Added in document order. (Not Decoration.set: an empty property's
 	// widget is a zero-length replace, which RangeSetBuilder takes and
