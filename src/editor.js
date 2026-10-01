@@ -25,6 +25,7 @@ import { backlinks } from "./backlinks.js";
 import { linkSource } from "./linkcomplete.js";
 import { tableKeymap, tableStyle } from "./table.js";
 import { blockStyle } from "./blocks.js";
+import { selectionFit } from "./selectionfit.js";
 import { dueDates } from "./due.js";
 import { frontmatterStyle, tagHue, foldProperties } from "./frontmatter.js";
 import { linkClicks, linkOpener } from "./links.js";
@@ -152,6 +153,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 	const core = [
 		history(),
 		drawSelection(),
+		selectionFit,
 		highlightSelectionMatches(),
 		indentUnit.of("\t"),
 		Prec.high(keymap.of(tableKeymap)),
