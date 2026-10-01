@@ -377,9 +377,19 @@ export function addFoodRow(dbText, food) {
 }
 
 // "Apple, 1.5" -> { name: "Apple", servings: 1.5 }. Names can have commas
-// ("Broccoli, raw, 2"), so the servings are the number after the last one.
-export function foodEntry(text) {
+// ("Broccoli, raw, 2"), and a note can follow the amount ("Butter, 2
+// (softened, room temp)"), so the food is the longest part before a comma
+// that's one of `foods` (a name or alias), as the Recipe template reads its
+// ingredients; else the part before the last comma when a number follows it.
+export function foodEntry(text, foods = []) {
 	const s = String(text).trim();
+	const known = new Set(foods.flatMap((f) => [f.name, ...f.aliases]).map((n) => n.toLowerCase()));
+	for (const i of [...s.matchAll(/,/g)].map((m) => m.index).reverse()) {
+		const name = s.slice(0, i).trim();
+		if (!known.has(name.toLowerCase())) continue;
+		const v = parseFloat(s.slice(i + 1));
+		return { name, servings: Number.isFinite(v) ? v : 1 };
+	}
 	const m = s.match(/^(.*\S)\s*,\s*(\d*\.?\d+)\s*$/);
 	return m ? { name: m[1].trim(), servings: parseFloat(m[2]) } : { name: s, servings: 1 };
 }
@@ -464,7 +474,7 @@ export function healthDay(text, foods) {
 	const meals = MEALS.map((meal) => ({
 		meal,
 		items: itemsUnder(text, meal).map((it) => {
-			const e = foodEntry(it.text);
+			const e = foodEntry(it.text, foods);
 			const food = findFood(foods, e.name);
 			if (food) for (const k of Object.keys(totals)) totals[k] += food[k] * e.servings;
 			else unmatched.push(e.name);
