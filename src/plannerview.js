@@ -434,7 +434,7 @@ class PlannerWidget extends WidgetType {
 		cols.append(this.timeline(view, ro));
 		if (this.tasks.length) {
 			const right = el("div", "planner-tasks");
-			for (const t of this.tasks) right.append(this.colored(view, ro, new TaskListWidget(t.cfg, t.result, null, this.from, this.path).toDOM(view), t.cfg.list));
+			for (const t of this.tasks) right.append(this.colored(view, ro, new TaskListWidget(t.cfg, t.result, null, this.from, this.path).toDOM(view), t.cfg.lists.join("+")));
 			cols.append(right);
 		}
 		return cols;
