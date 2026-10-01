@@ -440,6 +440,7 @@ function toggleArchive() {
 
 function renderTree() {
 	vaultTouched();
+	renderFolderNav();
 	renderHome();
 	renderHomeSettings();
 	const tree = $("tree");
@@ -1565,6 +1566,7 @@ function openNote(path, { replace = false, tab = true } = {}) {
 	renderTree();
 	renderTabs();
 	renderBookmarkButton();
+	renderFolderNav();
 	refreshCount(true);
 	renderHome();
 	if (has) sortOnOpen(path);
@@ -1589,6 +1591,36 @@ const shownFolder = () => (folderTab ? folderTab.slice(FOLDER_TAB.length) : null
 // asks for them finds them); fullOrderOf keeps them, for saving the order.
 const fullOrderOf = (folder) => binderOrder(folder, visible().map((n) => n.path), dataviewVault.text(binderPath(folder)));
 const orderOf = (folder) => binderOrder(folder, visible().filter((n) => !archivedNote(n)).map((n) => n.path), dataviewVault.text(binderPath(folder)));
+
+// The notes either side of the open one in its folder, in the folder's order
+// (the sidebar's and the corkboard's), for the ‹ › buttons.
+function folderSiblings(path) {
+	if (!path || !/\.md$/i.test(path)) return null;
+	const folder = path.slice(0, path.lastIndexOf("/") + 1);
+	const list = orderOf(folder).filter((it) => it.kind === "note").map((it) => it.path);
+	const at = list.indexOf(path);
+	return at < 0 || list.length < 2 ? null : { prev: list[at - 1], next: list[at + 1], at, count: list.length };
+}
+
+function renderFolderNav() {
+	const s = folderSiblings(editor?.path);
+	$("folderNav").hidden = !s;
+	if (!s) return;
+	for (const [id, to, word, n, edge] of [["prevNote", s.prev, "Previous", s.at, "first"], ["nextNote", s.next, "Next", s.at + 2, "last"]]) {
+		const b = $(id);
+		b.disabled = !to;
+		b.querySelector("span").textContent = to ? name(to) : "";
+		b.title = to ? `${word}: ${name(to)} (${n} of ${s.count})` : `This is the ${edge} note in the folder`;
+		b.setAttribute("aria-label", b.title);
+	}
+}
+
+// Opens the note before (-1) or after (1) this one, in this tab.
+function stepFolder(dir) {
+	const s = folderSiblings(editor.path);
+	const to = s && (dir < 0 ? s.prev : s.next);
+	if (to) openNote(to, { replace: true });
+}
 
 // The editor commands act on: a Scrivenings section while one has been typed
 // in, else the editor.
@@ -2136,6 +2168,8 @@ function allCommands() {
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
 		[editor.path && archivedNote({ path: editor.path, text: view.state.doc.toString() }) ? "Unarchive this note" : "Archive this note", toggleArchive, "archive hide remove from list restore unarchive", true],
 		["Go home", goHome, "home start pinned tiles grid"],
+		["Previous note in this folder", () => stepFolder(-1), "back prev page sibling chapter", true],
+		["Next note in this folder", () => stepFolder(1), "forward page sibling chapter", true],
 		["Pin this note to Home", () => pinItem(editor.path), "pin home tile", true],
 		["Add a tile to Home", addTile, "pin home tile folder command link"],
 		["Rename this note", () => { $("path").focus(); }, "move", true],
@@ -4121,6 +4155,8 @@ async function start() {
 	$("hotkeysBtn").addEventListener("click", editHotkeys);
 	$("bookmark").addEventListener("click", () => toggleBookmark());
 	$("homeBtn").addEventListener("click", goHome);
+	$("prevNote").addEventListener("click", () => stepFolder(-1));
+	$("nextNote").addEventListener("click", () => stepFolder(1));
 	$("palette").addEventListener("click", () => commandPalette());
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);
 

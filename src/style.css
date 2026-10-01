@@ -414,6 +414,15 @@ main:not(.has-note) #panes { display: none; }
 #pomo.running { color: var(--accent); }
 #pomo.done { color: var(--bad); }
 main:not(.has-note) #count { visibility: hidden; }
+/* ‹ › in the bar: the notes either side of this one in its folder, by name
+   (just the arrows on a phone). */
+.folder-nav { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.folder-nav[hidden], main:not(.has-note) .folder-nav { display: none; }
+#bar .folder-nav button { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 220px; }
+.folder-nav button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.folder-nav button svg { flex: none; }
+.folder-nav button:disabled { opacity: 0.35; }
+@media (max-width: 600px) { .folder-nav button span { display: none; } }
 
 #calBtn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; max-width: 220px; }
 #calBtn svg { flex: none; }
