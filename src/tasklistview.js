@@ -12,6 +12,7 @@ import { setDueChanges, isoDay } from "./tasks.js";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { linkOpener, resolveNote } from "./links.js";
 import { menu } from "./basesui.js";
+import { isOpen, openAsText } from "./drawnblocks.js";
 
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 const baseName = (p) => p.split("/").pop().replace(/\.md$/i, "");
@@ -34,7 +35,8 @@ function saveConfig(view, n, cfg) {
 }
 
 // Where a list's new tasks go: the block's inbox: note, else the list's own
-// note ("Critical Tasks List.md") wherever it is, else made in _docs/.
+// note ("Critical Tasks.md", or the older "Critical Tasks List.md")
+// wherever it is, else made in _docs/.
 async function addTask(view, cfg, day, text) {
 	const host = view.state.facet(vaultHost);
 	const paths = host.paths();
@@ -42,8 +44,10 @@ async function addTask(view, cfg, day, text) {
 	const title = cfg.title || listName(cfg.list).replace(/^#/, "");
 	const root = paths.some((p) => p.startsWith("content/")) ? "content/" : "";
 	const file = title.replace(/[\\/:*?"<>|]/g, "") + ".md";
+	// The lists were "… List" once; a note by that name is still theirs.
+	const names = [file, ...(cfg.title ? [] : [file.replace(/\.md$/, " List.md")])].map((f) => f.toLowerCase());
 	const target = cfg.inbox ? resolveNote({ note: cfg.inbox.replace(/^\[\[|\]\]$/g, "").split("|")[0], heading: "", wiki: true }, view.state.facet(notePath), paths)
-		: paths.filter((p) => p.split("/").pop().toLowerCase() === file.toLowerCase() && !/(^|\/)_templates\//i.test(p)).sort((a, b) => a.length - b.length)[0];
+		: names.map((f) => paths.filter((p) => p.split("/").pop().toLowerCase() === f && !/(^|\/)_templates\//i.test(p)).sort((a, b) => a.length - b.length)[0]).find(Boolean);
 	if (target) await host.write(target, (t) => appendTask(t, line));
 	else await host.create(root + "_docs/", file.slice(0, -3), () => `# ${title}\n\n${line}\n`, { open: false });
 }
@@ -96,9 +100,7 @@ export class TaskListWidget extends WidgetType {
 		if (this.n != null) tools.append(button("md-tl-btn", "</>", "Show the block's settings as text", () => {
 			let pos = this.from;
 			try { pos = view.posAtDOM(wrap); } catch {}
-			const line = view.state.doc.lineAt(pos);
-			view.dispatch({ selection: { anchor: Math.min(line.to + 1, view.state.doc.length) }, scrollIntoView: true });
-			view.focus();
+			openAsText(view, pos);
 		}));
 		head.append(tools);
 		wrap.append(head);
@@ -163,8 +165,8 @@ export class TaskListWidget extends WidgetType {
 		const pick = (label, on) => (on ? "✓ " : " ") + label;
 		const hasDay = !!noteDay(this.path);
 		menu([
-			[pick("Critical Tasks List (#crit)", cfg.list === "crit"), () => set({ list: "crit", title: null })],
-			[pick("To Do's List (#todo)", cfg.list === "todo"), () => set({ list: "todo", title: null })],
+			[pick("Critical Tasks (#crit)", cfg.list === "crit"), () => set({ list: "crit", title: null })],
+			[pick("To Do's (#todo)", cfg.list === "todo"), () => set({ list: "todo", title: null })],
 			[pick("Another tag…", !["crit", "todo"].includes(cfg.list)), () => { const t = prompt("Tag (without #):", ["crit", "todo"].includes(cfg.list) ? "" : cfg.list); if (t && t.trim()) set({ list: t.trim().replace(/^#/, ""), title: null }); }],
 			null,
 			[pick("Open tasks", cfg.show === "open"), () => set({ show: "open" })],
@@ -197,11 +199,10 @@ function build(state) {
 	if (!state.facet(vaultHost) || !path || UNTRUSTED.test(path)) return b.finish();
 	const blocks = dataviewBlocks(state, TASKS_BLOCK);
 	if (!blocks.length) return b.finish();
-	const sel = state.selection.ranges;
 	const notes = allNotes(state);
 	const today = isoDay(new Date());
 	blocks.forEach((blk, n) => {
-		if (sel.some((r) => r.to >= blk.from && r.from <= blk.to)) return; // being edited
+		if (isOpen(state, blk)) return; // opened as text with its </> button
 		const cfg = readConfig(blk.code);
 		b.add(blk.from, blk.to, Decoration.replace({ widget: new TaskListWidget(cfg, taskList(notes, cfg, { path, today }), n, blk.from, path), block: true }));
 	});

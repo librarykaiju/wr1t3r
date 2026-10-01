@@ -625,7 +625,7 @@ function itemMenu(item, x, y) {
 			["Outliner", () => openFolderView(item, "outliner")],
 			["Scrivenings", () => openFolderView(item, "scrivenings")],
 			["Compile…", () => openCompile(item)],
-			["New base…", () => newBase(item)],
+			["New board…", () => newBase(item)],
 		] : []),
 		pinEntry(item),
 		["Rename…", () => renameItem(item)],
@@ -985,7 +985,7 @@ function renderHomeSettings() {
 		row.className = "home-pin";
 		row.style.setProperty("--tc", pinColor(pin, ordinal[i]));
 		row.title = "Change, move or unpin this tile";
-		const what = { note: /\.base$/i.test(path || k.target || "") ? "base" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "one document" : k.view, command: "command", url: "web page" }[k.kind];
+		const what = { note: /\.base$/i.test(path || k.target || "") ? "board" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "one document" : k.view, command: "command", url: "web page" }[k.kind];
 		const nm = document.createElement("span");
 		nm.textContent = pinTitle(pin, path);
 		const kind = document.createElement("small");
@@ -1779,6 +1779,7 @@ function insertFromTemplate() {
 setSlashExtras(() => [
 	{ label: "Transcript", detail: "of a video or audio file", keywords: "transcribe speech speakers video audio", run: () => transcribeIntoNote() },
 	{ label: "Log food", detail: "to the day's health note", keywords: "food eat meal nutrition calories usda", run: () => logFood() },
+	{ label: "Board", detail: "grid, gallery, list or kanban of notes", keywords: "base view table database properties filter", run: () => insertBoard() },
 	...vaultTemplates().map((t) => ({
 		label: t.name, detail: "template", keywords: "template " + t.name.toLowerCase(),
 		run: () => insertTemplateAt(t),
@@ -1865,6 +1866,23 @@ function logFood() {
 	openFoodPanel(view, daily, have ? notes.get(have)?.text : "", anchor);
 }
 
+// "Insert board": a ```board block at the cursor, starting as a Grid of the
+// note's folder with the properties its notes use most (src/baseconfig.js).
+function insertBoard() {
+	const view = editor.view, path = editor.path;
+	if (!view || !path || view.state.readOnly) return;
+	const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+	const texts = visible().filter((n) => n.path.startsWith(folder + "/") && !n.binary).slice(0, 200).map((n) => n.text);
+	const body = starterBase(folder, texts).replace(/\n$/, "");
+	const { state } = view, head = state.selection.main.head, line = state.doc.lineAt(head);
+	const at = line.text.trim() ? line.to : line.from;
+	const before = line.text.trim() ? "\n\n" : "";
+	const text = `${before}\`\`\`board\n${body}\n\`\`\`\n`;
+	// The cursor goes after the block, so it draws as a board straight away.
+	view.dispatch({ changes: { from: at, to: at, insert: text }, selection: { anchor: at + text.length }, scrollIntoView: true });
+	view.focus();
+}
+
 // Every command, for the palette and the hotkeys. editor: runs on the open
 // note's editor (and only while it has the cursor, from a hotkey).
 function allCommands() {
@@ -1875,11 +1893,12 @@ function allCommands() {
 		["New note", () => newNote(), "create"],
 		["New note from template", newFromTemplate, "templater"],
 		...NEW_NOTE_KINDS.map((k) => [k.label, () => newKindNote(k), `create template ${k.template.toLowerCase()} ${k.keywords}`]),
-		["New base", () => newBase(), "create database table grid gallery kanban view bases"],
+		["New board file", () => newBase(), "create database table grid gallery kanban view bases base"],
 		["Clean up properties", cleanUpProperties, "yaml frontmatter properties empty rename merge delete tidy vault"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
 		["Log food", logFood, "eat meal nutrition calories health usda planner"],
+		["Insert board", insertBoard, "grid gallery kanban list table view properties filter database base", true],
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
 		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
@@ -2281,7 +2300,7 @@ function newBase(folder = null) {
 	const all = [...folders].filter((f) => f.startsWith(home) && f !== home)
 		.sort((a, b) => (b === here) - (a === here) || a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
 	openPalette({
-		placeholder: "Which notes should the base show?",
+		placeholder: "Which notes should the board show?",
 		items: [
 			{ label: "Every note", detail: "vault", keywords: "all whole", run: () => nameBase("") },
 			...all.map((f) => ({ label: folderLabel(f), detail: "folder", run: () => nameBase(f) })),
@@ -2291,7 +2310,7 @@ function newBase(folder = null) {
 
 async function nameBase(folder) {
 	const home = folder || commonFolder(visible());
-	const input = prompt("New base (folders with /):", home + (folder ? itemLabel(folder) : "Untitled") + ".base");
+	const input = prompt("New board (folders with /):", home + (folder ? itemLabel(folder) : "Untitled") + ".base");
 	if (input == null) return;
 	const path = input.trim().replace(/^\/+/, "").replace(/(\.base)?$/i, ".base");
 	if (!isNotePath(path)) return toast("That isn't a usable name.");

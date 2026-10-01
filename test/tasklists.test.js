@@ -16,8 +16,8 @@ test("settings: defaults, choices, and a round trip that keeps unknown keys", ()
 	assert.equal(cfg.show, "all");
 	assert.equal(cfg.group, "none");
 	assert.equal(writeConfig(cfg), "list: todo\nshow: all\nextra: 1");
-	assert.equal(listName("crit"), "Critical Tasks List");
-	assert.equal(listName("todo"), "To Do's List");
+	assert.equal(listName("crit"), "Critical Tasks");
+	assert.equal(listName("todo"), "To Do's");
 	assert.equal(listName("work"), "#work");
 });
 
@@ -31,7 +31,7 @@ test("tasks are found by tag (nested tags count), outside templates", () => {
 test("a day's list: due, done or written that day, plus overdue on today", () => {
 	const today = "2026-09-30";
 	const r = taskList(notes, readConfig("show: all"), { path: "content/_daily/2026-09-30.md", today });
-	assert.equal(r.title, "Critical Tasks List");
+	assert.equal(r.title, "Critical Tasks");
 	assert.equal(r.day, "2026-09-30");
 	assert.deepEqual(r.groups[0].tasks.map((t) => t.text), ["late thing #crit 📅 2026-09-28", "sub #crit/work 📅 2026-09-30", "write intro #crit", "done today #crit ✅ 2026-09-30"]);
 	// Another day doesn't carry overdue tasks.

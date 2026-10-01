@@ -9,6 +9,9 @@
 //   tasks: [crit, todo]          task list cards in the right column
 //   moods: [😄 Great, 🙂 Good]   the Mood button's choices (these eight otherwise)
 //   exercises: [🚶 Walk, 🏃 Run] the Exercise button's choices
+//   colors: {timeline: 3, crit: 5} card colors, 1-7 from the theme's rainbow
+//                                (the cards' color dots set them in
+//                                _templates/Daily.md, so every day shares them)
 //   timeline:                    the Timeline card's entries
 //     - 09:00 - 10:00 | Standup
 //     - All day | Trip
@@ -37,7 +40,8 @@ const DEFAULT_EXERCISES = ["🚶 Walk", "🏃 Run", "🥾 Hike"];
 
 const DEFAULTS = { tasks: ["crit", "todo"], moods: DEFAULT_MOODS, exercises: DEFAULT_EXERCISES, calories_target: 2417, water_target: 128, water_step: 8, steps_target: 7000, activity_target: 400, start: 9, end: 21 };
 const NUMBERS = ["calories_target", "water_target", "water_step", "steps_target", "activity_target", "start", "end"];
-const ORDER = ["banner", "title", "tasks", "moods", "exercises", "nutrition", ...NUMBERS, "timeline"];
+const ORDER = ["banner", "title", "tasks", "moods", "exercises", "nutrition", ...NUMBERS, "colors", "timeline"];
+export const CARD_COLORS = 7;
 
 // ---- The block ---------------------------------------------------------------
 
@@ -60,6 +64,13 @@ export function readPlanner(code) {
 	cfg.start = Math.min(23, Math.floor(cfg.start));
 	cfg.end = Math.max(cfg.start + 1, Math.min(24, Math.floor(cfg.end)));
 	for (const k of ["banner", "title", "nutrition"]) cfg[k] = raw[k] == null || String(raw[k]).trim() === "" ? null : String(raw[k]).trim();
+	cfg.colors = {};
+	if (raw.colors && typeof raw.colors === "object" && !Array.isArray(raw.colors)) {
+		for (const [k, v] of Object.entries(raw.colors)) {
+			const n = Number(v);
+			if (Number.isInteger(n) && n >= 1 && n <= CARD_COLORS) cfg.colors[String(k).replace(/^#/, "").toLowerCase()] = n;
+		}
+	}
 	return cfg;
 }
 
@@ -75,17 +86,37 @@ const scalar = (v) => {
 // this file doesn't know are kept.
 export function writePlanner(cfg) {
 	const out = [];
-	const same = (k) => JSON.stringify(cfg[k]) === JSON.stringify(DEFAULTS[k]);
+	const same = (k) => JSON.stringify(cfg[k]) === JSON.stringify(DEFAULTS[k]) || (k === "colors" && !Object.keys(cfg[k] || {}).length);
 	for (const k of [...ORDER, ...Object.keys(cfg).filter((k) => !ORDER.includes(k))]) {
 		const v = cfg[k];
 		if (v == null || v === "" || same(k)) continue;
 		if (k === "timeline") {
 			if (v.length) out.push("timeline:", ...v.map((s) => `  - ${scalar(s)}`));
 		} else if (Array.isArray(v)) out.push(`${k}: [${v.map(scalar).join(", ")}]`);
+		else if (k === "colors") out.push(`colors: {${Object.entries(v).map(([c, n]) => `${scalar(c)}: ${n}`).join(", ")}}`);
 		else if (typeof v === "object") out.push(`${k}: ${JSON.stringify(v)}`);
 		else out.push(`${k}: ${scalar(v)}`);
 	}
 	return out.join("\n");
+}
+
+// A card's color: this block's own, else the shared one (the Daily
+// template's), else null. card: "timeline" or a task list's tag.
+export function cardColor(cfg, shared, card) {
+	const k = String(card).toLowerCase();
+	return cfg.colors?.[k] ?? shared?.[k] ?? null;
+}
+
+// text with its first wr1t3r-planner block's settings changed by fn(cfg) ->
+// the new text, or null when it has no planner block.
+export function editPlannerBlock(text, fn) {
+	const m = String(text).match(/(^|\n)(```wr1t3r-planner[ \t]*)(\r?\n)([\s\S]*?)(\r?\n)?```/);
+	if (!m) return null;
+	const nl = m[3];
+	const body = writePlanner(fn(readPlanner(m[4] || "")));
+	const at = m.index + m[1].length;
+	const block = m[2] + nl + (body ? body.replace(/\n/g, nl) + nl : "") + "```";
+	return text.slice(0, at) + block + text.slice(at + m[0].length - m[1].length);
 }
 
 // ---- The timeline ---------------------------------------------------------------

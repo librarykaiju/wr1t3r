@@ -256,3 +256,38 @@ function editList(cell, value, options, finish) {
 		setTimeout(() => { if (!box.contains(document.activeElement)) finish(JSON.stringify(out().map(show)) !== before, items.map(typed)); });
 	});
 }
+
+// The theme's rainbow (--f1..--f7) and Default, for a card.
+export function cardColorPicker(current, x, y, pick) {
+	document.querySelector(".item-menu")?.remove();
+	const box = el("div", "item-menu planner-colors");
+	box.setAttribute("role", "dialog");
+	box.setAttribute("aria-label", "Card color");
+	const row = el("div", "swatches");
+	const swatch = (n, label) => {
+		const b = el("button", "swatch" + (n ? "" : " none"));
+		b.type = "button";
+		b.title = label;
+		b.setAttribute("aria-label", label);
+		b.setAttribute("aria-pressed", String((current || null) === n));
+		if (n) b.style.setProperty("--sw", `var(--f${n})`);
+		b.addEventListener("click", () => { close(); pick(n); });
+		row.append(b);
+	};
+	swatch(null, "Default");
+	for (let n = 1; n <= 7; n++) swatch(n, `Color ${n}`);
+	box.append(row);
+	document.body.append(box);
+	const r = box.getBoundingClientRect();
+	box.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
+	box.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+	const away = (ev) => { if (!box.contains(ev.target)) close(); };
+	const esc = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); close(); } };
+	function close() {
+		box.remove();
+		document.removeEventListener("pointerdown", away, true);
+		document.removeEventListener("keydown", esc, true);
+	}
+	setTimeout(() => { document.addEventListener("pointerdown", away, true); document.addEventListener("keydown", esc, true); });
+	box.querySelector("[aria-pressed=true]")?.focus();
+}

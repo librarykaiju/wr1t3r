@@ -23,7 +23,7 @@ import { parseYaml } from "./bases.js";
 import { listItems } from "./dvpage.js";
 
 export const TASKS_BLOCK = "wr1t3r-tasks";
-export const LIST_NAMES = { crit: "Critical Tasks List", todo: "To Do's List" };
+export const LIST_NAMES = { crit: "Critical Tasks", todo: "To Do's" };
 export const listName = (tag) => LIST_NAMES[tag.toLowerCase()] || `#${tag}`;
 
 const CHOICES = { day: ["note", "all"], show: ["open", "all", "done"], group: ["none", "note", "due"], sort: ["due", "note", "text"] };
