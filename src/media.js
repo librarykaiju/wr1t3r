@@ -7,7 +7,8 @@ import { mediaNote, mediaNoteName } from "./medianote.js";
 
 // The search dialog. search(q) resolves to [{title, subtitle, thumbnailUrl}];
 // resolves to the chosen result, or null when closed.
-export function searchDialog(title, search) {
+// blank: a label for a button that skips the search (resolves { blank: true }).
+export function searchDialog(title, search, { blank = null } = {}) {
 	return new Promise((resolve) => {
 		const { wrap, box, close } = dialog(title, () => resolve(null));
 		const input = document.createElement("input");
@@ -20,6 +21,12 @@ export function searchDialog(title, search) {
 		list.setAttribute("role", "listbox");
 		list.className = "media-results";
 		box.append(input, list);
+		if (blank) {
+			const b = Object.assign(document.createElement("button"), { type: "button", className: "media-blank", textContent: blank });
+			b.addEventListener("mousedown", (e) => e.preventDefault());
+			b.addEventListener("click", () => { close(false); resolve({ blank: true }); });
+			box.append(b);
+		}
 		const note = (text) => list.replaceChildren(Object.assign(document.createElement("li"), { className: "none", textContent: text }));
 		note("Type, then press Enter to search.");
 
@@ -146,11 +153,11 @@ function dialog(label, onCancel) {
 }
 
 // The whole flow for one kind -> { folder, name, text } for the new note, or
-// null if it was cancelled. api is src/api.js's; status(text) shows progress
-// ("" hides it).
-export async function makeMediaNote(k, api, status) {
-	const hit = await searchDialog(`Search ${k.label.toLowerCase()}`, (q) => api.mediaSearch(k.kind, q));
-	if (!hit) return null;
+// null if it was cancelled, or { blank: true } when blank (a label) was given
+// and picked. api is src/api.js's; status(text) shows progress ("" hides it).
+export async function makeMediaNote(k, api, status, { blank = null } = {}) {
+	const hit = await searchDialog(`Search ${k.label.toLowerCase()}`, (q) => api.mediaSearch(k.kind, q), { blank });
+	if (!hit || hit.blank) return hit;
 	let cover = "";
 	if (k.covers) {
 		status("Finding covers…");

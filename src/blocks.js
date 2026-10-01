@@ -11,6 +11,8 @@ import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view
 import { RangeSetBuilder } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { doneStampChanges } from "./tasks.js";
+import { snippet } from "@codemirror/autocomplete";
+import { openPalette } from "./palette.js";
 
 // Obsidian's callout types and aliases, grouped by the color Obsidian gives them.
 const CALLOUT_GROUPS = {
@@ -53,6 +55,39 @@ const ICON_GROUPS = {
 const CALLOUT_ICON = Object.fromEntries(
 	Object.entries(ICON_GROUPS).flatMap(([icon, names]) => names.split(" ").map((n) => [n, icon])),
 );
+
+// The callout picker (the "Callout" slash command and "Insert callout" in
+// the palette): one row per kind, its aliases as the detail; picking one
+// puts "> [!kind] Title" at the cursor, or around the selected lines.
+export const CALLOUT_KINDS = Object.entries(ICON_GROUPS).map(([, names]) => {
+	const [kind, ...aliases] = names.split(" ");
+	return { kind, aliases };
+});
+export function pickCallout(view) {
+	const sel = view.state.selection.main;
+	openPalette({
+		placeholder: "Callout type…",
+		items: CALLOUT_KINDS.map(({ kind, aliases }) => ({
+			label: kind[0].toUpperCase() + kind.slice(1),
+			detail: aliases.join(", "),
+			keywords: [kind, ...aliases, CALLOUT_COLOR[kind]].join(" "),
+			run: () => {
+				view.focus();
+				const doc = view.state.doc;
+				if (!sel.empty) {
+					const first = doc.lineAt(sel.from), last = doc.lineAt(sel.to);
+					const body = doc.sliceString(first.from, last.to).split("\n").map((l) => "> " + l).join("\n");
+					const text = `> [!${kind}]\n${body}`;
+					view.dispatch({ changes: { from: first.from, to: last.to, insert: text }, selection: { anchor: first.from + 5 + kind.length }, scrollIntoView: true });
+					return;
+				}
+				const line = doc.lineAt(sel.head);
+				const lead = line.text.trim() && sel.head > line.from ? "\n" : "";
+				snippet(`${lead}> [!${kind}] \${title}\n> \${}`)(view, null, sel.head, sel.head);
+			},
+		})),
+	});
+}
 
 // "> [!warning]- Title" -> { type: "warning", color: "orange", icon: "alert", fold: "-",
 // tag: [start, end) of "[!warning]- " in the line, title: "Title" }. Unknown types look like notes.
@@ -112,6 +147,19 @@ class CalloutIconWidget extends WidgetType {
 		return wrap;
 	}
 }
+
+// A list's "-", "*" or "+" drawn as a dot, in its depth's color. The text keeps its marker.
+class BulletWidget extends WidgetType {
+	constructor(depth) { super(); this.depth = depth; }
+	eq(o) { return o.depth === this.depth; }
+	toDOM() {
+		const s = document.createElement("span");
+		s.className = `md-bullet md-bullet-${this.depth} md-dot`;
+		s.textContent = "•";
+		return s;
+	}
+}
+const dots = Array.from({ length: 7 }, (_, i) => Decoration.replace({ widget: new BulletWidget(i), atomic: true }));
 
 const hide = Decoration.replace({ atomic: true });
 const line = (cls) => Decoration.line({ class: cls });
@@ -173,7 +221,20 @@ function build(view) {
 					// Bullets and numbers take the theme's rainbow by depth.
 					let depth = -1;
 					for (let p = node.node.parent; p; p = p.parent) if (p.name === "BulletList" || p.name === "OrderedList") depth++;
-					if (depth >= 0) marks.push([node.from, node.to, bullet[depth % 7]]);
+					if (depth < 0) return false;
+					// The list's own indent: the typed spaces give way to a step per level
+					// (style.css), and wrapped lines hang under the text.
+					const ln = doc.lineAt(node.from);
+					const lead = state.sliceDoc(ln.from, node.from);
+					if (/^[ \t]*$/.test(lead)) {
+						addLine(ln.from, ln.from, `md-li md-li-${Math.min(depth, 6)}`, false);
+						if (lead) marks.push([ln.from, node.from, hide]);
+					}
+					if (node.node.parent?.parent?.name !== "BulletList") { marks.push([node.from, node.to, bullet[depth % 7]]); return false; }
+					// A task's checkbox stands in for its bullet; other bullets are dots.
+					const after = state.sliceDoc(node.to, node.to + 5);
+					if (/^\s\[[^\]\n]\]/.test(after)) marks.push([node.from, node.to + 1, hide]);
+					else marks.push([node.from, node.to, dots[depth % 7]]);
 					return false;
 				}
 				case "TaskMarker": {
