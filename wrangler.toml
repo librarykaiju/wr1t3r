@@ -27,6 +27,11 @@ EXCLUDE = "_includes/,content/404.md"
 binding = "VAULT"
 bucket_name = "w3bz1n3-vault"
 
+# Workers AI, for transcripts of video and audio files (Deepgram's Nova-3,
+# speakers told apart; see worker/transcribe.js). Billed per audio minute.
+[ai]
+binding = "AI"
+
 # Secret (not stored here) -- set with `npx wrangler secret put WR1T3R_TOKEN`:
 #   WR1T3R_TOKEN  -- any long random string; the page asks for it once per
 #                    device and sends it as a Bearer token

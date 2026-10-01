@@ -63,6 +63,10 @@ export const api = {
 		if (res.status === 412) return false;
 		return { path, version: (await jsonOrThrow(res)).version, size: blob.size };
 	},
+	// 16 kHz mono WAV -> { duration, segments } (src/transcript.js).
+	async transcribe(wav) {
+		return jsonOrThrow(await call("/api/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav }));
+	},
 	async obsidian() {
 		return jsonOrThrow(await call("/api/obsidian"));
 	},

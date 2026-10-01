@@ -27,6 +27,7 @@ import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.
 import { api, token, setToken, AuthError } from "./api.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
+import { transcribeFile } from "./transcribeview.js";
 import { contentHash } from "./localvault.js";
 import { isNotePath, isAttachmentPath } from "./paths.js";
 import { counts, countWords } from "./count.js";
@@ -1774,10 +1775,13 @@ function insertFromTemplate() {
 }
 
 // Each template in the slash menu too: /name inserts it at the cursor.
-setSlashExtras(() => vaultTemplates().map((t) => ({
-	label: t.name, detail: "template", keywords: "template " + t.name.toLowerCase(),
-	run: () => insertTemplateAt(t),
-})));
+setSlashExtras(() => [
+	{ label: "Transcript", detail: "of a video or audio file", keywords: "transcribe speech speakers video audio", run: () => transcribeIntoNote() },
+	...vaultTemplates().map((t) => ({
+		label: t.name, detail: "template", keywords: "template " + t.name.toLowerCase(),
+		run: () => insertTemplateAt(t),
+	})),
+]);
 
 // Hotkeys: Obsidian's defaults plus this device's changes (src/hotkeys.js).
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -1796,6 +1800,46 @@ function toggleLivePreview() {
 	const live = readRaw("wr1t3rMode") !== "live";
 	storeRaw("wr1t3rMode", live ? "live" : null);
 	applyMode(live ? "live" : "source");
+}
+
+// A transcript of a video or audio file, put in the open note at the cursor
+// (src/transcribeview.js).
+function transcribeIntoNote() {
+	const path = editor.path;
+	if (!path || editor.view.state.readOnly) return;
+	// In the page while it's open: Safari ignores a click on a detached input.
+	const input = Object.assign(document.createElement("input"), { type: "file", accept: "video/*,audio/*", hidden: true });
+	document.body.append(input);
+	window.addEventListener("focus", () => setTimeout(() => { if (!input.files?.length) input.remove(); }, 1000), { once: true });
+	input.addEventListener("change", async () => {
+		const file = input.files?.[0];
+		input.remove();
+		if (!file) return;
+		const at = editor.view.state.selection.main.head;
+		let md, note = null;
+		try {
+			md = await transcribeFile(file, api, (t) => { if (note) note.set(t); else note = toast(t, 10 * 60000); });
+		} catch (e) {
+			note?.close();
+			toast(`Couldn't transcribe “${file.name}”: ${e.message}`, 8000);
+			return;
+		}
+		note?.close();
+		if (editor.path !== path) {
+			// Another note was opened meanwhile: add it to the end of this one.
+			await change(path, (cur) => (cur && !cur.deleted ? { ...cur, text: cur.text.replace(/\s*$/, "\n\n") + md, dirty: true } : cur));
+			toast(`The transcript of “${file.name}” is at the end of ${name(path)}.`, 6000);
+			scheduleSync();
+			return;
+		}
+		const view = editor.view, doc = view.state.doc, pos = Math.min(at, doc.length);
+		const line = doc.lineAt(pos);
+		const before = line.text.trim() ? "\n\n" : pos > 0 && doc.lineAt(Math.max(0, line.from - 1)).text.trim() ? "\n" : "";
+		const where = line.text.trim() ? line.to : pos;
+		view.dispatch({ changes: { from: where, insert: before + md }, selection: { anchor: where + before.length + md.length }, scrollIntoView: true });
+		toast(`Added the transcript of “${file.name}”.`, 4000);
+	});
+	input.click();
 }
 
 // Every command, for the palette and the hotkeys. editor: runs on the open
@@ -1840,6 +1884,7 @@ function allCommands() {
 		["Open scrivenings", () => pickFolder("scrivenings"), "scrivener one document whole folder read"],
 		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
+		["Transcribe a video or audio file", transcribeIntoNote, "transcript speech text speakers video audio mp4 mov podcast interview", true],
 		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],
 		...mediaKinds.filter((k) => k.ready && MEDIA_COMMANDS[k.kind]).map((k) => [`Create ${MEDIA_COMMANDS[k.kind]} note`, () => newMediaNote(k), "media log " + k.label.toLowerCase()]),
 		["Sync now", () => runSync(), "save"],
