@@ -85,7 +85,7 @@ test("the index counts keys and empties; a plan lists what would change", () => 
 
 test("the website's properties are known, and planner-only ones aren't among them", async () => {
 	const { SITE_KEYS } = await import("../src/sitekeys.js");
-	for (const k of ["publish", "title", "tags", "permalink", "coverImage", "callout", "date", "layout"]) assert.ok(SITE_KEYS.has(k), k);
+	for (const k of ["publish", "title", "tags", "permalink", "coverImage", "eyebrow", "date", "layout"]) assert.ok(SITE_KEYS.has(k), k);
 	for (const k of ["meds", "hydration_oz", "steps", "calories_target"]) assert.ok(!SITE_KEYS.has(k), k);
 });
 
