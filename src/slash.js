@@ -5,6 +5,7 @@
 
 import { snippet } from "@codemirror/autocomplete";
 import { addProperty } from "./frontmatter.js";
+import { pickCallout } from "./blocks.js";
 import { editBanner, editCover } from "./pretty.js";
 import { insertFootnote } from "./footnotes.js";
 import { dueCommand } from "./due.js";
@@ -20,7 +21,7 @@ export const COMMANDS = [
 	{ label: "Numbered list", template: "1. ${}", keywords: "ol ordered" },
 	{ label: "Task", template: "- [ ] ${}", keywords: "todo checkbox" },
 	{ label: "Quote", template: "> ${}", keywords: "blockquote" },
-	{ label: "Callout", template: "> [!${note}] ${title}\n> ${}", keywords: "admonition note warning tip" },
+	{ label: "Callout", run: pickCallout, keywords: "admonition note warning tip" },
 	{ label: "Code block", template: "```${lang}\n${}\n```", keywords: "fence pre" },
 	{ label: "Table", template: "| ${Column} | Column |\n| --- | --- |\n| ${} |  |", keywords: "grid" },
 	{ label: "Divider", template: "---\n${}", keywords: "hr rule line" },

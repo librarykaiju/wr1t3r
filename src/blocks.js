@@ -11,6 +11,8 @@ import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view
 import { RangeSetBuilder } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { doneStampChanges } from "./tasks.js";
+import { snippet } from "@codemirror/autocomplete";
+import { openPalette } from "./palette.js";
 
 // Obsidian's callout types and aliases, grouped by the color Obsidian gives them.
 const CALLOUT_GROUPS = {
@@ -53,6 +55,39 @@ const ICON_GROUPS = {
 const CALLOUT_ICON = Object.fromEntries(
 	Object.entries(ICON_GROUPS).flatMap(([icon, names]) => names.split(" ").map((n) => [n, icon])),
 );
+
+// The callout picker (the "Callout" slash command and "Insert callout" in
+// the palette): one row per kind, its aliases as the detail; picking one
+// puts "> [!kind] Title" at the cursor, or around the selected lines.
+export const CALLOUT_KINDS = Object.entries(ICON_GROUPS).map(([, names]) => {
+	const [kind, ...aliases] = names.split(" ");
+	return { kind, aliases };
+});
+export function pickCallout(view) {
+	const sel = view.state.selection.main;
+	openPalette({
+		placeholder: "Callout type…",
+		items: CALLOUT_KINDS.map(({ kind, aliases }) => ({
+			label: kind[0].toUpperCase() + kind.slice(1),
+			detail: aliases.join(", "),
+			keywords: [kind, ...aliases, CALLOUT_COLOR[kind]].join(" "),
+			run: () => {
+				view.focus();
+				const doc = view.state.doc;
+				if (!sel.empty) {
+					const first = doc.lineAt(sel.from), last = doc.lineAt(sel.to);
+					const body = doc.sliceString(first.from, last.to).split("\n").map((l) => "> " + l).join("\n");
+					const text = `> [!${kind}]\n${body}`;
+					view.dispatch({ changes: { from: first.from, to: last.to, insert: text }, selection: { anchor: first.from + 5 + kind.length }, scrollIntoView: true });
+					return;
+				}
+				const line = doc.lineAt(sel.head);
+				const lead = line.text.trim() && sel.head > line.from ? "\n" : "";
+				snippet(`${lead}> [!${kind}] \${title}\n> \${}`)(view, null, sel.head, sel.head);
+			},
+		})),
+	});
+}
 
 // "> [!warning]- Title" -> { type: "warning", color: "orange", icon: "alert", fold: "-",
 // tag: [start, end) of "[!warning]- " in the line, title: "Title" }. Unknown types look like notes.

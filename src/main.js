@@ -1749,7 +1749,7 @@ function templateItems(run) {
 function newFromTemplate() {
 	const items = templateItems((t) => {
 		const kind = kindForTemplate(t.path);
-		if (kind) return newKindNote(kind);
+		if (kind) return newKindNote(kind, { blank: true }); // a template was picked: no lookup
 		newNote(currentFolder() + "Untitled.md", (path) => renderFor(t.path, name(path)));
 	});
 	if (!items.length) return toast("There's no _templates folder in the vault.");
@@ -1886,7 +1886,8 @@ function allCommands() {
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Transcribe a video or audio file", transcribeIntoNote, "transcript speech text speakers video audio mp4 mov podcast interview", true],
 		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],
-		...mediaKinds.filter((k) => k.ready && MEDIA_COMMANDS[k.kind]).map((k) => [`Create ${MEDIA_COMMANDS[k.kind]} note`, () => newMediaNote(k), "media log " + k.label.toLowerCase()]),
+		// Lookups with no blank kind of their own (comics).
+		...mediaKinds.filter((k) => k.ready && MEDIA_COMMANDS[k.kind] && !NEW_NOTE_KINDS.some((n) => n.media === k.kind)).map((k) => [`New ${MEDIA_COMMANDS[k.kind]} log`, () => newMediaNote(k), "create media lookup " + k.label.toLowerCase()]),
 		["Sync now", () => runSync(), "save"],
 		["Start or pause the focus timer", () => toggleTimer(), "pomodoro"],
 		["Find in note", () => { view.focus(); openSearchPanel(view); }, "search replace", true],
@@ -2222,7 +2223,11 @@ function cleanUpProperties() {
 // A note of one kind (src/newnotes.js): asks for its title, fills in the kind's
 // template the way Templater would, and saves it in the kind's folder (numbered
 // if the name's taken). The sidebar's folders are left as they are.
-async function newKindNote(kind) {
+// A log kind with a lookup searches first; "Start blank" there (or no
+// lookup, or no connection) makes it from the template.
+async function newKindNote(kind, { blank = false } = {}) {
+	const lookup = !blank && kind.media && navigator.onLine && mediaKinds.find((k) => k.kind === kind.media && k.ready);
+	if (lookup) return newMediaNote(lookup, kind);
 	const paths = visible().map((n) => n.path);
 	const tmpl = findTemplate(paths, `_templates/${kind.template}.md`);
 	if (!tmpl) return toast(`There's no _templates/${kind.template}.md in the vault.`);
@@ -2547,15 +2552,18 @@ async function loadMediaKinds() {
 
 const MEDIA_COMMANDS = { movie: "movie/TV", book: "book", music: "music", game: "game", comic: "comic", podcast: "podcast" };
 
-async function newMediaNote(k) {
+// kind: the new-note kind this was started from, so "Start blank" can make
+// that kind's note from its template instead.
+async function newMediaNote(k, kind = null) {
 	if (!navigator.onLine) return toast("Media lookups need a connection.");
 	try {
 		let progress = null;
 		const made = await makeMediaNote(k, api, (text) => {
 			if (text) progress ? progress.set(text) : (progress = toast(text, 60000));
 			else { progress?.close(); progress = null; }
-		});
+		}, { blank: kind ? `Start a blank ${kind.label.replace(/^New /, "")}` : null });
 		if (!made) return;
+		if (made.blank) return newKindNote(kind, { blank: true });
 		const path = await addNote(made.folder, made.name, made.text);
 		toast(`Made “${name(path)}”.`);
 		showAdded(made.folder, path);
