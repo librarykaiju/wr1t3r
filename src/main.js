@@ -25,8 +25,9 @@ import { openSearchPanel } from "@codemirror/search";
 import { local, meta, persist } from "./store.js";
 import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.js";
 import { api, token, setToken, AuthError } from "./api.js";
-import { sync } from "./sync.js";
-import { isNotePath } from "./paths.js";
+import { sync, conflictPath } from "./sync.js";
+import { runPass, folderSupported } from "./localvaultview.js";
+import { isNotePath, isAttachmentPath } from "./paths.js";
 import { counts, countWords } from "./count.js";
 import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
@@ -132,7 +133,151 @@ async function runSync() {
 		renderStatus();
 		renderTree();
 		if (again) { again = false; scheduleSync(0); }
+		scheduleLocalPass(500);
 	}
+}
+
+// ---- the local folder (src/localvault.js, src/localvaultview.js) ------------
+// A folder on this computer that wr1t3r keeps in step with its own copy, both
+// ways (Chrome and Edge only). The folder's handle and the per-file records
+// live in IndexedDB; a pass runs after each sync, when the tab comes back,
+// every 30 seconds, and a few seconds after typing stops.
+
+let localFolder = null; // { handle, name, records: { notes, files }, state: "ready" | "needs-permission", lastPass, lastError, running }
+let localTimer = null, localAgain = false;
+
+function scheduleLocalPass(ms = 0) {
+	if (!localFolder) return;
+	clearTimeout(localTimer);
+	localTimer = setTimeout(localPass, ms);
+}
+
+async function loadLocalFolder() {
+	try {
+		const saved = await meta.get("localFolder");
+		if (!saved?.handle) return;
+		const recs = saved.records || {};
+		localFolder = { handle: saved.handle, name: saved.handle.name, records: { notes: new Map(recs.notes || []), files: new Map(recs.files || []) }, state: "needs-permission" };
+		if ((await saved.handle.queryPermission({ mode: "readwrite" })) === "granted") localFolder.state = "ready";
+	} catch {}
+	renderLocalFolder();
+	scheduleLocalPass(1500);
+}
+
+function saveLocalFolder() {
+	if (!localFolder) return meta.set("localFolder", null).catch(() => {});
+	return meta.set("localFolder", { handle: localFolder.handle, records: { notes: [...localFolder.records.notes], files: [...localFolder.records.files] } }).catch(() => {});
+}
+
+async function pickLocalFolder() {
+	let handle;
+	try { handle = await window.showDirectoryPicker({ id: "wr1t3r-vault", mode: "readwrite" }); } catch { return; }
+	// The same folder as before keeps its records; another starts fresh.
+	const same = localFolder && (await localFolder.handle.isSameEntry(handle).catch(() => false));
+	localFolder = { handle, name: handle.name, records: same ? localFolder.records : { notes: new Map(), files: new Map() }, state: "ready" };
+	await saveLocalFolder();
+	renderLocalFolder();
+	localPass();
+}
+
+async function reconnectLocalFolder() {
+	if (!localFolder) return;
+	if ((await localFolder.handle.requestPermission({ mode: "readwrite" }).catch(() => "denied")) === "granted") localFolder.state = "ready";
+	renderLocalFolder();
+	localPass();
+}
+
+async function stopLocalFolder() {
+	if (!localFolder || !confirm(`Stop keeping “${localFolder.name}” in step with wr1t3r? The files stay where they are.`)) return;
+	localFolder = null;
+	await saveLocalFolder();
+	renderLocalFolder();
+}
+
+async function localPass() {
+	if (!localFolder || localFolder.state !== "ready") return;
+	if (localFolder.running) { localAgain = true; return; }
+	if ((await localFolder.handle.queryPermission({ mode: "readwrite" }).catch(() => "denied")) !== "granted") { localFolder.state = "needs-permission"; renderLocalFolder(); return; }
+	localFolder.running = true;
+	renderLocalFolder();
+	const f = localFolder;
+	try {
+		await writing;
+		const r = await runPass({
+			root: f.handle, records: f.records,
+			notes: () => new Map([...notes.values()].filter((n) => !n.deleted).map((n) => [n.path, n.binary ? { bytes: n.bytes } : { text: n.path === editor.path ? editor.text() : n.text }])),
+			async putNote(path, n) {
+				await change(path, (cur) => ({ path, ...(n.bytes ? { bytes: n.bytes, binary: true } : { text: n.text }), base: cur?.base ?? null, dirty: true, deleted: false }));
+				if (editor.path === path) editor.replace(notes.get(path)); else editor.forget(path);
+			},
+			async deleteNote(path) {
+				await change(path, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
+				editor.forget(path);
+				if (editor.path === path) closeTab(path);
+			},
+			conflictPath: (path) => conflictPath(path, (p) => taken(p)),
+			attachments: () => (attachmentsLoaded ? attachments : null),
+			fetchAttachment: (file) => attachmentBlob(file, (p) => api.attachment(p)),
+			async uploadPicture(path, blob) {
+				if (!navigator.onLine) throw new Error("offline");
+				const added = await api.uploadAttachment(path, blob);
+				if (!added) return null; // the vault has one by that name; it comes down next pass
+				attachments = [...attachments.filter((x) => x.path !== path), added];
+				meta.set("attachments", attachments).catch(() => {});
+				vaultTouched();
+				return added.version;
+			},
+			confirmFirst: async (s) => confirm(`“${f.name}” already has notes in it. Keeping it in step with wr1t3r will:\n\n`
+				+ `• leave ${s.same} that match as they are\n`
+				+ `• add ${s.folderOnly} that are only in the folder to the vault (and every device)\n`
+				+ `• write ${s.vaultOnly} from the vault into the folder\n`
+				+ `• keep both versions of ${s.differ} that differ (the folder's comes in as a “(conflict …)” copy)\n\nGo ahead?`),
+			confirmDeletes: async (paths) => confirm(`${paths.length === 1 ? `“${name(paths[0])}” was` : `${paths.length} notes were`} deleted from “${f.name}”:\n\n${paths.slice(0, 12).map((p) => "• " + p).join("\n")}${paths.length > 12 ? `\n…and ${paths.length - 12} more` : ""}\n\nDelete ${paths.length === 1 ? "it" : "them"} from the vault too (on every device)? Cancel puts ${paths.length === 1 ? "it" : "them"} back in the folder.`),
+			isNote: isNotePath,
+			isFile: isAttachmentPath,
+		});
+		if (localFolder !== f) return; // stopped meanwhile
+		if (r.declined) { localFolder = null; await saveLocalFolder(); renderLocalFolder(); toast(`Not using “${f.name}”. Pick an empty folder, or one you're happy to merge.`); return; }
+		f.lastPass = new Date();
+		f.lastError = r.errors.length ? `${r.errors.length} file${r.errors.length === 1 ? "" : "s"} couldn't be copied (will try again)` : null;
+		await saveLocalFolder();
+		if (r.changed) { renderTree(); renderStatus(); scheduleSync(); }
+	} catch (e) {
+		f.lastError = e?.message || String(e);
+	} finally {
+		f.running = false;
+		renderLocalFolder();
+		if (localAgain) { localAgain = false; scheduleLocalPass(0); }
+	}
+}
+
+function renderLocalFolder() {
+	const status = $("folderStatus");
+	if (!status) return;
+	const show = (id, on) => { $(id).hidden = !on; };
+	if (!folderSupported()) {
+		status.textContent = "Needs Chrome or Edge on a computer.";
+		["folderPick", "folderReconnect", "folderStop"].forEach((id) => show(id, false));
+		return;
+	}
+	show("folderPick", true);
+	$("folderPick").textContent = localFolder ? "Choose another folder…" : "Choose a folder…";
+	show("folderReconnect", !!localFolder && localFolder.state === "needs-permission");
+	show("folderStop", !!localFolder);
+	if (!localFolder) status.textContent = "Off. Pick a folder to keep the vault there as plain files, both ways.";
+	else if (localFolder.state === "needs-permission") status.textContent = `“${localFolder.name}”: the browser needs your OK again to use it.`;
+	else status.textContent = `In step with “${localFolder.name}”` + (localFolder.running ? " · checking…" : localFolder.lastPass ? ` · checked ${localFolder.lastPass.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "") + (localFolder.lastError ? ` · ${localFolder.lastError}` : "");
+}
+
+function setupLocalFolder() {
+	$("folderPick").addEventListener("click", pickLocalFolder);
+	$("folderReconnect").addEventListener("click", reconnectLocalFolder);
+	$("folderStop").addEventListener("click", stopLocalFolder);
+	document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") scheduleLocalPass(300); });
+	window.addEventListener("focus", () => scheduleLocalPass(300));
+	setInterval(() => document.visibilityState === "visible" && scheduleLocalPass(0), 30000);
+	renderLocalFolder();
+	if (folderSupported()) loadLocalFolder();
 }
 
 function onNote(path, note) {
@@ -1943,6 +2088,7 @@ function onEdit(path, text) {
 	if (!wasDirty) { renderStatus(); renderTree(); }
 	if (path === ref.path) refTouched();
 	scheduleSync();
+	scheduleLocalPass(3000);
 }
 
 function currentFolder() {
@@ -3518,6 +3664,7 @@ async function start() {
 	setupToolbar($("toolbar"), activeView, { print: () => exportNote(editor.path) });
 	setPictureHost({ upload: uploadPicture });
 	setupFolderView();
+	setupLocalFolder();
 	renderQuote();
 	$("writingPrompt").addEventListener("click", () => newPromptNote($("writingPrompt").textContent));
 	$("promptNext").addEventListener("click", () => { promptStep++; renderPrompt(); });
