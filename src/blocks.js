@@ -113,6 +113,19 @@ class CalloutIconWidget extends WidgetType {
 	}
 }
 
+// A list's "-", "*" or "+" drawn as a dot, in its depth's color. The text keeps its marker.
+class BulletWidget extends WidgetType {
+	constructor(depth) { super(); this.depth = depth; }
+	eq(o) { return o.depth === this.depth; }
+	toDOM() {
+		const s = document.createElement("span");
+		s.className = `md-bullet md-bullet-${this.depth} md-dot`;
+		s.textContent = "•";
+		return s;
+	}
+}
+const dots = Array.from({ length: 7 }, (_, i) => Decoration.replace({ widget: new BulletWidget(i), atomic: true }));
+
 const hide = Decoration.replace({ atomic: true });
 const line = (cls) => Decoration.line({ class: cls });
 const doneText = Decoration.mark({ class: "md-task-done" });
@@ -173,7 +186,20 @@ function build(view) {
 					// Bullets and numbers take the theme's rainbow by depth.
 					let depth = -1;
 					for (let p = node.node.parent; p; p = p.parent) if (p.name === "BulletList" || p.name === "OrderedList") depth++;
-					if (depth >= 0) marks.push([node.from, node.to, bullet[depth % 7]]);
+					if (depth < 0) return false;
+					// The list's own indent: the typed spaces give way to a step per level
+					// (style.css), and wrapped lines hang under the text.
+					const ln = doc.lineAt(node.from);
+					const lead = state.sliceDoc(ln.from, node.from);
+					if (/^[ \t]*$/.test(lead)) {
+						addLine(ln.from, ln.from, `md-li md-li-${Math.min(depth, 6)}`, false);
+						if (lead) marks.push([ln.from, node.from, hide]);
+					}
+					if (node.node.parent?.parent?.name !== "BulletList") { marks.push([node.from, node.to, bullet[depth % 7]]); return false; }
+					// A task's checkbox stands in for its bullet; other bullets are dots.
+					const after = state.sliceDoc(node.to, node.to + 5);
+					if (/^\s\[[^\]\n]\]/.test(after)) marks.push([node.from, node.to + 1, hide]);
+					else marks.push([node.from, node.to, dots[depth % 7]]);
 					return false;
 				}
 				case "TaskMarker": {

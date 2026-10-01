@@ -603,6 +603,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-bq, :is(#editor, #refView) .md-callout, :is(#editor, #refView) .md-codeblock { padding-left: 14px; padding-right: 10px; }
 :is(#editor, #refView) .md-first { border-top-left-radius: 6px; border-top-right-radius: 6px; padding-top: 4px; }
 :is(#editor, #refView) .md-last { border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; padding-bottom: 4px; }
+:is(#editor, #refView) .cm-line.md-bq, :is(#editor, #refView) .cm-line.md-callout { margin-left: 1.6em; padding-left: 18px; }
 :is(#editor, #refView) .md-bq { box-shadow: inset 4px 0 0 var(--muted); color: var(--muted); }
 :is(#editor, #refView) .md-bq.md-first, :is(#editor, #refView) .md-bq.md-last { border-radius: 0; }
 
@@ -726,6 +727,10 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-bullet, :is(#editor, #refView) .md-bullet .md-mark { color: var(--b); font-weight: 600; }
 .md-bullet-0 { --b: var(--f1); } .md-bullet-1 { --b: var(--f2); } .md-bullet-2 { --b: var(--f3); } .md-bullet-3 { --b: var(--f4); }
 .md-bullet-4 { --b: var(--f5); } .md-bullet-5 { --b: var(--f6); } .md-bullet-6 { --b: var(--f7); }
+/* List lines: a step in per level, wrapped lines hanging under the text. */
+:is(#editor, #refView) .cm-line.md-li { --li: 1.6em; padding-left: calc(var(--li) * (var(--d, 0) + 1) + 1.1em); text-indent: -1.1em; }
+.md-li-1 { --d: 1; } .md-li-2 { --d: 2; } .md-li-3 { --d: 3; } .md-li-4 { --d: 4; } .md-li-5 { --d: 5; } .md-li-6 { --d: 6; }
+:is(#editor, #refView) .md-dot { display: inline-block; width: 0.75em; text-indent: 0; font-size: 1.2em; font-weight: 700; line-height: 1; }
 :is(#editor, #refView) .md-tag { display: inline-flex; align-items: center; gap: 0.2em; }
 :is(#editor, #refView) .md-tag-x {
 	background: none; border: 0; padding: 0 0 0 0.1em; margin: 0; font: inherit; line-height: 1; color: inherit; opacity: 0.55; cursor: pointer;
