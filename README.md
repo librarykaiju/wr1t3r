@@ -204,6 +204,21 @@ If the agenda ever says the Google sign-in has expired, run `npm run google-auth
 
 The first sync downloads every note (a few MB for this vault).
 
+## Local folder
+
+wr1t3r can keep the whole vault as plain files in a folder on your computer, both ways, while it's open. Chrome or Edge on a computer only (Firefox, Safari and phones can't open a folder for a page). Open **Aa → Local folder → Choose a folder…** and pick an empty folder, or an old copy of the vault.
+
+- **Same layout as the vault.** `content/…` and every other path, notes and attachments, so the folder works as an Obsidian vault too.
+- **When.** After every sync, when the tab comes back into view, 3 seconds after you stop typing, and every 30 seconds while the tab is visible. Nothing happens while wr1t3r is closed; changes made then are picked up the next time it opens.
+- **Edits in the folder** (Notepad, VS Code, Obsidian) come into wr1t3r and from there to the vault and every device. An open note updates in place.
+- **Both sides changed:** the file takes wr1t3r's version and the folder's comes in as `Name (conflict YYYY-MM-DD).md`, in both places.
+- **Deletes.** A note deleted in wr1t3r is removed from the folder. A file deleted from the folder is asked about first; Cancel puts it back.
+- **A folder that already has notes** gets a summary first (how many match, differ, or are only on one side), and nothing is written until you say yes.
+- **Attachments** come down as the vault changes them. A new picture (png, jpg, gif, webp, avif, bmp, up to 20 MB) put in the folder goes up; other new files and edits to existing attachments stay local. If the folder and the vault have different pictures at the same name the first time, the folder's is kept as `name (conflict YYYY-MM-DD).png` and uploaded.
+- Hidden files and folders (`.obsidian`, `.trash`, `.git`) are left alone.
+
+The browser remembers the folder. After a restart it may ask again: the status says so, and **Allow again** gives it back. **Stop** forgets the folder and leaves its files where they are. What was last agreed on for each file (size, modified time, a hash of the text) is kept in IndexedDB; `src/localvault.js` has the rules and `src/localvaultview.js` does the reading and writing.
+
 ## USDA food search
 
 The planner's Food button can look foods up in USDA FoodData Central. The Worker does the search and holds the key; the page never sees it. Get a free key at [fdc.nal.usda.gov/api-key-signup](https://fdc.nal.usda.gov/api-key-signup), then:
