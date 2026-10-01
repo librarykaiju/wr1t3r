@@ -13,6 +13,7 @@ import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { linkOpener, resolveNote } from "./links.js";
 import { menu } from "./basesui.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
+import { isArchived } from "./search.js";
 
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 const baseName = (p) => p.split("/").pop().replace(/\.md$/i, "");
@@ -21,7 +22,11 @@ const baseName = (p) => p.split("/").pop().replace(/\.md$/i, "");
 export function allNotes(state) {
 	const host = state.facet(vaultHost), path = state.facet(notePath);
 	const out = {};
-	for (const p of host.paths()) out[p] = p === path ? state.sliceDoc() : host.text(p);
+	// Archived notes' tasks aren't listed (only a search that asks finds them).
+	for (const p of host.paths()) {
+		const t = p === path ? state.sliceDoc() : host.text(p);
+		if (p === path || !isArchived(t)) out[p] = t;
+	}
 	if (path) out[path] = state.sliceDoc();
 	return out;
 }
