@@ -96,16 +96,21 @@ export function openPropertyCleanup(host) {
 		q.focus();
 	}
 
-	function rename(from) {
-		const to = prompt(`Rename “${from}” to (an existing property's name merges into it):`, from)?.trim();
+	function rename(from, to = null, combine = false) {
+		to ??= prompt(`Rename “${from}” to (an existing property's name merges into it):`, from)?.trim();
 		if (to == null || to === "" || to === from) return;
 		if (!validKey(to)) return host.toast(`“${to}” can't be a property name.`);
 		const site = [from, to].filter((k) => SITE_KEYS.has(k));
-		preview(`Rename “${from}” to “${to}”`, `Where a note already has “${to}”, an empty one gives way; if both have values, the note is left alone and listed below.`, (t) => renameKey(t, from, to), !!site.length, site.length ? SITE_WARNING(site) : null);
+		const what = combine
+			? `Notes with both get one “${to}” list with the values of both (its own first, no repeats).`
+			: `Where a note already has “${to}”, an empty one gives way, and so does one with the same values. If both have different values, the note is left alone and listed below.`;
+		preview(`Rename “${from}” to “${to}”`, what, (t) => renameKey(t, from, to, { combine }), !!site.length, site.length ? SITE_WARNING(site) : null,
+			combine ? null : { label: "Combine their values", run: () => rename(from, to, true) });
 	}
 
 	// What an action would change, with Confirm and Back.
-	function preview(title, what, change, destructive = false, warning = null) {
+	// alt: { label, run } for the conflict box (Rename's "Combine their values").
+	function preview(title, what, change, destructive = false, warning = null, alt = null) {
 		const notes = host.notes();
 		const plan = planChange(notes, change);
 		body.replaceChildren();
@@ -122,8 +127,16 @@ export function openPropertyCleanup(host) {
 		if (warning) body.append(el("p", "props-warning", "⚠ " + warning));
 		if (plan.conflicts.length) {
 			const c = el("div", "props-conflicts");
-			c.append(el("strong", null, `Left alone (${plan.conflicts.length}): both properties have values.`));
+			c.append(el("strong", null, `Left alone (${plan.conflicts.length}): both properties have different values.`));
 			for (const p of plan.conflicts.slice(0, SHOWN)) c.append(noteLink(p));
+			if (alt) {
+				const b = el("button", "props-btn", `${alt.label} (${plural(plan.conflicts.length, "note")})`);
+				b.type = "button";
+				b.style.alignSelf = "flex-start";
+				b.style.marginTop = "6px";
+				b.addEventListener("click", alt.run);
+				c.append(b);
+			}
 			body.append(c);
 		}
 		const listEl = el("div", "props-preview");

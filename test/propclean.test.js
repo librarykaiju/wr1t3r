@@ -88,3 +88,16 @@ test("the website's properties are known, and planner-only ones aren't among the
 	for (const k of ["publish", "title", "tags", "permalink", "coverImage", "callout", "date", "layout"]) assert.ok(SITE_KEYS.has(k), k);
 	for (const k of ["meds", "hydration_oz", "steps", "calories_target"]) assert.ok(!SITE_KEYS.has(k), k);
 });
+
+test("genre and genres: same values merge quietly, different ones only when asked", async () => {
+	const { renameKey } = await import("../src/propclean.js");
+	const dead = "---\ntitle: Dead Silence\ngenre:\n  - Science Fiction\n  - Horror\ngenres:\n  - Science Fiction\n  - Horror\nshelf: Finished\n---\nBody\n";
+	assert.deepEqual(renameKey(dead, "genres", "genre"), { text: "---\ntitle: Dead Silence\ngenre:\n  - Science Fiction\n  - Horror\nshelf: Finished\n---\nBody\n", conflict: false });
+	// Same values in another order or form still count as the same.
+	assert.equal(renameKey("---\ngenre: [horror, Science Fiction]\ngenres:\n  - Science Fiction\n  - Horror\n---\n", "genres", "genre").conflict, false);
+	const diff = "---\ngenre:\n  - Horror\ngenres:\n  - Science Fiction\n  - horror\n  - \"Space: Opera\"\n---\n";
+	assert.equal(renameKey(diff, "genres", "genre").conflict, true);
+	assert.deepEqual(renameKey(diff, "genres", "genre", { combine: true }), { text: '---\ngenre:\n  - Horror\n  - Science Fiction\n  - "Space: Opera"\n---\n', conflict: false, combined: true });
+	// A scalar and a flow list combine into a list too.
+	assert.equal(renameKey("---\ngenre: Horror\ngenres: [Drama]\n---\n", "genres", "genre", { combine: true }).text, "---\ngenre:\n  - Horror\n  - Drama\n---\n");
+});

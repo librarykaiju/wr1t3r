@@ -91,15 +91,51 @@ export function clearEmpty(text, key = null) {
 
 export const validKey = (k) => /^[\p{L}\p{N}_][\p{L}\p{N}_ .-]*$/u.test(String(k)) && !/\s$/.test(k);
 
+// A property's values as a list: "a", "[a, b]", or "- a" lines under it.
+export function valuesOf(p, it) {
+	const v = valueOf(p.lines[it.from]);
+	const out = [];
+	if (/^\[.*\]$/.test(v)) out.push(...v.slice(1, -1).split(",").map((s) => unquote(s.trim())));
+	else if (v) out.push(unquote(v));
+	for (let n = it.from + 1; n < it.to; n++) {
+		const m = p.lines[n].match(/^\s*-\s+(.*?)\s*$/);
+		if (m) out.push(unquote(m[1].replace(/\s+#.*$/, "")));
+	}
+	return out.map((s) => String(s).trim()).filter(Boolean);
+}
+
+const sameValues = (a, b) => {
+	const norm = (xs) => [...new Set(xs.map((x) => x.toLowerCase()))].sort().join("\u0000");
+	return norm(a) === norm(b);
+};
+const yamlItem = (s) => (/^[\p{L}\p{N}][^:#\[\]{},"'|>&*!%@`]*$/u.test(s) && !/\s$/.test(s) ? s : JSON.stringify(s));
+
 // The note with property `from` renamed to `to`: { text, conflict }. If the
-// note has both, an empty one gives way to the other; if both have values,
-// the note is left as it is and conflict is true.
-export function renameKey(text, from, to) {
+// note has both, an empty one gives way to the other, and so does one with
+// the same values (in any order). If both have different values, the note is
+// left as it is and conflict is true, unless combine is set: then `to`
+// becomes a list of both's values (its own first, no repeats).
+export function renameKey(text, from, to, { combine = false } = {}) {
 	const p = properties(text);
 	const a = p?.items.find((x) => x.key === from);
 	if (!a || from === to) return { text, conflict: false };
 	const b = p.items.find((x) => x.key === to);
-	if (b && !a.empty && !b.empty) return { text, conflict: true };
+	if (b && !a.empty && !b.empty) {
+		const va = valuesOf(p, a), vb = valuesOf(p, b);
+		if (sameValues(va, vb)) return { text: deleteKey(text, from), conflict: false };
+		if (!combine) return { text, conflict: true };
+		const seen = new Set(), all = [];
+		for (const x of [...vb, ...va]) if (!seen.has(x.toLowerCase())) { seen.add(x.toLowerCase()); all.push(x); }
+		const indent = p.lines.slice(b.from + 1, b.to).find((l) => /^\s*-\s/.test(l))?.match(/^\s*/)[0] ?? "  ";
+		const head = p.lines[b.from].replace(/:.*$/, ":");
+		const lines = [];
+		for (let n = 0; n < p.lines.length; n++) {
+			if (n === b.from) lines.push(head, ...all.map((x) => `${indent}- ${yamlItem(x)}`));
+			else if ((n > b.from && n < b.to) || (n >= a.from && n < a.to)) continue;
+			else lines.push(p.lines[n]);
+		}
+		return { text: lines.join(p.nl), conflict: false, combined: true };
+	}
 	if (b && a.empty) return { text: deleteKey(text, from), conflict: false };
 	const lines = [...p.lines];
 	lines[a.from] = lines[a.from].replace(KEY, (m, k) => m.replace(k, to));
