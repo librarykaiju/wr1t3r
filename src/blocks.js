@@ -14,8 +14,13 @@ import { doneStampChanges } from "./tasks.js";
 import { snippet } from "@codemirror/autocomplete";
 import { openPalette } from "./palette.js";
 
-// Obsidian's callout types and aliases, grouped by the color Obsidian gives them.
+// Obsidian's callout types and aliases, grouped by the color Obsidian gives them,
+// plus the website's own two (w3bz1n3's markdown-it-callouts.js and
+// css/index.css): scene for fiction excerpts, further-reading for a post's
+// related links, in the site's colors.
 const CALLOUT_GROUPS = {
+	violet: "scene",
+	sapphire: "further-reading furtherreading",
 	blue: "note info todo",
 	cyan: "abstract summary tldr tip hint important",
 	green: "success check done",
@@ -32,6 +37,8 @@ const CALLOUT_COLOR = Object.fromEntries(
 // Icons per type, from Lucide (lucide.dev, ISC license), as SVG path data.
 const CIRCLE = "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20";
 const ICON_PATHS = {
+	feather: ["M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z", "M16 8 2 22", "M17.5 15H9"],
+	library: ["m16 6 4 14", "M12 6v14", "M8 8v12", "M4 4v16"],
 	pencil: ["M12 20h9", "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"],
 	clipboard: ["M9 2h6v4H9z", "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2", "M12 11h4", "M12 16h4", "M8 11h.01", "M8 16h.01"],
 	info: [CIRCLE, "M12 16v-4", "M12 8h.01"],
@@ -47,6 +54,7 @@ const ICON_PATHS = {
 	quote: ["M3 21c3 0 7-1 7-8V5c0-1.25-.76-2-2-2H4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h3c0 3-1 5-4 5z", "M15 21c3 0 7-1 7-8V5c0-1.25-.76-2-2-2h-4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h3c0 3-1 5-4 5z"],
 };
 const ICON_GROUPS = {
+	feather: "scene", library: "further-reading furtherreading",
 	pencil: "note", clipboard: "abstract summary tldr", info: "info", todo: "todo",
 	flame: "tip hint important", check: "success check done", help: "question help faq",
 	alert: "warning caution attention", x: "failure fail missing", zap: "danger error",
@@ -63,12 +71,14 @@ export const CALLOUT_KINDS = Object.entries(ICON_GROUPS).map(([, names]) => {
 	const [kind, ...aliases] = names.split(" ");
 	return { kind, aliases };
 });
+// "further-reading" -> "Further reading".
+const calloutLabel = (kind) => kind[0].toUpperCase() + kind.slice(1).replace(/-/g, " ");
 export function pickCallout(view) {
 	const sel = view.state.selection.main;
 	openPalette({
 		placeholder: "Callout type…",
 		items: CALLOUT_KINDS.map(({ kind, aliases }) => ({
-			label: kind[0].toUpperCase() + kind.slice(1),
+			label: calloutLabel(kind),
 			detail: aliases.join(", "),
 			keywords: [kind, ...aliases, CALLOUT_COLOR[kind]].join(" "),
 			run: () => {
@@ -83,7 +93,8 @@ export function pickCallout(view) {
 				}
 				const line = doc.lineAt(sel.head);
 				const lead = line.text.trim() && sel.head > line.from ? "\n" : "";
-				snippet(`${lead}> [!${kind}] \${title}\n> \${}`)(view, null, sel.head, sel.head);
+				const title = kind === "further-reading" ? "Further Reading" : "title";
+				snippet(`${lead}> [!${kind}] \${${title}}\n> \${}`)(view, null, sel.head, sel.head);
 			},
 		})),
 	});
@@ -195,7 +206,7 @@ function build(view) {
 					const c = calloutOf(first.text);
 					if (c) {
 						addLine(node.from, node.to, `md-callout md-co-${c.color}`);
-						const label = c.title ? "" : c.type[0].toUpperCase() + c.type.slice(1);
+						const label = c.title ? "" : calloutLabel(c.type);
 						marks.push([first.from + c.tag[0], first.from + c.tag[1], Decoration.replace({ widget: new CalloutIconWidget(c.icon, label), atomic: true })]);
 						if (first.from + c.tag[1] < first.to) marks.push([first.from + c.tag[1], first.to, calloutHead]);
 					} else {
