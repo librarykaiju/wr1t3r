@@ -234,6 +234,16 @@ export function addEvents(timeline, events) {
 	return { timeline: sortTimeline(list), added, colored };
 }
 
+// The timeline without the entry addEvents made for ev (same title, all-day
+// or start time), for a calendar event deleted from wr1t3r: { timeline, removed }.
+export function removeEvent(timeline, ev) {
+	const title = String(ev.title || "(No title)").trim();
+	let start = null;
+	if (!ev.allDay) { const s = new Date(ev.start); start = s.getHours() * 60 + s.getMinutes(); }
+	const keep = timeline.filter((l) => { const x = parseEntry(l); return !(x.text === title && x.allDay === !!ev.allDay && (ev.allDay || x.start === start)); });
+	return { timeline: keep, removed: timeline.length - keep.length };
+}
+
 // ---- The health note -------------------------------------------------------------
 
 export const MEALS = ["🍳Breakfast", "🥗Lunch", "🍝Dinner", "🍇Snacks"];

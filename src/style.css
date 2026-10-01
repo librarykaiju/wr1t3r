@@ -455,6 +455,7 @@ main:not(.has-note) #count { visibility: hidden; }
 #evColors button.cal[aria-checked=true] { border-style: solid; border-color: var(--fg); background: var(--sw); }
 .ev .acts button, .ev .acts a { font-size: 13px; }
 .ev .acts a { padding: 5px 10px; }
+.ev .acts button.danger { margin-left: auto; color: #c0392b; }
 #addEvent { display: grid; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 #addEvent .row { display: flex; gap: 8px; align-items: center; font-size: 14px; }
 #addEvent .row > input { flex: 1; }

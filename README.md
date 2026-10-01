@@ -97,6 +97,7 @@ The calendar button in the top right opens your Google Calendar agenda: today an
 - The chips at the top pick which calendars show. Until you change them, they follow the calendars ticked in Google Calendar.
 - Each event is tinted with its Google color: the color set on the event, or else its calendar's color.
 - **+ Add event** adds an event to the calendar you pick (it remembers your last choice), with a reminder and a color you pick. The defaults are the calendar's own reminder and color. Events start as one-hour blocks: changing the start moves the end with it (keeping any length you set), and the end can still be changed on its own.
+- **Delete** (open an event in the agenda) deletes it from Google Calendar after asking, only this occurrence of a repeating one, and takes its line off that day's planner Timeline if it was imported there. It's offered for calendars you can edit.
 - Reminders pop up with a chime while wr1t3r is open, and as a notification if you allow them. When wr1t3r is closed, Google Calendar's own app does the reminding.
 - Offline, it shows the last agenda it loaded.
 

@@ -106,6 +106,11 @@ export const api = {
 		});
 		return (await jsonOrThrow(res)).event;
 	},
+	// One event (one occurrence of a repeating one) gone from Google Calendar.
+	async deleteEvent(calendar, id) {
+		const qs = new URLSearchParams({ calendar, id });
+		return jsonOrThrow(await call("/api/calendar/events?" + qs, { method: "DELETE" }));
+	},
 	async mediaKinds() {
 		return (await jsonOrThrow(await call("/api/media/kinds"))).kinds;
 	},
