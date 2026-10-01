@@ -27,6 +27,7 @@ import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.
 import { api, token, setToken, AuthError } from "./api.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
+import { contentHash } from "./localvault.js";
 import { isNotePath, isAttachmentPath } from "./paths.js";
 import { counts, countWords } from "./count.js";
 import * as pomo from "./pomodoro.js";
@@ -110,7 +111,7 @@ function scheduleSync(ms = 2000) {
 }
 
 async function runSync() {
-	if (syncing) { again = true; return; }
+	if (syncing || localFolder?.running) { again = true; return; } // one at a time with the local folder's passes
 	if (!navigator.onLine) { lastError = "offline"; renderStatus(); return; }
 	syncing = true;
 	renderStatus();
@@ -197,16 +198,31 @@ async function stopLocalFolder() {
 async function localPass() {
 	if (!localFolder || localFolder.state !== "ready") return;
 	if (localFolder.running) { localAgain = true; return; }
+	if (syncing) return; // runSync starts one when it's done
 	if ((await localFolder.handle.queryPermission({ mode: "readwrite" }).catch(() => "denied")) !== "granted") { localFolder.state = "needs-permission"; renderLocalFolder(); return; }
 	localFolder.running = true;
 	renderLocalFolder();
 	const f = localFolder;
 	try {
 		await writing;
+		// Each note as the pass saw it: one changed since (typed in, or synced
+		// in) keeps that change, and the folder's version comes in as a copy.
+		const current = (path) => { const n = notes.get(path); return !n || n.deleted ? null : n.binary ? { bytes: n.bytes } : { text: path === editor.path ? editor.text() : n.text }; };
+		const seen = new Map();
 		const r = await runPass({
 			root: f.handle, records: f.records,
-			notes: () => new Map([...notes.values()].filter((n) => !n.deleted).map((n) => [n.path, n.binary ? { bytes: n.bytes } : { text: n.path === editor.path ? editor.text() : n.text }])),
+			notes: () => {
+				const out = new Map();
+				for (const n of notes.values()) if (!n.deleted) { const c = current(n.path); out.set(n.path, c); seen.set(n.path, contentHash(c)); }
+				return out;
+			},
 			async putNote(path, n) {
+				const now = current(path);
+				if ((now ? contentHash(now) : undefined) !== seen.get(path)) {
+					const copy = conflictPath(path, (p) => taken(p));
+					toast(`${name(path)} changed here while the folder's copy was coming in. The folder's version is saved as “${name(copy)}”.`, 8000);
+					path = copy;
+				}
 				await change(path, (cur) => ({ path, ...(n.bytes ? { bytes: n.bytes, binary: true } : { text: n.text }), base: cur?.base ?? null, dirty: true, deleted: false }));
 				if (editor.path === path) editor.replace(notes.get(path)); else editor.forget(path);
 			},
@@ -248,6 +264,7 @@ async function localPass() {
 		f.running = false;
 		renderLocalFolder();
 		if (localAgain) { localAgain = false; scheduleLocalPass(0); }
+		if (again) { again = false; scheduleSync(0); }
 	}
 }
 
