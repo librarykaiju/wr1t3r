@@ -17,6 +17,8 @@ import { pageFrom, linkedNames } from "./dvpage.js";
 import { resolveNote, linkOpener } from "./links.js";
 import { noteLinks } from "./vaultlinks.js";
 import { vaultHost as dvHost, notePath, vaultChanged } from "./vault.js";
+import { isRecipeSync, recipeSync } from "./recipe.js";
+import { RecipeSyncWidget, recipeDbPath } from "./recipeview.js";
 import { runQuery, show, DQLLink, DQLDate } from "./dql.js";
 import { tickInText } from "./tasks.js";
 
@@ -438,13 +440,21 @@ class QueryWidget extends WidgetType {
 	ignoreEvent() { return true; }
 }
 
+// The Recipe template's sync block, done natively (src/recipeview.js).
+function recipeSyncWidget(state, blk, path) {
+	const host = state.facet(dvHost);
+	const db = recipeDbPath(blk.code, host.paths());
+	const text = db ? host.text(db) : null;
+	return new RecipeSyncWidget(blk.code, path, blk.from, db, text == null ? null : recipeSync(state.sliceDoc(), path, text));
+}
+
 function build(state) {
 	const b = new RangeSetBuilder();
 	const path = state.facet(notePath);
 	if (!state.facet(dvHost) || !path || UNTRUSTED.test(path)) return b.finish();
 	const sel = state.selection.ranges;
 	const found = [
-		...dataviewBlocks(state).map((blk) => ({ ...blk, widget: (fold) => new DataviewWidget(blk.code, path, blk.from, fold) })),
+		...dataviewBlocks(state).map((blk) => ({ ...blk, widget: isRecipeSync(blk.code) ? () => recipeSyncWidget(state, blk, path) : (fold) => new DataviewWidget(blk.code, path, blk.from, fold) })),
 		...dataviewBlocks(state, "dataview").map((blk) => ({ ...blk, widget: (fold) => new QueryWidget(blk.code, path, blk.from, queryResult(state, blk.code, path), fold) })),
 	].sort((a, b) => a.from - b.from);
 	for (const run of blockRuns(found, (f, t) => state.sliceDoc(f, t))) {

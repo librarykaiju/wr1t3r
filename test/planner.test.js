@@ -249,3 +249,15 @@ test("an entry's color can be picked or taken off", () => {
 	assert.deepEqual(setEntryColor(t, 0, "red"), t);
 	assert.deepEqual(setEntryColor(t, 5, "#d50000"), t);
 });
+
+test("food lines read like the Recipe template's: known names first, notes after the amount", () => {
+	const db = parseNutrition(DB + "| Broccoli, raw | 1 cup | 31 | 0.3 | 6 | 2.6 | 2.4 | Produce | | |\n| Broccoli | 1 cup | 55 | 0.6 | 11 | 3.7 | 5 | Produce | | |\n");
+	assert.deepEqual(foodEntry("Broccoli, raw, 2", db), { name: "Broccoli, raw", servings: 2 });
+	assert.deepEqual(foodEntry("Broccoli, 2", db), { name: "Broccoli", servings: 2 });
+	assert.deepEqual(foodEntry("Peanut Butter, 2 (smooth, for toast)", db), { name: "Peanut Butter", servings: 2 });
+	assert.deepEqual(foodEntry("pb, 1", db), { name: "pb", servings: 1 });
+	assert.deepEqual(foodEntry("Mystery bar, 3", db), { name: "Mystery bar", servings: 3 });
+	assert.deepEqual(foodEntry("Mystery bar", db), { name: "Mystery bar", servings: 1 });
+	const t = addUnder(addUnder(HEALTH, "🍳Breakfast", "Broccoli, raw, 2"), "🍳Breakfast", "Peanut Butter, 1 (smooth, on toast)");
+	assert.equal(healthDay(t, db).totals.calories, 2 * 31 + 190);
+});
