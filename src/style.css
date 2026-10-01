@@ -618,6 +618,9 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-co-red { --co: #e5484d; }
 :is(#editor, #refView) .md-co-purple { --co: #7c4dff; }
 :is(#editor, #refView) .md-co-gray { --co: #9e9e9e; }
+/* The website's own callouts, in its colors (w3bz1n3 css/index.css). */
+:is(#editor, #refView) .md-co-violet { --co: #7439ac; }
+:is(#editor, #refView) .md-co-sapphire { --co: #1a7da4; }
 
 :is(#editor, #refView) .md-codeblock { background: var(--code-bg); font-family: var(--mono); font-size: 0.82em; }
 :is(#editor, #refView) .md-codeblock .md-code { background: none; font-size: 1em; }
