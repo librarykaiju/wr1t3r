@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readConfig, writeConfig, noteDay, tasksTagged, onDay, taskList, shownText, newTaskLine, appendTask, listName } from "../src/tasklists.js";
+import { readConfig, writeConfig, noteDay, tasksTagged, onDay, taskList, shownText, newTaskLine, appendTask, listName, listTags, tagFor, itemTags } from "../src/tasklists.js";
 
 const notes = {
 	"content/_daily/2026-09-30.md": "# Day\n- [ ] write intro #crit\n- [ ] groceries #todo\n",
@@ -10,7 +10,7 @@ const notes = {
 };
 
 test("settings: defaults, choices, and a round trip that keeps unknown keys", () => {
-	assert.deepEqual(readConfig(""), { list: "crit", day: "note", show: "open", group: "none", sort: "due" });
+	assert.deepEqual(readConfig(""), { list: "crit", lists: ["crit"], day: "note", show: "open", group: "none", sort: "due", layout: "grouped", color: null });
 	const cfg = readConfig("list: '#todo'\nshow: ALL\ngroup: bogus\nextra: 1");
 	assert.equal(cfg.list, "todo");
 	assert.equal(cfg.show, "all");
@@ -18,7 +18,30 @@ test("settings: defaults, choices, and a round trip that keeps unknown keys", ()
 	assert.equal(writeConfig(cfg), "list: todo\nshow: all\nextra: 1");
 	assert.equal(listName("crit"), "Critical Tasks");
 	assert.equal(listName("todo"), "To Do's");
-	assert.equal(listName("work"), "#work");
+	assert.equal(listName("work"), "Work");
+	assert.equal(listName("wish-list"), "Wish list");
+	assert.equal(listName("home/errands"), "Errands");
+	assert.equal(tagFor("Wish list"), "wish-list");
+	assert.equal(tagFor(" #Packing "), "packing");
+});
+
+test("a card can show several lists: grouped by list, each item once, its own defaults", () => {
+	assert.deepEqual(listTags("crit+todo"), ["crit", "todo"]);
+	assert.deepEqual(listTags(["#crit", "todo", "crit"]), ["crit", "todo"]);
+	const both = readConfig("list: [crit, todo]");
+	assert.deepEqual([both.lists, both.list, both.group, both.day], [["crit", "todo"], "crit", "list", "note"]);
+	assert.equal(writeConfig(both), "list: [crit, todo]");
+	assert.equal(writeConfig({ ...both, layout: "columns", color: 4 }), "list: [crit, todo]\nlayout: columns\ncolor: 4");
+	// Lists that aren't task lists show every item, not a day's.
+	assert.equal(readConfig("list: shopping").day, "all");
+	const mixed = { "a.md": "- [ ] one #crit\n- [ ] two #todo\n- [ ] both #crit #todo\n- [ ] milk #shopping\n" };
+	const r = taskList(mixed, readConfig("list: [crit, todo]\nday: all"), { path: "x.md", today: "2026-10-01" });
+	assert.equal(r.title, "Tasks");
+	assert.deepEqual(r.groups.map((g) => [g.label, g.tasks.map((t) => t.text)]), [["Critical Tasks", ["one #crit", "both #crit #todo"]], ["To Do's", ["two #todo"]]]);
+	const shop = taskList(mixed, readConfig("list: [shopping, wishlist]"), { path: "2026-10-01.md", today: "2026-10-01" });
+	assert.equal(shop.title, "Shopping & Wishlist");
+	assert.deepEqual(shop.groups.map((g) => [g.label, g.tasks.length]), [["Shopping", 1], ["Wishlist", 0]]);
+	assert.deepEqual(itemTags(mixed).map((x) => [x.tag, x.count]), [["crit", 2], ["todo", 2], ["shopping", 1]]);
 });
 
 test("tasks are found by tag (nested tags count), outside templates", () => {

@@ -57,6 +57,7 @@ import { openPropertyCleanup } from "./propcleanview.js";
 import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
 import { healthPathFor, MEALS, WATER, MOOD } from "./planner.js";
 import { openFoodPanel } from "./plannerview.js";
+import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
 import { attachmentKind } from "./attachments.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
 import { setDoneDates, sortChecklists } from "./tasks.js";
@@ -408,7 +409,11 @@ function commonFolder(list) {
 let vaultTimer;
 function vaultTouched() {
 	clearTimeout(vaultTimer);
-	vaultTimer = setTimeout(() => editor?.view.dispatch({ effects: vaultChanged.of(null) }), 400);
+	vaultTimer = setTimeout(() => {
+		editor?.view.dispatch({ effects: vaultChanged.of(null) });
+		// Home's boards and lists show other notes too.
+		homeBoards?.ed.view.dispatch({ effects: vaultChanged.of(null) });
+	}, 400);
 	refTouched();
 	folderTouched();
 }
@@ -1085,14 +1090,16 @@ function renderHomeBoards() {
 	const box = $("homeBoards");
 	if (!box) return;
 	const path = homeBoardsPath(), n = notes.get(path);
-	const note = n && !n.deleted && !n.binary && /```(board|base)\b/i.test(n.text) ? n : null;
+	const note = n && !n.deleted && !n.binary && /```(board|base|wr1t3r-tasks)\b/i.test(n.text) ? n : null;
 	if (homeBoards && (!note || homeBoards.path !== path)) { homeBoards.ed.destroy(); homeBoards = null; box.replaceChildren(); }
 	if (!box.firstChild) {
 		const head = document.createElement("div");
 		head.className = "home-boards-head";
+		const addList = Object.assign(document.createElement("button"), { type: "button", className: "home-boards-add", textContent: "+ Add a list" });
+		addList.addEventListener("click", () => pickList((tag) => appendHomeBlock("```wr1t3r-tasks\nlist: " + tag + "\n```\n")));
 		const add = Object.assign(document.createElement("button"), { type: "button", className: "home-boards-add", textContent: "+ Add a board" });
 		add.addEventListener("click", addHomeBoard);
-		head.append(Object.assign(document.createElement("h2"), { textContent: "Boards" }), add);
+		head.append(Object.assign(document.createElement("h2"), { textContent: "Boards & lists" }), addList, add);
 		const body = document.createElement("div");
 		body.className = "home-boards-body scriv-body";
 		box.append(head, body);
@@ -1104,6 +1111,46 @@ function renderHomeBoards() {
 	} else if (!note.dirty && note.text !== homeBoards.ed.text()) homeBoards.ed.replace(note);
 }
 
+// A block added at the end of Home's boards note (made the first time).
+async function appendHomeBlock(block) {
+	const path = homeBoardsPath();
+	await change(path, (cur) => {
+		const text = cur && !cur.deleted ? cur.text.replace(/\s*$/, "\n\n") + block : block;
+		return { ...(cur || { path, base: null }), path, text, dirty: true, deleted: false };
+	});
+	renderHomeBoards();
+	requestAnimationFrame(() => $("homeBoards")?.lastElementChild?.lastElementChild?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }));
+	scheduleSync();
+}
+
+// Picks a list for a new list card: the vault's lists (the tags its checkbox
+// items use, the task lists first), or a new one by name. then(tag).
+function pickList(then) {
+	const texts = {};
+	for (const n of visible()) if (!n.binary && !archivedNote(n)) texts[n.path] = n.text;
+	const used = itemTags(texts);
+	const tags = [...TASK_TAGS, ...used.map((x) => x.tag).filter((t) => !TASK_TAGS.includes(t))].slice(0, 30);
+	const count = (t) => used.find((x) => x.tag === t)?.count || 0;
+	openPalette({
+		placeholder: "Which list? Pick one, or type a new list's name…",
+		items: tags.map((t) => ({ label: listName(t), detail: `#${t} · ${count(t)} item${count(t) === 1 ? "" : "s"}`, keywords: t, run: () => then(t) })),
+		empty: (q) => ({ label: `New list “${q.trim()}”`, detail: `#${tagFor(q)}`, run: () => { const t = tagFor(q); if (t) then(t); } }),
+	});
+}
+
+// "Insert list" (/list): a list card at the cursor.
+function insertList() {
+	const view = editor.view;
+	if (!view || !editor.path || view.state.readOnly) return;
+	pickList((tag) => {
+		const { state } = view, head = state.selection.main.head, line = state.doc.lineAt(head);
+		const at = line.text.trim() ? line.to : line.from;
+		const text = `${line.text.trim() ? "\n\n" : ""}\`\`\`wr1t3r-tasks\nlist: ${tag}\n\`\`\`\n`;
+		view.dispatch({ changes: { from: at, to: at, insert: text }, selection: { anchor: at + text.length }, scrollIntoView: true });
+		view.focus();
+	});
+}
+
 function addHomeBoard() {
 	const list = visible(), home = commonFolder(list);
 	const folders = new Set();
@@ -1113,19 +1160,11 @@ function addHomeBoard() {
 	}
 	const all = [...folders].filter((f) => f.startsWith(home) && f !== home && !isAppFile(f))
 		.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
-	const make = async (folder) => {
-		const path = homeBoardsPath();
+	const make = (folder) => {
 		const f = folder.replace(/\/+$/, "");
 		const texts = list.filter((n) => n.path.startsWith(folder) && /\.md$/i.test(n.path) && !n.binary).slice(0, 200).map((n) => n.text);
 		const title = folder ? itemLabel(folder) : "Every note";
-		const block = "```board\n" + `wr1t3r:\n  title: ${JSON.stringify(title)}\n` + starterBase(f, texts).replace(/\n$/, "") + "\n```\n";
-		await change(path, (cur) => {
-			const text = cur && !cur.deleted ? cur.text.replace(/\s*$/, "\n\n") + block : block;
-			return { ...(cur || { path, base: null }), path, text, dirty: true, deleted: false };
-		});
-		renderHomeBoards();
-		requestAnimationFrame(() => $("homeBoards")?.lastElementChild?.lastElementChild?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }));
-		scheduleSync();
+		appendHomeBlock("```board\n" + `wr1t3r:\n  title: ${JSON.stringify(title)}\n` + starterBase(f, texts).replace(/\n$/, "") + "\n```\n");
 	};
 	openPalette({
 		placeholder: "Which notes should the board show?",
@@ -1971,6 +2010,7 @@ setSlashExtras(() => [
 	{ label: "Transcript", detail: "of a video or audio file", keywords: "transcribe speech speakers video audio", run: () => transcribeIntoNote() },
 	{ label: "Log food", detail: "to the day's health note", keywords: "food eat meal nutrition calories usda", run: () => logFood() },
 	{ label: "Board", detail: "grid, gallery, list or kanban of notes", keywords: "base view table database properties filter", run: () => insertBoard() },
+	{ label: "List", detail: "a checklist card: tasks, shopping, wishlist…", keywords: "checklist shopping wishlist tasks todo crit", run: () => insertList() },
 	...vaultTemplates().map((t) => ({
 		label: t.name, detail: "template", keywords: "template " + t.name.toLowerCase(),
 		run: () => insertTemplateAt(t),
@@ -2090,6 +2130,7 @@ function allCommands() {
 		["Open today's daily note", () => openDaily(), "today journal daily"],
 		["Log food", logFood, "eat meal nutrition calories health usda planner"],
 		["Insert board", insertBoard, "grid gallery kanban list table view properties filter database base", true],
+		["Insert list", insertList, "checklist shopping wishlist tasks todo crit list card", true],
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
 		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],

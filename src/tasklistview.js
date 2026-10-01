@@ -7,11 +7,11 @@ import { StateField, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { dataviewBlocks, tick, blockBodyChange } from "./dataview.js";
-import { TASKS_BLOCK, readConfig, writeConfig, taskList, shownText, newTaskLine, appendTask, listName, noteDay } from "./tasklists.js";
+import { TASKS_BLOCK, readConfig, writeConfig, taskList, shownText, newTaskLine, appendTask, listName, noteDay, TASK_TAGS, itemTags, tagFor } from "./tasklists.js";
 import { setDueChanges, isoDay } from "./tasks.js";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { linkOpener, resolveNote } from "./links.js";
-import { menu } from "./basesui.js";
+import { menu, cardColorPicker } from "./basesui.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
 import { isArchived } from "./search.js";
 
@@ -39,14 +39,17 @@ function saveConfig(view, n, cfg) {
 	view.dispatch({ changes: blockBodyChange(view.state, b, text), userEvent: "input.tasks" });
 }
 
-// Where a list's new tasks go: the block's inbox: note, else the list's own
-// note ("Critical Tasks.md", or the older "Critical Tasks List.md")
-// wherever it is, else made in _docs/.
-async function addTask(view, cfg, day, text) {
+// Where a list's new items go: the block's inbox: note, else the list's own
+// note ("Shopping.md", "Critical Tasks.md", or the older "Critical Tasks
+// List.md") wherever it is, else made in _docs/. tag: which of the card's
+// lists it's for.
+async function addTask(view, cfg, tag, day, text) {
 	const host = view.state.facet(vaultHost);
 	const paths = host.paths();
-	const line = newTaskLine(text, cfg.list, day);
-	const title = cfg.title || listName(cfg.list).replace(/^#/, "");
+	const line = newTaskLine(text, tag, day);
+	const own = cfg.lists.length === 1 && cfg.title;
+	cfg = { ...cfg, title: own || null };
+	const title = own || listName(tag);
 	const root = paths.some((p) => p.startsWith("content/")) ? "content/" : "";
 	const file = title.replace(/[\\/:*?"<>|]/g, "") + ".md";
 	// The lists were "… List" once; a note by that name is still theirs.
@@ -102,6 +105,20 @@ export class TaskListWidget extends WidgetType {
 		head.append(el("span", "md-tl-count", String(result.count)));
 		const tools = el("span", "md-tl-tools");
 		if (!ro && this.n != null) tools.append(button("md-tl-btn", "⚙", "Set up this list", (e) => this.settings(view, e.clientX, e.clientY)));
+		// The card's color (a list block's own; the planner colors its cards itself).
+		if (this.n != null && cfg.color) { wrap.classList.add("planner-colored"); wrap.style.setProperty("--card-c", `var(--f${cfg.color})`); }
+		if (!ro && this.n != null) {
+			const dot = el("button", "planner-card-dot" + (cfg.color ? "" : " none"));
+			dot.type = "button";
+			dot.title = "Card color";
+			dot.setAttribute("aria-label", "Card color");
+			dot.addEventListener("mousedown", (e) => e.preventDefault());
+			dot.addEventListener("click", () => {
+				const r = dot.getBoundingClientRect();
+				cardColorPicker(cfg.color, r.left, r.bottom + 6, (c) => saveConfig(view, this.n, { ...cfg, color: c }));
+			});
+			tools.append(dot);
+		}
 		if (this.n != null) tools.append(button("md-tl-btn", "</>", "Show the block's settings as text", () => {
 			let pos = this.from;
 			try { pos = view.posAtDOM(wrap); } catch {}
@@ -110,88 +127,142 @@ export class TaskListWidget extends WidgetType {
 		head.append(tools);
 		wrap.append(head);
 
-		for (const g of result.groups) {
-			if (g.label) wrap.append(el("div", "md-tl-group", g.label));
-			const ul = el("ul", "md-tl-list");
-			for (const t of g.tasks) {
-				const li = el("li", "md-tl-item" + (t.done ? " done" : ""));
-				const box = el("input", "md-tl-box");
-				box.type = "checkbox";
-				box.checked = t.done;
-				box.disabled = ro;
-				box.addEventListener("mousedown", (e) => e.stopPropagation());
-				box.addEventListener("change", () => { if (!tick(view, t.path, t.line, t.text, box.checked)) box.checked = !box.checked; });
-				li.append(box, el("span", "md-tl-text", shownText(t.text, cfg.list)));
-				if (t.due) li.append(el("span", `md-due md-due-${t.done ? "done" : t.due < today ? "overdue" : t.due === today ? "today" : "later"}`, "📅 " + t.due));
-				if (t.path !== this.path) {
-					const a = el("a", "md-tl-src", baseName(t.path));
-					a.href = "#" + encodeURIComponent(t.path);
-					a.addEventListener("mousedown", (e) => e.preventDefault());
-					a.addEventListener("click", (e) => { e.preventDefault(); view.state.facet(linkOpener)?.({ note: t.path, heading: "", wiki: true }); });
-					li.append(a);
-				}
-				if (!ro) li.addEventListener("contextmenu", (e) => {
-					e.preventDefault();
-					const inDays = (d) => { const x = new Date(); x.setDate(x.getDate() + d); return isoDay(x); };
-					menu([
-						["Due today", () => setTaskDue(view, t, inDays(0))],
-						["Due tomorrow", () => setTaskDue(view, t, inDays(1))],
-						["Due in a week", () => setTaskDue(view, t, inDays(7))],
-						...(t.due ? [["Remove due date", () => setTaskDue(view, t, null)]] : []),
-						null,
-						["Open its note", () => view.state.facet(linkOpener)?.({ note: t.path, heading: "", wiki: true })],
-					], e.clientX, e.clientY);
-				});
-				ul.append(li);
+		const item = (t) => {
+			const li = el("li", "md-tl-item" + (t.done ? " done" : ""));
+			const box = el("input", "md-tl-box");
+			box.type = "checkbox";
+			box.checked = t.done;
+			box.disabled = ro;
+			box.addEventListener("mousedown", (e) => e.stopPropagation());
+			box.addEventListener("change", () => { if (!tick(view, t.path, t.line, t.text, box.checked)) box.checked = !box.checked; });
+			li.append(box, el("span", "md-tl-text", shownText(t.text, t.tag || cfg.list)));
+			if (t.due) li.append(el("span", `md-due md-due-${t.done ? "done" : t.due < today ? "overdue" : t.due === today ? "today" : "later"}`, "📅 " + t.due));
+			// Where it's written, unless that's here or the list's own note.
+			if (t.path !== this.path && baseName(t.path).replace(/ List$/, "") !== listName(t.tag || cfg.list)) {
+				const a = el("a", "md-tl-src", baseName(t.path));
+				a.href = "#" + encodeURIComponent(t.path);
+				a.addEventListener("mousedown", (e) => e.preventDefault());
+				a.addEventListener("click", (e) => { e.preventDefault(); view.state.facet(linkOpener)?.({ note: t.path, heading: "", wiki: true }); });
+				li.append(a);
 			}
-			wrap.append(ul);
-		}
-		if (!result.count) wrap.append(el("div", "md-tl-empty", result.day ? "Nothing for this day." : "Nothing here."));
-
-		if (!ro) {
+			if (!ro) li.addEventListener("contextmenu", (e) => {
+				e.preventDefault();
+				const inDays = (d) => { const x = new Date(); x.setDate(x.getDate() + d); return isoDay(x); };
+				menu([
+					["Due today", () => setTaskDue(view, t, inDays(0))],
+					["Due tomorrow", () => setTaskDue(view, t, inDays(1))],
+					["Due in a week", () => setTaskDue(view, t, inDays(7))],
+					...(t.due ? [["Remove due date", () => setTaskDue(view, t, null)]] : []),
+					null,
+					["Open its note", () => view.state.facet(linkOpener)?.({ note: t.path, heading: "", wiki: true })],
+				], e.clientX, e.clientY);
+			});
+			return li;
+		};
+		// The add box for one list (tag), or for the card with a picker of its lists.
+		const adder = (tag) => {
+			const row = el("div", "md-tl-adder");
+			let pick = null;
+			if (!tag && cfg.lists.length > 1) {
+				pick = el("select", "md-tl-addto");
+				pick.title = "Which list it goes on";
+				for (const t of cfg.lists) pick.append(new Option(listName(t), t));
+				row.append(pick);
+			}
 			const add = el("input", "md-tl-add");
 			add.type = "text";
-			add.placeholder = `Add to the ${result.title}` + (result.day ? " for this day" : "") + "…";
+			const name = tag ? listName(tag) : cfg.lists.length > 1 ? null : result.title;
+			add.placeholder = (name ? `Add to ${name}` : "Add an item") + (result.day ? " for this day" : "") + "…";
 			add.enterKeyHint = "done";
 			add.addEventListener("keydown", async (e) => {
 				if (e.key !== "Enter" || !add.value.trim()) return;
 				e.preventDefault();
 				const text = add.value;
 				add.value = "";
-				await addTask(view, cfg, result.day, text);
+				await addTask(view, cfg, tag || pick?.value || cfg.list, result.day, text);
 			});
-			wrap.append(add);
+			row.append(add);
+			return row;
+		};
+
+		// Columns: each list side by side (stacked when narrow), each with its own add box.
+		const columns = cfg.layout === "columns" && cfg.lists.length > 1 && result.groups.every((g) => g.tag);
+		if (columns) {
+			wrap.classList.add("md-tl-columns");
+			const cols = el("div", "md-tl-cols");
+			for (const g of result.groups) {
+				const col = el("div", "md-tl-col");
+				col.append(el("div", "md-tl-group", `${g.label} · ${g.tasks.length}`));
+				const ul = el("ul", "md-tl-list");
+				for (const t of g.tasks) ul.append(item(t));
+				col.append(ul);
+				if (!g.tasks.length) col.append(el("div", "md-tl-empty", "Nothing here."));
+				if (!ro) col.append(adder(g.tag));
+				cols.append(col);
+			}
+			wrap.append(cols);
+			return wrap;
 		}
+		for (const g of result.groups) {
+			if (g.label) wrap.append(el("div", "md-tl-group", g.label));
+			const ul = el("ul", "md-tl-list");
+			for (const t of g.tasks) ul.append(item(t));
+			wrap.append(ul);
+		}
+		if (!result.count) wrap.append(el("div", "md-tl-empty", result.day ? "Nothing for this day." : "Nothing here."));
+		if (!ro) wrap.append(adder(null));
 		return wrap;
 	}
 	settings(view, x, y) {
 		const cfg = this.cfg, n = this.n;
 		const set = (patch) => saveConfig(view, n, { ...cfg, ...patch });
-		const pick = (label, on) => (on ? "✓ " : " ") + label;
+		const pick = (label, on) => (on ? "✓ " : " ") + label;
 		const hasDay = !!noteDay(this.path);
+		const lists = cfg.lists;
+		const has = (t) => lists.some((x) => x.toLowerCase() === t.toLowerCase());
+		const setLists = (next) => set({ lists: next, list: next[0] });
+		// Lists to tick: the task lists, the card's own, then the tags the
+		// vault's checkbox items use most.
+		const offered = [...TASK_TAGS];
+		for (const t of [...lists, ...itemTags(allNotes(view.state)).map((x) => x.tag)]) if (offered.length < 12 && !offered.some((o) => o.toLowerCase() === t.toLowerCase())) offered.push(t);
+		const multi = lists.length > 1;
 		menu([
-			[pick("Critical Tasks (#crit)", cfg.list === "crit"), () => set({ list: "crit", title: null })],
-			[pick("To Do's (#todo)", cfg.list === "todo"), () => set({ list: "todo", title: null })],
-			[pick("Another tag…", !["crit", "todo"].includes(cfg.list)), () => { const t = prompt("Tag (without #):", ["crit", "todo"].includes(cfg.list) ? "" : cfg.list); if (t && t.trim()) set({ list: t.trim().replace(/^#/, ""), title: null }); }],
+			...offered.map((t) => [pick(`${listName(t)} (#${t})`, has(t)), () => {
+				if (!has(t)) return setLists([...lists, t]);
+				if (lists.length > 1) setLists(lists.filter((x) => x.toLowerCase() !== t.toLowerCase()));
+			}]),
+			["New list…", () => {
+				const name = prompt("List name (Shopping, Wishlist, Packing…):", "");
+				const tag = tagFor(name);
+				if (tag && !has(tag)) setLists([...lists, tag]);
+			}],
 			null,
-			[pick("Open tasks", cfg.show === "open"), () => set({ show: "open" })],
-			[pick("Open and done", cfg.show === "all"), () => set({ show: "all" })],
-			[pick("Done tasks", cfg.show === "done"), () => set({ show: "done" })],
-			null,
-			...(hasDay ? [
-				[pick("This day's tasks", cfg.day === "note"), () => set({ day: "note" })],
-				[pick("Every task", cfg.day === "all"), () => set({ day: "all" })],
+			...(multi ? [
+				[pick("Lists grouped", cfg.layout !== "columns"), () => set({ layout: "grouped" })],
+				[pick("Lists in columns", cfg.layout === "columns"), () => set({ layout: "columns", group: "list" })],
 				null,
 			] : []),
-			[pick("No groups", cfg.group === "none"), () => set({ group: "none" })],
-			[pick("Group by note", cfg.group === "note"), () => set({ group: "note" })],
-			[pick("Group by due date", cfg.group === "due"), () => set({ group: "due" })],
+			[pick("Open items", cfg.show === "open"), () => set({ show: "open" })],
+			[pick("Open and done", cfg.show === "all"), () => set({ show: "all" })],
+			[pick("Done items", cfg.show === "done"), () => set({ show: "done" })],
 			null,
+			...(hasDay ? [
+				[pick("This day's items", cfg.day === "note"), () => set({ day: "note" })],
+				[pick("Every item", cfg.day === "all"), () => set({ day: "all" })],
+				null,
+			] : []),
+			...(cfg.layout === "columns" && multi ? [] : [
+				[pick("No groups", cfg.group === "none"), () => set({ group: "none" })],
+				...(multi ? [[pick("Group by list", cfg.group === "list"), () => set({ group: "list" })]] : []),
+				[pick("Group by note", cfg.group === "note"), () => set({ group: "note" })],
+				[pick("Group by due date", cfg.group === "due"), () => set({ group: "due" })],
+				null,
+			]),
 			[pick("Sort by due date", cfg.sort === "due"), () => set({ sort: "due" })],
 			[pick("Sort by note", cfg.sort === "note"), () => set({ sort: "note" })],
 			[pick("Sort by text", cfg.sort === "text"), () => set({ sort: "text" })],
 			null,
-			["Rename the list…", () => { const t = prompt("List name (empty for the usual one):", cfg.title || ""); if (t != null) set({ title: t.trim() || null }); }],
+			["Rename the card…", () => { const t = prompt("Card name (empty for the usual one):", cfg.title || ""); if (t != null) set({ title: t.trim() || null }); }],
 		], x, y);
 	}
 	ignoreEvent() { return true; }
