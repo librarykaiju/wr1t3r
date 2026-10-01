@@ -960,6 +960,7 @@ function drawHomeBanner(banner, file) {
 let homeKey = null;
 function renderHome(force = false) {
 	if (!editor || editor.path) return;
+	renderHomeBoards();
 	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
 	// Redraw only when something a tile shows changed (a sync redraws the
 	// sidebar often; the pictures would flicker).
@@ -981,6 +982,68 @@ function renderHome(force = false) {
 			next.splice(to, 0, moved);
 			savePins(next);
 		},
+	});
+}
+
+// Boards under Home's tiles: the ```board blocks in _wr1t3r/Home Boards.md
+// (beside Home.md, out of the notes list), shown in a live editor the way
+// Scrivenings shows a note, so the boards work in full. "Add a board" picks
+// the folder it shows and adds one; the note is made the first time.
+let homeBoards = null; // { path, ed }
+const homeBoardsPath = () => homeFile().replace(/[^/]*$/, "Home Boards.md");
+
+function renderHomeBoards() {
+	const box = $("homeBoards");
+	if (!box) return;
+	const path = homeBoardsPath(), n = notes.get(path);
+	const note = n && !n.deleted && !n.binary && /```(board|base)\b/i.test(n.text) ? n : null;
+	if (homeBoards && (!note || homeBoards.path !== path)) { homeBoards.ed.destroy(); homeBoards = null; box.replaceChildren(); }
+	if (!box.firstChild) {
+		const head = document.createElement("div");
+		head.className = "home-boards-head";
+		const add = Object.assign(document.createElement("button"), { type: "button", className: "home-boards-add", textContent: "+ Add a board" });
+		add.addEventListener("click", addHomeBoard);
+		head.append(Object.assign(document.createElement("h2"), { textContent: "Boards" }), add);
+		const body = document.createElement("div");
+		body.className = "home-boards-body scriv-body";
+		box.append(head, body);
+	}
+	box.classList.toggle("empty", !note);
+	if (!note) return;
+	if (!homeBoards) {
+		homeBoards = { path, ed: editor.section(box.querySelector(".home-boards-body"), note, { edits: (text) => onEdit(path, text), focus: () => {}, edge: () => false }) };
+	} else if (!note.dirty && note.text !== homeBoards.ed.text()) homeBoards.ed.replace(note);
+}
+
+function addHomeBoard() {
+	const list = visible(), home = commonFolder(list);
+	const folders = new Set();
+	for (const n of list) {
+		const parts = n.path.split("/").slice(0, -1);
+		for (let i = 1; i <= parts.length; i++) folders.add(parts.slice(0, i).join("/") + "/");
+	}
+	const all = [...folders].filter((f) => f.startsWith(home) && f !== home && !isAppFile(f))
+		.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+	const make = async (folder) => {
+		const path = homeBoardsPath();
+		const f = folder.replace(/\/+$/, "");
+		const texts = list.filter((n) => n.path.startsWith(folder) && /\.md$/i.test(n.path) && !n.binary).slice(0, 200).map((n) => n.text);
+		const title = folder ? itemLabel(folder) : "Every note";
+		const block = "```board\n" + `wr1t3r:\n  title: ${JSON.stringify(title)}\n` + starterBase(f, texts).replace(/\n$/, "") + "\n```\n";
+		await change(path, (cur) => {
+			const text = cur && !cur.deleted ? cur.text.replace(/\s*$/, "\n\n") + block : block;
+			return { ...(cur || { path, base: null }), path, text, dirty: true, deleted: false };
+		});
+		renderHomeBoards();
+		requestAnimationFrame(() => $("homeBoards")?.lastElementChild?.lastElementChild?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }));
+		scheduleSync();
+	};
+	openPalette({
+		placeholder: "Which notes should the board show?",
+		items: [
+			...all.map((f) => ({ label: folderLabel(f), detail: "folder", run: () => make(f) })),
+			{ label: "Every note", detail: "vault", keywords: "all whole", run: () => make("") },
+		],
 	});
 }
 

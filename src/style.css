@@ -1177,6 +1177,16 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 /* A section header: a full-width row with its label, left-aligned to the grid. */
 .home-grid > .home-section { grid-column: 1 / -1; margin: 12px 0 -4px; padding: 0 2px 4px; border-bottom: 1px solid var(--line); color: var(--muted); font: 600 13px/1.4 var(--sans); letter-spacing: 0.05em; text-transform: uppercase; cursor: default; -webkit-touch-callout: none; }
 .home-grid > .home-section:first-child { margin-top: 0; }
+/* Boards under the tiles (main.js renderHomeBoards): a live editor of
+   _wr1t3r/Home Boards.md, as wide as the tiles. */
+.home-boards { width: 100%; max-width: 1080px; margin-top: 26px; }
+.home-boards-head { display: flex; align-items: center; gap: 10px; padding: 0 2px 4px; border-bottom: 1px solid var(--line); }
+.home-boards-head h2 { margin: 0; color: var(--muted); font: 600 13px/1.4 var(--sans); letter-spacing: 0.05em; text-transform: uppercase; }
+.home-boards-add { margin-left: auto; padding: 2px 10px; min-height: 0; border: 1px dashed var(--line); border-radius: 999px; background: none; color: var(--muted); font: 12px var(--sans); cursor: pointer; }
+.home-boards-add:hover { color: var(--accent); border-color: var(--accent); }
+.home-boards.empty .home-boards-body { display: none; }
+.home-boards-body .cm-content { max-width: none; padding: 8px 0 0; }
+.home-boards-body .md-board-width, .home-boards-body .md-fm-none { display: none; }
 .home-section.dragging { opacity: 0.4; }
 .home-section.drop-after { box-shadow: 0 3px 0 var(--accent); }
 .tile-add { --tc: var(--mark); background: none; border: 1.5px dashed var(--line); color: var(--muted); font-weight: 500; justify-content: center; align-items: center; gap: 6px; text-align: center; }
