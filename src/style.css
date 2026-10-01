@@ -1094,6 +1094,12 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .planner-cols.planner-one { grid-template-columns: minmax(0, 1fr); }
 .planner-tasks { display: flex; flex-direction: column; gap: 12px; }
 .planner-tasks .md-tl, .planner-timeline { margin: 0; }
+/* Card colors (the dot in each card's head; planner.js "colors"). */
+.md-tl.planner-colored { border-color: color-mix(in srgb, var(--card-c) 45%, var(--line)); background: color-mix(in srgb, var(--card-c) 8%, var(--card)); box-shadow: inset 0 3px 0 var(--card-c); }
+.md-tl.planner-colored > .md-tl-head .md-tl-title { color: var(--card-c); }
+.planner-card-dot { flex: none; width: 14px; height: 14px; min-height: 0; margin-left: 6px; padding: 0; border: 1px solid color-mix(in srgb, var(--card-c, var(--muted)) 70%, transparent); border-radius: 50%; background: var(--card-c, transparent); cursor: pointer; opacity: 0.75; align-self: center; }
+.planner-card-dot.none { background: repeating-linear-gradient(135deg, transparent 0 3px, var(--line) 3px 4px); }
+.planner-card-dot:hover { opacity: 1; transform: scale(1.15); }
 .planner-hours { display: flex; flex-direction: column; }
 .planner-hour { display: grid; grid-template-columns: 52px minmax(0, 1fr); min-height: 34px; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
 .planner-hour-label { padding: 6px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }

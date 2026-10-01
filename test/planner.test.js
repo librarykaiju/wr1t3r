@@ -261,3 +261,22 @@ test("food lines read like the Recipe template's: known names first, notes after
 	const t = addUnder(addUnder(HEALTH, "🍳Breakfast", "Broccoli, raw, 2"), "🍳Breakfast", "Peanut Butter, 1 (smooth, on toast)");
 	assert.equal(healthDay(t, db).totals.calories, 2 * 31 + 190);
 });
+
+test("card colors: read, shared from the template, written back into the block", async () => {
+	const { readPlanner, cardColor, editPlannerBlock } = await import("../src/planner.js");
+	assert.deepEqual(readPlanner("colors: {timeline: 3, crit: 9, \"#Todo\": 2}").colors, { timeline: 3, todo: 2 });
+	assert.deepEqual(readPlanner("").colors, {});
+	const own = readPlanner("colors: {crit: 1}");
+	assert.equal(cardColor(own, { crit: 5, timeline: 3 }, "crit"), 1); // the note's own wins
+	assert.equal(cardColor(own, { crit: 5, timeline: 3 }, "timeline"), 3); // else the template's
+	assert.equal(cardColor(own, {}, "todo"), null);
+	const tmpl = "---\ntitle: Daily Planner\n---\n<%* stuff -%>\n```wr1t3r-planner\n```\n\n# Notes\n";
+	const a = editPlannerBlock(tmpl, (c) => ({ ...c, colors: { ...c.colors, timeline: 3 } }));
+	assert.equal(a, "---\ntitle: Daily Planner\n---\n<%* stuff -%>\n```wr1t3r-planner\ncolors: {timeline: 3}\n```\n\n# Notes\n");
+	const b = editPlannerBlock(a, (c) => ({ ...c, colors: {} }));
+	assert.equal(b, tmpl);
+	assert.equal(editPlannerBlock("no block here", (c) => c), null);
+	// Other settings and the timeline stay.
+	const day = "```wr1t3r-planner\ntasks: [crit]\ntimeline:\n  - 09:00 - 10:00 | A\n```";
+	assert.equal(editPlannerBlock(day, (c) => ({ ...c, colors: { crit: 2 } })), "```wr1t3r-planner\ntasks: [crit]\ncolors: {crit: 2}\ntimeline:\n  - 09:00 - 10:00 | A\n```");
+});

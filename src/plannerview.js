@@ -11,7 +11,7 @@ import { dataviewBlocks, blockBodyChange } from "./dataview.js";
 import {
 	PLANNER, readPlanner, writePlanner, setEntryColor, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
 	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
-	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine,
+	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine, cardColor, editPlannerBlock, CARD_COLORS,
 } from "./planner.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
@@ -49,6 +49,21 @@ function nutrition(state, cfg) {
 }
 
 // Rewrites the nth planner block's settings (the timeline lives there too).
+// The card colors every day shares: the Daily template's planner block's,
+// read again only when the template changes. -> { colors, path } (path null
+// when there's no template).
+let sharedCache = { text: undefined, colors: {}, path: null };
+const TEMPLATE = /(^|\/)_templates\/Daily\.md$/i;
+function sharedColors(vault) {
+	const path = vault.paths().filter((p) => TEMPLATE.test(p)).sort((a, b) => a.length - b.length)[0] || null;
+	const text = path ? vault.text(path) : null;
+	if (text !== sharedCache.text || path !== sharedCache.path) {
+		const code = text && String(text).match(/```wr1t3r-planner[ \t]*\r?\n([\s\S]*?)\r?\n?```/)?.[1];
+		sharedCache = { text, path, colors: code != null ? readPlanner(code).colors : {} };
+	}
+	return sharedCache;
+}
+
 function saveBlock(view, n, cfg) {
 	const b = dataviewBlocks(view.state, PLANNER)[n];
 	if (!b || view.state.readOnly) return;
@@ -75,7 +90,7 @@ class PlannerWidget extends WidgetType {
 		super();
 		Object.assign(this, p);
 		const h = p.health;
-		this.key = JSON.stringify([p.propsHidden, p.cfg, p.n, p.path, p.day, h, p.foodsCount, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
+		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
 	}
 	eq(o) { return o.key === this.key; }
 
@@ -420,10 +435,49 @@ class PlannerWidget extends WidgetType {
 		cols.append(this.timeline(view, ro));
 		if (this.tasks.length) {
 			const right = el("div", "planner-tasks");
-			for (const t of this.tasks) right.append(new TaskListWidget(t.cfg, t.result, null, this.from, this.path).toDOM(view));
+			for (const t of this.tasks) right.append(this.colored(view, ro, new TaskListWidget(t.cfg, t.result, null, this.from, this.path).toDOM(view), t.cfg.list));
 			cols.append(right);
 		}
 		return cols;
+	}
+
+	// A card in its color, with a dot in its head that picks it. The pick
+	// goes in the Daily template's planner block, so every day shares it (and
+	// any color this note's own block sets for the card is dropped).
+	colored(view, ro, card, key) {
+		const c = cardColor(this.cfg, this.shared, key);
+		if (c) { card.classList.add("planner-colored"); card.style.setProperty("--card-c", `var(--f${c})`); }
+		const head = card.querySelector(".md-tl-head");
+		if (!head || ro) return card;
+		const dot = el("button", "planner-card-dot" + (c ? "" : " none"));
+		dot.type = "button";
+		dot.title = "Card color";
+		dot.setAttribute("aria-label", "Card color");
+		dot.addEventListener("mousedown", (e) => e.preventDefault());
+		dot.addEventListener("click", () => {
+			const r = dot.getBoundingClientRect();
+			cardColorPicker(c, r.left, r.bottom + 6, (pick) => this.setColor(view, key, pick));
+		});
+		head.append(dot);
+		return card;
+	}
+
+	async setColor(view, key, color) {
+		const vault = view.state.facet(vaultHost);
+		const set = (cfg) => {
+			const colors = { ...cfg.colors };
+			if (color) colors[key] = color; else delete colors[key];
+			return { ...cfg, colors };
+		};
+		const { path } = sharedColors(vault);
+		const own = readPlanner(dataviewBlocks(view.state, PLANNER)[this.n]?.code);
+		if (!path) return saveBlock(view, this.n, set(own));
+		if (key in own.colors) { const { [key]: _, ...rest } = own.colors; saveBlock(view, this.n, { ...own, colors: rest }); }
+		try {
+			await vault.write(path, (t) => editPlannerBlock(t, set) ?? t);
+		} catch (e) {
+			host?.toast?.("Couldn't save the color: " + (e?.message || e));
+		}
 	}
 
 	timeline(view, ro) {
@@ -452,6 +506,7 @@ class PlannerWidget extends WidgetType {
 		}
 		head.append(tools);
 		card.append(head);
+		this.colored(view, ro, card, "timeline");
 
 		const { allDay, rows } = timelineRows(cfg.timeline, cfg);
 		const save = (i, text, hour) => {
@@ -557,6 +612,41 @@ function colorPicker(current, x, y, pick) {
 	box.querySelector("[aria-pressed=true]")?.focus();
 }
 
+// The theme's rainbow (--f1..--f7) and Default, for a card.
+function cardColorPicker(current, x, y, pick) {
+	document.querySelector(".item-menu")?.remove();
+	const box = el("div", "item-menu planner-colors");
+	box.setAttribute("role", "dialog");
+	box.setAttribute("aria-label", "Card color");
+	const row = el("div", "swatches");
+	const swatch = (n, label) => {
+		const b = el("button", "swatch" + (n ? "" : " none"));
+		b.type = "button";
+		b.title = label;
+		b.setAttribute("aria-label", label);
+		b.setAttribute("aria-pressed", String((current || null) === n));
+		if (n) b.style.setProperty("--sw", `var(--f${n})`);
+		b.addEventListener("click", () => { close(); pick(n); });
+		row.append(b);
+	};
+	swatch(null, "Default");
+	for (let n = 1; n <= CARD_COLORS; n++) swatch(n, `Color ${n}`);
+	box.append(row);
+	document.body.append(box);
+	const r = box.getBoundingClientRect();
+	box.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
+	box.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+	const away = (ev) => { if (!box.contains(ev.target)) close(); };
+	const esc = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); close(); } };
+	function close() {
+		box.remove();
+		document.removeEventListener("pointerdown", away, true);
+		document.removeEventListener("keydown", esc, true);
+	}
+	setTimeout(() => { document.addEventListener("pointerdown", away, true); document.addEventListener("keydown", esc, true); });
+	box.querySelector("[aria-pressed=true]")?.focus();
+}
+
 function timeText(hhmm) {
 	if (!hhmm) return "";
 	const [h, m] = hhmm.split(":").map(Number);
@@ -590,7 +680,7 @@ function build(state) {
 			const tcfg = readConfig(`list: ${tag}`);
 			return { cfg: tcfg, result: taskList(notes, tcfg, { path, today }) };
 		});
-		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks }), block: true }));
+		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: sharedColors(vault).colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks }), block: true }));
 	});
 	return b.finish();
 }
