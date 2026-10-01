@@ -219,6 +219,26 @@ wr1t3r can keep the whole vault as plain files in a folder on your computer, bot
 
 The browser remembers the folder. After a restart it may ask again: the status says so, and **Allow again** gives it back. **Stop** forgets the folder and leaves its files where they are. What was last agreed on for each file (size, modified time, a hash of the text) is kept in IndexedDB; `src/localvault.js` has the rules and `src/localvaultview.js` does the reading and writing.
 
+## Transcripts
+
+**Transcribe a video or audio file** (command palette, or `/transcript` in a note) puts a transcript of the file into the open note at the cursor, with speakers told apart:
+
+```markdown
+## Transcript
+
+*interview.mp4 · 12:40 · 2 speakers*
+
+**Speaker 1**
+[0:00] Thanks for coming on.
+
+**Speaker 2**
+[0:04] Glad to be here.
+```
+
+The browser takes the sound out of the file (anything it can play: mp4, mov, webm, m4a, mp3, wav) and sends only that, as 16 kHz mono audio, so a big video doesn't have to upload. The Worker has Deepgram's Nova-3 transcribe it on Workers AI, on the same Cloudflare account: no extra key. Up to 40 minutes per file. One speaker gets no speaker lines; rename "Speaker 1" with find and replace.
+
+Workers AI bills Nova-3 at about half a cent per audio minute, and its daily free allowance covers roughly 20 minutes. The `[ai]` binding in `wrangler.toml` turns it on; nothing else to set. `wrangler dev` reaches Workers AI remotely, so it needs `npx wrangler login` first.
+
 ## USDA food search
 
 The planner's Food button can look foods up in USDA FoodData Central. The Worker does the search and holds the key; the page never sees it. Get a free key at [fdc.nal.usda.gov/api-key-signup](https://fdc.nal.usda.gov/api-key-signup), then:

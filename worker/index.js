@@ -44,6 +44,8 @@
 //                                  lookups for media notes; see worker/media.js
 //   /api/usda/search?q=            USDA FoodData Central food search for the
 //                                  planner's Food button; see worker/usda.js
+//   POST   /api/transcribe         body = 16 kHz mono WAV -> a transcript with
+//                                  speakers; see worker/transcribe.js
 
 import { r2Backend } from "./r2.js";
 import { githubBackend } from "./github.js";
@@ -51,6 +53,7 @@ import { proxyFetch } from "./fetch.js";
 import { calendarApi } from "./calendar.js";
 import { mediaApi } from "./media.js";
 import { usdaApi } from "./usda.js";
+import { transcribeApi } from "./transcribe.js";
 import { HttpError, toBase64 } from "./util.js";
 import { isNotePath, isAttachmentPath, attachmentType } from "../src/paths.js";
 
@@ -73,6 +76,8 @@ export default {
 			if (media) return json(media);
 			const usda = await usdaApi(request, env, url);
 			if (usda) return json(usda);
+			const transcript = await transcribeApi(request, env, url);
+			if (transcript) return json(transcript);
 			return (await api(request, backend(env), url, excluded(env))) || json({ error: "Not found" }, 404);
 		} catch (err) {
 			if (err instanceof HttpError) return json({ error: err.message, ...err.extra }, err.status);
