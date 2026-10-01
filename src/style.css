@@ -1335,3 +1335,10 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .props-add { color: var(--f4); }
 .props-conflicts { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--bad); border-radius: 8px; font-size: 13px; }
 @media (max-width: 640px) { .props-acts { white-space: normal; } .props-acts .props-btn { margin: 2px 0 0 4px; } }
+/* The Recipe template's sync block, done by wr1t3r (recipeview.js). */
+.md-recipe-sync { position: relative; margin: 6px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font: 14px/1.5 var(--sans); }
+.md-recipe-sync-btn { padding: 5px 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: var(--bg); font: 600 14px var(--sans); cursor: pointer; }
+.md-recipe-sync-btn:disabled { background: var(--bg); color: var(--muted); border-color: var(--line); cursor: default; }
+.md-recipe-sync-status { margin-top: 6px; color: var(--muted); font-size: 13px; }
+.md-recipe-sync-warn { color: var(--bad); }
+.md-recipe-sync .md-dv-edit { position: absolute; top: 8px; right: 8px; }
