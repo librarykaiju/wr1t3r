@@ -29,12 +29,12 @@ export class RecipeSyncWidget extends WidgetType {
 	toDOM(view) {
 		const wrap = el("div", "md-recipe-sync");
 		const info = this.info;
-		const button = el("button", "md-recipe-sync-btn", "➕ Sync to Nutrition Database");
+		const button = el("button", "md-recipe-sync-btn", "Sync to Nutrition Database");
 		button.type = "button";
 		const status = el("div", "md-recipe-sync-status");
 		if (!info) {
 			button.disabled = true;
-			status.textContent = "⚠️ There's no Nutrition Database note in the vault.";
+			status.textContent = "There's no Nutrition Database note in the vault.";
 		} else {
 			const p = info.per;
 			const numbers = `${p.calories} cal · ${p.fat} g fat · ${p.carbs} g carbs · ${p.protein} g protein · ${p.fiber} g fiber per serving (yield ${info.yield})`;
@@ -43,9 +43,9 @@ export class RecipeSyncWidget extends WidgetType {
 				: info.existing ? `“${info.name}” is in the database with older numbers. Sync to update it.`
 				: `“${info.name}” isn't in the database yet.`;
 			status.append(el("div", null, numbers), el("div", null, state));
-			if (info.unmatched) status.append(el("div", "md-recipe-sync-warn", `⚠️ ${info.unmatched} ingredient${info.unmatched === 1 ? "" : "s"} not in the database; the numbers leave ${info.unmatched === 1 ? "it" : "them"} out.`));
+			if (info.unmatched) status.append(el("div", "md-recipe-sync-warn", `${info.unmatched} ingredient${info.unmatched === 1 ? "" : "s"} not in the database; the numbers leave ${info.unmatched === 1 ? "it" : "them"} out.`));
 			button.disabled = view.state.readOnly || !info.ingredients || info.upToDate;
-			if (info.upToDate) button.textContent = "✓ Synced";
+			if (info.upToDate) button.textContent = "Synced";
 		}
 		button.addEventListener("mousedown", (e) => e.preventDefault());
 		button.addEventListener("click", async () => {
@@ -59,9 +59,9 @@ export class RecipeSyncWidget extends WidgetType {
 					result = upsertRecipeRow(t, fresh.name, fresh.row);
 					return result.text;
 				});
-				status.replaceChildren(el("div", null, result?.error ? `⚠️ ${result.error}` : `✅ ${result?.action || "Kept"} “${info.name}” (${info.per.calories} cal per serving).`));
+				status.replaceChildren(el("div", null, result?.error ? result.error : `${result?.action || "Kept"} “${info.name}” (${info.per.calories} cal per serving).`));
 			} catch (e) {
-				status.replaceChildren(el("div", null, `⚠️ ${e?.message || e}`));
+				status.replaceChildren(el("div", null, String(e?.message || e)));
 				button.disabled = false;
 			}
 		});
