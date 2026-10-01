@@ -933,15 +933,41 @@ function tileImage(ref, from) {
 	return dataviewVault.attachmentURL(path);
 }
 
+// The Home note's banner: banner: and banner_position: in _wr1t3r/Home.md,
+// drawn across the top of Home the way a note draws its own.
+function homeBanner() {
+	const text = homeText();
+	return text == null ? null : prettyOf(Text.of(text.split("\n"))).banner;
+}
+
+function drawHomeBanner(banner, file) {
+	const box = $("homeBanner");
+	const src = banner && tileImage(banner.ref, file);
+	box.replaceChildren();
+	box.hidden = !src;
+	if (!src) return;
+	const img = document.createElement("img");
+	img.alt = "";
+	img.decoding = "async";
+	img.draggable = false;
+	img.referrerPolicy = "no-referrer";
+	img.style.objectPosition = `center ${banner.position}%`;
+	img.addEventListener("error", () => { box.hidden = true; });
+	Promise.resolve(src).then((u) => { img.src = u; }, () => { box.hidden = true; });
+	box.append(img);
+}
+
 let homeKey = null;
 function renderHome(force = false) {
 	if (!editor || editor.path) return;
 	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
 	// Redraw only when something a tile shows changed (a sync redraws the
 	// sidebar often; the pictures would flicker).
-	const key = JSON.stringify([list, paths.length, attachments.length, list.map((p) => { const q = pinPath(p, paths, file); return q && notes.get(q)?.text?.slice(0, 1500); })]);
+	const banner = homeBanner();
+	const key = JSON.stringify([list, banner, paths.length, attachments.length, list.map((p) => { const q = pinPath(p, paths, file); return q && notes.get(q)?.text?.slice(0, 1500); })]);
 	if (!force && key === homeKey) return;
 	homeKey = key;
+	drawHomeBanner(banner, file);
 	drawHome($("homeGrid"), {
 		pins: list, homeFile: file, paths,
 		text: (p) => { const n = notes.get(p); return n && !n.binary ? n.text : null; },

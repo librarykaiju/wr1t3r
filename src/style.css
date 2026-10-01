@@ -311,6 +311,13 @@ main:not(.has-note) #toolbar, main.has-folder #toolbar, #app.no-toolbar #toolbar
 @media (hover: hover) { #empty .prompt-next:hover { color: var(--fg); background: var(--card); } }
 @media (hover: hover) { #empty .prompt:hover { color: var(--fg); background: var(--card); } }
 main.has-note #empty { display: none; }
+/* Home's banner (banner: in _wr1t3r/Home.md): across the whole pane, flush
+   with its top, faded at the bottom like a note's. */
+.home-banner { flex: none; align-self: stretch; margin: calc(-1 * max(24px, 5vh)) -24px 0; }
+.home-banner[hidden] { display: none; }
+.home-banner img { display: block; width: 100%; height: 300px; object-fit: cover;
+	-webkit-mask-image: linear-gradient(to bottom, black 25%, transparent); mask-image: linear-gradient(to bottom, black 25%, transparent); }
+@media (max-width: 640px) { .home-banner img { height: 100px; } }
 main:not(.has-note) #panes { display: none; }
 
 :is(#editor, #refView) .cm-editor { height: 100%; background: var(--bg); }
