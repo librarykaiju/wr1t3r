@@ -50,6 +50,7 @@ import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { setCardsHost } from "./cardsblock.js";
 import { setPlannerHost, importEvents } from "./plannerview.js";
+import { openPropertyCleanup } from "./propcleanview.js";
 import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
 import { healthPathFor, MEALS, WATER, MOOD } from "./planner.js";
 import { attachmentKind } from "./attachments.js";
@@ -1646,6 +1647,7 @@ function allCommands() {
 		["New note from template", newFromTemplate, "templater"],
 		...NEW_NOTE_KINDS.map((k) => [k.label, () => newKindNote(k), `create template ${k.template.toLowerCase()} ${k.keywords}`]),
 		["New base", () => newBase(), "create database table grid gallery kanban view bases"],
+		["Clean up properties", cleanUpProperties, "yaml frontmatter properties empty rename merge delete tidy vault"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
@@ -1980,6 +1982,33 @@ async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = 
 	// back so typing lands in the note (a space would press New again).
 	requestAnimationFrame(() => editor.view.focus());
 	scheduleSync();
+}
+
+// The Properties cleanup panel (src/propcleanview.js): every note with
+// properties but templates and wr1t3r's own files. Its batch writes skip the
+// per-note redraw; done() redraws and syncs once.
+function cleanUpProperties() {
+	openPropertyCleanup({
+		notes: () => Object.fromEntries(visible()
+			.filter((n) => !n.binary && /\.md$/i.test(n.path) && !/(^|\/)_templates\//i.test(n.path) && !isAppFile(n.path))
+			.map((n) => [n.path, n.path === editor.path ? editor.view.state.doc.toString() : n.text])),
+		async write(path, fn) {
+			const note = notes.get(path);
+			if (!note || note.deleted || note.binary) return;
+			if (path === editor.path) {
+				const before = editor.view.state.doc.toString(), after = fn(before);
+				if (after !== before) editor.view.dispatch({ changes: diffChange(before, after), userEvent: "input.properties" });
+				return;
+			}
+			const after = fn(note.text);
+			if (after === note.text) return;
+			await change(path, (cur) => (cur ? { ...cur, text: after, dirty: true } : cur));
+			editor.forget(path);
+		},
+		done() { renderStatus(); renderTree(); scheduleSync(); },
+		open: (path) => openNote(path),
+		toast: (text) => toast(text),
+	});
 }
 
 // A note of one kind (src/newnotes.js): asks for its title, fills in the kind's

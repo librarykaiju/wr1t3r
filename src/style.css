@@ -1304,3 +1304,32 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
    double-spaced prose, first line of each paragraph indented. Only paragraph
    lines change; headings, lists, quotes and code keep their look. */
 .cm-editor.ms-layout .cm-line.ms-para { line-height: 2; text-indent: 2.5em; }
+/* The Properties cleanup panel (propcleanview.js). */
+.props-box { width: min(900px, 100%); }
+.props-body { flex: 1; overflow: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.props-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.props-filter { flex: 1 1 200px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
+.props-title { flex: 1 1 auto; font-weight: 600; }
+.props-hint { margin: 0; color: var(--muted); font-size: 13px; }
+.props-btn { padding: 3px 10px; min-height: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: 13px/1.5 var(--sans); cursor: pointer; white-space: nowrap; }
+.props-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.props-btn:disabled { opacity: 0.55; cursor: default; }
+.props-primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.props-primary:hover:not(:disabled) { color: var(--bg); filter: brightness(1.08); }
+.props-danger { background: var(--bad); border-color: var(--bad); }
+.props-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.props-table th { position: sticky; top: -12px; background: var(--card); text-align: left; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.props-table td { padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); vertical-align: middle; }
+.props-key { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+.props-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); width: 4.5em; }
+.props-empty { color: var(--bad); font-weight: 600; }
+.props-acts { text-align: right; white-space: nowrap; }
+.props-acts .props-btn + .props-btn { margin-left: 4px; }
+.props-preview { display: flex; flex-direction: column; gap: 8px; }
+.props-change { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.props-note { font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.props-diff { margin: 4px 0 0; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.props-del { color: var(--bad); }
+.props-add { color: var(--f4); }
+.props-conflicts { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--bad); border-radius: 8px; font-size: 13px; }
+@media (max-width: 640px) { .props-acts { white-space: normal; } .props-acts .props-btn { margin: 2px 0 0 4px; } }
