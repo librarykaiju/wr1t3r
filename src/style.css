@@ -1323,6 +1323,8 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .props-key { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
 .props-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); width: 4.5em; }
 .props-empty { color: var(--bad); font-weight: 600; }
+.props-site { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--accent); font: 600 10px/1.6 var(--sans); letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 1px; }
+.props-warning { margin: 0; padding: 8px 10px; border: 1px solid var(--bad); border-radius: 8px; background: color-mix(in srgb, var(--bad) 8%, var(--card)); color: var(--fg); font-size: 13px; }
 .props-acts { text-align: right; white-space: nowrap; }
 .props-acts .props-btn + .props-btn { margin-left: 4px; }
 .props-preview { display: flex; flex-direction: column; gap: 8px; }

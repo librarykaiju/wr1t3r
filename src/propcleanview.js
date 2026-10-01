@@ -5,6 +5,9 @@
 // when confirmed.
 
 import { propertyIndex, planChange, clearEmpty, deleteKey, renameKey, frontmatterDiff, validKey } from "./propclean.js";
+import { SITE_KEYS } from "./sitekeys.js";
+
+const SITE_WARNING = (keys) => `The website reads ${keys.map((k) => `“${k}”`).join(" and ")}. ${keys.length > 1 ? "Changing them" : "Changing it"} changes the published pages that use ${keys.length > 1 ? "them" : "it"}, and can break them.`;
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const plural = (n, one, many = one + "s") => `${n.toLocaleString()} ${n === 1 ? one : many}`;
@@ -62,7 +65,7 @@ export function openPropertyCleanup(host) {
 		clearAll.disabled = !all.changed.length;
 		clearAll.addEventListener("click", () => preview(`Clear every empty value`, "Properties with nothing in them, and blank items in lists, are taken out.", (t) => clearEmpty(t)));
 		bar.append(q, clearAll);
-		const hint = el("p", "props-hint", `${plural(Object.keys(notes).length, "note")} with properties. Templates and wr1t3r's own files aren't touched. Nothing is written until you confirm.`);
+		const hint = el("p", "props-hint", `${plural(Object.keys(notes).length, "note")} with properties. Templates and wr1t3r's own files aren't touched. Nothing is written until you confirm. Clearing empty values never changes the website (it treats an empty property and a missing one alike); properties marked “site” are read by it, so renaming or deleting them can.`);
 		const table = el("table", "props-table");
 		const thead = el("thead");
 		const tr = el("tr");
@@ -74,12 +77,14 @@ export function openPropertyCleanup(host) {
 			const f = filter.trim().toLowerCase();
 			for (const r of idx.filter((r) => !f || r.key.toLowerCase().includes(f))) {
 				const row = el("tr");
-				row.append(el("td", "props-key", r.key), el("td", "props-num", r.notes.toLocaleString()), el("td", "props-num" + (r.empty ? " props-empty" : ""), r.empty ? r.empty.toLocaleString() : "—"));
+				const keyCell = el("td", "props-key", r.key);
+				if (SITE_KEYS.has(r.key)) { const b = el("span", "props-site", "site"); b.title = "The website reads this property"; keyCell.append(b); }
+				row.append(keyCell, el("td", "props-num", r.notes.toLocaleString()), el("td", "props-num" + (r.empty ? " props-empty" : ""), r.empty ? r.empty.toLocaleString() : "—"));
 				const acts = el("td", "props-acts");
 				const act = (label, title, run) => { const b = el("button", "props-btn", label); b.type = "button"; b.title = title; b.addEventListener("click", run); acts.append(b); };
 				if (r.empty || r.blanks) act("Clear empty", `Take out ${r.key} where it's empty, and blank items in its lists`, () => preview(`Clear empty “${r.key}”`, `“${r.key}” is taken out of the notes where it has nothing in it${r.blanks ? ", and blank items are taken out of its lists" : ""}.`, (t) => clearEmpty(t, r.key)));
 				act("Rename…", `Rename ${r.key} in every note, or merge it into another property`, () => rename(r.key));
-				act("Delete", `Take ${r.key} out of every note, values and all`, () => preview(`Delete “${r.key}”`, `“${r.key}” is taken out of every note, with its values.`, (t) => deleteKey(t, r.key), true));
+				act("Delete", `Take ${r.key} out of every note, values and all`, () => preview(`Delete “${r.key}”`, `“${r.key}” is taken out of every note, with its values.`, (t) => deleteKey(t, r.key), true, SITE_KEYS.has(r.key) ? SITE_WARNING([r.key]) : null));
 				row.append(acts);
 				tbody.append(row);
 			}
@@ -95,11 +100,12 @@ export function openPropertyCleanup(host) {
 		const to = prompt(`Rename “${from}” to (an existing property's name merges into it):`, from)?.trim();
 		if (to == null || to === "" || to === from) return;
 		if (!validKey(to)) return host.toast(`“${to}” can't be a property name.`);
-		preview(`Rename “${from}” to “${to}”`, `Where a note already has “${to}”, an empty one gives way; if both have values, the note is left alone and listed below.`, (t) => renameKey(t, from, to));
+		const site = [from, to].filter((k) => SITE_KEYS.has(k));
+		preview(`Rename “${from}” to “${to}”`, `Where a note already has “${to}”, an empty one gives way; if both have values, the note is left alone and listed below.`, (t) => renameKey(t, from, to), !!site.length, site.length ? SITE_WARNING(site) : null);
 	}
 
 	// What an action would change, with Confirm and Back.
-	function preview(title, what, change, destructive = false) {
+	function preview(title, what, change, destructive = false, warning = null) {
 		const notes = host.notes();
 		const plan = planChange(notes, change);
 		body.replaceChildren();
@@ -113,6 +119,7 @@ export function openPropertyCleanup(host) {
 		top.append(backBtn, el("span", "props-title", title), go);
 		const info = el("p", "props-hint", what);
 		body.append(top, info);
+		if (warning) body.append(el("p", "props-warning", "⚠ " + warning));
 		if (plan.conflicts.length) {
 			const c = el("div", "props-conflicts");
 			c.append(el("strong", null, `Left alone (${plan.conflicts.length}): both properties have values.`));
@@ -133,7 +140,7 @@ export function openPropertyCleanup(host) {
 		if (plan.changed.length > SHOWN) listEl.append(el("p", "props-hint", `…and ${plural(plan.changed.length - SHOWN, "more note")}.`));
 		body.append(listEl);
 		go.addEventListener("click", async () => {
-			if (destructive && !confirm(`${title}: change ${plural(plan.changed.length, "note")}? This can't be undone here.`)) return;
+			if (destructive && !confirm(`${title}: change ${plural(plan.changed.length, "note")}? This can't be undone here.${warning ? "\n\n" + warning : ""}`)) return;
 			busy = true;
 			go.disabled = backBtn.disabled = x.disabled = true;
 			let done = 0;
