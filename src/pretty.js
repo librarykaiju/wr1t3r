@@ -18,11 +18,10 @@
 // Reposition button lets you drag it up or down, which writes
 // banner_position; nothing else here changes the note.
 
-import { StateField, StateEffect } from "@codemirror/state";
+import { StateField } from "@codemirror/state";
 import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
-import { snippet } from "@codemirror/autocomplete";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
-import { frontmatterLines, propertiesFolded, showImageProps, imagePropsShown } from "./frontmatter.js";
+import { frontmatterLines, propertiesFolded, showImageProps, imagePropsShown, boxCover, focusProperty } from "./frontmatter.js";
 import { attachmentKind } from "./attachments.js";
 
 export const BANNER_KEY = "banner";
@@ -294,17 +293,6 @@ class CoverWidget extends WidgetType {
 	ignoreEvent() { return true; }
 }
 
-// How far the properties box has to grow at the bottom so a cover beside it
-// fits inside it (measured; see coverFit).
-const setReserve = StateEffect.define();
-const reserve = StateField.define({
-	create: () => 0,
-	update(v, tr) {
-		for (const e of tr.effects) if (e.is(setReserve)) v = e.value;
-		return v;
-	},
-});
-
 function build(state) {
 	const out = [];
 	const b = { add: (from, to, d) => out.push(d.range(from, to)), finish: () => Decoration.set(out, true) };
@@ -314,86 +302,38 @@ function build(state) {
 		const src = resolve(state, banner.ref);
 		if (src) b.add(0, 0, Decoration.widget({ widget: new BannerWidget(src, banner.position), block: true, side: -1 }));
 	}
-	// Folding the box hides the cover too (Pretty Properties' "hide cover
-	// when collapsed"), so a folded box stays one line.
-	const src = fm && cover && !propertiesFolded(state) && resolve(state, cover.ref);
-	if (!src) return b.finish();
-	const last = fm.close;
-	const side = cover.position === "left" || cover.position === "right";
-	const at = cover.position === "bottom" ? state.doc.line(last).to : state.doc.line(fm.open).from;
-	for (let n = fm.open; n <= last; n++) {
-		const l = state.doc.line(n);
-		const attrs = { class: "md-has-cover" + (side ? " md-cover-" + cover.position : "") };
-		if (side) attrs.style = `--cover-w: ${COVER_WIDTHS[cover.shape]}px` + (n === last ? `; --md-cover-reserve: ${state.field(reserve)}px` : "");
-		if (side || n === fm.open) b.add(l.from, l.from, Decoration.line({ attributes: attrs }));
-		if (l.from <= at && at <= l.to && n === (cover.position === "bottom" ? last : fm.open)) {
-			b.add(at, at, Decoration.widget({ widget: new CoverWidget(src, cover.shape, cover.position), side: cover.position === "bottom" ? 1 : -1 }));
-		}
-	}
 	return b.finish();
 }
+
+// The cover, drawn inside the properties box (frontmatter.js lays it out
+// beside, above or below the rows). Folding the box hides it too (Pretty
+// Properties' "hide cover when collapsed").
+const cover = boxCover.of({
+	info(state) {
+		const { cover } = prettyOf(state.doc);
+		const src = cover && !propertiesFolded(state) && resolve(state, cover.ref);
+		return src ? { src, shape: cover.shape, position: cover.position, width: COVER_WIDTHS[cover.shape] } : null;
+	},
+	dom: (view, c) => new CoverWidget(c.src, c.shape, c.position).toDOM(view),
+});
 
 const decorations = StateField.define({
 	create: build,
 	update(deco, tr) {
-		if (tr.docChanged || propertiesFolded(tr.startState) !== propertiesFolded(tr.state) || tr.effects.some((e) => e.is(vaultChanged) || e.is(setReserve))) return build(tr.state);
+		if (tr.docChanged || tr.effects.some((e) => e.is(vaultChanged))) return build(tr.state);
 		return deco;
 	},
 	provide: (f) => EditorView.decorations.from(f),
 });
 
-// A cover beside the box hangs down from its first line; the box's last line
-// gets padding at the bottom (never margin: CodeMirror leaves margins out of
-// its line heights) so the box is at least as tall as the cover.
-const coverFit = ViewPlugin.fromClass(class {
-	constructor(view) { this.view = view; this.measure(); }
-	update(u) { if (u.docChanged || u.geometryChanged || u.viewportChanged || u.transactions.some((t) => t.effects.length)) this.measure(); }
-	measure() {
-		this.view.requestMeasure({
-			key: this,
-			read: (view) => {
-				const cover = view.contentDOM.querySelector(".md-cover.left, .md-cover.right");
-				const lines = view.contentDOM.querySelectorAll(".cm-line.md-has-cover");
-				const current = view.state.field(reserve);
-				if (!lines.length) return null; // scrolled out of the drawn part
-				if (!cover || cover.classList.contains("gone") || getComputedStyle(cover).position !== "absolute") return current ? 0 : null;
-				const lastLine = lines[lines.length - 1];
-				const bottom = lastLine.getBoundingClientRect().bottom - parseFloat(getComputedStyle(lastLine).borderBottomWidth || "0") - current;
-				const need = Math.max(0, Math.ceil(cover.getBoundingClientRect().bottom + 8 - bottom));
-				return Math.abs(need - current) > 1 ? need : null;
-			},
-			write: (need, view) => {
-				if (need != null) Promise.resolve().then(() => view.dispatch({ effects: setReserve.of(need) }));
-			},
-		});
-	}
-});
-
-// Command: put the cursor on a property's value, adding the property when the
-// note doesn't have it yet (Palette: "Banner image", "Cover image").
-export function editProperty(view, key) {
-	if (view.state.readOnly) return false;
-	const doc = view.state.doc;
-	const fm = frontmatterLines(doc);
-	if (fm) {
-		for (let n = fm.open + 1; n < fm.close; n++) {
-			const l = doc.line(n);
-			if (new RegExp(`^${key}\\s*:`).test(l.text)) {
-				view.dispatch({ selection: { anchor: l.to }, scrollIntoView: true });
-				view.focus();
-				return true;
-			}
-		}
-	}
-	const at = fm ? doc.line(fm.close).from : 0;
-	snippet(fm ? `${key}: \${}\n` : `---\n${key}: \${}\n---\n`)(view, null, at, at);
-	view.focus();
-	return true;
-}
+// Command: put the focus in a property's value in the box, adding the
+// property when the note doesn't have it yet (Palette: "Banner image",
+// "Cover image").
+export const editProperty = (view, key) => focusProperty(view, key);
 export const editBanner = (view) => editProperty(view, BANNER_KEY);
 export const editCover = (view) => {
 	const have = readProperties(view.state.doc, COVER_KEYS);
 	return editProperty(view, COVER_KEYS.find((k) => k in have) || COVER_KEYS[0]);
 };
 
-export const prettyProperties = [reserve, decorations, coverFit, bannerFit];
+export const prettyProperties = [decorations, cover, bannerFit];

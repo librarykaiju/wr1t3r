@@ -36,6 +36,7 @@ import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
 import { timelineChanges, eventsOn } from "./timeline.js";
 import { newNoteFrontmatter } from "./frontmatter.js";
+import { readTypes, writeTypes } from "./properties.js";
 import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
@@ -1540,6 +1541,26 @@ function renderTabs() {
 	pick.replaceChildren(...shown.map((p) => Object.assign(document.createElement("option"), { value: p, textContent: tabName(p), selected: p === activeTab() })));
 	requestAnimationFrame(() => (folderTab ? strip.querySelector(".current") : current)?.scrollIntoView?.({ block: "nearest", inline: "nearest" }));
 	renderRefPick();
+}
+
+// The vault's property types ({ name: type }, chosen from a property's menu in
+// the properties box), in _wr1t3r/Property Types.md beside the Home note so
+// they sync like any note.
+const typesFile = () => homeFile().replace(/[^/]*$/, "Property Types.md");
+let typesCache = { text: undefined, types: {} };
+function propertyTypes() {
+	const text = notes.get(typesFile())?.deleted ? null : notes.get(typesFile())?.text ?? null;
+	if (text !== typesCache.text) typesCache = { text, types: readTypes(text) };
+	return typesCache.types;
+}
+async function setPropertyType(key, type) {
+	if (propertyTypes()[key] === type) return;
+	const path = typesFile();
+	await change(path, (cur) => {
+		const text = cur && !cur.deleted ? cur.text : null;
+		return { ...(cur || { path, base: null }), path, text: writeTypes(text, { ...readTypes(text), [key]: type }), dirty: true, deleted: false };
+	});
+	scheduleSync();
 }
 
 // opts.replace: show it in the current tab (links); opts.tab: false to leave the tabs as they are.
@@ -4045,6 +4066,9 @@ const dataviewVault = {
 		scheduleSync();
 	},
 	text: (path) => { const n = notes.get(path); return n && !n.deleted && !n.binary ? n.text : null; },
+	// The vault's property types (src/properties.js), kept in _wr1t3r/Property Types.md.
+	propertyTypes: () => propertyTypes(),
+	setPropertyType: (key, type) => setPropertyType(key, type),
 	// A base's "+ New": the note's text as New note would start it.
 	newNoteText: (path) => (/(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"))),
 	// ...then saved (numbered if the name's taken) and opened.

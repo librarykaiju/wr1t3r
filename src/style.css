@@ -733,21 +733,9 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-cover:is(.vertical-contain, .horizontal-contain) img { object-fit: contain; }
 :is(#editor, #refView) .md-cover:is(.top, .bottom) { padding: 6px 0; }
 :is(#editor, #refView) .md-cover:is(.top, .bottom) img { max-height: 400px; width: auto; max-width: 100%; }
-/* Beside the box: the cover hangs from the first line and every line of the box
-   makes room for it; the last line grows by --md-cover-reserve to fit it. */
-@media (min-width: 641px) {
-	:is(#editor, #refView) .md-fm.md-has-cover.md-first { position: relative; }
-	:is(#editor, #refView) .md-cover:is(.left, .right) { position: absolute; top: 10px; width: min(var(--cover-w, 200px), 40%); }
-	:is(#editor, #refView) .md-cover.left { left: 10px; }
-	:is(#editor, #refView) .md-cover.right { right: 10px; }
-	:is(#editor, #refView) .md-fm.md-cover-left { padding-left: calc(24px + min(var(--cover-w, 200px), 40%)); }
-	:is(#editor, #refView) .md-fm.md-cover-right { padding-right: calc(20px + min(var(--cover-w, 200px), 40%)); }
-	:is(#editor, #refView) .md-fm.md-last.md-has-cover { padding-bottom: calc(4px + var(--md-cover-reserve, 0px)); }
-}
-/* Phones: the cover sits above the properties instead, as Pretty Properties does in narrow panes. */
+/* Phones: a smaller banner, and the cover above the properties (see .md-props-body). */
 @media (max-width: 640px) {
 	:is(#editor, #refView) .md-banner img { height: 100px; }
-	:is(#editor, #refView) .md-cover:is(.left, .right) { padding: 6px 0; }
 	:is(#editor, #refView) .md-cover img { max-height: 200px; width: auto; max-width: 100%; }
 }
 :is(#editor, #refView) .md-nested {
@@ -791,6 +779,64 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-prop-date { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; min-height: 0; line-height: 1.6; color-scheme: light dark; }
 :is(#editor, #refView) .md-prop-date:focus { outline: none; border-color: var(--accent); }
 :is(#editor, #refView) .md-tag-input:focus { outline: none; border-color: var(--accent); border-style: solid; }
+
+/* The drawn properties box (src/frontmatter.js): a row per property, its name
+   a button (Rename, Type, Remove) and its value a control for its type. The
+   gap under it is a see-through border, as margins throw off CodeMirror's heights. */
+:is(#editor, #refView) .md-props {
+	background: var(--panel); background-clip: padding-box; border: 1px solid var(--line); border-bottom: 0.6em solid transparent;
+	box-shadow: inset 0 -1px 0 var(--line); border-radius: 8px 8px 8px 8px / 8px 8px calc(8px + 0.6em) calc(8px + 0.6em);
+	padding: 4px 10px 6px 14px; font: 0.78em/1.6 var(--sans); color: var(--fg); cursor: default;
+}
+:is(#editor, #refView) .md-props-head { display: flex; align-items: center; gap: 10px; min-height: 2em; }
+:is(#editor, #refView) .md-props-space { flex: 1; }
+:is(#editor, #refView) .md-props-source { background: none; border: 0; padding: 0; min-height: 0; font: 400 0.92em var(--sans); color: var(--muted); cursor: pointer; }
+:is(#editor, #refView) .md-props-source:hover { color: var(--fg); }
+:is(#editor, #refView) .md-props-srchead { display: inline-flex; width: 100%; align-items: center; gap: 10px; font: 600 0.92em var(--sans); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+:is(#editor, #refView) .md-props-srchead .md-props-source { text-transform: none; letter-spacing: 0; font-weight: 400; }
+:is(#editor, #refView) .md-fm-src { font-family: var(--mono); }
+:is(#editor, #refView) .md-props-body { display: flex; gap: 14px; align-items: flex-start; }
+:is(#editor, #refView) .md-props-cover-right { flex-direction: row-reverse; }
+:is(#editor, #refView) .md-props-cover-top { flex-direction: column; }
+:is(#editor, #refView) .md-props-cover-bottom { flex-direction: column-reverse; }
+:is(#editor, #refView) .md-props-body > .md-cover:is(.left, .right) { flex: none; width: min(var(--cover-w, 200px), 40%); padding: 4px 0; }
+@media (max-width: 640px) { :is(#editor, #refView) .md-props-body { flex-direction: column; } }
+:is(#editor, #refView) .md-props-rows { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(7em, max-content) minmax(0, 1fr); column-gap: 12px; align-items: start; }
+:is(#editor, #refView) .md-prop { display: contents; }
+:is(#editor, #refView) .md-prop-key {
+	display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 0; padding: 3px 6px; margin: 1px 0 1px -6px; border: 0; border-radius: 6px;
+	background: none; font: inherit; color: var(--muted); text-align: left; cursor: pointer; overflow: hidden;
+}
+:is(#editor, #refView) button.md-prop-key:hover { background: var(--sel); color: var(--fg); }
+:is(#editor, #refView) .md-prop-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(#editor, #refView) .md-prop-icon { flex: none; width: 1.6em; text-align: center; font: 600 0.8em var(--mono); opacity: 0.7; }
+:is(#editor, #refView) .md-prop-mismatch .md-prop-icon { color: var(--bad); opacity: 1; }
+:is(#editor, #refView) .md-prop-val { min-width: 0; display: flex; align-items: center; min-height: 2em; padding: 1px 0; }
+:is(#editor, #refView) .md-prop-val .md-tags { margin-left: 0; display: flex; min-width: 0; padding: 2px 0; }
+:is(#editor, #refView) .md-props { min-width: 0; max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; contain: inline-size; }
+:is(#editor, #refView) .md-prop-val { overflow: hidden; }
+:is(#editor, #refView) .md-props-srcend { display: block; height: 0.3em; }
+:is(#editor, #refView) .md-prop-text {
+	display: block; width: 100%; resize: none; overflow: hidden; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; margin-left: -6px;
+	background: none; color: var(--fg); font: inherit; line-height: 1.5;
+}
+:is(#editor, #refView) .md-prop-text:hover { border-color: var(--line); }
+:is(#editor, #refView) .md-prop-text:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+:is(#editor, #refView) .md-prop-text::placeholder { color: var(--mark); }
+:is(#editor, #refView) .md-prop-text.bad { border-color: var(--bad); }
+:is(#editor, #refView) .md-prop-yaml { border: 0; background: none; padding: 2px 0; min-height: 0; font: 0.95em/1.5 var(--mono); color: var(--muted); text-align: left; white-space: pre-wrap; cursor: pointer;
+	display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; max-width: 100%; }
+:is(#editor, #refView) .md-prop-rename { font: inherit; padding: 2px 6px; margin-left: -6px; border: 1px solid var(--accent); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; }
+:is(#editor, #refView) .md-props-new { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0 2px; }
+:is(#editor, #refView) .md-props-new :is(input, select) { font: inherit; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-height: 0; }
+:is(#editor, #refView) .md-props-new input { flex: 1 1 10em; min-width: 8em; }
+:is(#editor, #refView) .md-props-new input:focus, :is(#editor, #refView) .md-props-new select:focus { outline: none; border-color: var(--accent); }
+:is(#editor, #refView) .md-props-new button { font: inherit; padding: 3px 10px; min-height: 0; border-radius: 6px; }
+:is(#editor, #refView) .md-props-new-add { background: var(--accent); color: var(--bg); border: 1px solid var(--accent); }
+:is(#editor, #refView) .md-props-new-cancel { background: none; border: 1px solid var(--line); color: var(--muted); }
+:is(#editor, #refView) .md-props-foot { display: flex; align-items: center; gap: 14px; padding-top: 4px; }
+:is(#editor, #refView) .md-props-foot .md-fm-images { margin-left: 0; }
+.item-menu .md-type-item { white-space: pre; }
 
 /* The bar above the phone keyboard. */
 #kbbar { position: fixed; left: 0; right: 0; z-index: 40; display: flex; gap: 4px; padding: 5px 8px; background: var(--panel, var(--bg)); border-top: 1px solid var(--line); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
@@ -843,7 +889,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 
 /* "Linked from" under the note (src/backlinks.js) */
 /* The rule above it is a background line, so the space around it can be padding (see .md-image). */
-.md-backlinks { padding: 63px 0 24px; background: linear-gradient(var(--line), var(--line)) 0 48px / 100% 1px no-repeat; font-family: var(--sans); font-size: 14px; }
+.md-backlinks { contain: inline-size; overflow-wrap: anywhere; padding: 63px 0 24px; background: linear-gradient(var(--line), var(--line)) 0 48px / 100% 1px no-repeat; font-family: var(--sans); font-size: 14px; }
 .md-backlinks details + details { margin-top: 12px; }
 .md-backlinks summary { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; list-style-position: inside; }
 .md-backlink.md-unresolved { opacity: 1; border: 0; }
