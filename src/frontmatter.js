@@ -203,6 +203,22 @@ export function newNoteFrontmatter(title, date) {
 	].join("\n");
 }
 
+// A new note's text with its title as a "# " heading at the top of the body:
+// the frontmatter's title, or the file name when it has none. A body that
+// already opening with that heading is left alone; any other heading (a
+// template's "# Notes") goes below it. The site hides a first heading that
+// matches the title, since its pages print the title themselves.
+export function withTitleHeading(text, fallback) {
+	const fm = text.match(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/);
+	const head = fm ? fm[0] : "", body = text.slice(head.length);
+	const raw = head.match(/^title[ \t]*:[ \t]*(.*)$/m)?.[1].trim() ?? "";
+	const title = raw.replace(/^(["'])(.*)\1$/, "$2").replace(/\\"/g, '"').trim() || fallback;
+	if (!title) return text;
+	const first = body.replace(/^\s+/, "").split(/\r?\n/, 1)[0];
+	if (/^#[ \t]/.test(first) && first.replace(/^#[ \t]+|[ \t#]*$/g, "") === title) return text;
+	return `${head}${head && !head.endsWith("\n") ? "\n" : ""}# ${title}\n\n${body.replace(/^\s*\n/, "")}`;
+}
+
 // Top-level "key:" lines between the fences.
 export function propertyCount(doc, fm) {
 	let n = 0;

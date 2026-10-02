@@ -35,7 +35,7 @@ import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
 import { timelineChanges, eventsOn } from "./timeline.js";
-import { newNoteFrontmatter } from "./frontmatter.js";
+import { newNoteFrontmatter, withTitleHeading } from "./frontmatter.js";
 import { readTypes, writeTypes, listKeys } from "./properties.js";
 import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
@@ -2714,7 +2714,7 @@ async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = 
 	// note replaces it in the vault.
 	// Notes that could be published start with the Note template's properties,
 	// including today's date; "_" folders never publish, so they start empty.
-	const text = makeText ? makeText(path) : /\.base$/i.test(path) ? NEW_BASE : /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"));
+	const text = makeText ? makeText(path) : /\.base$/i.test(path) ? NEW_BASE : /(^|\/)_/.test(path) ? "" : withTitleHeading(newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA")), name(path));
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	// Focus goes back to the New button once the name prompt closes; take it
@@ -2765,7 +2765,7 @@ async function newKindNote(kind, { blank = false } = {}) {
 	if (!title) return;
 	const folder = kindFolder(kind, tmpl.root, mediaKinds);
 	const path = freeNotePath(folder, noteFileName(title), paths);
-	const text = renderTemplate(notes.get(tmpl.path).text, { title: title.replaceAll('"', "'"), date: new Date() }).text;
+	const text = withTitleHeading(renderTemplate(notes.get(tmpl.path).text, { title: title.replaceAll('"', "'"), date: new Date() }).text, title);
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	requestAnimationFrame(() => editor.view.focus());
@@ -3095,7 +3095,7 @@ async function newMediaNote(k, kind = null) {
 		}, { blank: kind ? `Start a blank ${kind.label.replace(/^New /, "")}` : null });
 		if (!made) return;
 		if (made.blank) return newKindNote(kind, { blank: true });
-		const path = await addNote(made.folder, made.name, made.text);
+		const path = await addNote(made.folder, made.name, withTitleHeading(made.text, made.name));
 		toast(`Made “${name(path)}”.`);
 		showAdded(made.folder, path);
 	} catch (e) {
@@ -4618,7 +4618,7 @@ const dataviewVault = {
 	propertyTypes: () => propertyTypes(),
 	setPropertyType: (key, type) => setPropertyType(key, type),
 	// A base's "+ New": the note's text as New note would start it.
-	newNoteText: (path) => (/(^|\/)_/.test(path) ? "" : newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA"))),
+	newNoteText: (path) => (/(^|\/)_/.test(path) ? "" : withTitleHeading(newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA")), name(path))),
 	// ...then saved (numbered if the name's taken) and opened.
 	// open: false (a task list's new note) saves it without leaving the note you're in.
 	async create(folder, noteName, makeText, { open = true } = {}) {
