@@ -250,11 +250,11 @@ const imagesShown = StateField.define({
 });
 
 // The properties box starts hidden, shown as a small "Properties" button at
-// the top of the note, except in logs/ and sketchbooks/, whose properties
+// the top of the note, except in logs/, sketchbooks/ and catalog/, whose properties
 // (covers, ratings, shelves) are what the notes are for. A planner page
 // (src/plannerview.js) hides it with no button at all; the planner's header
 // has one. Showing or hiding it is remembered per note until the page reloads.
-const SHOWN_FOLDERS = /(^|\/)(logs|sketchbooks)\//i;
+const SHOWN_FOLDERS = /(^|\/)(logs|sketchbooks|catalog)\//i;
 const PLANNER_FENCE = /(^|\n)```wr1t3r-planner[ \t]*\r?\n/;
 export const isPlannerPage = (doc) => PLANNER_FENCE.test(doc.sliceString(0, Math.min(doc.length, 20000)));
 const chosen = new Map(); // path -> hidden

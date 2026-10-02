@@ -108,11 +108,12 @@ test("the properties box draws notes with empty properties and hidden images", (
 	]) assert.doesNotThrow(() => EditorState.create({ doc, extensions: [frontmatterStyle, notePath.of("content/logs/books/B.md")] }), doc);
 });
 
-test("the properties box starts hidden, except in logs and sketchbooks", () => {
+test("the properties box starts hidden, except in logs, sketchbooks and catalog", () => {
 	const hidden = (path, doc = "---\ntitle: T\n---\nBody") => propertiesFolded(EditorState.create({ doc, extensions: [frontmatterStyle, notePath.of(path)] }));
 	assert.equal(hidden("content/journal/Entry.md"), true);
 	assert.equal(hidden("content/_daily/2026-09-30.md"), true);
 	assert.equal(hidden("content/logs/books/Dune.md"), false);
 	assert.equal(hidden("content/sketchbooks/Summer.md"), false);
+	assert.equal(hidden("content/info/catalog/Destroy.md"), false);
 	assert.equal(hidden("content/logs/Plan.md", "---\ntitle: T\n---\n```wr1t3r-planner\n```\n"), true);
 });
