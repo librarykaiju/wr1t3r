@@ -57,11 +57,12 @@ test("searching archive alone asks for the archive", () => {
 	assert.equal(asksForArchive(parseQuery("-archive")), false);
 });
 
-test("archiving adds archived: true; unarchiving takes it or the status off", () => {
-	assert.equal(archiveText("---\nstatus: seed\n---\nbody", true, setProperty), "---\nstatus: seed\narchived: true\n---\nbody");
+test("archiving sets status: Archived; unarchiving takes it (or an old archived: true) off", () => {
+	assert.equal(archiveText("---\nstatus: seed\n---\nbody", true, setProperty), "---\nstatus: Archived\n---\nbody");
+	assert.equal(archiveText("---\nstatus: Archived\n---\nbody", false, setProperty), "---\nstatus:\n---\nbody");
 	assert.equal(archiveText("---\nstatus: seed\narchived: true\n---\nbody", false, setProperty), "---\nstatus: seed\n---\nbody");
 	assert.equal(archiveText("---\narchived: true\nstatus: seed\n---\nbody", false, setProperty), "---\nstatus: seed\n---\nbody");
 	assert.equal(archiveText("---\nstatus: archived\n---\nbody", false, setProperty), "---\nstatus:\n---\nbody");
-	assert.equal(archiveText("body", true, setProperty), "---\narchived: true\n---\nbody");
+	assert.equal(archiveText("body", true, setProperty), "---\nstatus: Archived\n---\nbody");
 	assert.equal(archiveText("---\r\ntitle: x\r\narchived: true\r\n---\r\nbody", false, setProperty), "---\r\ntitle: x\r\n---\r\nbody");
 });

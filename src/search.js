@@ -96,7 +96,7 @@ export const asksForArchive = (terms) => terms.length === 1 && !terms[0].not && 
 // (an `archived:` line dropped, and a `status: archived` emptied). setProperty
 // is src/bases.js's, passed in so this file stays free of it.
 export function archiveText(text, on, setProperty) {
-	if (on) return isArchived(text) ? text : setProperty(text, "archived", true);
+	if (on) return isArchived(text) ? text : setProperty(text, "status", "Archived");
 	let out = text;
 	const m = text.match(FRONTMATTER);
 	if (m) {

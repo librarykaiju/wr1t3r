@@ -448,9 +448,23 @@ function archivedNote(n) {
 function toggleArchive() {
 	const note = notes.get(editor.path);
 	if (!note || note.binary) return;
-	const on = !archivedNote({ ...note, text: editor.view.state.doc.toString() });
-	dataviewVault.write(editor.path, (text) => archiveText(text, on, setProperty));
-	toast(on ? "Archived: it's out of the notes list, but search still finds it (search \"archive\" for all of them)" : "Back in the notes list", 3000);
+	archivePaths([editor.path], !archivedNote({ ...note, text: editor.view.state.doc.toString() }));
+}
+
+// Archiving sets status: Archived (unarchiving clears it), so the notes
+// leave the notes list; search still finds them.
+function archivePaths(paths, on) {
+	for (const p of paths) dataviewVault.write(p, (text) => archiveText(text, on, setProperty));
+	const what = paths.length === 1 ? "" : ` ${paths.length} notes`;
+	toast(on ? `Archived${what}: out of the notes list, but search still finds ${paths.length === 1 ? "it" : "them"} (search "archive" for all of them)` : `Back in the notes list:${what || " 1 note"}`, 3500);
+}
+const notesIn = (folder) => visible().filter((n) => !n.binary && n.path.startsWith(folder) && n.path.endsWith(".md")).map((n) => n.path);
+function archiveFolder(folder) {
+	const paths = notesIn(folder), live = paths.filter((p) => !archivedNote(notes.get(p)));
+	if (!paths.length) return;
+	if (!live.length) return archivePaths(paths, false);
+	if (live.length > 1 && !confirm(`Archive the ${live.length} notes in “${itemLabel(folder)}”? Each gets status: Archived and leaves the notes list.`)) return;
+	archivePaths(live, true);
 }
 
 function renderTree() {
@@ -671,6 +685,9 @@ function itemMenu(item, x, y) {
 			["New board…", () => newBase(item)],
 		] : []),
 		pinEntry(item),
+		isFolder
+			? [notesIn(item).length && notesIn(item).every((p) => archivedNote(notes.get(p))) ? "Unarchive folder" : "Archive folder", () => archiveFolder(item)]
+			: [notes.get(item) && archivedNote(notes.get(item)) ? "Unarchive" : "Archive", () => archivePaths([item], !archivedNote(notes.get(item) || {}))],
 		["Rename…", () => renameItem(item)],
 		["Move to…", () => moveItemTo(item)],
 		[isFolder ? "Delete folder" : "Delete", () => deleteItem(item), "danger"],
