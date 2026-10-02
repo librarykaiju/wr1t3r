@@ -9,6 +9,7 @@ import { EDIT_ACTIONS } from "./hotkeys.js";
 import { COMMANDS } from "./slash.js";
 import { runCommand, headingEdit } from "./kbbar.js";
 import { choosePictures } from "./paste.js";
+import { underline, colorMenu, alignMenu } from "./format.js";
 
 const cmd = (label) => (view) => runCommand(view, COMMANDS.find((c) => c.label === label));
 const lines = (fn) => (view) => view.dispatch(fn(view.state), { userEvent: "input", scrollIntoView: true });
@@ -48,6 +49,7 @@ const ICON = {
 	task: '<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="m8 12 3 3 5-6"/>',
 	quote: '<path d="M4 7h16M8 12h12M8 17h12M4 12v5"/>',
 	table: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 10h17M3.5 15h17M9.5 4.5v15M15 4.5v15"/>',
+	align: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',
 	print: '<path d="M6 9V3h12v6"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M6 14h12v7H6z"/>',
 };
 
@@ -61,6 +63,9 @@ const BUTTONS = [
 	["Italic", "Italic (Ctrl/Cmd+I)", "I", EDIT_ACTIONS.Italic],
 	["Strikethrough", "Strikethrough", "S", EDIT_ACTIONS.Strikethrough],
 	["Highlight", "Highlight", "ab", EDIT_ACTIONS.Highlight],
+	["Underline", "Underline", "U", underline],
+	["Text color", "Text color", "A", colorMenu],
+	["Align", "Align left, center, right or justify", "align", alignMenu],
 	null,
 	["Link", "Link (Ctrl/Cmd+K)", "link", EDIT_ACTIONS.Link],
 	["Picture", "Add a picture (or paste or drop one)", "image", choosePictures],
@@ -91,7 +96,7 @@ export function setupToolbar(bar, getView, { print } = {}) {
 		btn.addEventListener("click", () => {
 			const view = getView();
 			if (!view || (view.state.readOnly && label !== "Print or export")) return;
-			run(view);
+			run(view, btn);
 			view.focus();
 		});
 		bar.append(btn);

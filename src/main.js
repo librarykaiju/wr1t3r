@@ -30,7 +30,7 @@ import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
 import { contentHash } from "./localvault.js";
 import { isNotePath, isAttachmentPath } from "./paths.js";
-import { counts, countWords } from "./count.js";
+import { counts, countWords, stats, noteGoal } from "./count.js";
 import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
@@ -3155,6 +3155,24 @@ function applyTheme() {
 	if (meta) meta.content = getComputedStyle(root).getPropertyValue("--bg").trim();
 }
 
+// The editor's font (Settings > Appearance), per device.
+const FONTS = {
+	serif: "var(--serif)",
+	sans: "var(--sans)",
+	mono: "var(--mono)",
+	georgia: "Georgia, serif",
+	palatino: '"Palatino Linotype", Palatino, "Book Antiqua", serif',
+	garamond: 'Garamond, "EB Garamond", "Adobe Garamond Pro", serif',
+	humanist: 'Optima, Candara, "Avenir Next", "Noto Sans", sans-serif',
+	typewriter: '"Courier Prime", "American Typewriter", "Courier New", Courier, monospace',
+};
+function applyFont(name) {
+	const key = FONTS[name] ? name : "serif";
+	document.documentElement.style.setProperty("--editor-font", FONTS[key]);
+	$("fontPick").value = key;
+	editor?.view.requestMeasure();
+}
+
 function applySize(px) {
 	fontSize = clamp(px, 14, 30);
 	document.documentElement.style.setProperty("--editor-size", fontSize + "px");
@@ -3213,6 +3231,7 @@ function openSettings(on) {
 function setupSettings() {
 	applyTheme();
 	applySize(fontSize);
+	applyFont(readRaw("wr1t3rFont"));
 	// Auto follows the system, so the theme and browser bar color follow it too.
 	matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme());
 	$("themeFamilies").addEventListener("change", (e) => {
@@ -3262,6 +3281,7 @@ function setupSettings() {
 	$("homeEdit").addEventListener("click", editHomeNote);
 	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
 	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
+	$("fontPick").addEventListener("change", (e) => { applyFont(e.target.value); storeRaw("wr1t3rFont", e.target.value === "serif" ? null : e.target.value); });
 	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });
 	document.addEventListener("click", (e) => {
 		// A menu item removes itself before this runs; menus and the palette
@@ -3290,9 +3310,12 @@ function renderCount() {
 	const b = $("count");
 	if (!editor.path) { b.textContent = ""; lastWords = null; return; }
 	const all = counts(editor.text());
-	if (typed && lastWords?.path === editor.path && timer.running && timer.phase === "work") {
-		written += all.words - lastWords.words;
-		saveTimer();
+	if (typed && lastWords?.path === editor.path) {
+		if (timer.running && timer.phase === "work") {
+			written += all.words - lastWords.words;
+			saveTimer();
+		}
+		addToday(all.words - lastWords.words);
 	}
 	typed = false;
 	lastWords = { path: editor.path, words: all.words };
@@ -3301,9 +3324,78 @@ function renderCount() {
 	const unit = countMode === "chars" ? "character" : "word";
 	const total = countMode === "chars" ? all.chars : all.words;
 	const part = sel ? (countMode === "chars" ? [...sel.replace(/\r?\n/g, "")].length : countWords(sel)) : null;
-	b.textContent = part == null
-		? `${fmt(total)} ${unit}${total === 1 ? "" : "s"}`
-		: `${fmt(part)} of ${fmt(total)} ${unit}s`;
+	const goal = noteGoal(editor.text());
+	b.textContent = part != null
+		? `${fmt(part)} of ${fmt(total)} ${unit}s`
+		: goal && countMode === "words"
+			? `${fmt(total)} / ${fmt(goal)} words`
+			: `${fmt(total)} ${unit}${total === 1 ? "" : "s"}`;
+	b.classList.toggle("has-goal", !!goal);
+	b.style.setProperty("--goal-p", goal ? Math.min(100, Math.round((all.words / goal) * 100)) + "%" : "0%");
+	if (!$("statsPanel").hidden) drawStats();
+}
+
+// Words written today on this device (added minus deleted while typing), and
+// the day's goal: the "session" in Writing goals.
+function today() {
+	const day = new Date().toDateString();
+	let t = null;
+	try { t = JSON.parse(readRaw("wr1t3rToday") || "null"); } catch {}
+	return t?.day === day ? t : { day, words: 0 };
+}
+function addToday(n) {
+	if (!n) return;
+	const t = today();
+	const goal = Number(readRaw("wr1t3rDayGoal")) || 0;
+	const before = t.words;
+	t.words += n;
+	storeRaw("wr1t3rToday", JSON.stringify(t));
+	if (goal && before < goal && t.words >= goal) toast(`Today's goal reached: ${fmt(t.words)} words.`, 6000);
+}
+
+// The word count's panel: document stats and the two goals.
+function drawStats() {
+	const box = $("statsPanel");
+	const s = stats(editor.text());
+	const goal = noteGoal(editor.text());
+	const t = today();
+	const dayGoal = Number(readRaw("wr1t3rDayGoal")) || 0;
+	const row = (k, v) => `<div class="st-row"><span>${k}</span><b>${v}</b></div>`;
+	const bar = (n, of) => of ? `<div class="st-bar"><i style="width:${Math.min(100, Math.round((n / of) * 100))}%"></i></div>` : "";
+	box.innerHTML = `<h2>This note</h2>`
+		+ row("Words", fmt(s.words)) + row("Characters", fmt(s.chars)) + row("Sentences", fmt(s.sentences))
+		+ row("Words per sentence", s.perSentence) + row("Paragraphs", fmt(s.paragraphs)) + row("Reading time", s.minutes ? `${s.minutes} min` : "–")
+		+ `<h2>Goals</h2>`
+		+ `<label class="st-goal">Words for this note <input id="goalNote" type="number" min="0" step="100" placeholder="none" value="${goal || ""}"></label>` + bar(s.words, goal)
+		+ `<label class="st-goal">Words today <input id="goalDay" type="number" min="0" step="100" placeholder="none" value="${dayGoal || ""}"></label>`
+		+ `<div class="st-row"><span>Written today</span><b>${fmt(Math.max(0, t.words))}${dayGoal ? " of " + fmt(dayGoal) : ""}</b></div>` + bar(Math.max(0, t.words), dayGoal)
+		+ `<button id="countSwitch" type="button" class="quiet st-switch">Show ${countMode === "chars" ? "words" : "characters"} in the bar</button>`;
+	const keep = (id, fn) => {
+		const i = $(id);
+		const save = () => { const n = Math.max(0, Math.round(Number(i.value) || 0)); fn(n || null); };
+		i.addEventListener("change", save);
+		i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); i.blur(); } });
+	};
+	keep("goalNote", (n) => {
+		if (!editor.path || n === noteGoal(editor.text())) return;
+		dataviewVault.write(editor.path, (text) => setProperty(text, "goal", n));
+	});
+	keep("goalDay", (n) => { storeRaw("wr1t3rDayGoal", n ? String(n) : null); drawStats(); });
+	$("countSwitch").addEventListener("click", () => {
+		countMode = countMode === "words" ? "chars" : "words";
+		storeRaw("wr1t3rCount", countMode === "chars" ? "chars" : null);
+		renderCount();
+	});
+}
+function showStats(on) {
+	const box = $("statsPanel");
+	box.hidden = !on;
+	$("count").setAttribute("aria-expanded", String(on));
+	if (!on) return;
+	const r = $("count").getBoundingClientRect();
+	box.style.bottom = Math.round(innerHeight - r.top + 6) + "px";
+	box.style.right = Math.max(8, Math.round(innerWidth - r.right)) + "px";
+	drawStats();
 }
 
 // ---- table of contents ----------------------------------------------------------------
@@ -3547,11 +3639,9 @@ function renderLengths() {
 }
 
 function setupFocusTools() {
-	$("count").addEventListener("click", () => {
-		countMode = countMode === "words" ? "chars" : "words";
-		storeRaw("wr1t3rCount", countMode === "chars" ? "chars" : null);
-		renderCount();
-	});
+	$("count").addEventListener("click", () => showStats($("statsPanel").hidden));
+	document.addEventListener("pointerdown", (e) => { if (!$("statsPanel").hidden && !e.target.closest("#statsPanel, #count")) showStats(false); });
+	document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("statsPanel").hidden) showStats(false); });
 	$("pomo").addEventListener("click", toggleTimer);
 	$("pomoReset").addEventListener("click", resetTimer);
 	$("workLess").addEventListener("click", () => setLength("work", -1));

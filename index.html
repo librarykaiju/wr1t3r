@@ -128,7 +128,8 @@
 					<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M8 12h12M8 18h12"/></svg>
 					Contents
 				</button>
-				<button id="count" type="button" class="quiet" title="Switch between words and characters"></button>
+				<button id="count" type="button" class="quiet" title="Stats and writing goals" aria-expanded="false" aria-controls="statsPanel"></button>
+				<div id="statsPanel" class="pop stats-pop" hidden></div>
 			</footer>
 		</main>
 		<aside id="rightcol" aria-label="Calendar and contents"></aside>
@@ -157,6 +158,17 @@
 					<span id="sizeVal" class="val">19</span>
 					<button id="larger" type="button" aria-label="Larger text">A+</button>
 				</div>
+				<h2>Font</h2>
+				<select id="fontPick" aria-label="Font">
+					<option value="serif">Serif</option>
+					<option value="sans">Sans</option>
+					<option value="mono">Mono</option>
+					<option value="georgia">Georgia</option>
+					<option value="palatino">Palatino</option>
+					<option value="garamond">Garamond</option>
+					<option value="humanist">Humanist sans</option>
+					<option value="typewriter">Typewriter</option>
+				</select>
 				<h2>Readable line length</h2>
 				<div class="seg" id="lineLength" title="On keeps lines short and centers the note on the screen">
 					<button type="button" data-lines="readable">On</button>

@@ -305,3 +305,9 @@ The palette's "Make pictures and PDFs searchable" sends each picture (JPEG, PNG,
 ## Board column totals
 
 In a board's Grid, click under a column to pick its total: Sum, Average, Median, Smallest, Largest, Range, Standard deviation, Earliest or Latest date, Checked, Unchecked, Filled, Empty, or Unique values. It's saved in the view's `summaries:`.
+
+## Writing stats, goals and fonts
+
+- **Stats and goals:** click the word count for words, characters, sentences, words per sentence, paragraphs and reading time (238 words a minute). "Words for this note" saves `goal:` in the note, and the count then reads `1,240 / 2,000 words` with a progress fill. "Words today" is a goal per device, counting words you add while typing (deletions count against it), with a notice when you reach it.
+- **Underline, text color, alignment:** toolbar buttons and slash commands. Markdown has no syntax for these, so they're saved as HTML: `<u>…</u>`, `<span style="color: #3b7dd8">…</span>`, `<p align="center">…</p>`. Inline Markdown inside `<p align>` isn't drawn by other Markdown apps.
+- **Font:** Settings > Appearance > Font, per device.
