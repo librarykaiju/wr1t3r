@@ -36,7 +36,7 @@ import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
 import { timelineChanges, eventsOn } from "./timeline.js";
 import { newNoteFrontmatter } from "./frontmatter.js";
-import { readTypes, writeTypes } from "./properties.js";
+import { readTypes, writeTypes, listKeys } from "./properties.js";
 import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
@@ -419,8 +419,9 @@ function commonFolder(list) {
 
 // Tells the editor other notes changed (backlinks, faded links to missing
 // notes), after a pause so a burst of changes redraws once.
-let vaultTimer;
+let vaultTimer, vaultStamp = 0;
 function vaultTouched() {
+	vaultStamp++;
 	clearTimeout(vaultTimer);
 	vaultTimer = setTimeout(() => {
 		editor?.view.dispatch({ effects: vaultChanged.of(null) });
@@ -1582,11 +1583,15 @@ function renderTabs() {
 // the properties box), in _wr1t3r/Property Types.md beside the Home note so
 // they sync like any note.
 const typesFile = () => homeFile().replace(/[^/]*$/, "Property Types.md");
+// Properties the rest of the vault keeps as lists count as lists too, unless
+// a type was chosen for them (listKeys in src/properties.js).
 let typesCache = { text: undefined, types: {} };
+let listCache = { at: -1, types: {} };
 function propertyTypes() {
 	const text = notes.get(typesFile())?.deleted ? null : notes.get(typesFile())?.text ?? null;
 	if (text !== typesCache.text) typesCache = { text, types: readTypes(text) };
-	return typesCache.types;
+	if (listCache.at !== vaultStamp) listCache = { at: vaultStamp, types: listKeys([...notes.values()].filter((n) => !n.deleted && !n.binary).map((n) => n.text)) };
+	return { ...listCache.types, ...typesCache.types };
 }
 async function setPropertyType(key, type) {
 	if (propertyTypes()[key] === type) return;
