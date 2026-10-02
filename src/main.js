@@ -65,7 +65,7 @@ import { setDoneDates, sortChecklists } from "./tasks.js";
 import { setPictureHost } from "./paste.js";
 import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
 import { setupToolbar } from "./toolbar.js";
-import * as history from "./history.js";
+import * as versions from "./history.js";
 import { openHistory } from "./historyview.js";
 
 const $ = (id) => document.getElementById(id);
@@ -101,7 +101,7 @@ function change(path, fn) {
 		.then(() => local.update(path, fn))
 		.then(({ before, after }) => {
 			if (after) notes.set(path, after); else notes.delete(path);
-			if (before?.text != null && after?.text !== before.text) history.keep(path, before.text);
+			if (before?.text != null && after?.text !== before.text) versions.keep(path, before.text);
 			return after;
 		})
 		.catch((e) => toast("Couldn't save on this device: " + e.message));
@@ -306,7 +306,7 @@ function setupLocalFolder() {
 
 function onNote(path, note) {
 	const prev = notes.get(path);
-	if (prev?.text != null && note?.text !== prev.text) history.keep(path, prev.text);
+	if (prev?.text != null && note?.text !== prev.text) versions.keep(path, prev.text);
 	if (note) notes.set(path, note); else notes.delete(path);
 	if (editor.path !== path) return;
 	if (!note || note.deleted) {
@@ -751,7 +751,7 @@ async function moveItem(item, folder, newName = null) {
 		const body = note.binary ? { bytes: note.bytes, binary: true } : { text: own.get(to) ?? textOf(from) };
 		await change(to, (cur) => ({ path: to, ...body, base: cur?.base ?? null, dirty: true, deleted: false }));
 		await change(from, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
-		await history.move(from, to);
+		await versions.move(from, to);
 		editor.forget(from);
 	}
 	const map = new Map(pairs.map((p) => [p.from, p.to]));
@@ -2799,7 +2799,7 @@ async function renameNote(from, input) {
 	// A rename is a new note plus a delete of the old one; the vault has no moves.
 	await change(to, (cur) => ({ path: to, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	await change(from, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
-	await history.move(from, to);
+	await versions.move(from, to);
 	editor.forget(from);
 	tabs = tabs.map((p) => (p === from ? to : p));
 	saveTabs();
@@ -4052,11 +4052,11 @@ function showHistory() {
 		path,
 		name: name(path),
 		current: () => view.state.doc.toString(),
-		copies: () => history.copies(path),
+		copies: () => versions.copies(path),
 		async restore(text) {
 			if (editor.path !== path || view.state.readOnly) return toast("Open the note to restore it.");
 			const before = view.state.doc.toString();
-			await history.keep(path, before, { force: true });
+			await versions.keep(path, before, { force: true });
 			if (text !== before) view.dispatch({ changes: diffChange(before, text), userEvent: "input.restore", scrollIntoView: true });
 			toast("Restored. Undo brings back the newer text.", 4000);
 		},
