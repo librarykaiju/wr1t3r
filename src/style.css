@@ -1673,3 +1673,11 @@ main > header { background: var(--panel); }
 .grammar-pop .lookup-syns { margin-bottom: 8px; }
 .grammar-ignore { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 .grammar-ignore:hover { color: var(--fg); }
+
+/* Sorting a grid table from its header. */
+:is(#editor, #refView) .md-grid th { position: relative; padding-right: 1.6em; }
+.md-grid-sort { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); background: none; border: 0; border-radius: 4px; padding: 1px 4px; min-height: 0; font: 11px var(--sans); color: var(--muted); cursor: pointer; opacity: 0; }
+.md-grid th:hover .md-grid-sort, .md-grid-sort.md-grid-sorted, .md-grid-sort:focus-visible { opacity: 1; }
+.md-grid-sort:hover { background: var(--sel); color: var(--fg); }
+.md-grid-sort.md-grid-sorted { color: var(--accent); }
+@media (hover: none) { .md-grid-sort { opacity: 0.6; } }
