@@ -119,7 +119,9 @@ Tables are drawn as grids, with bold, code and links inside cells formatted (`sr
 - Errors show in the cell: `#DIV/0!`, `#VALUE!` (text where a number is needed), `#REF!`, `#NAME?` (an unknown function), `#CIRC!` (a formula that needs its own result) and `#ERROR!` (a formula that can't be read; hover the cell for why). They're written as `\#DIV/0!` so Obsidian doesn't read them as tags.
 - Obsidian doesn't recalculate: an edit there leaves the old numbers until the table is next changed in wr1t3r.
 
-**As markdown** (the Markdown button, or moving the cursor into a table with the keyboard): a fixed-width font until the cursor leaves it.
+**Sorting:** each header cell has a small sort button (it shows on hover, or always on touch screens). The first click sorts the rows A to Z by that column, the next Z to A, and the new order is saved to the note. Numbers sort as numbers, including ones like `$1,200` or `40%`, and empty cells go last. A row with a formula of its own, like a totals row, stays where it is. Column formulas follow their rows. A column that already reads in order shows ▲ or ▼.
+
+**As markdown** (the Markdown button in the bar over a table you're editing): a fixed-width font until the cursor leaves it. Moving the cursor into a table with the arrow keys edits its first cell, or its last row coming from below, so a table stays a grid; search and undo still show the text.
 - **Tab** and **Shift+Tab** move between cells and pad the columns to line up. Tab past the last cell adds a row.
 - **Enter** at the end of a row adds a row below it.
 - With the cursor in a table, the slash menu adds **Add row below**, **Add column after**, **Delete row**, **Delete column** and **Format table**.

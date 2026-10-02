@@ -2,15 +2,16 @@
 // cell to type in it; Tab, Enter and the arrows move between cells (left and
 // right once the caret is at that end of the cell's text), Esc stops. A bar
 // over the table adds and removes rows and columns, and its Markdown button
-// shows the table as text (as does moving the cursor into it with the
-// keyboard). Typing "=" starts a formula (formula.js): "=B1*C1" for one cell
+// shows the table as text until the cursor leaves it. Moving the cursor into
+// a table with the keyboard edits its first cell (or its last row, coming
+// from below) instead, so a table stays a grid. Typing "=" starts a formula (formula.js): "=B1*C1" for one cell
 // (row 1 is the first row under the header), "=B*C" for the whole column;
 // clicking a cell while typing one adds its name. Links in a cell open like
 // links anywhere else.
 // Only the cells you change are rewritten, with the table lined up; formula
 // results are worked out again on every change.
 
-import { StateField, StateEffect, RangeSetBuilder } from "@codemirror/state";
+import { StateField, StateEffect, RangeSetBuilder, EditorState } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { cellStart } from "./table.js";
@@ -110,6 +111,56 @@ export function setCell(model, row, col, value) {
 	return writeModel(model) !== before;
 }
 
+// Sorting: the rows under the header, by one column's text (numbers as
+// numbers, "$1,200" and "40%" included; empty cells last). A row with a
+// formula of its own (a totals row) stays where it is; the rest move with
+// their column-formula overrides, and column formulas follow on their own.
+const asNumber = (t) => {
+	const s = String(t).replace(/[$€£¥,%\s]/g, "");
+	return s !== "" && /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s) ? Number(s) : null;
+};
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+function compareCells(a, b) {
+	a = String(a ?? "").trim(); b = String(b ?? "").trim();
+	if (!a || !b) return !a && !b ? 0 : a ? -1 : 1;
+	const x = asNumber(a), y = asNumber(b);
+	if (x != null && y != null) return x - y;
+	if (x != null || y != null) return x != null ? -1 : 1;
+	return collator.compare(a, b);
+}
+const pinnedRow = (m, r) => [...m.formulas].some(([k, v]) => v && /\d$/.test(k) && Number(k.match(/\d+$/)[0]) === r);
+const movable = (m) => m.rows.map((_, r) => r).filter((r) => r > 0 && !pinnedRow(m, r));
+
+// 1 if the column reads A to Z, -1 if Z to A, 0 if neither (or too few rows).
+export function sortedBy(m, col) {
+	const rows = movable(m).map((r) => m.rows[r][col]);
+	if (rows.length < 2 || rows.every((t) => !compareCells(t, rows[0]))) return 0;
+	const up = rows.every((t, i) => !i || compareCells(rows[i - 1], t) <= 0);
+	const down = rows.every((t, i) => !i || compareCells(rows[i - 1], t) >= 0 || !String(t).trim());
+	return up ? 1 : down ? -1 : 0;
+}
+
+// Sorts A to Z, or Z to A when it already reads A to Z. Returns the direction.
+export function sortRows(m, col, dir = sortedBy(m, col) === 1 ? -1 : 1) {
+	const slots = movable(m);
+	const order = [...slots].sort((a, b) => {
+		const c = compareCells(m.rows[a][col], m.rows[b][col]);
+		const blank = !String(m.rows[a][col] ?? "").trim() || !String(m.rows[b][col] ?? "").trim();
+		return (blank ? c : c * dir) || a - b;
+	});
+	const to = new Map(order.map((from, i) => [from, slots[i]]));
+	const rows = [...m.rows];
+	for (const [from, at] of to) rows[at] = m.rows[from];
+	m.rows = rows;
+	const formulas = new Map();
+	for (const [k, v] of m.formulas) {
+		const r = k.match(/\d+$/);
+		formulas.set(r && to.has(Number(r[0])) ? k.slice(0, -r[0].length) + to.get(Number(r[0])) : k, v);
+	}
+	m.formulas = formulas;
+	return dir;
+}
+
 // Row and column changes from the bar. Each takes the model and the cell
 // being edited, and returns the cell to edit next.
 export const ops = {
@@ -182,6 +233,17 @@ function leave(view, wrap, save) {
 		if (after != null) view.dispatch({ selection: { anchor: after } });
 	}
 	view.focus();
+}
+
+// Sort the table by a column (from the button in its header).
+function sortColumn(view, wrap, col) {
+	const from = wrap.editing ? commit(view, wrap, null) : view.posAtDOM(wrap);
+	const blk = from != null && blockAt(view.state, from);
+	if (!blk) return;
+	const model = readModel(blk.lines, blk.fline);
+	sortRows(model, col);
+	const insert = writeModel(recalcModel(model), view.state.lineBreak);
+	if (insert !== view.state.sliceDoc(blk.from, blk.to)) view.dispatch({ changes: { from: blk.from, to: blk.to, insert }, userEvent: "input.grid" });
 }
 
 // Show the table as markdown with the cursor in cell (row, col).
@@ -304,6 +366,8 @@ function setup(wrap, view) {
 	wrap.addEventListener("mousedown", (e) => {
 		if (e.button !== 0 || e.target === input || e.target.closest(".md-grid-bar")) return;
 		e.preventDefault();
+		const sort = e.target.closest(".md-grid-sort");
+		if (sort) return view.state.readOnly ? undefined : sortColumn(view, wrap, Number(sort.dataset.col));
 		const cell = e.target.closest("td[data-row], th[data-row]");
 		const at = wrap.editing;
 		const r = cell ? Number(cell.dataset.row) : -1, c = cell ? Number(cell.dataset.col) : -1;
@@ -393,6 +457,17 @@ class GridWidget extends WidgetType {
 					cell.classList.add("md-grid-editing");
 					cell.append(input);
 				} else draw(inline(text), cell);
+				if (r === 0 && nRows > 2 && !(edit && edit.row === 0 && edit.col === c)) {
+					const dir = sortedBy(model, c);
+					const sort = document.createElement("button");
+					sort.type = "button";
+					sort.className = "md-grid-sort" + (dir ? " md-grid-sorted" : "");
+					sort.dataset.col = c;
+					sort.textContent = dir === 1 ? "▲" : dir === -1 ? "▼" : "↕";
+					sort.title = dir === 1 ? "Sorted A to Z; click for Z to A" : "Sort by this column, A to Z" + (dir === -1 ? " (now Z to A)" : "");
+					sort.setAttribute("aria-label", sort.title);
+					cell.append(sort);
+				}
 				tr.append(cell);
 			});
 			(r === 0 ? thead : tbody).append(tr);
@@ -466,4 +541,26 @@ const gridField = StateField.define({
 	provide: (f) => EditorView.decorations.from(f),
 });
 
-export const tableGrid = [gridEdit, gridField];
+// Keyboard moves that would put the cursor in (or at the edge of) a table
+// drawn as a grid edit a cell instead, and the cursor stays where it was.
+// Search, undo and the Markdown button still reach the text.
+const gridEntry = EditorState.transactionFilter.of((tr) => {
+	if (!tr.selection || tr.docChanged || !tr.isUserEvent("select") || tr.isUserEvent("select.pointer") || tr.isUserEvent("select.search")) return tr;
+	if (tr.startState.readOnly || tr.newSelection.ranges.length > 1 || !tr.newSelection.main.empty) return tr;
+	const head = tr.newSelection.main.head, old = tr.startState.selection.main.head;
+	// The first table the move lands in or jumps over (up and down skip a
+	// drawn table entirely).
+	let hit = null;
+	const down = head > old;
+	tr.startState.field(gridField, false)?.between(Math.min(head, old), Math.max(head, old), (from, to) => {
+		if (old >= from && old <= to) return;
+		if (!hit || (down ? from < hit.from : from > hit.from)) hit = { from, to };
+	});
+	if (!hit) return tr;
+	const blk = blockAt(tr.startState, hit.from);
+	if (!blk) return tr;
+	const rows = readModel(blk.lines, blk.fline).rows.length;
+	return { effects: setEdit.of({ pos: blk.from, row: down ? 0 : rows - 1, col: 0 }) };
+});
+
+export const tableGrid = [gridEdit, gridField, gridEntry];
