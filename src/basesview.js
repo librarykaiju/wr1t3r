@@ -36,6 +36,7 @@ import { isAppFile } from "./home.js";
 import { imageRef } from "./pretty.js";
 import { parseFrontmatter } from "./dvpage.js";
 import { noteTags } from "./frontmatter.js";
+import { calendar, timeline } from "./basescalendar.js";
 
 const isBase = (path) => /\.base$/i.test(path || "");
 // A board in a note: ```board (what wr1t3r writes), or Obsidian's ```base.
@@ -150,7 +151,10 @@ function resultFor(state, code, path, key) {
 // A fingerprint of what's drawn, so unchanged views aren't redrawn.
 function stamp(r) {
 	if (r.error) return "E" + r.error;
-	const rows = r.groups.map((g) => g.key + ":" + g.rows.map((x) => x.path + "=" + x.values.map(show).join("\u0001")).join("\u0002")).join("\u0003");
+	// Calendar and timeline place notes by dates that may not be shown columns.
+	const w = r.view?.wr1t3r || {};
+	const dates = [w.date, w.end].filter((x) => typeof x === "string");
+	const rows = r.groups.map((g) => g.key + ":" + g.rows.map((x) => x.path + "=" + x.values.map(show).join("\u0001") + dates.map((id) => "\u0001" + JSON.stringify(x.value(id) ?? null)).join("")).join("\u0002")).join("\u0003");
 	return [r.index, r.columns.join(","), JSON.stringify(r.view), JSON.stringify(r.base.filters ?? null), r.base.views.map((v) => v.name + v.type).join(), rows, r.errors.join()].join("\u0004");
 }
 
@@ -257,6 +261,20 @@ function catalog(r, host) {
 	return { notes, all: [...notes, ...FILE_PROPS, ...formulas] };
 }
 const nameOf = (id, r) => displayName(id, r.base);
+
+// The date property a Calendar or Timeline view places notes by (its
+// wr1t3r: date key, or for "end" its end date), as the catalog names it.
+function dateProp(r, host, which = "date") {
+	const want = r.view.wr1t3r?.[which];
+	if (!want) return null;
+	const { all } = catalog(r, host);
+	return all.find((p) => sameProp(p, want)) ?? String(want);
+}
+// A likely date property, for a view just switched to Calendar or Timeline.
+function guessDate(r, notes) {
+	const dates = notes.filter((p) => typeOf(p, r) === "date");
+	return dates.find((p) => /^(due|date|start|scheduled|deadline|publish)/i.test(p)) || dates[0] || notes.find((p) => /date|due|start/i.test(p)) || null;
+}
 const typeOf = (id, r) => propType((r.rows || []).map((x) => x.value(id)), id);
 
 // ---- Drawing values -------------------------------------------------------------
@@ -362,6 +380,7 @@ class BaseWidget extends WidgetType {
 		const repick = (change) => { setPick(key, change); cm.dispatch({ effects: repicked.of(null) }); };
 		const save = (fn, { redraw = true } = {}) => { commit(cm, t, fn); if (redraw) redrawPanel(key); };
 		const ctx = { cm, t, key, host, open, save, repick, fresh: () => latest(cm, t), path: this.path };
+		ctx.newNote = (props) => newNote(ctx, props);
 
 		if (!t.whole) boardHead(ctx, wrap, t.look, editable);
 		wrap.append(toolbar(ctx, r, editable, wrap));
@@ -375,7 +394,11 @@ class BaseWidget extends WidgetType {
 		if (type !== r.view.type) wrap.append(el("div", "md-base-note", `wr1t3r can't draw ${r.view.type} views, so this one shows as a grid.`));
 		const cells = cellTools(ctx, r, editable);
 		if (type === "kanban") kanban(ctx, r, editable, cells, wrap);
-		else {
+		else if (type === "calendar") calendar(ctx, r, editable, wrap, dateProp(r, host));
+		else if (type === "timeline") {
+			timeline(ctx, r, editable, wrap, dateProp(r, host), dateProp(r, host, "end"));
+			if (editable && host?.create) wrap.append(button("md-base-new", "+ New", () => newNote(ctx), "New note in this board"));
+		} else {
 			if (!r.total) wrap.append(el("div", "md-base-empty", "No notes match."));
 			if (type === "table" && r.total) grid(ctx, r, editable, cells, wrap);
 			else if (type === "cards" && r.total) gallery(ctx, r, editable, cells, wrap);
@@ -445,7 +468,7 @@ function toolbar(ctx, r, editable, wrap) {
 		tool("props", "Properties", propsPanel);
 		tool("filter", "Filter", filterPanel, f);
 		tool("sort", "Sort", sortPanel, s);
-		if (r.view.type !== "kanban") tool("group", "Group", groupPanel, g);
+		if (!["kanban", "calendar", "timeline"].includes(r.view.type)) tool("group", "Group", groupPanel, g);
 		tool("layout", viewLabel(VIEW_TYPES.some((x) => x.type === r.view.type) ? r.view.type : "table"), layoutPanel);
 	}
 	const src = el("button", "md-dv-edit md-base-src", "</>");
@@ -712,6 +735,10 @@ function layoutPanel(box, ctx) {
 	const type = VIEW_TYPES.some((x) => x.type === v.type) ? v.type : "table";
 	row("Show as", select(VIEW_TYPES.map((x) => [x.type, x.label]), type, (ty) => ctx.save((cfg, view) => {
 		view.type = ty;
+		if ((ty === "calendar" || ty === "timeline") && !view.wr1t3r?.date) {
+			const guess = guessDate(r, notes);
+			if (guess) extra(view).date = guess;
+		}
 		if (ty === "kanban" && !view.groupBy) {
 			// A board needs lanes: the first property that looks like a status.
 			const guess = notes.find((p) => /status|shelf|stage|state/i.test(p)) || notes.find((p) => typeOf(p, r) !== "list" && typeOf(p, r) !== "date");
@@ -719,7 +746,7 @@ function layoutPanel(box, ctx) {
 		}
 	})));
 	const imageId = v.image ? String(v.image) : "";
-	if (type !== "table") {
+	if (type === "cards" || type === "list" || type === "kanban") {
 		const ids = all.filter((p) => p !== "file.name");
 		const cur = imageId ? ids.find((p) => sameProp(p, imageId)) ?? imageId : "";
 		row("Cover", select([["", "none"], ...(!cur || ids.includes(cur) ? ids : [cur, ...ids]).map((p) => [p, nameOf(p, r)])], cur, (p) => ctx.save((cfg, view) => {
@@ -735,6 +762,17 @@ function layoutPanel(box, ctx) {
 	if (type === "cards") {
 		const size = CARD_SIZES.find(([s]) => Number(s) === Number(v.cardSize))?.[0] ?? (v.cardSize ? String(v.cardSize) : "220");
 		row("Card size", select(CARD_SIZES.some(([s]) => s === size) ? CARD_SIZES : [[size, size + "px"], ...CARD_SIZES], size, (s) => ctx.save((cfg, view) => { if (s === "220") delete view.cardSize; else view.cardSize = Number(s); })));
+	}
+	if (type === "calendar" || type === "timeline") {
+		const pickDate = (which, none) => {
+			const cur = v.wr1t3r?.[which] ? notes.find((p) => sameProp(p, v.wr1t3r[which])) ?? String(v.wr1t3r[which]) : "";
+			return select([["", none], ...(cur && !notes.includes(cur) ? [cur, ...notes] : notes).map((p) => [p, nameOf(p, r)])], cur, (p) => ctx.save((cfg, view) => {
+				const x = extra(view);
+				if (p) x[which] = p; else delete x[which];
+			}));
+		};
+		row("Date from", pickDate("date", "pick a property"));
+		if (type === "timeline") row("Ends on", pickDate("end", "one day per note"));
 	}
 	if (type === "kanban") {
 		const g = v.groupBy && (typeof v.groupBy === "string" ? { property: v.groupBy } : v.groupBy);
