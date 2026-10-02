@@ -4019,12 +4019,20 @@ function showSidebar() {
 
 function layoutColumns() {
 	const app = $("app"), col = $("rightcol"), cols = wide.matches;
-	if (cols && $("agenda").parentElement !== col) col.append($("agenda"), $("toc"));
+	if (cols && $("agenda").parentElement !== col) $("rightFoot").before($("agenda"), $("toc"));
 	if (!cols && $("agenda").parentElement === col) $("notices").before($("toc"), $("agenda"));
 	app.classList.toggle("cols", cols);
 	app.classList.toggle("left-shut", leftShut());
 	app.classList.toggle("right-shut", cols && rightShut());
 	app.classList.toggle("agenda-folded", cols && agendaFolded());
+	// The sync time and Contents sit in the right column's footer while it
+	// shows, else back in the note's bar and the notices corner.
+	if (cols && !rightShut()) {
+		if ($("status").parentElement !== $("rightFoot")) $("rightFoot").append($("tocBtn"), $("status"));
+	} else if ($("status").parentElement === $("rightFoot")) {
+		$("count").before($("tocBtn"));
+		$("noticeList").after($("status"));
+	}
 	const label = (btn, on, what) => {
 		btn.setAttribute("aria-pressed", String(on));
 		btn.setAttribute("aria-label", (on ? "Hide " : "Show ") + what);
