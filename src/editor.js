@@ -34,6 +34,7 @@ import { tableGrid } from "./tablegrid.js";
 import { tableCalc } from "./tablecalc.js";
 import { calloutFolds } from "./callouts.js";
 import { webImages } from "./images.js";
+import { diagrams } from "./diagrams.js";
 import { prettyProperties } from "./pretty.js";
 import { embeds, embedLook } from "./embeds.js";
 import { livePreview } from "./livepreview.js";
@@ -143,6 +144,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		tableGrid,
 		calloutFolds,
 		webImages,
+		diagrams,
 		prettyProperties,
 		livePreview,
 		bases,
