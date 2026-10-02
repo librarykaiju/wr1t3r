@@ -240,3 +240,32 @@ export function writeTypes(text, types) {
 	if (text && /```json[ \t]*\n[\s\S]*?\n```/.test(text)) return text.replace(/```json[ \t]*\n[\s\S]*?\n```/, block);
 	return "Property types for wr1t3r's properties box: each property name and its type (text, list, number, checkbox, date or datetime), the same in every note. Change them from a property's name in the box.\n\n" + block + "\n";
 }
+
+// Properties most notes keep as lists (`subjects:` then "- Games" lines, or
+// [a, b]), as { name: "list" }. A note whose property is still empty takes
+// this as its type, so a value typed into it is saved as a list too, the way
+// the rest of the vault has it.
+export function listKeys(texts) {
+	const count = new Map(); // key -> [lists, scalars]
+	for (const text of texts) {
+		const fm = text?.match(/^---\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/)?.[1];
+		if (!fm) continue;
+		const lines = fm.split(/\r?\n/);
+		for (let i = 0; i < lines.length; i++) {
+			const m = lines[i].match(/^([^\s#:][^:]*?):[ \t]*(.*)$/);
+			if (!m) continue;
+			const value = m[2].replace(/\s+#.*$/, "").trim();
+			let list;
+			if (value.startsWith("[")) list = value !== "[]";
+			else if (value) list = false;
+			else if (/^\s*- /.test(lines[i + 1] || "")) list = true;
+			else continue; // empty: says nothing
+			const c = count.get(m[1]) || [0, 0];
+			c[list ? 0 : 1]++;
+			count.set(m[1], c);
+		}
+	}
+	const out = {};
+	for (const [key, [lists, scalars]] of count) if (lists > scalars) out[key] = "list";
+	return out;
+}
