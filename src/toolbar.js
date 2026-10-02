@@ -49,6 +49,7 @@ const ICON = {
 	task: '<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="m8 12 3 3 5-6"/>',
 	quote: '<path d="M4 7h16M8 12h12M8 17h12M4 12v5"/>',
 	table: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 10h17M3.5 15h17M9.5 4.5v15M15 4.5v15"/>',
+	book: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v15H6.5a2.5 2.5 0 0 0 0 5H20"/><path d="M9 7h7"/>',
 	align: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',
 	print: '<path d="M6 9V3h12v6"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M6 14h12v7H6z"/>',
 };
@@ -78,10 +79,10 @@ const BUTTONS = [
 ];
 
 // bar: the element to fill. getView: the editor now. print: opens Export.
-export function setupToolbar(bar, getView, { print } = {}) {
+export function setupToolbar(bar, getView, { print, lookUp } = {}) {
 	bar.setAttribute("role", "toolbar");
 	bar.setAttribute("aria-label", "Formatting");
-	const all = [...BUTTONS, null, ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
+	const all = [...BUTTONS, null, ["Look up", "Look up the word in the dictionary and thesaurus", "book", (view) => lookUp?.(view)], ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
 	for (const b of all) {
 		if (!b) { bar.append(Object.assign(document.createElement("span"), { className: "tb-sep" })); continue; }
 		const [label, title, face, run] = b;

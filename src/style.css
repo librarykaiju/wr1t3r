@@ -1581,3 +1581,26 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .stats-pop .st-bar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 2px 0 6px; }
 .stats-pop .st-bar i { display: block; height: 100%; background: var(--accent); }
 .stats-pop .st-switch { margin-top: 8px; width: 100%; }
+
+/* Focus mode (src/focus.js) */
+#app.focus-mode #sidebar, #app.focus-mode #rightcol, #app.focus-mode #toolbar, #app.focus-mode main > header { display: none !important; }
+#app.focus-mode { --lw: 0px !important; --rw: 0px !important; }
+#app.focus-mode #bar { opacity: 0.35; transition: opacity 0.2s; }
+#app.focus-mode #bar:hover, #app.focus-mode #bar:focus-within { opacity: 1; }
+#app.focus-mode #editor .cm-scroller { padding-top: 40vh; }
+#editor .cm-dimmed { opacity: 0.3; transition: opacity 0.25s; }
+.focus-exit { position: fixed; top: 10px; right: 14px; z-index: 35; font-size: 13px; opacity: 0.4; }
+.focus-exit:hover, .focus-exit:focus-visible { opacity: 1; }
+
+/* Look up (src/lookup.js) */
+.lookup-pop { position: fixed; z-index: 60; width: min(340px, calc(100vw - 16px)); max-height: min(60vh, 460px); overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 12px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.18); font-size: 14px; }
+.lookup-head b { font-size: 1.15em; }
+.lookup-phon { color: var(--muted); }
+.lookup-part { margin: 10px 0 2px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.lookup-defs { margin: 0; padding-left: 1.3em; }
+.lookup-defs li { margin: 3px 0; }
+.lookup-ex { color: var(--muted); font-style: italic; }
+.lookup-note { color: var(--muted); margin-top: 6px; }
+.lookup-syns { display: flex; flex-wrap: wrap; gap: 4px; }
+.lookup-syn { border: 1px solid var(--line); background: none; color: inherit; border-radius: 999px; padding: 2px 9px; font: inherit; font-size: 13px; cursor: pointer; }
+.lookup-syn:hover { border-color: var(--accent); color: var(--accent); }

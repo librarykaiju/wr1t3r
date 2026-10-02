@@ -67,6 +67,10 @@ export const api = {
 	async transcribe(wav) {
 		return jsonOrThrow(await call("/api/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav }));
 	},
+	// Definitions and synonyms (worker/define.js).
+	async define(word) {
+		return jsonOrThrow(await call("/api/define?word=" + encodeURIComponent(word)));
+	},
 	// Text read from pictures and PDFs (worker/ocr.js).
 	async ocrIndex() {
 		return (await jsonOrThrow(await call("/api/ocr"))).files;
