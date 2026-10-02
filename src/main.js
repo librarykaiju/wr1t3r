@@ -2957,8 +2957,10 @@ function applyTheme() {
 	rerunDataview();
 	document.querySelectorAll("#themeFamilies button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.family === family)));
 	document.querySelectorAll("#themes button").forEach((b) => {
-		b.setAttribute("aria-pressed", String(family !== "sepia" && b.dataset.theme === mode));
-		b.disabled = family === "sepia"; // Sepia is light only
+		// Sepia is light only, SynthWave '84 dark only.
+		const oneMode = family === "sepia" || family === "synthwave";
+		b.setAttribute("aria-pressed", String(!oneMode && b.dataset.theme === mode));
+		b.disabled = oneMode;
 	});
 	const meta = document.querySelector("meta[name=theme-color]");
 	if (meta) meta.content = getComputedStyle(root).getPropertyValue("--bg").trim();

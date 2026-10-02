@@ -1,6 +1,6 @@
 /* Colors, fonts and themes follow Reader's (librarykaiju/reader). A theme is a
    family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night, Catppuccin,
-   Kanagawa) and a mode (Auto, Light, Dark);
+   Kanagawa, SynthWave '84) and a mode (Auto, Light, Dark);
    src/theme.js and public/theme.js set data-theme on <html>. Default + Auto
    sets none, and this sheet follows the system. --f1 to --f7 are each theme's
    rainbow, for the sidebar's folders, from its official palette where it has
@@ -120,6 +120,17 @@
 	--f1: #c84053; --f2: #cc6d00; --f3: #77713f; --f4: #6f894e; --f5: #597b75; --f6: #4d699b; --f7: #624c83;
 	color-scheme: light;
 }
+/* SynthWave '84 (github.com/robb0wen/synthwave-vscode): dark only, like
+   Sepia is light only. Pink links and buttons, headings in its hot pink with
+   the theme's neon glow, the sidebar's purple-black for panels. */
+:root[data-theme=synthwave] {
+	--bg: #262335; --fg: #f0eff1; --muted: #b6b1b1; --line: #34294f; --card: #2a2139; --sel: #463465;
+	--accent: #ff7edb; --bad: #fe4450; --hl: #6b2a5e; --heading: #ff7edb;
+	--panel: #241b2f; --mark: #848bbd; --code-bg: #2a2139;
+	--f1: #fe4450; --f2: #ff8b39; --f3: #fede5d; --f4: #72f1b8; --f5: #36f9f6; --f6: #848bbd; --f7: #ff7edb;
+	color-scheme: dark;
+}
+:root[data-theme=synthwave] :is(.md-h1, .md-h2, .md-h3, .planner-title) { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
