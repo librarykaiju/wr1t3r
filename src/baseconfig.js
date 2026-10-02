@@ -61,6 +61,8 @@ export const VIEW_TYPES = [
 	{ type: "cards", label: "Gallery" },
 	{ type: "list", label: "List" },
 	{ type: "kanban", label: "Kanban" },
+	{ type: "calendar", label: "Calendar" },
+	{ type: "timeline", label: "Timeline" },
 ];
 export const viewLabel = (type) => VIEW_TYPES.find((t) => t.type === type)?.label ?? type;
 
