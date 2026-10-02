@@ -49,6 +49,7 @@
 //                                  (CAPTURE_NOTE, default content/Inbox.md),
 //                                  stamped in TIMEZONE (default America/Chicago)
 //                                  -> {"path", "version"}
+//   /api/push/..., /api/reminders  task reminders as notifications; see worker/push.js
 //   POST   /api/transcribe         body = 16 kHz mono WAV -> a transcript with
 //                                  speakers; see worker/transcribe.js
 
@@ -59,6 +60,7 @@ import { calendarApi } from "./calendar.js";
 import { mediaApi } from "./media.js";
 import { usdaApi } from "./usda.js";
 import { transcribeApi } from "./transcribe.js";
+import { pushApi, sendDue } from "./push.js";
 import { HttpError, toBase64 } from "./util.js";
 import { isNotePath, isAttachmentPath, attachmentType } from "../src/paths.js";
 import { INBOX, captureEntry, appendCapture, stamp } from "../src/capture.js";
@@ -82,6 +84,8 @@ export default {
 			if (media) return json(media);
 			const usda = await usdaApi(request, env, url);
 			if (usda) return json(usda);
+			const push = await pushApi(request, env, url);
+			if (push) return json(push);
 			const transcript = await transcribeApi(request, env, url);
 			if (transcript) return json(transcript);
 			if (url.pathname === "/api/capture" && request.method === "POST") return json(await capture(request, backend(env), env, excluded(env)));
@@ -90,6 +94,10 @@ export default {
 			if (err instanceof HttpError) return json({ error: err.message, ...err.extra }, err.status);
 			return json({ error: String(err?.message || err) }, 500);
 		}
+	},
+	// Every minute ([triggers] in wrangler.toml): task reminders that are due.
+	async scheduled(event, env, ctx) {
+		ctx.waitUntil(sendDue(env));
 	},
 };
 

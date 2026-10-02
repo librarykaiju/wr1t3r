@@ -90,3 +90,30 @@ self.addEventListener("fetch", (e) => {
 		),
 	);
 });
+
+// Task reminders, pushed by the Worker (worker/push.js): shown even with
+// wr1t3r closed. Tapping one opens its note.
+self.addEventListener("push", (e) => {
+	let m = {};
+	try { m = e.data?.json() || {}; } catch { m = { title: e.data?.text() || "Reminder" }; }
+	e.waitUntil(self.registration.showNotification(m.title || "Reminder", {
+		body: m.path ? m.path.split("/").pop().replace(/\.md$/i, "") : m.body || "",
+		tag: m.tag || undefined,
+		icon: "/icon-180.png",
+		badge: "/icon-180.png",
+		data: { path: m.path || "" },
+		requireInteraction: true,
+	}));
+});
+
+self.addEventListener("notificationclick", (e) => {
+	e.notification.close();
+	const path = e.notification.data?.path;
+	const url = "/" + (path ? "#" + encodeURIComponent(path) : "");
+	e.waitUntil((async () => {
+		const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+		const win = open.find((c) => new URL(c.url).origin === location.origin);
+		if (win) { await win.focus(); return win.navigate ? win.navigate(url).catch(() => win.postMessage({ open: path })) : null; }
+		return self.clients.openWindow(url);
+	})());
+});

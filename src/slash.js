@@ -8,7 +8,7 @@ import { addProperty } from "./frontmatter.js";
 import { pickCallout } from "./blocks.js";
 import { editBanner, editCover } from "./pretty.js";
 import { insertFootnote } from "./footnotes.js";
-import { dueCommand } from "./due.js";
+import { dueCommand, reminderCommand } from "./due.js";
 import { inTable, addRow, addColumn, deleteRow, deleteColumn, formatTable } from "./table.js";
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
@@ -39,6 +39,7 @@ export const COMMANDS = [
 	{ label: "Cover image", run: editCover, keywords: "cover poster picture properties pretty" },
 	{ label: "Date", template: () => today() + "${}", keywords: "today" },
 	{ label: "Due date", run: dueCommand, keywords: "task deadline due calendar tasks 📅" },
+	{ label: "Reminder", run: reminderCommand, keywords: "remind alarm notify notification alert time task" },
 	{ label: "Critical Tasks", template: "```wr1t3r-tasks\nlist: crit\n```\n${}", keywords: "crit critical master task list planner todo" },
 	{ label: "To Do's", template: "```wr1t3r-tasks\nlist: todo\n```\n${}", keywords: "todo to do master task list planner" },
 	{ label: "Planner", template: "```wr1t3r-planner\n```\n\n# Notes\n\n${}", keywords: "planner daily day agenda health food water meds mood tasks" },

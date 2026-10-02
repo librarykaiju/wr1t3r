@@ -291,3 +291,9 @@ Anything captured lands as an open task at the end of `content/Inbox.md` (change
 - **In wr1t3r:** "Capture to the Inbox" and "Record a voice memo" in the command palette (pin either to Home). A voice memo goes into the open note at the cursor, or to the Inbox when no note is open.
 - **Android:** install wr1t3r to the home screen, then pick it in any app's Share menu.
 - **iPhone:** web apps can't join the Share menu, so make an Apple Shortcut: turn on "Show in Share Sheet" (accepts URLs and text), then add **Get Contents of URL** with URL `https://<your wr1t3r>/api/capture`, Method POST, header `Authorization: Bearer <your token>`, Request Body JSON with `text` set to Shortcut Input. Sharing to the Shortcut sends it to the Inbox.
+
+## Reminders and repeating tasks
+
+- **Reminders:** `/Reminder` (or right-click a task's box) adds `(@2026-10-03 14:30)` to a task, the format of Obsidian's Reminder plugin. A date with no time reminds at 9:00. After each sync wr1t3r sends the upcoming reminders to the Worker, which checks every minute and sends each one as a notification to every device that ran "Turn on reminders on this device". Notifications arrive with wr1t3r closed. On iPhone this only works in wr1t3r added to the Home Screen.
+- **Setup, once:** `npm run vapid`, then run the two `npx wrangler secret put` commands it prints, then `npm run deploy`. The list and subscriptions live in the bucket at `.wr1t3r/reminders.json`.
+- **Repeating tasks:** `🔁 every day | week | month | year`, `every 2 weeks`, `every weekday`, `every monday, thursday`, and `… when done`, as the Tasks plugin writes them. Ticking one adds the next copy on the line above, with its dates moved on.

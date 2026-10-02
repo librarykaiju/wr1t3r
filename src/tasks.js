@@ -6,6 +6,8 @@
 // Tasks reads only a date there, so no time is written: a time after it would
 // stop Tasks from reading the done date at all.
 
+import { nextTask } from "./recur.js";
+
 const pad = (n) => String(n).padStart(2, "0");
 export const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
@@ -25,12 +27,15 @@ export function doneStampChanges(lineText, lineFrom, done, date = new Date()) {
 	if (!m) return [];
 	const stamps = [...lineText.matchAll(DONE)];
 	if (!done) return stamps.map((s) => ({ from: lineFrom + s.index, to: lineFrom + s.index + s[0].length, insert: "" }));
-	if (!stamping || stamps.length) return [];
+	if (stamps.length) return [];
+	// A repeating task's next copy goes on the line above (src/recur.js).
+	const next = nextTask(lineText, isoDay(date));
+	const out = next ? [{ from: lineFrom, insert: next + "\n" }] : [];
 	const body = lineText.slice(m[0].length);
-	if (!body.trim()) return [];
+	if (!stamping || !body.trim()) return out;
 	const id = lineText.match(BLOCK_ID);
 	const end = id ? id.index : lineText.trimEnd().length;
-	return [{ from: lineFrom + end, insert: ` ✅ ${isoDay(date)}` }];
+	return [...out, { from: lineFrom + end, insert: ` ✅ ${isoDay(date)}` }];
 }
 
 // The box character of a task line, or null for a line that isn't a task.
