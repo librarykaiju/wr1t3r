@@ -61,6 +61,8 @@ import { openFoodPanel } from "./plannerview.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
 import { attachmentKind } from "./attachments.js";
 import { ocrOn, setOcrOn, unread, readFiles } from "./ocr.js";
+import { setFocusMode } from "./focus.js";
+import { lookUp } from "./lookup.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
 import { setDoneDates, sortChecklists } from "./tasks.js";
 import { setPictureHost } from "./paste.js";
@@ -2360,6 +2362,8 @@ function allCommands() {
 		["Contents", () => showToc(!tocOpen()), "outline headings toc", true],
 		["Toggle left sidebar", () => showLeft(leftShut()), "notes list panel collapse hide show"],
 		["Toggle right sidebar", () => showRight(rightShut()), "calendar agenda contents panel collapse hide show"],
+		["Toggle focus mode", () => toggleFocus(), "distraction free typewriter zen dim writing mode"],
+		["Look up word", () => lookUpWord(activeView()), "dictionary define definition thesaurus synonym meaning", true],
 		["Toggle Live Preview", toggleLivePreview, "markdown symbols hide"],
 		["Toggle readable line length", toggleLineLength, "width wide full center column"],
 		["Toggle spellcheck", () => toggleSetting("spell"), "spelling spell check dictionary"],
@@ -3194,6 +3198,22 @@ function applyLineLength(full) {
 	document.querySelectorAll("#lineLength button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.lines === "full") === full)));
 	editor?.view.requestMeasure();
 }
+// Focus mode (src/focus.js): side columns, toolbar and header fold away, the
+// typing line stays centred and other paragraphs dim. Per device.
+function toggleFocus(on = !$("app").classList.contains("focus-mode")) {
+	$("app").classList.toggle("focus-mode", on);
+	$("focusExit").hidden = !on;
+	storeRaw("wr1t3rFocus", on ? "on" : null);
+	setFocusMode(editor?.view, on);
+	editor?.view.requestMeasure();
+	if (on) editor?.view.focus();
+}
+
+function lookUpWord(view) {
+	if (!view) return;
+	lookUp(view, (w) => api.define(w), (t) => toast(t, 3000));
+}
+
 function toggleLineLength() {
 	const full = !$("app").classList.contains("full-lines");
 	storeRaw("wr1t3rLines", full ? "full" : null);
@@ -4440,7 +4460,12 @@ async function start() {
 	setupToc();
 	setupColumns();
 	refreshKeyboardBar = setupKeyboardBar($("app"), activeView);
-	setupToolbar($("toolbar"), activeView, { print: () => exportNote(editor.path) });
+	setupToolbar($("toolbar"), activeView, { print: () => exportNote(editor.path), lookUp: (view) => lookUpWord(view) });
+	if (readRaw("wr1t3rFocus") === "on") toggleFocus(true);
+	$("focusExit").addEventListener("click", () => toggleFocus(false));
+	document.addEventListener("keydown", (e) => {
+		if (e.key === "Escape" && $("app").classList.contains("focus-mode") && ![...document.querySelectorAll(".pop:not([hidden]), .item-menu, .lookup-pop, .palette")].some((el) => el.offsetParent)) toggleFocus(false);
+	});
 	setPictureHost({ upload: uploadPicture });
 	setupFolderView();
 	setupLocalFolder();
