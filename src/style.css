@@ -1527,6 +1527,14 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 :is(#editor, #refView) .md-remind::before { content: "⏰ "; }
 :is(#editor, #refView) .md-remind-past, :is(#editor, #refView) .md-remind-done { background: color-mix(in srgb, var(--muted) 14%, var(--bg)); color: var(--muted); }
 
+/* Board column totals */
+.md-base-totals td { border-bottom: 0; border-top: 2px solid var(--line); color: var(--muted); font-size: 0.85em; white-space: nowrap; }
+.md-base-totals td.pick { cursor: pointer; }
+.md-base-totals td.pick:hover { background: var(--hover, rgba(127,127,127,.08)); }
+.md-base-total { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.md-base-total-add { opacity: 0; }
+.md-base-totals:hover .md-base-total-add { opacity: .6; }
+@media (hover: none) { .md-base-total-add { opacity: .45; } }
 /* Board Calendar and Timeline layouts (src/basescalendar.js) */
 .md-base-cal { display: flex; flex-direction: column; gap: 8px; padding: 6px 0; font-family: var(--sans); }
 .md-base-cal-head { display: flex; align-items: center; gap: 6px; }

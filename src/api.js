@@ -67,6 +67,13 @@ export const api = {
 	async transcribe(wav) {
 		return jsonOrThrow(await call("/api/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav }));
 	},
+	// Text read from pictures and PDFs (worker/ocr.js).
+	async ocrIndex() {
+		return (await jsonOrThrow(await call("/api/ocr"))).files;
+	},
+	async ocr(path) {
+		return jsonOrThrow(await call("/api/ocr?path=" + encodeURIComponent(path), { method: "POST" }));
+	},
 	// Task reminders (worker/push.js). Each returns the parsed answer.
 	pushKey: async () => (await jsonOrThrow(await call("/api/push/key"))).key,
 	pushSubscribe: async (subscription, device) => jsonOrThrow(await call("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription, device }) })),

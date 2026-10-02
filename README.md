@@ -297,3 +297,11 @@ Anything captured lands as an open task at the end of `content/Inbox.md` (change
 - **Reminders:** `/Reminder` (or right-click a task's box) adds `(@2026-10-03 14:30)` to a task, the format of Obsidian's Reminder plugin. A date with no time reminds at 9:00. After each sync wr1t3r sends the upcoming reminders to the Worker, which checks every minute and sends each one as a notification to every device that ran "Turn on reminders on this device". Notifications arrive with wr1t3r closed. On iPhone this only works in wr1t3r added to the Home Screen.
 - **Setup, once:** `npm run vapid`, then run the two `npx wrangler secret put` commands it prints, then `npm run deploy`. The list and subscriptions live in the bucket at `.wr1t3r/reminders.json`.
 - **Repeating tasks:** `🔁 every day | week | month | year`, `every 2 weeks`, `every weekday`, `every monday, thursday`, and `… when done`, as the Tasks plugin writes them. Ticking one adds the next copy on the line above, with its dates moved on.
+
+## Searchable pictures and PDFs
+
+The palette's "Make pictures and PDFs searchable" sends each picture (JPEG, PNG, GIF, WebP) and PDF in the vault to Claude (Haiku 4.5) once, through the Worker, to read the text in it, or to say in a sentence what a picture shows when it has no text. Sidebar search then finds them; clicking a result opens the file. While it's on, new pictures and PDFs are read after each sync, up to ten at a time. It needs the `ANTHROPIC_API_KEY` secret (the one media notes use). The texts live in the bucket at `.wr1t3r/ocr.json`. Pictures over 5 MB and PDFs over 32 MB or 100 pages are skipped.
+
+## Board column totals
+
+In a board's Grid, click under a column to pick its total: Sum, Average, Median, Smallest, Largest, Range, Standard deviation, Earliest or Latest date, Checked, Unchecked, Filled, Empty, or Unique values. It's saved in the view's `summaries:`.
