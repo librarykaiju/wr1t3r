@@ -66,6 +66,7 @@ import { transcribeApi } from "./transcribe.js";
 import { pushApi, sendDue } from "./push.js";
 import { ocrApi } from "./ocr.js";
 import { defineApi } from "./define.js";
+import { grammarApi } from "./grammar.js";
 import { HttpError, toBase64 } from "./util.js";
 import { isNotePath, isAttachmentPath, attachmentType } from "../src/paths.js";
 import { INBOX, captureEntry, appendCapture, stamp } from "../src/capture.js";
@@ -97,6 +98,8 @@ export default {
 			if (ocr) return json(ocr);
 			const def = await defineApi(request, env, url);
 			if (def) return json(def);
+			const grammar = await grammarApi(request, env, url);
+			if (grammar) return json(grammar);
 			if (url.pathname === "/api/capture" && request.method === "POST") return json(await capture(request, backend(env), env, excluded(env)));
 			return (await api(request, backend(env), url, excluded(env))) || json({ error: "Not found" }, 404);
 		} catch (err) {
