@@ -646,6 +646,9 @@ function keyMenu(view, key, anchor) {
 // everywhere (the vault's property types).
 function setType(view, key, type) {
 	const r = rowNamed(view.state, key);
+	// The website reads this property: changing its shape can change how
+	// (or whether) a page shows, so ask first.
+	if (r && r.type !== type && SITE_KEYS.has(key) && !confirm(`The website reads “${key}” as ${TYPE_LABELS[r.type]}. Changing it to ${TYPE_LABELS[type]} rewrites its value in this note (and shows it as ${TYPE_LABELS[type]} in every note), which may change how the site shows it.\n\nChange it anyway?`)) return;
 	chooseType(view, key, type);
 	if (!r) return;
 	const change = r.type === type ? null : convertEdit(r, type);
