@@ -136,130 +136,165 @@
 			<div id="rightFoot" class="side-bottom right-foot"></div>
 		</aside>
 		<button id="focusExit" type="button" class="quiet focus-exit" title="Leave focus mode (Esc)" hidden>Leave focus</button>
-		<div id="settings" class="pop" hidden>
-			<details class="set-sec" data-sec="look" open>
-				<summary>Appearance</summary>
-				<h2>Theme</h2>
-				<select id="themeFamilies" aria-label="Theme">
-					<option value="default">Default</option>
-					<option value="sepia">Sepia</option>
-					<option value="dracula">Dracula</option>
-					<option value="rosepine">Rosé Pine</option>
-					<option value="tokyonight">Tokyo Night</option>
-					<option value="catppuccin">Catppuccin</option>
-					<option value="kanagawa">Kanagawa</option>
-					<option value="synthwave">SynthWave '84</option>
-				</select>
-				<div class="seg" id="themes">
-					<button type="button" data-theme="auto">Auto</button>
-					<button type="button" data-theme="light">Light</button>
-					<button type="button" data-theme="dark">Dark</button>
+		<div id="settings" class="settings-win" role="dialog" aria-modal="true" aria-label="Settings" hidden>
+			<div class="set-box">
+				<nav class="set-nav">
+					<div class="set-navhead"><b>Settings</b><button id="setCloseNav" type="button" class="quiet set-x" aria-label="Close settings">✕</button></div>
+					<input id="setSearch" type="search" placeholder="Search settings" aria-label="Search settings" autocomplete="off">
+					<div id="setTabs" role="tablist" aria-orientation="vertical">
+						<button type="button" role="tab" data-tab="look">Appearance</button>
+						<button type="button" role="tab" data-tab="writing">Writing</button>
+						<button type="button" role="tab" data-tab="focus">Focus</button>
+						<button type="button" role="tab" data-tab="tasks">Tasks and daily note</button>
+						<button type="button" role="tab" data-tab="home">Home</button>
+						<button type="button" role="tab" data-tab="hotkeys">Hotkeys</button>
+						<button type="button" role="tab" data-tab="sync">Sync and files</button>
+					</div>
+				</nav>
+				<div class="set-main">
+					<div class="set-head"><button id="setBack" type="button" class="quiet" aria-label="All settings">‹</button><h1 id="setTitle"></h1><button id="setClose" type="button" class="quiet set-x" aria-label="Close settings">✕</button></div>
+					<div class="set-panes">
+					<section class="set-pane" data-tab="look" data-title="Appearance" role="tabpanel" hidden>
+						<h2>Theme</h2>
+						<select id="themeFamilies" aria-label="Theme">
+							<option value="default">Default</option>
+							<option value="sepia">Sepia</option>
+							<option value="dracula">Dracula</option>
+							<option value="rosepine">Rosé Pine</option>
+							<option value="tokyonight">Tokyo Night</option>
+							<option value="catppuccin">Catppuccin</option>
+							<option value="kanagawa">Kanagawa</option>
+							<option value="synthwave">SynthWave '84</option>
+						</select>
+						<div class="seg" id="themes">
+							<button type="button" data-theme="auto">Auto</button>
+							<button type="button" data-theme="light">Light</button>
+							<button type="button" data-theme="dark">Dark</button>
+						</div>
+						<h2>Text size</h2>
+						<div class="seg">
+							<button id="smaller" type="button" aria-label="Smaller text">A&minus;</button>
+							<span id="sizeVal" class="val">19</span>
+							<button id="larger" type="button" aria-label="Larger text">A+</button>
+						</div>
+						<h2>Font</h2>
+						<select id="fontPick" aria-label="Font">
+							<option value="serif">Serif</option>
+							<option value="sans">Sans</option>
+							<option value="mono">Mono</option>
+							<option value="georgia">Georgia</option>
+							<option value="palatino">Palatino</option>
+							<option value="garamond">Garamond</option>
+							<option value="humanist">Humanist sans</option>
+							<option value="typewriter">Typewriter</option>
+						</select>
+						<h2>Readable line length</h2>
+						<div class="seg" id="lineLength" title="On keeps lines short and centers the note on the screen">
+							<button type="button" data-lines="readable">On</button>
+							<button type="button" data-lines="full">Off</button>
+						</div>
+						<h2>Markdown symbols</h2>
+						<div class="seg" id="modes" title="Live Preview hides symbols like ** and ## except on the line you're editing">
+							<button type="button" data-mode="source">Always show</button>
+							<button type="button" data-mode="live">Live Preview</button>
+						</div>
+					</section>
+					<section class="set-pane" data-tab="writing" data-title="Writing" role="tabpanel" hidden>
+						<h2>Spellcheck</h2>
+						<div class="seg" data-setting="spell" title="Underline misspelled words, using the browser's dictionary">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<h2>Smart punctuation</h2>
+						<div class="seg" data-setting="smart" title="Curly quotes, -- as an em dash and ... as an ellipsis while you type (Backspace undoes one)">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<h2>Grammar check</h2>
+						<div class="seg" data-setting="grammar" title="Underline grammar and style problems in paragraphs you edit. Sends those paragraphs to LanguageTool">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<h2>Formatting toolbar</h2>
+						<div class="seg" data-setting="toolbar" title="Buttons for bold, lists, links, pictures and printing above the note">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<h2>Daily word goal</h2>
+						<div><input id="setDayGoal" type="number" min="0" step="50" inputmode="numeric" placeholder="None" aria-label="Words to write each day"></div>
+						<p class="hint">Words a day, shown in the word count. A note can have its own with a goal: property.</p>
+					</section>
+					<section class="set-pane" data-tab="focus" data-title="Focus" role="tabpanel" hidden>
+						<h2>Focus mode</h2>
+						<div class="seg" id="focusSeg" title="Hides the side columns and toolbar, keeps your line in the middle and dims other paragraphs. Esc leaves it">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<h2>Focus length</h2>
+						<div class="seg">
+							<button id="workLess" type="button" aria-label="Shorter focus blocks">&minus;</button>
+							<span id="workVal" class="val"></span>
+							<button id="workMore" type="button" aria-label="Longer focus blocks">+</button>
+						</div>
+						<h2>Break length</h2>
+						<div class="seg">
+							<button id="breakLess" type="button" aria-label="Shorter breaks">&minus;</button>
+							<span id="breakVal" class="val"></span>
+							<button id="breakMore" type="button" aria-label="Longer breaks">+</button>
+						</div>
+					</section>
+					<section class="set-pane" data-tab="tasks" data-title="Tasks and daily note" role="tabpanel" hidden>
+						<h2>Task done dates</h2>
+						<div class="seg" data-setting="done" title="Ticking a task adds ✅ and the date, as the Obsidian Tasks plugin does; unticking takes it off">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<h2>Sort checklists</h2>
+						<div class="seg" data-setting="sort" title="When a note opens, done tasks move below the open ones (sub-items move with them). Numbered lists and a Timeline section are left alone">
+							<button type="button" data-on="true">On open</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<h2>Timeline calendar</h2>
+						<div class="seg"><select id="dailyCal" aria-label="Calendar for the daily note's Timeline"><option value="">Off</option></select></div>
+						<p class="hint">Events from this calendar go into the Timeline when Today makes the note, or any time with “Add calendar events to the timeline”.</p>
+						<h2>Reminders</h2>
+						<div class="seg"><button id="setReminders" type="button">Turn on reminders on this device</button></div>
+						<p class="hint">Tasks with a ⏰ time notify this device, even with wr1t3r closed.</p>
+					</section>
+					<section class="set-pane" data-tab="home" data-title="Home" role="tabpanel" hidden>
+						<h2>Pinned tiles</h2>
+						<div id="homePins" class="home-pins"></div>
+						<div class="seg">
+							<button id="homeAdd" type="button">Add a tile</button>
+							<button id="homeEdit" type="button">Edit as text</button>
+						</div>
+						<p class="hint">Tiles and their order sync through _wr1t3r/Home.md, which stays out of the notes list. Pinned folders open as a corkboard.</p>
+					</section>
+					<section class="set-pane" data-tab="hotkeys" data-title="Hotkeys" role="tabpanel" hidden>
+						<input id="hotkeyFilter" type="search" placeholder="Find a command" aria-label="Find a command" autocomplete="off">
+						<div id="hotkeyList" class="hotkey-list"></div>
+						<p class="hint">Click a command, then press the new keys. Hotkeys are kept per device.</p>
+					</section>
+					<section class="set-pane" data-tab="sync" data-title="Sync and files" role="tabpanel" hidden>
+						<h2>Last sync</h2>
+						<p class="hint" id="setSynced"></p>
+						<h2>Local folder</h2>
+						<p class="hint" id="folderStatus"></p>
+						<div class="seg"><button id="folderPick" type="button">Choose a folder…</button><button id="folderReconnect" type="button" hidden>Allow again</button><button id="folderStop" type="button" hidden>Stop</button></div>
+						<p class="hint">The whole vault as plain files on this computer, kept in step both ways while wr1t3r is open. Edits made there come in; edits made here go out.</p>
+						<h2>Searchable pictures and PDFs</h2>
+						<div class="seg" id="ocrSeg" title="Claude reads the text in pictures and PDFs so search finds them. Needs ANTHROPIC_API_KEY">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<h2>Clip from any page</h2>
+						<p class="hint">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page. On iPhone, see the README for adding it to Safari.</p>
+						<h2>This device</h2>
+						<div class="seg"><button id="setSignOut" type="button">Sign out</button></div>
+					</section>
+					</div>
 				</div>
-				<h2>Text size</h2>
-				<div class="seg">
-					<button id="smaller" type="button" aria-label="Smaller text">A&minus;</button>
-					<span id="sizeVal" class="val">19</span>
-					<button id="larger" type="button" aria-label="Larger text">A+</button>
-				</div>
-				<h2>Font</h2>
-				<select id="fontPick" aria-label="Font">
-					<option value="serif">Serif</option>
-					<option value="sans">Sans</option>
-					<option value="mono">Mono</option>
-					<option value="georgia">Georgia</option>
-					<option value="palatino">Palatino</option>
-					<option value="garamond">Garamond</option>
-					<option value="humanist">Humanist sans</option>
-					<option value="typewriter">Typewriter</option>
-				</select>
-				<h2>Readable line length</h2>
-				<div class="seg" id="lineLength" title="On keeps lines short and centers the note on the screen">
-					<button type="button" data-lines="readable">On</button>
-					<button type="button" data-lines="full">Off</button>
-				</div>
-			</details>
-			<details class="set-sec" data-sec="writing">
-				<summary>Writing</summary>
-				<h2>Markdown symbols</h2>
-				<div class="seg" id="modes" title="Live Preview hides symbols like ** and ## except on the line you're editing">
-					<button type="button" data-mode="source">Always show</button>
-					<button type="button" data-mode="live">Live Preview</button>
-				</div>
-				<h2>Spellcheck</h2>
-				<div class="seg" data-setting="spell" title="Underline misspelled words, using the browser's dictionary">
-					<button type="button" data-on="true">On</button>
-					<button type="button" data-on="false">Off</button>
-				</div>
-				<h2>Smart punctuation</h2>
-				<div class="seg" data-setting="smart" title="Curly quotes, -- as an em dash and ... as an ellipsis while you type (Backspace undoes one)">
-					<button type="button" data-on="true">On</button>
-					<button type="button" data-on="false">Off</button>
-				</div>
-				<h2>Formatting toolbar</h2>
-				<div class="seg" data-setting="toolbar" title="Buttons for bold, lists, links, pictures and printing above the note">
-					<button type="button" data-on="true">On</button>
-					<button type="button" data-on="false">Off</button>
-				</div>
-				<h2>Grammar check</h2>
-				<div class="seg" data-setting="grammar" title="Underline grammar and style problems in paragraphs you edit. Sends those paragraphs to LanguageTool">
-					<button type="button" data-on="true">On</button>
-					<button type="button" data-on="false">Off</button>
-				</div>
-				<h2>Task done dates</h2>
-				<div class="seg" data-setting="done" title="Ticking a task adds ✅ and the date, as the Obsidian Tasks plugin does; unticking takes it off">
-					<button type="button" data-on="true">On</button>
-					<button type="button" data-on="false">Off</button>
-				</div>
-				<h2>Sort checklists</h2>
-				<div class="seg" data-setting="sort" title="When a note opens, done tasks move below the open ones (sub-items move with them). Numbered lists and a Timeline section are left alone">
-					<button type="button" data-on="true">On open</button>
-					<button type="button" data-on="false">Off</button>
-				</div>
-			</details>
-			<details class="set-sec" data-sec="timer">
-				<summary>Focus timer</summary>
-				<h2>Focus length</h2>
-				<div class="seg">
-					<button id="workLess" type="button" aria-label="Shorter focus blocks">&minus;</button>
-					<span id="workVal" class="val"></span>
-					<button id="workMore" type="button" aria-label="Longer focus blocks">+</button>
-				</div>
-				<h2>Break length</h2>
-				<div class="seg">
-					<button id="breakLess" type="button" aria-label="Shorter breaks">&minus;</button>
-					<span id="breakVal" class="val"></span>
-					<button id="breakMore" type="button" aria-label="Longer breaks">+</button>
-				</div>
-			</details>
-			<details class="set-sec" data-sec="home">
-				<summary>Home</summary>
-				<h2>Pinned tiles</h2>
-				<div id="homePins" class="home-pins"></div>
-				<div class="seg">
-					<button id="homeAdd" type="button">Add a tile</button>
-					<button id="homeEdit" type="button">Edit as text</button>
-				</div>
-				<p class="hint">Tiles and their order sync through _wr1t3r/Home.md, which stays out of the notes list. Pinned folders open as a corkboard.</p>
-			</details>
-			<details class="set-sec" data-sec="daily">
-				<summary>Daily note</summary>
-				<h2>Timeline calendar</h2>
-				<div class="seg"><select id="dailyCal" aria-label="Calendar for the daily note's Timeline"><option value="">Off</option></select></div>
-				<p class="hint">Events from this calendar go into the Timeline when Today makes the note, or any time with “Add calendar events to the timeline”.</p>
-			</details>
-			<details class="set-sec" data-sec="folder">
-				<summary>Local folder</summary>
-				<p class="hint" id="folderStatus"></p>
-				<div class="seg"><button id="folderPick" type="button">Choose a folder…</button><button id="folderReconnect" type="button" hidden>Allow again</button><button id="folderStop" type="button" hidden>Stop</button></div>
-				<p class="hint">The whole vault as plain files on this computer, kept in step both ways while wr1t3r is open. Edits made there come in; edits made here go out.</p>
-			</details>
-			<details class="set-sec" data-sec="tools">
-				<summary>Hotkeys and clipping</summary>
-				<h2>Hotkeys</h2>
-				<div class="seg"><button id="hotkeysBtn" type="button">Change hotkeys</button></div>
-				<h2>Clip from any page</h2>
-				<p class="hint">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page. On iPhone, see the README for adding it to Safari.</p>
-			</details>
+			</div>
 		</div>
 		<nav id="toc" class="pop" aria-label="Table of contents" hidden>
 			<div class="toc-top">

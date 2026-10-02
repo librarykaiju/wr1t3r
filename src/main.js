@@ -1362,8 +1362,8 @@ setPlannerHost({
 	},
 	async events(date) {
 		if (!readRaw(DAILY_CAL_KEY)) {
-			openSettings(true);
-			toast("Pick a calendar under Daily note timeline first.");
+			openSettings(true, "tasks");
+			toast("Pick a calendar under Timeline calendar first.");
 			return null;
 		}
 		return timelineEvents(date);
@@ -2384,6 +2384,7 @@ function allCommands() {
 		["Version history", showHistory, "versions snapshots restore undo earlier backup recover diff compare", true],
 		["Export or print this note", () => exportNote(editor.path), "print pdf word docx html download save", true],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
+		...[...document.querySelectorAll("#setTabs [data-tab]")].map((b) => ["Settings: " + b.textContent, () => openSettings(true, b.dataset.tab), "preferences options"]),
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
 		["Open corkboard", () => pickFolder("corkboard"), "scrivener index cards folder board order"],
 		["Open outliner", () => pickFolder("outliner"), "scrivener outline table folder order"],
@@ -2463,6 +2464,7 @@ function saveHotkeys(changes) {
 	keyChanges = changes;
 	keys = bindings(changes);
 	writeJSON(HOTKEYS_KEY, changes);
+	if (!$("settings").hidden) renderHotkeyTab();
 }
 
 function captureHotkey(label) {
@@ -2497,7 +2499,8 @@ function captureHotkey(label) {
 		if (changes) saveHotkeys(changes);
 		if (note) toast(note);
 		back?.focus?.();
-		editHotkeys();
+		// Back to where the change started: the Hotkeys tab or the palette list.
+		if ($("settings").hidden) editHotkeys();
 	};
 	const set = (key) => {
 		const had = key && keys.byKey.get(key);
@@ -2848,8 +2851,8 @@ function noteDay(path) {
 // picked calendar. Events already there aren't added again.
 async function pullTimeline() {
 	if (!readRaw(DAILY_CAL_KEY)) {
-		openSettings(true);
-		return toast("Pick a calendar under Daily note timeline first.");
+		openSettings(true, "tasks");
+		return toast("Pick a calendar under Timeline calendar first.");
 	}
 	if (noteDay(editor.path)) await fillTimeline(editor.path, { quiet: false });
 	else await openDaily({ quiet: false });
@@ -3267,11 +3270,111 @@ function toggleSetting(name) {
 	toast(`${{ spell: "Spellcheck", smart: "Smart punctuation", toolbar: "Formatting toolbar", done: "Task done dates", sort: "Sorting checklists when a note opens", grammar: "Grammar check" }[name]} ${on ? "on" : "off"}`, 2000);
 }
 
-function openSettings(on) {
+// The settings window: tabs down the side (a list to pick from on phones),
+// one pane of settings at a time, and a search box that shows matching rows
+// from every pane. The last tab is remembered per device.
+const SET_TAB_KEY = "wr1t3rSettingsTab";
+const narrowSettings = matchMedia("(max-width: 699px)");
+let settingsBack = null;
+
+function openSettings(on, tab) {
 	if (on && !$("agenda").hidden) openAgenda(false);
+	const was = !$("settings").hidden;
 	$("settings").hidden = !on;
 	$("settingsBtn").setAttribute("aria-expanded", String(on));
-	if (on) { fillCalendarSetting(); renderHomeSettings(); if (!cal?.calendars && calState !== "setup") loadAgenda(); }
+	if (!on) {
+		if (was) { $("setSearch").value = ""; searchSettings(""); settingsBack?.focus?.(); }
+		return;
+	}
+	if (!was) settingsBack = document.activeElement;
+	fillCalendarSetting();
+	if (!cal?.calendars && calState !== "setup") loadAgenda();
+	showSettingsTab(tab || readRaw(SET_TAB_KEY) || "look", !tab && narrowSettings.matches);
+	// Phones skip this so the keyboard doesn't cover the list.
+	if (!narrowSettings.matches) (tab ? $("setTabs").querySelector(`[aria-selected="true"]`) : $("setSearch")).focus({ preventScroll: true });
+}
+
+// Shows one pane; onPhoneList keeps the phone layout on the tab list.
+function showSettingsTab(tab, onPhoneList = false) {
+	const pane = document.querySelector(`.set-pane[data-tab="${tab}"]`) || document.querySelector(".set-pane");
+	tab = pane.dataset.tab;
+	storeRaw(SET_TAB_KEY, tab === "look" ? null : tab);
+	document.querySelectorAll(".set-pane").forEach((p) => (p.hidden = p !== pane));
+	document.querySelectorAll("#setTabs [data-tab]").forEach((b) => {
+		b.setAttribute("aria-selected", String(b.dataset.tab === tab));
+		b.tabIndex = b.dataset.tab === tab ? 0 : -1;
+	});
+	$("setTitle").textContent = pane.dataset.title;
+	$("settings").classList.toggle("pane-open", !onPhoneList);
+	if (tab === "home") renderHomeSettings();
+	if (tab === "hotkeys") renderHotkeyTab();
+	if (tab === "sync") $("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
+	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
+	if (tab === "focus") markSeg("focusSeg", $("app").classList.contains("focus-mode"));
+	if (tab === "sync") markSeg("ocrSeg", ocrOn());
+	$("settings").querySelector(".set-main").scrollTop = 0;
+}
+
+const markSeg = (id, on) => $(id).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.on === "true") === on)));
+
+// Search: every pane shows, with only the rows (a heading and what follows
+// it) whose words match.
+function settingRows(pane) {
+	const rows = [];
+	for (const el of pane.children) {
+		if (el.tagName === "H2" || !rows.length) rows.push([]);
+		rows[rows.length - 1].push(el);
+	}
+	return rows;
+}
+function searchSettings(q) {
+	q = q.trim().toLowerCase();
+	const box = $("settings");
+	box.classList.toggle("searching", !!q);
+	let any = false;
+	for (const pane of document.querySelectorAll(".set-pane")) {
+		let shown = 0;
+		if (pane.dataset.tab === "hotkeys") {
+			// The commands whose names match, ready to change.
+			$("hotkeyFilter").value = q;
+			renderHotkeyTab();
+			shown = q ? $("hotkeyList").childElementCount : 1;
+			pane.classList.toggle("set-hit", !!q && shown > 0);
+			if (q) pane.hidden = !shown;
+			if (q && shown) any = true;
+			continue;
+		}
+		for (const row of settingRows(pane)) {
+			const words = (pane.dataset.title + " " + row.map((el) => el.textContent + " " + (el.title || "") + " " + (el.getAttribute("aria-label") || "")).join(" ")).toLowerCase();
+			const hit = !q || q.split(/\s+/).every((w) => words.includes(w));
+			row.forEach((el) => el.classList.toggle("set-miss", !hit));
+			if (hit) shown++;
+		}
+		pane.classList.toggle("set-hit", !!q && shown > 0);
+		if (q) pane.hidden = !shown;
+		if (q && shown) any = true;
+	}
+	if (q) { box.classList.add("pane-open"); $("setTitle").textContent = any ? "Search" : "Nothing matches"; }
+	else showSettingsTab(readRaw(SET_TAB_KEY) || "look", narrowSettings.matches && !box.classList.contains("pane-open"));
+}
+
+function renderHotkeyTab() {
+	const list = $("hotkeyList");
+	const q = $("hotkeyFilter").value.trim().toLowerCase();
+	list.replaceChildren();
+	for (const c of allCommands()) {
+		if (q && !(c.label + " " + (c.keywords || "")).toLowerCase().includes(q)) continue;
+		const b = document.createElement("button");
+		b.type = "button";
+		b.className = "hotkey-row";
+		const name = document.createElement("span");
+		name.textContent = c.label;
+		const key = document.createElement("kbd");
+		key.textContent = showKey(keys.byLabel[c.label], MAC) || "—";
+		b.append(name, key);
+		b.addEventListener("click", () => captureHotkey(c.label));
+		list.append(b);
+	}
 }
 
 function setupSettings() {
@@ -3309,11 +3412,47 @@ function setupSettings() {
 		applyLineLength(b.dataset.lines === "full");
 	});
 	// Which Aa sections are unfolded, per device (Appearance until changed).
-	const openSecs = (readRaw("wr1t3rSettingsOpen") ?? "look").split(",");
-	document.querySelectorAll("#settings .set-sec").forEach((d) => {
-		d.open = openSecs.includes(d.dataset.sec);
-		d.addEventListener("toggle", () => storeRaw("wr1t3rSettingsOpen", [...document.querySelectorAll("#settings .set-sec[open]")].map((x) => x.dataset.sec).join(",")));
+	$("setTabs").addEventListener("click", (e) => {
+		const b = e.target.closest("[data-tab]");
+		if (!b) return;
+		$("setSearch").value = "";
+		$("settings").classList.remove("searching");
+		searchSettings("");
+		showSettingsTab(b.dataset.tab);
 	});
+	$("setTabs").addEventListener("keydown", (e) => {
+		const tabs = [...$("setTabs").querySelectorAll("[data-tab]")];
+		const i = tabs.indexOf(document.activeElement);
+		const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+		if (i < 0 || to == null) return;
+		e.preventDefault();
+		const t = tabs[(to + tabs.length) % tabs.length];
+		t.focus();
+		showSettingsTab(t.dataset.tab);
+	});
+	$("setSearch").addEventListener("input", (e) => searchSettings(e.target.value));
+	$("setBack").addEventListener("click", () => { $("setSearch").value = ""; searchSettings(""); $("settings").classList.remove("pane-open"); });
+	$("setClose").addEventListener("click", () => openSettings(false));
+	$("setCloseNav").addEventListener("click", () => openSettings(false));
+	$("hotkeyFilter").addEventListener("input", renderHotkeyTab);
+	$("setDayGoal").addEventListener("change", (e) => { const n = Math.max(0, Math.round(Number(e.target.value) || 0)); storeRaw("wr1t3rDayGoal", n ? String(n) : null); drawStats(); });
+	$("focusSeg").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b) return;
+		const on = b.dataset.on === "true";
+		if (on) openSettings(false);
+		toggleFocus(on);
+		markSeg("focusSeg", on);
+	});
+	$("ocrSeg").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b) return;
+		if (b.dataset.on === "true") searchablePictures();
+		else { setOcrOn(false); toast("New pictures and PDFs won't be read. Ones already read stay searchable."); }
+		markSeg("ocrSeg", ocrOn());
+	});
+	$("setReminders").addEventListener("click", () => turnOnReminders());
+	$("setSignOut").addEventListener("click", () => signOut());
 	for (const name of Object.keys(ON_OFF)) {
 		applySetting(name, settingOn(name));
 		document.querySelector(`[data-setting="${name}"]`)?.addEventListener("click", (e) => {
@@ -3332,9 +3471,13 @@ function setupSettings() {
 	document.addEventListener("click", (e) => {
 		// A menu item removes itself before this runs; menus and the palette
 		// opened from Aa > Home keep the panel open.
-		if (!$("settings").hidden && e.target.isConnected && !e.target.closest("#settings, #settingsBtn, .item-menu, .palette")) openSettings(false);
+		if (!$("settings").hidden && e.target.isConnected && (e.target === $("settings") || !e.target.closest("#settings, #settingsBtn, .item-menu, .palette, .toast"))) openSettings(false);
 	});
-	document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("settings").hidden) openSettings(false); });
+	document.addEventListener("keydown", (e) => {
+		if (e.key !== "Escape" || $("settings").hidden || document.querySelector(".palette, .item-menu")) return;
+		if ($("setSearch").value) { $("setSearch").value = ""; searchSettings(""); }
+		else openSettings(false);
+	});
 }
 
 // ---- word count ----------------------------------------------------------------------
@@ -4499,7 +4642,7 @@ async function start() {
 	if (readRaw("wr1t3rFocus") === "on") toggleFocus(true);
 	$("focusExit").addEventListener("click", () => toggleFocus(false));
 	document.addEventListener("keydown", (e) => {
-		if (e.key === "Escape" && $("app").classList.contains("focus-mode") && ![...document.querySelectorAll(".pop:not([hidden]), .item-menu, .lookup-pop, .palette")].some((el) => el.offsetParent)) toggleFocus(false);
+		if (e.key === "Escape" && $("app").classList.contains("focus-mode") && ![...document.querySelectorAll(".pop:not([hidden]), .settings-win:not([hidden]) .set-box, .item-menu, .lookup-pop, .palette")].some((el) => el.offsetParent)) toggleFocus(false);
 	});
 	setPictureHost({ upload: uploadPicture });
 	setupFolderView();
@@ -4571,7 +4714,6 @@ async function start() {
 		if (document.visibilityState === "visible") runSync();
 	});
 	document.addEventListener("keydown", onHotkey, true); // ahead of the editor's own keys
-	$("hotkeysBtn").addEventListener("click", editHotkeys);
 	$("bookmark").addEventListener("click", () => toggleBookmark());
 	$("homeBtn").addEventListener("click", goHome);
 	$("prevNote").addEventListener("click", () => stepFolder(-1));
