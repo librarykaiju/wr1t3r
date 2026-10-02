@@ -164,7 +164,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .side-top .app-name { flex: 1 1 100%; margin: 2px 4px 4px; font: 700 26px/1.2 var(--serif); letter-spacing: 0.01em; color: var(--fg); }
 .side-top input[type=search] { flex: 1 1 100%; }
 .side-top button { flex: 1; }
-.side-bottom { padding: 8px 10px max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+.side-bottom { display: flex; align-items: center; box-sizing: border-box; min-height: 50px; padding: 8px 10px max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
 #tree { flex: 1; overflow: auto; padding: 0 6px 12px; font-size: 14px; }
 #themes { margin: 6px 0 14px; }
 #themes button:disabled { opacity: 0.45; cursor: default; }
@@ -262,16 +262,16 @@ header {
 #editor { flex: 1; min-height: 0; min-width: 0; }
 /* The formatting toolbar: wide screens with a note open (phones have the keyboard bar). */
 #toolbar {
-	display: flex; align-items: center; gap: 2px; flex-wrap: wrap; justify-content: center;
+	display: flex; align-items: center; gap: 1px; justify-content: safe center; overflow-x: auto;
 	border-bottom: 1px solid var(--line); padding: 3px 8px; color: var(--muted);
 }
-#toolbar button { min-width: 30px; height: 30px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; border-radius: 6px; }
+#toolbar button { flex: none; min-width: 28px; height: 30px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; border-radius: 6px; }
 #toolbar button:hover { color: var(--fg); background: var(--sel); }
 #toolbar .tb-heading, #toolbar .tb-bold { font-weight: 700; }
 #toolbar .tb-italic { font-style: italic; font-family: Georgia, serif; }
 #toolbar .tb-strikethrough { text-decoration: line-through; }
 #toolbar .tb-highlight { background: var(--hl); color: var(--fg); height: 22px; margin: 0 2px; }
-#toolbar .tb-sep { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
+#toolbar .tb-sep { flex: none; width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
 main:not(.has-note) #toolbar, main.has-folder #toolbar, #app.no-toolbar #toolbar { display: none; }
 @media (max-width: 699px), (pointer: coarse) and (max-width: 1023px) { #toolbar { display: none; } }
 /* The reference pane: another note, read-only, beside the one being edited (wide screens). */
@@ -1604,3 +1604,22 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .lookup-syns { display: flex; flex-wrap: wrap; gap: 4px; }
 .lookup-syn { border: 1px solid var(--line); background: none; color: inherit; border-radius: 999px; padding: 2px 9px; font: inherit; font-size: 13px; cursor: pointer; }
 .lookup-syn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Right column footer: Contents and the sync time, like Sign out on the left */
+.right-foot { display: none; }
+@media (min-width: 1180px) {
+	#rightcol > .right-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; flex: none; }
+	.right-foot #tocBtn { font-size: 13px; padding: 4px 8px; }
+	#app:has(main:not(.has-note)) .right-foot #tocBtn { visibility: hidden; }
+	.right-foot #status { background: none; border: 0; padding: 4px 6px; }
+	.right-foot #status:empty { display: inline-block; }
+}
+
+/* Scrollbars: thin, in the theme's colors, nearly invisible until hovered */
+* { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+*:hover, *:focus-within { scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--muted) 45%, transparent); }
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--muted) 75%, transparent); }
