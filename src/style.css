@@ -1522,3 +1522,7 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .voice-stop { padding: 4px 14px; border: 0; border-radius: 999px; background: var(--accent); color: var(--bg); font: 600 14px var(--sans); cursor: pointer; }
 @keyframes voice-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .voice-dot { animation: none; } }
+/* Task reminders "(@2026-10-03 14:30)" (src/due.js) */
+:is(#editor, #refView) .md-remind { padding: 0 0.45em; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, var(--bg)); color: var(--accent); font: 500 0.8em/1.6 var(--sans); cursor: pointer; white-space: nowrap; }
+:is(#editor, #refView) .md-remind::before { content: "⏰ "; }
+:is(#editor, #refView) .md-remind-past, :is(#editor, #refView) .md-remind-done { background: color-mix(in srgb, var(--muted) 14%, var(--bg)); color: var(--muted); }

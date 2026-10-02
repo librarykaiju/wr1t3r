@@ -46,3 +46,8 @@ binding = "AI"
 #   VAULT_PREFIX = ""            # or "notes/" if the vault is a subfolder
 # and `npx wrangler secret put GITHUB_TOKEN` with a fine-grained token that has
 # Contents read/write on that one repo. The R2 binding can then be removed.
+
+# Task reminders (worker/push.js): checked every minute. Needs the secrets
+# VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY; `npm run vapid` makes them.
+[triggers]
+crons = ["* * * * *"]

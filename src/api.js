@@ -67,6 +67,12 @@ export const api = {
 	async transcribe(wav) {
 		return jsonOrThrow(await call("/api/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav }));
 	},
+	// Task reminders (worker/push.js). Each returns the parsed answer.
+	pushKey: async () => (await jsonOrThrow(await call("/api/push/key"))).key,
+	pushSubscribe: async (subscription, device) => jsonOrThrow(await call("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription, device }) })),
+	pushUnsubscribe: async (endpoint) => jsonOrThrow(await call("/api/push/unsubscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint }) })),
+	pushTest: async () => jsonOrThrow(await call("/api/push/test", { method: "POST" })),
+	putReminders: async (reminders) => jsonOrThrow(await call("/api/reminders", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reminders }) })),
 	// Quick capture into the Inbox note (worker /api/capture).
 	async capture(item) {
 		return jsonOrThrow(await call("/api/capture", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) }));

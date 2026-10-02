@@ -68,6 +68,7 @@ import { setupToolbar } from "./toolbar.js";
 import * as versions from "./history.js";
 import { INBOX, captureEntry, appendCapture, stamp } from "./capture.js";
 import { recordVoice } from "./recorder.js";
+import { remindersIn } from "./reminders.js";
 import { openHistory } from "./historyview.js";
 
 const $ = (id) => document.getElementById(id);
@@ -129,6 +130,7 @@ async function runSync() {
 		const r = await sync({ local, api, onNote });
 		refreshAttachments();
 		lastSynced = new Date();
+		uploadReminders();
 		lastError = null;
 		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
 		sortPending = null;
@@ -2144,6 +2146,68 @@ async function insertTranscript(path, at, md, what) {
 	toast(`Added ${what}.`, 4000);
 }
 
+// ---- task reminders (src/reminders.js, worker/push.js) --------------------
+// After each sync the page sends every upcoming reminder to the Worker, which
+// pushes each one, when it's due, to every device that turned reminders on.
+// Only a changed list is sent.
+let remindersOff = false; // the Worker hasn't been given its keys yet
+async function uploadReminders() {
+	if (remindersOff || !navigator.onLine) return;
+	const now = Date.now(), list = [];
+	for (const n of notes.values()) {
+		if (!n || n.deleted || n.binary || !/\.md$/i.test(n.path) || /(^|\/)_templates\//i.test(n.path)) continue;
+		const text = n.path === editor.path ? editor.view.state.doc.toString() : n.text;
+		for (const r of remindersIn(n.path, text || "")) if (r.at > now - 6 * 3600000) list.push(r);
+	}
+	list.sort((a, b) => a.at - b.at);
+	const body = JSON.stringify(list.slice(0, 1000));
+	if (body === readRaw("wr1t3rRemindersSent")) return;
+	try {
+		await api.putReminders(list.slice(0, 1000));
+		storeRaw("wr1t3rRemindersSent", body);
+	} catch (e) {
+		if (e.status === 501) remindersOff = true;
+	}
+}
+
+const keyBytes = (b64) => Uint8Array.from(atob(b64.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64.length + 3) % 4)), (c) => c.charCodeAt(0));
+const sameKey = (buf, b64) => !!buf && keyBytes(b64).every((v, i) => new Uint8Array(buf)[i] === v);
+
+async function turnOnReminders() {
+	if (!("serviceWorker" in navigator) || !window.PushManager || !window.Notification) {
+		return toast(MAC && /iPhone|iPad/.test(navigator.userAgent) ? "On iPhone, reminders work in wr1t3r on the Home Screen: Share, Add to Home Screen, then open it from there and try again." : "This browser can't show reminders.", 12000);
+	}
+	try {
+		if ((await Notification.requestPermission()) !== "granted") return toast("Notifications are blocked for wr1t3r. Allow them in the browser's settings for this site, then try again.", 10000);
+		const key = await api.pushKey();
+		const reg = await navigator.serviceWorker.ready;
+		let sub = await reg.pushManager.getSubscription();
+		if (sub && !sameKey(sub.options?.applicationServerKey, key)) { await sub.unsubscribe(); sub = null; }
+		sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
+		await api.pushSubscribe(sub.toJSON(), navigator.userAgentData?.platform || navigator.platform || "");
+		remindersOff = false;
+		storeRaw("wr1t3rRemindersSent", null);
+		await uploadReminders();
+		await api.pushTest();
+		toast("Reminders are on for this device. A test notification is on its way.", 6000);
+	} catch (e) {
+		if (e.status === 501) remindersOff = true;
+		toast("Couldn't turn on reminders: " + e.message, 12000);
+	}
+}
+
+async function turnOffReminders() {
+	try {
+		const sub = await (await navigator.serviceWorker?.getRegistration())?.pushManager?.getSubscription();
+		if (!sub) return toast("Reminders weren't on for this device.");
+		await api.pushUnsubscribe(sub.endpoint).catch(() => {});
+		await sub.unsubscribe();
+		toast("Reminders are off for this device.");
+	} catch (e) {
+		toast("Couldn't turn off reminders: " + e.message, 8000);
+	}
+}
+
 // "Record a voice memo": records, transcribes, and puts the transcript in the
 // open note at the cursor, or in the Inbox when no note is open.
 async function voiceMemo() {
@@ -2290,6 +2354,8 @@ function allCommands() {
 		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Transcribe a video or audio file", transcribeIntoNote, "transcript speech text speakers video audio mp4 mov podcast interview", true],
+		["Turn on reminders on this device", turnOnReminders, "notifications push alerts remind alarm phone"],
+		["Turn off reminders on this device", turnOffReminders, "notifications push alerts remind stop mute"],
 		["Capture to the Inbox", captureCommand, "quick capture inbox jot idea note share"],
 		["Record a voice memo", voiceMemo, "voice memo record microphone dictate audio speech transcribe"],
 		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],
