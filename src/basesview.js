@@ -27,6 +27,7 @@ import {
 } from "./baseconfig.js";
 import { el, button, onMenu, menu, openPanel, closePanel, redrawPanel, panelOpen, select, suggestions, valuesOf, editValue, cardColorPicker } from "./basesui.js";
 import { makeCard } from "./cards.js";
+import { SUMMARIES, summarize, summaryFor } from "./basessummary.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
 import { isArchived } from "./search.js";
 import { sortable, reorder } from "./drag.js";
@@ -848,8 +849,41 @@ function grid(ctx, r, editable, cells, wrap) {
 			});
 		}
 	}
+	totals(ctx, r, editable, table, widthOf, size);
 	box.append(table);
 	wrap.append(box);
+}
+
+// The totals row under the grid: each column's summary (Sum, Average, a
+// count...), picked by clicking its cell and saved in the view's summaries:.
+function totals(ctx, r, editable, table, widthOf, size) {
+	const set = r.columns.map((id) => summaryFor(r.view, id, sameProp));
+	if (!editable && !set.some(Boolean)) return;
+	const rows = r.groups.flatMap((g) => g.rows);
+	const foot = table.createTFoot().insertRow();
+	foot.className = "md-base-totals";
+	r.columns.forEach((id, c) => {
+		const td = foot.insertCell();
+		td.dataset.col = c;
+		size(td, widthOf(id));
+		const name = set[c];
+		if (name) {
+			const label = SUMMARIES.find(([n]) => n === name)?.[1] || name;
+			td.append(el("span", "md-base-total-name", label + " "), el("span", "md-base-total", summarize(name, rows.map((row) => row.value(id)))));
+		} else if (editable) td.append(el("span", "md-base-total-add", "Total"));
+		if (!editable) return;
+		td.classList.add("pick");
+		td.title = "Pick a total for " + r.names[c];
+		td.addEventListener("click", (e) => {
+			const choose = (n) => ctx.save((cfg, v) => {
+				const s = v.summaries && typeof v.summaries === "object" ? v.summaries : {};
+				for (const k of Object.keys(s)) if (sameProp(k, id)) delete s[k];
+				if (n) s[id] = n;
+				if (Object.keys(s).length) v.summaries = s; else delete v.summaries;
+			});
+			menu([...SUMMARIES.map(([n, l]) => [(n === name ? "✓ " : "") + l, () => choose(n)]), null, ["None", () => choose(null)]], e.clientX, e.clientY);
+		});
+	});
 }
 
 // The handle on a column head's right edge: drag to size the column, double

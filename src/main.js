@@ -60,6 +60,7 @@ import { healthPathFor, MEALS, WATER, MOOD, removeEvent, editPlannerBlock } from
 import { openFoodPanel } from "./plannerview.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
 import { attachmentKind } from "./attachments.js";
+import { ocrOn, setOcrOn, unread, readFiles } from "./ocr.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
 import { setDoneDates, sortChecklists } from "./tasks.js";
 import { setPictureHost } from "./paste.js";
@@ -486,7 +487,28 @@ function renderTree() {
 			}
 			tree.append(a);
 		}
-		if (!hits.length) tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: "No matches." }));
+		// Pictures and PDFs whose text was read (src/ocr.js).
+		const fileHits = readFiles(attachments, ocrIndex).filter((f) => matches(f, terms, () => []));
+		for (const f of fileHits.slice(0, 100)) {
+			const a = document.createElement("a");
+			a.href = "#";
+			a.className = "file-hit";
+			a.title = f.path;
+			a.append(Object.assign(document.createElement("span"), { className: "archived-badge", textContent: attachmentKind(f.path) === "pdf" ? "pdf" : "picture" }), f.path.split("/").pop());
+			a.addEventListener("click", (e) => { e.preventDefault(); openAttachment(f.path); });
+			const s = snippet(f.text, terms);
+			if (s) {
+				a.classList.add("hit");
+				const line = document.createElement("span");
+				line.className = "snippet";
+				const mark = document.createElement("mark");
+				mark.textContent = s.match;
+				line.append(s.before, mark, s.after);
+				a.append(line);
+			}
+			tree.append(a);
+		}
+		if (!hits.length && !fileHits.length) tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: "No matches." }));
 		return;
 	}
 	if (!list.length) {
@@ -2344,6 +2366,8 @@ function allCommands() {
 		["Toggle smart punctuation", () => toggleSetting("smart"), "curly quotes em dash ellipsis autocorrect typography"],
 		["Toggle formatting toolbar", () => toggleSetting("toolbar"), "buttons bold italic format bar"],
 		["Sort checklists", () => sortOpenNote({ quiet: false }), "tasks done checked bottom order todo", true],
+		["Make pictures and PDFs searchable", searchablePictures, "ocr scan text image photo pdf search read"],
+		...(ocrOn() ? [["Stop reading new pictures and PDFs", () => { setOcrOn(false); toast("New pictures and PDFs won't be read. Ones already read stay searchable."); }, "ocr off"]] : []),
 		["Version history", showHistory, "versions snapshots restore undo earlier backup recover diff compare", true],
 		["Export or print this note", () => exportNote(editor.path), "print pdf word docx html download save", true],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
@@ -4111,6 +4135,7 @@ let attachments = [];
 let attachmentsLoaded = false;
 async function loadAttachments() {
 	try { attachments = (await meta.get("attachments")) || []; } catch {}
+	try { ocrIndex = (await meta.get("ocr")) || {}; } catch {}
 	if (attachments.length) { attachmentsLoaded = true; vaultTouched(); renderHome(); }
 }
 async function refreshAttachments() {
@@ -4121,6 +4146,60 @@ async function refreshAttachments() {
 		attachmentsLoaded = true;
 		if (changed) { meta.set("attachments", list).catch(() => {}); vaultTouched(); renderHome(); }
 	} catch {}
+	if (ocrOn()) readPictures({ quiet: true, max: 10 });
+}
+
+// Searchable pictures and PDFs (src/ocr.js, worker/ocr.js): the Worker has
+// Claude read each one once; search looks through the text.
+let ocrIndex = {};
+let ocrBusy = false;
+async function readPictures({ quiet = false, max = Infinity } = {}) {
+	if (ocrBusy || !navigator.onLine) return;
+	ocrBusy = true;
+	let note = null, done = 0, failed = 0;
+	try {
+		ocrIndex = { ...ocrIndex, ...(await api.ocrIndex()) };
+		const todo = unread(attachments, ocrIndex).slice(0, max);
+		if (!todo.length) { if (!quiet) toast("Every picture and PDF is searchable already."); return; }
+		if (!quiet) note = toast(`Reading ${todo.length} pictures and PDFs…`, 600000);
+		for (const f of todo) {
+			try {
+				const r = await api.ocr(f.path);
+				ocrIndex = { ...ocrIndex, [r.path]: { version: r.version, text: r.text } };
+				done++;
+			} catch (e) {
+				failed++;
+				if (e.status === 501) { setOcrOn(false); toast(e.message, 8000); break; }
+			}
+			note?.set(`Reading pictures and PDFs: ${done + failed} of ${todo.length}`);
+		}
+		meta.set("ocr", ocrIndex).catch(() => {});
+		if ($("filter").value.trim()) renderTree();
+		note?.close();
+		if (!quiet) toast(`Read ${done} ${done === 1 ? "file" : "files"}; search finds their text now.` + (failed ? ` ${failed} couldn't be read.` : ""), 6000);
+	} catch (e) {
+		note?.close();
+		if (!quiet) toast("Couldn't read pictures: " + e.message, 6000);
+	} finally {
+		ocrBusy = false;
+	}
+}
+function searchablePictures() {
+	if (!navigator.onLine) return toast("Reading pictures needs a connection.");
+	const n = unread(attachments, ocrIndex).length;
+	if (n > 20 && !confirm(`Send ${n} pictures and PDFs to Claude to read their text? Each costs a little on your Anthropic account. New ones are read as they're added.`)) return;
+	setOcrOn(true);
+	readPictures();
+}
+async function openAttachment(path) {
+	const w = window.open("", "_blank");
+	try {
+		const url = await dataviewVault.attachmentURL(path);
+		if (w) w.location = url; else location.href = url;
+	} catch (e) {
+		w?.close();
+		toast("Couldn't open it: " + e.message);
+	}
 }
 
 // Pictures pasted or dropped into a note (src/paste.js): saved in the vault

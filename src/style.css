@@ -1526,3 +1526,12 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 :is(#editor, #refView) .md-remind { padding: 0 0.45em; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, var(--bg)); color: var(--accent); font: 500 0.8em/1.6 var(--sans); cursor: pointer; white-space: nowrap; }
 :is(#editor, #refView) .md-remind::before { content: "⏰ "; }
 :is(#editor, #refView) .md-remind-past, :is(#editor, #refView) .md-remind-done { background: color-mix(in srgb, var(--muted) 14%, var(--bg)); color: var(--muted); }
+
+/* Board column totals */
+.md-base-totals td { border-bottom: 0; border-top: 2px solid var(--line); color: var(--muted); font-size: 0.85em; white-space: nowrap; }
+.md-base-totals td.pick { cursor: pointer; }
+.md-base-totals td.pick:hover { background: var(--hover, rgba(127,127,127,.08)); }
+.md-base-total { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.md-base-total-add { opacity: 0; }
+.md-base-totals:hover .md-base-total-add { opacity: .6; }
+@media (hover: none) { .md-base-total-add { opacity: .45; } }
