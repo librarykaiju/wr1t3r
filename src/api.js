@@ -67,6 +67,10 @@ export const api = {
 	async transcribe(wav) {
 		return jsonOrThrow(await call("/api/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav }));
 	},
+	// Grammar and style problems in some text (worker/grammar.js).
+	async grammar(text) {
+		return jsonOrThrow(await call("/api/grammar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }));
+	},
 	// Definitions and synonyms (worker/define.js).
 	async define(word) {
 		return jsonOrThrow(await call("/api/define?word=" + encodeURIComponent(word)));
