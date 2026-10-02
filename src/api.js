@@ -67,6 +67,10 @@ export const api = {
 	async transcribe(wav) {
 		return jsonOrThrow(await call("/api/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav }));
 	},
+	// Quick capture into the Inbox note (worker /api/capture).
+	async capture(item) {
+		return jsonOrThrow(await call("/api/capture", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) }));
+	},
 	async obsidian() {
 		return jsonOrThrow(await call("/api/obsidian"));
 	},

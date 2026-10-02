@@ -66,6 +66,8 @@ import { setPictureHost } from "./paste.js";
 import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
 import { setupToolbar } from "./toolbar.js";
 import * as versions from "./history.js";
+import { INBOX, captureEntry, appendCapture, stamp } from "./capture.js";
+import { recordVoice } from "./recorder.js";
 import { openHistory } from "./historyview.js";
 
 const $ = (id) => document.getElementById(id);
@@ -2068,6 +2070,7 @@ function insertFromTemplate() {
 // Each template in the slash menu too: /name inserts it at the cursor.
 setSlashExtras(() => [
 	{ label: "Transcript", detail: "of a video or audio file", keywords: "transcribe speech speakers video audio", run: () => transcribeIntoNote() },
+	{ label: "Voice memo", detail: "record and transcribe here", keywords: "voice memo record microphone dictate audio speech", run: () => voiceMemo() },
 	{ label: "Log food", detail: "to the day's health note", keywords: "food eat meal nutrition calories usda", run: () => logFood() },
 	{ label: "Board", detail: "grid, gallery, list or kanban of notes", keywords: "base view table database properties filter", run: () => insertBoard() },
 	{ label: "List", detail: "a checklist card: tasks, shopping, wishlist…", keywords: "checklist shopping wishlist tasks todo crit", run: () => insertList() },
@@ -2119,21 +2122,85 @@ function transcribeIntoNote() {
 			return;
 		}
 		note?.close();
-		if (editor.path !== path) {
-			// Another note was opened meanwhile: add it to the end of this one.
-			await change(path, (cur) => (cur && !cur.deleted ? { ...cur, text: cur.text.replace(/\s*$/, "\n\n") + md, dirty: true } : cur));
-			toast(`The transcript of “${file.name}” is at the end of ${name(path)}.`, 6000);
-			scheduleSync();
-			return;
-		}
-		const view = editor.view, doc = view.state.doc, pos = Math.min(at, doc.length);
-		const line = doc.lineAt(pos);
-		const before = line.text.trim() ? "\n\n" : pos > 0 && doc.lineAt(Math.max(0, line.from - 1)).text.trim() ? "\n" : "";
-		const where = line.text.trim() ? line.to : pos;
-		view.dispatch({ changes: { from: where, insert: before + md }, selection: { anchor: where + before.length + md.length }, scrollIntoView: true });
-		toast(`Added the transcript of “${file.name}”.`, 4000);
+		await insertTranscript(path, at, md, `the transcript of “${file.name}”`);
 	});
 	input.click();
+}
+
+// Puts a transcript in the note at `at`, or at its end if another note was
+// opened meanwhile.
+async function insertTranscript(path, at, md, what) {
+	if (editor.path !== path) {
+		await change(path, (cur) => (cur && !cur.deleted ? { ...cur, text: cur.text.replace(/\s*$/, "\n\n") + md, dirty: true } : cur));
+		toast(`Added ${what} to the end of ${name(path)}.`, 6000);
+		scheduleSync();
+		return;
+	}
+	const view = editor.view, doc = view.state.doc, pos = Math.min(at, doc.length);
+	const line = doc.lineAt(pos);
+	const before = line.text.trim() ? "\n\n" : pos > 0 && doc.lineAt(Math.max(0, line.from - 1)).text.trim() ? "\n" : "";
+	const where = line.text.trim() ? line.to : pos;
+	view.dispatch({ changes: { from: where, insert: before + md }, selection: { anchor: where + before.length + md.length }, scrollIntoView: true });
+	toast(`Added ${what}.`, 4000);
+}
+
+// "Record a voice memo": records, transcribes, and puts the transcript in the
+// open note at the cursor, or in the Inbox when no note is open.
+async function voiceMemo() {
+	const path = editor.path && !editor.view.state.readOnly ? editor.path : null;
+	const at = path ? editor.view.state.selection.main.head : 0;
+	const when = stamp();
+	let file;
+	try { file = await recordVoice("Voice memo " + when.replace(":", ".")); }
+	catch (e) { return toast("Couldn't record: " + (e.name === "NotAllowedError" ? "wr1t3r isn't allowed to use the microphone." : e.message), 8000); }
+	if (!file) return;
+	let md, note = null;
+	try {
+		md = await transcribeFile(file, api, (t) => { if (note) note.set(t); else note = toast(t, 10 * 60000); }, { heading: `## Voice memo ${when}` });
+	} catch (e) {
+		note?.close();
+		return toast(`Couldn't transcribe the voice memo: ${e.message}`, 8000);
+	}
+	note?.close();
+	if (path) return insertTranscript(path, at, md, "the voice memo");
+	await captureToInbox({ text: md.replace(/^## /, "") });
+}
+
+// Quick capture: the Worker adds it to the Inbox (so it can't clash with a
+// copy of the Inbox this device hasn't synced yet); offline it's added here
+// and syncs later.
+async function captureToInbox(item) {
+	if (!captureEntry(item, "x")) return toast("Nothing to capture.");
+	if (navigator.onLine) {
+		try {
+			await api.capture(item);
+			toast("Sent to the Inbox.", 3000);
+			scheduleSync(0);
+			return;
+		} catch (e) {
+			if (e instanceof AuthError) return signOut("That token no longer works.");
+		}
+	}
+	const entry = captureEntry(item, stamp());
+	await change(INBOX, (cur) => ({ base: null, ...cur, path: INBOX, text: appendCapture(cur && !cur.deleted ? cur.text : null, entry), dirty: true, deleted: false }));
+	renderTree();
+	toast("Added to the Inbox.", 3000);
+	scheduleSync();
+}
+
+function captureCommand() {
+	const text = prompt("Capture to the Inbox:");
+	if (text?.trim()) captureToInbox({ text });
+}
+
+// The phone's share sheet (manifest share_target) opens wr1t3r with
+// ?share-title=&share-text=&share-url=.
+// Read as the page loads, before opening a note can rewrite the address.
+const shared = new URLSearchParams(location.search);
+function captureFromShare() {
+	if (![...shared.keys()].some((k) => k.startsWith("share-"))) return;
+	if (location.search) history.replaceState(null, "", location.pathname + location.hash);
+	captureToInbox({ title: shared.get("share-title") || "", text: shared.get("share-text") || "", url: shared.get("share-url") || "" });
 }
 
 // "Log food": the planner's Food panel from anywhere, for the open daily or
@@ -2223,6 +2290,8 @@ function allCommands() {
 		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Transcribe a video or audio file", transcribeIntoNote, "transcript speech text speakers video audio mp4 mov podcast interview", true],
+		["Capture to the Inbox", captureCommand, "quick capture inbox jot idea note share"],
+		["Record a voice memo", voiceMemo, "voice memo record microphone dictate audio speech transcribe"],
 		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],
 		// Lookups with no blank kind of their own (comics).
 		...mediaKinds.filter((k) => k.ready && MEDIA_COMMANDS[k.kind] && !NEW_NOTE_KINDS.some((n) => n.media === k.kind)).map((k) => [`New ${MEDIA_COMMANDS[k.kind]} log`, () => newMediaNote(k), "create media lookup " + k.label.toLowerCase()]),
@@ -4219,6 +4288,7 @@ async function start() {
 	if (ref.on) showRef(true);
 	renderStatus();
 	runSync();
+	captureFromShare();
 }
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {

@@ -36,7 +36,7 @@ async function monoSamples(file) {
 }
 
 // file -> the transcript's markdown. say(text) reports progress.
-export async function transcribeFile(file, api, say = () => {}) {
+export async function transcribeFile(file, api, say = () => {}, { heading } = {}) {
 	const length = await durationOf(file);
 	if (length && length > MAX_SECONDS) throw new Error(`it's ${clock(length)} long; transcripts can be up to ${MAX_SECONDS / 60} minutes`);
 	say(`Taking the sound out of “${file.name}”…`);
@@ -45,5 +45,5 @@ export async function transcribeFile(file, api, say = () => {}) {
 	say(`Transcribing ${clock(samples.length / SAMPLE_RATE)} of “${file.name}”…`);
 	// The Worker answers with segments already (segmentsOf in src/transcript.js).
 	const result = await api.transcribe(new Blob([wavBytes(samples)], { type: "audio/wav" }));
-	return transcriptMarkdown({ duration: result.duration || samples.length / SAMPLE_RATE, segments: result.segments || [] }, { name: file.name });
+	return transcriptMarkdown({ duration: result.duration || samples.length / SAMPLE_RATE, segments: result.segments || [] }, heading ? { heading } : { name: file.name });
 }

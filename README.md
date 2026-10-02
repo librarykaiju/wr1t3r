@@ -283,3 +283,11 @@ node scripts/seed-local.js ../w3bz1n3 content _includes/snippets   # copy a vaul
 ```
 
 Put `WR1T3R_TOKEN=anything` in `.dev.vars` for local runs.
+
+## Quick capture
+
+Anything captured lands as an open task at the end of `content/Inbox.md` (change it with the `CAPTURE_NOTE` var; times use `TIMEZONE`, default `America/Chicago`).
+
+- **In wr1t3r:** "Capture to the Inbox" and "Record a voice memo" in the command palette (pin either to Home). A voice memo goes into the open note at the cursor, or to the Inbox when no note is open.
+- **Android:** install wr1t3r to the home screen, then pick it in any app's Share menu.
+- **iPhone:** web apps can't join the Share menu, so make an Apple Shortcut: turn on "Show in Share Sheet" (accepts URLs and text), then add **Get Contents of URL** with URL `https://<your wr1t3r>/api/capture`, Method POST, header `Authorization: Bearer <your token>`, Request Body JSON with `text` set to Shortcut Input. Sharing to the Shortcut sends it to the Inbox.
