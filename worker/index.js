@@ -44,6 +44,11 @@
 //                                  lookups for media notes; see worker/media.js
 //   /api/usda/search?q=            USDA FoodData Central food search for the
 //                                  planner's Food button; see worker/usda.js
+//   POST   /api/capture           JSON {title?, text?, url?} (or plain text) -> adds
+//                                  an open task to the end of the Inbox note
+//                                  (CAPTURE_NOTE, default content/Inbox.md),
+//                                  stamped in TIMEZONE (default America/Chicago)
+//                                  -> {"path", "version"}
 //   POST   /api/transcribe         body = 16 kHz mono WAV -> a transcript with
 //                                  speakers; see worker/transcribe.js
 
@@ -56,6 +61,7 @@ import { usdaApi } from "./usda.js";
 import { transcribeApi } from "./transcribe.js";
 import { HttpError, toBase64 } from "./util.js";
 import { isNotePath, isAttachmentPath, attachmentType } from "../src/paths.js";
+import { INBOX, captureEntry, appendCapture, stamp } from "../src/capture.js";
 
 // Matches READ_BATCH in src/sync.js.
 const READ_BATCH = 25;
@@ -78,6 +84,7 @@ export default {
 			if (usda) return json(usda);
 			const transcript = await transcribeApi(request, env, url);
 			if (transcript) return json(transcript);
+			if (url.pathname === "/api/capture" && request.method === "POST") return json(await capture(request, backend(env), env, excluded(env)));
 			return (await api(request, backend(env), url, excluded(env))) || json({ error: "Not found" }, 404);
 		} catch (err) {
 			if (err instanceof HttpError) return json({ error: err.message, ...err.extra }, err.status);
@@ -215,6 +222,28 @@ async function api(request, store, url, isExcluded) {
 		}
 	}
 	return null;
+}
+
+// Quick capture into the Inbox note: a read and a conditional write, tried
+// again if a sync wrote the note in between.
+async function capture(request, store, env, isExcluded) {
+	const path = env.CAPTURE_NOTE || INBOX;
+	if (!isNotePath(path) || isExcluded(path)) throw new HttpError(500, "CAPTURE_NOTE isn't a note wr1t3r can write");
+	const raw = (await request.text()).slice(0, 100000);
+	let body;
+	try { body = JSON.parse(raw); } catch { body = { text: raw }; }
+	if (typeof body !== "object" || !body) body = { text: String(body) };
+	let when;
+	try { when = stamp(new Date(), env.TIMEZONE || "America/Chicago"); } catch { when = stamp(new Date(), "UTC"); }
+	const entry = captureEntry({ title: body.title, text: body.text, url: body.url }, when);
+	if (!entry) throw new HttpError(400, "Nothing to capture: send title, text or url");
+	for (let i = 0; i < 4; i++) {
+		const f = await store.read(path);
+		const text = f ? new TextDecoder().decode(f.bytes) : null;
+		const r = await store.write(path, new TextEncoder().encode(appendCapture(text, entry)), f ? f.version : null);
+		if (r.ok) return { path, version: r.version };
+	}
+	throw new HttpError(409, "The Inbox kept changing; try again");
 }
 
 function unquote(v) {

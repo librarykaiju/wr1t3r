@@ -1514,3 +1514,11 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 	.history-list { display: flex; gap: 4px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
 	.history-list li { flex: none; }
 }
+
+/* Voice memo recording bar (src/recorder.js) */
+.voice-bar { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); font: 14px var(--sans); }
+.voice-dot { width: 10px; height: 10px; border-radius: 50%; background: #d64545; animation: voice-pulse 1.2s ease-in-out infinite; }
+.voice-time { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 3.5em; }
+.voice-stop { padding: 4px 14px; border: 0; border-radius: 999px; background: var(--accent); color: var(--bg); font: 600 14px var(--sans); cursor: pointer; }
+@keyframes voice-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .voice-dot { animation: none; } }
