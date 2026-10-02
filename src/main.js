@@ -628,6 +628,7 @@ function itemMenu(item, x, y) {
 	const isFolder = item.endsWith("/");
 	showMenu([
 		...(isFolder ? [
+			["New note here…", () => newNote(item + "Untitled.md")],
 			["Corkboard", () => openFolderView(item, "corkboard")],
 			["Outliner", () => openFolderView(item, "outliner")],
 			["Scrivenings", () => openFolderView(item, "scrivenings")],
