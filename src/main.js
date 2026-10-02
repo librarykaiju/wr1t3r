@@ -2955,7 +2955,7 @@ function applyTheme() {
 	const attr = themeAttr(family, mode, matchMedia("(prefers-color-scheme: dark)").matches);
 	if (attr) root.setAttribute("data-theme", attr); else root.removeAttribute("data-theme");
 	rerunDataview();
-	document.querySelectorAll("#themeFamilies button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.family === family)));
+	$("themeFamilies").value = family;
 	document.querySelectorAll("#themes button").forEach((b) => {
 		// Sepia is light only, SynthWave '84 dark only.
 		const oneMode = family === "sepia" || family === "synthwave";
@@ -3026,11 +3026,10 @@ function setupSettings() {
 	applySize(fontSize);
 	// Auto follows the system, so the theme and browser bar color follow it too.
 	matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme());
-	$("themeFamilies").addEventListener("click", (e) => {
-		const b = e.target.closest("button");
-		if (!b) return;
+	$("themeFamilies").addEventListener("change", (e) => {
+		const family = e.target.value;
 		const { mode } = readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme"));
-		storeRaw("wr1t3rThemeFamily", b.dataset.family === "default" ? null : b.dataset.family);
+		storeRaw("wr1t3rThemeFamily", family === "default" ? null : family);
 		storeRaw("wr1t3rTheme", mode === "auto" ? null : mode); // drops an old "sepia"
 		applyTheme();
 	});
