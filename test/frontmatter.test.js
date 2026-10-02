@@ -117,3 +117,14 @@ test("the properties box starts hidden, except in logs, sketchbooks and catalog"
 	assert.equal(hidden("content/info/catalog/Destroy.md"), false);
 	assert.equal(hidden("content/logs/Plan.md", "---\ntitle: T\n---\n```wr1t3r-planner\n```\n"), true);
 });
+
+test("withTitleHeading puts the title as a heading under the frontmatter", async () => {
+	const { withTitleHeading } = await import("../src/frontmatter.js");
+	const fm = newNoteFrontmatter('Say "hi"', "2026-10-02");
+	assert.equal(withTitleHeading(fm, "x"), fm + '# Say "hi"\n\n');
+	assert.equal(withTitleHeading("---\ntitle: Dune\n---\n# Notes\n\nok\n", "f"), "---\ntitle: Dune\n---\n# Dune\n\n# Notes\n\nok\n");
+	const done = "---\ntitle: Dune\n---\n\n# Dune\n\ntext";
+	assert.equal(withTitleHeading(done, "f"), done);
+	assert.equal(withTitleHeading("---\ntitle:\n---\n", "File name"), "---\ntitle:\n---\n# File name\n\n");
+	assert.equal(withTitleHeading("", "Plain"), "# Plain\n\n");
+});
