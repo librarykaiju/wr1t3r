@@ -1,15 +1,18 @@
-// Frontmatter ("properties"): drawn as a box that folds, with a button to add
-// a property. Values get Obsidian's editors where their type is plain from the
-// text: a checkbox for true/false, a date picker for dates, pills for lists;
-// each edit rewrites only that value. Adding only ever inserts one new line (and the two fences when a
-// note has no frontmatter yet); existing keys, their order and formatting are
-// untouched, and folding is display only.
+// Frontmatter ("properties"): drawn as a box that folds. Each property is a
+// row with a control for its type (a text box, a checkbox, a date picker, pills
+// for lists and tags); clicking its name renames it, changes its type or
+// removes it, and + Add property adds one with its type. The box is drawn over
+// the YAML, so typing and Backspace never reach it; Toggle source shows the
+// YAML as text. Each edit rewrites only the lines of the property it's about
+// (src/properties.js), so other keys, their order and formatting stay as typed.
 
-import { snippet } from "@codemirror/autocomplete";
-import { EditorState, StateField, StateEffect, RangeSetBuilder, Prec, Text } from "@codemirror/state";
+import { EditorState, StateField, StateEffect, RangeSetBuilder, Prec, Text, Facet } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType, keymap } from "@codemirror/view";
+import { snippet } from "@codemirror/autocomplete";
 import { linkOpener } from "./links.js";
-import { notePath } from "./vault.js";
+import { notePath, vaultHost, vaultChanged } from "./vault.js";
+import { SITE_KEYS } from "./sitekeys.js";
+import { TYPES, TYPE_LABELS, DATE_KEY, isTagsKey, readRows, itemsOf, setEdit, convertEdit, removeEdit, renameEdit, addEdit, keyProblem } from "./properties.js";
 
 const FENCE = /^---[ \t]*$/;
 const CLOSE = /^(?:---|\.\.\.)[ \t]*$/;
@@ -31,16 +34,6 @@ export function propertyEdit(doc, template = "${key}: ${}") {
 	const fm = frontmatterLines(doc);
 	if (fm) return { at: doc.line(fm.close).from, text: template + "\n" };
 	return { at: 0, text: "---\n" + template + "\n---\n" };
-}
-
-// Command: add a property and put the cursor on its name. Tab moves to the value.
-export function addProperty(view) {
-	if (view.state.readOnly) return false;
-	if (view.state.field(folded, false)) view.dispatch({ effects: setFolded.of(false) });
-	const { at, text } = propertyEdit(view.state.doc);
-	snippet(text)(view, null, at, at);
-	view.focus();
-	return true;
 }
 
 // Enter at the end of a line inside the frontmatter: the edit that starts the
@@ -191,164 +184,6 @@ export function tagHue(tag) {
 	return h % 7;
 }
 
-// Typed values, read from the text the way Obsidian's property types show
-// them: true/false as a checkbox, dates and date-times as pickers, lists as
-// pills. [{ key, line, type, from, to, value, quote, list }] for the note's
-// top-level properties (tags aside: they have their own pills). An empty value
-// counts as a date when the key sounds like one (date, created, due, ...).
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?$/;
-const DATE_KEY = /(^|[_ -])(date|day|created|updated|modified|due|published|start|end)([_ -]|$)|date$/i;
-export function propertiesIn(doc, fm) {
-	const out = [];
-	for (let n = fm.open + 1; n < fm.close; n++) {
-		const l = doc.line(n);
-		const m = l.text.match(/^([^\s#-][^:]*):[ \t]*/);
-		if (!m || /^tags?$/.test(m[1])) continue;
-		const key = m[1];
-		const from = l.from + m[0].length;
-		const raw = l.text.slice(m[0].length).replace(/[ \t]+$/, "");
-		const to = from + raw.length;
-		const list = listAt(doc, n);
-		if (list) { out.push({ key, line: n, type: "list", from: list.from, to: list.to, list }); n = list.last; continue; }
-		const q = raw.match(/^(["'])(.*)\1$/);
-		const value = q ? q[2] : raw;
-		const quote = q ? q[1] : "";
-		let type = "text";
-		if (!q && /^(true|false)$/i.test(value)) type = "bool";
-		else if (DATE.test(value)) type = "date";
-		else if (DATETIME.test(value)) type = "datetime";
-		else if (!value && DATE_KEY.test(key) && !(n + 1 < fm.close && /^\s/.test(doc.line(n + 1).text))) type = "date";
-		if (type !== "text") out.push({ key, line: n, type, from, to, value, quote });
-	}
-	return out;
-}
-
-// The new text for a property's value, keeping its quotes and (for
-// true/false) its capitals.
-export function valueText(p, next) {
-	if (p.type === "bool") {
-		const word = next ? "true" : "false";
-		return /^[A-Z]{2}/.test(p.value) ? word.toUpperCase() : /^[A-Z]/.test(p.value) ? word[0].toUpperCase() + word.slice(1) : word;
-	}
-	if (p.type === "datetime" && next && p.value.includes(" ")) next = next.replace("T", " ");
-	if (p.type === "datetime" && next && /:\d{2}:\d{2}$/.test(p.value) && !/:\d{2}:\d{2}$/.test(next)) next += ":00";
-	return next || !p.quote ? p.quote + next + p.quote : p.quote + p.quote;
-}
-
-// The property named key, found again at edit time (the text may have moved).
-function propertyNamed(state, key) {
-	const fm = frontmatterLines(state.doc);
-	return fm ? propertiesIn(state.doc, fm).find((p) => p.key === key) || null : null;
-}
-
-// A checkbox for true/false.
-class BoolWidget extends WidgetType {
-	constructor(key, on) { super(); this.key = key; this.on = on; }
-	eq(o) { return o.key === this.key && o.on === this.on; }
-	toDOM(view) {
-		const box = document.createElement("input");
-		box.type = "checkbox";
-		box.className = "md-prop-check";
-		box.checked = this.on;
-		box.setAttribute("aria-label", this.key);
-		box.addEventListener("mousedown", (e) => e.stopPropagation());
-		box.addEventListener("change", () => {
-			const p = propertyNamed(view.state, this.key);
-			if (!p || p.type !== "bool" || view.state.readOnly) { box.checked = this.on; return; }
-			view.dispatch({ changes: { from: p.from, to: p.to, insert: valueText(p, box.checked) }, userEvent: "input.property" });
-		});
-		return box;
-	}
-	ignoreEvent() { return true; }
-}
-
-// A date or date-and-time picker.
-class DateWidget extends WidgetType {
-	constructor(key, type, value) { super(); this.key = key; this.type = type; this.value = value; }
-	eq(o) { return o.key === this.key && o.type === this.type && o.value === this.value; }
-	toDOM(view) {
-		const input = document.createElement("input");
-		input.type = this.type === "datetime" ? "datetime-local" : "date";
-		input.className = "md-prop-date";
-		input.value = this.type === "datetime" ? this.value.replace(" ", "T").slice(0, 16) : this.value;
-		input.setAttribute("aria-label", this.key);
-		input.addEventListener("mousedown", (e) => e.stopPropagation());
-		input.addEventListener("change", () => {
-			const p = propertyNamed(view.state, this.key);
-			if (!p || (p.type !== "date" && p.type !== "datetime") || view.state.readOnly) return;
-			let insert = valueText(p, input.value);
-			if (p.from === p.to && view.state.sliceDoc(p.from - 1, p.from) === ":") insert = " " + insert;
-			if (view.state.sliceDoc(p.from, p.to) !== insert) view.dispatch({ changes: { from: p.from, to: p.to, insert }, userEvent: "input.property" });
-		});
-		return input;
-	}
-	ignoreEvent() { return true; }
-}
-
-// The tags as pills, each with a remove button, and a box to add one. Editing
-// happens here rather than in the text, so the pills stay while you work.
-// Other list properties (key set) get the same pills, uncolored.
-class TagsWidget extends WidgetType {
-	constructor(tags, key = null) { super(); this.tags = tags; this.key = key; }
-	eq(o) { return o.key === this.key && o.tags.join("\n") === this.tags.join("\n"); }
-	toDOM(view) {
-		const wrap = document.createElement("span");
-		wrap.className = "md-tags";
-		const which = this.key ? `[data-key="${CSS.escape(this.key)}"]` : ":not([data-key])";
-		const apply = (edit) => {
-			const fm = frontmatterLines(view.state.doc);
-			const t = fm && (this.key ? propertyNamed(view.state, this.key)?.list : tagsIn(view.state.doc, fm));
-			if (!t || view.state.readOnly) return;
-			view.dispatch({ changes: edit(view.state.doc, t), userEvent: "input.tags" });
-			// The pills are redrawn; put the typing back in the new add box.
-			requestAnimationFrame(() => view.dom.querySelector(`.md-tag-input${which}`)?.focus());
-		};
-		this.tags.forEach((t, i) => {
-			const pill = document.createElement("span");
-			pill.className = this.key ? "md-tag md-item" : `md-tag md-tag-${tagHue(t)}`;
-			pill.textContent = t;
-			const x = document.createElement("button");
-			x.type = "button";
-			x.className = "md-tag-x";
-			x.textContent = "×";
-			x.setAttribute("aria-label", `Remove tag ${t}`);
-			x.addEventListener("mousedown", (e) => { e.preventDefault(); apply((doc, tags) => tagRemoveEdit(doc, tags, i)); });
-			pill.append(x);
-			if (this.key) { wrap.append(pill); return; }
-			pill.title = `Notes tagged #${t}`;
-			pill.addEventListener("mousedown", (e) => {
-				if (e.target !== pill) return;
-				e.preventDefault();
-				view.state.facet(linkOpener)?.({ tag: t });
-			});
-			wrap.append(pill);
-		});
-		const input = document.createElement("input");
-		input.className = "md-tag-input";
-		input.placeholder = this.key ? "+ add" : "+ tag";
-		input.setAttribute("aria-label", this.key ? `Add to ${this.key}` : "Add a tag");
-		if (this.key) input.dataset.key = this.key;
-		input.size = 6;
-		input.addEventListener("keydown", (e) => {
-			if (e.key === "Enter" || e.key === ",") {
-				e.preventDefault();
-				const name = this.key ? input.value.trim() : tagName(input.value);
-				if (name) apply((doc, tags) => tagAddEdit(doc, tags, this.key ? yamlItem(name, tags.form === "flow") : name));
-			} else if (e.key === "Backspace" && !input.value && this.tags.length) {
-				e.preventDefault();
-				apply((doc, tags) => tagRemoveEdit(doc, tags, tags.tags.length - 1));
-			} else if (e.key === "Escape") {
-				view.focus();
-			}
-		});
-		wrap.append(input);
-		return wrap;
-	}
-	// The pills handle their own clicks and typing.
-	ignoreEvent() { return true; }
-}
-
 // A new note's frontmatter, matching the vault's Note template
 // (content/_templates/Note.md) so the site reads it the same way. The date is
 // written once, when the note is made: without one, the site falls back to
@@ -455,52 +290,516 @@ const folded = StateField.define({
 	},
 });
 
-class FmWidget extends WidgetType {
-	// kind: "open" (the Properties header), "folded" (header with a count), "add" (the button),
-	// "none" (a note with no properties: a pill that starts them).
-	// images (on "add"): null, or whether the image properties are showing.
-	constructor(kind, count = 0, images = null) { super(); this.kind = kind; this.count = count; this.images = images; }
-	eq(o) { return o.kind === this.kind && o.count === this.count && o.images === this.images; }
-	toDOM() {
-		const b = document.createElement("button");
+// ---- The drawn box ------------------------------------------------------------
+//
+// The frontmatter is drawn as one box (a block widget over its lines), so the
+// cursor, typing and Backspace never reach the YAML: each property is a row,
+// its name a button (Rename, Type, Remove) and its value a control for its
+// type (src/properties.js reads them and makes the edits). Toggle source
+// shows the YAML as text instead, for what the box can't edit.
+
+// The vault-wide property types ({ key: type }), from the vault host, with
+// the ones just chosen here on top until the vault has saved them.
+const chosenTypes = {};
+const typesOf = (state) => ({ ...(state.facet(vaultHost)?.propertyTypes?.() || {}), ...chosenTypes });
+function chooseType(view, key, type) {
+	chosenTypes[key] = type;
+	view.state.facet(vaultHost)?.setPropertyType?.(key, type);
+}
+
+const setSource = StateEffect.define();
+// Whether the box shows its YAML as text (Toggle source).
+const source = StateField.define({
+	create: () => false,
+	update(v, tr) {
+		for (const e of tr.effects) if (e.is(setSource)) v = e.value;
+		return v;
+	},
+});
+
+const setAdding = StateEffect.define();
+// Whether the box's "new property" row is open (in a note with no
+// frontmatter yet, the box shows just for it).
+const adding = StateField.define({
+	create: () => false,
+	update(v, tr) {
+		for (const e of tr.effects) if (e.is(setAdding)) v = e.value;
+		return v;
+	},
+});
+
+// Redraws the box when the types change.
+const typesChanged = StateEffect.define();
+
+// A cover beside the box (src/pretty.js provides it): { info(state) -> null |
+// { src, shape, position, width }, dom(view, info) -> element }.
+export const boxCover = Facet.define({ combine: (v) => v[0] || null });
+
+// Where to put the focus once the box is drawn again: { key, part } per view.
+const pendingFocus = new WeakMap();
+function focusLater(view, key, part = "value") {
+	pendingFocus.set(view, { key, part });
+}
+function takeFocus(view, dom) {
+	const want = pendingFocus.get(view);
+	if (!want) return;
+	pendingFocus.delete(view);
+	requestAnimationFrame(() => {
+		const sel = want.part === "add" ? ".md-props-new input" : `.md-prop[data-key="${CSS.escape(want.key)}"] :is(.md-tag-input, textarea, input)`;
+		dom.querySelector(sel)?.focus();
+	});
+}
+
+const ICONS = { text: "Aa", list: "☰", tags: "#", number: "12", checkbox: "☑", date: "▦", datetime: "◷", yaml: "{}" };
+
+// What the box shows, as plain data (so redraws can compare it).
+function boxSpec(state, rows) {
+	const doc = state.doc;
+	const fm = frontmatterLines(doc);
+	const images = fm ? imagePropertyLines(doc, fm) : [];
+	const showImages = state.field(imagesShown);
+	const hiddenLines = new Set();
+	if (!showImages) for (const g of images) for (let n = g.first; n <= g.last; n++) hiddenLines.add(n);
+	const cover = state.facet(boxCover);
+	return {
+		rows: rows.filter((r) => !hiddenLines.has(r.first)).map((r) => ({ key: r.key, type: r.type, value: r.value, items: r.items, mismatch: r.mismatch, raw: r.kind === "yaml" ? doc.sliceString(doc.line(r.first).from, r.to) : "" })),
+		images: images.length ? showImages : null,
+		readOnly: state.readOnly,
+		adding: state.field(adding),
+		cover: (fm && cover?.info(state)) || null,
+	};
+}
+const shape = (spec) => JSON.stringify([spec.rows.map((r) => [r.key, r.type, r.mismatch, r.raw]), spec.images, spec.readOnly, spec.adding, spec.cover]);
+
+// The property named key as it is now (the text may have moved).
+function rowNamed(state, key) {
+	const fm = frontmatterLines(state.doc);
+	return fm ? readRows(state.doc, fm, typesOf(state)).find((r) => r.key === key) || null : null;
+}
+function edit(view, change, effects = []) {
+	if (view.state.readOnly) return;
+	view.dispatch({ changes: change, effects, userEvent: "input.property" });
+}
+
+function el(tag, cls, text) {
+	const e = document.createElement(tag);
+	if (cls) e.className = cls;
+	if (text != null) e.textContent = text;
+	return e;
+}
+
+class BoxWidget extends WidgetType {
+	constructor(spec) { super(); this.spec = spec; }
+	eq(o) { return JSON.stringify(o.spec) === JSON.stringify(this.spec); }
+	toDOM(view) {
+		const box = el("div", "md-props" + (this.spec.readOnly ? " md-props-ro" : ""));
+		box.wr1t3rShape = shape(this.spec);
+		const head = el("div", "md-props-head");
+		const fold = el("button", "md-fm-toggle", "▾ Properties");
+		fold.type = "button";
+		fold.title = "Hide the properties";
+		head.append(fold, el("span", "md-props-space"));
+		if (!this.spec.readOnly) {
+			const src = el("button", "md-props-source", "Toggle source");
+			src.type = "button";
+			src.title = "Show the properties as YAML text";
+			head.append(src);
+		}
+		box.append(head);
+		const body = el("div", "md-props-body");
+		const c = this.spec.cover;
+		if (c) {
+			body.classList.add("md-props-cover-" + c.position);
+			body.style.setProperty("--cover-w", c.width + "px");
+			const cover = view.state.facet(boxCover).dom(view, c);
+			body.append(cover);
+		}
+		const list = el("div", "md-props-rows");
+		for (const r of this.spec.rows) list.append(rowDOM(view, r, this.spec.readOnly));
+		if (this.spec.adding && !this.spec.readOnly) list.append(newRowDOM(view));
+		body.append(list);
+		box.append(body);
+		if (!this.spec.readOnly) {
+			const foot = el("div", "md-props-foot");
+			if (!this.spec.adding) {
+				const add = el("button", "md-fm-add", "+ Add property");
+				add.type = "button";
+				foot.append(add);
+			}
+			if (this.spec.images != null) {
+				const img = el("button", "md-fm-images", this.spec.images ? "Hide image properties" : "Image properties");
+				img.type = "button";
+				img.setAttribute("aria-pressed", String(this.spec.images));
+				foot.append(img);
+			}
+			if (foot.childNodes.length) box.append(foot);
+		}
+		box.addEventListener("mousedown", (e) => {
+			const t = e.target;
+			if (t.closest(".md-fm-toggle")) { e.preventDefault(); setPropertiesHidden(view, true); }
+			else if (t.closest(".md-props-source")) { e.preventDefault(); view.dispatch({ effects: setSource.of(true) }); }
+			else if (t.closest(".md-fm-images")) { e.preventDefault(); view.dispatch({ effects: showImageProps.of(!view.state.field(imagesShown)) }); }
+			else if (t.closest(".md-fm-add")) { e.preventDefault(); openAdd(view); }
+		});
+		// Text boxes grow with their text, so they're measured again when the box's width changes.
+		if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => box.querySelectorAll(".md-prop-text").forEach(fitText)).observe(box);
+		takeFocus(view, box);
+		return box;
+	}
+	// Same rows, same types: values change in place, so a box being typed in
+	// keeps its focus and cursor.
+	updateDOM(dom, view) {
+		if (dom.wr1t3rShape !== shape(this.spec)) return false;
+		for (const r of this.spec.rows) {
+			const row = dom.querySelector(`.md-prop[data-key="${CSS.escape(r.key)}"]`);
+			if (!row) return false;
+			const old = row.querySelector(".md-prop-val");
+			if (old.contains(document.activeElement) && r.type !== "list" && r.type !== "tags") continue;
+			const fresh = valueDOM(view, r, this.spec.readOnly);
+			const had = old.contains(document.activeElement);
+			old.replaceWith(fresh);
+			if (had) fresh.querySelector(".md-tag-input")?.focus();
+		}
+		takeFocus(view, dom);
+		return true;
+	}
+	ignoreEvent() { return true; }
+}
+
+const fitText = (t) => { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; };
+
+function rowDOM(view, r, readOnly) {
+	const row = el("div", "md-prop" + (r.mismatch ? " md-prop-mismatch" : ""));
+	row.dataset.key = r.key;
+	const key = el(readOnly ? "span" : "button", "md-prop-key");
+	if (!readOnly) { key.type = "button"; key.title = "Rename, change the type or remove"; }
+	key.append(el("span", "md-prop-icon", ICONS[r.type] || "Aa"), el("span", "md-prop-name", r.key));
+	if (r.mismatch) key.title = `This value isn't a ${TYPE_LABELS[typesOf(view.state)[r.key]] || "match"}; it shows as ${TYPE_LABELS[r.type]}`;
+	if (!readOnly) key.addEventListener("click", () => keyMenu(view, r.key, key));
+	row.append(key, valueDOM(view, r, readOnly));
+	return row;
+}
+
+// The control for a row's value.
+function valueDOM(view, r, readOnly) {
+	const wrap = el("div", "md-prop-val");
+	const set = (value) => { const now = rowNamed(view.state, r.key); if (now) edit(view, setEdit(now, value)); };
+	const next = (from) => {
+		const rows = [...from.closest(".md-props-rows").querySelectorAll(".md-prop")];
+		const at = rows.indexOf(from.closest(".md-prop"));
+		const to = rows[at + 1]?.querySelector(":is(textarea, input)");
+		if (to) to.focus(); else openAdd(view);
+	};
+	if (r.type === "checkbox") {
+		const box = el("input", "md-prop-check");
+		box.type = "checkbox";
+		box.checked = /^true$/i.test(r.value);
+		box.disabled = readOnly;
+		box.setAttribute("aria-label", r.key);
+		box.addEventListener("change", () => set(box.checked));
+		wrap.append(box);
+	} else if (r.type === "date" || r.type === "datetime") {
+		const input = el("input", "md-prop-date");
+		input.type = r.type === "datetime" ? "datetime-local" : "date";
+		input.value = r.type === "datetime" ? r.value.replace(" ", "T").slice(0, 16) : r.value.slice(0, 10);
+		input.disabled = readOnly;
+		input.setAttribute("aria-label", r.key);
+		input.addEventListener("change", () => set(input.value));
+		input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); next(input); } });
+		wrap.append(input);
+	} else if (r.type === "list" || r.type === "tags") {
+		wrap.append(pillsDOM(view, r, readOnly));
+	} else if (r.type === "yaml") {
+		const preview = r.raw.slice(r.raw.indexOf(":") + 1).replace(/\\[rnt]/g, " ").replace(/\s+/g, " ").trim();
+		const code = el("button", "md-prop-yaml", preview);
+		code.type = "button";
+		code.title = "Edit this property as YAML (Toggle source)";
+		code.disabled = readOnly;
+		code.addEventListener("click", () => view.dispatch({ effects: setSource.of(true) }));
+		wrap.append(code);
+	} else {
+		const input = el("textarea", "md-prop-text");
+		input.rows = 1;
+		input.value = r.value;
+		input.readOnly = readOnly;
+		input.spellcheck = r.type === "text";
+		if (r.type === "number") input.inputMode = "decimal";
+		input.placeholder = "Empty";
+		input.setAttribute("aria-label", r.key);
+		const fit = () => fitText(input);
+		requestAnimationFrame(fit);
+		input.addEventListener("input", () => {
+			input.value = input.value.replace(/\n/g, " ");
+			fit();
+			if (r.type === "number" && input.value.trim() && !/^-?(\d+\.?\d*|\.\d+)$/.test(input.value.trim())) { input.classList.add("bad"); return; }
+			input.classList.remove("bad");
+			// Spaces at the ends aren't kept (they'd need quotes); the box keeps
+			// showing them while it's being typed in.
+			set(input.value.trim());
+		});
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") { e.preventDefault(); next(input); }
+			else if (e.key === "Escape") { e.preventDefault(); view.focus(); }
+		});
+		wrap.append(input);
+	}
+	return wrap;
+}
+
+// A list's items as pills (in the tag colors), with × on each and a box to add one.
+function pillsDOM(view, r, readOnly) {
+	const tags = r.type === "tags";
+	const wrap = el("span", "md-tags");
+	const change = (fn) => {
+		const now = rowNamed(view.state, r.key);
+		if (!now) return;
+		edit(view, setEdit(now, fn(now.type === "list" || now.type === "tags" ? itemsOf(now) : [])));
+		focusLater(view, r.key);
+	};
+	r.items.forEach((t, i) => {
+		const pill = el("span", `md-tag md-tag-${tagHue(t)}`, t);
+		if (tags) {
+			pill.title = `Notes tagged #${t}`;
+			pill.addEventListener("mousedown", (e) => {
+				if (e.target !== pill) return;
+				e.preventDefault();
+				view.state.facet(linkOpener)?.({ tag: t });
+			});
+		}
+		if (!readOnly) {
+			const x = el("button", "md-tag-x", "×");
+			x.type = "button";
+			x.setAttribute("aria-label", `Remove ${t}`);
+			x.addEventListener("mousedown", (e) => { e.preventDefault(); change((items) => items.filter((_, k) => k !== i)); });
+			pill.append(x);
+		}
+		wrap.append(pill);
+	});
+	if (readOnly) return wrap;
+	const input = el("input", "md-tag-input");
+	input.placeholder = tags ? "+ tag" : "+ add";
+	input.setAttribute("aria-label", tags ? "Add a tag" : `Add to ${r.key}`);
+	input.size = 6;
+	input.addEventListener("keydown", (e) => {
+		if (e.key === "Enter" || e.key === ",") {
+			e.preventDefault();
+			const name = tags ? tagName(input.value) : input.value.trim();
+			if (name) change((items) => [...items, name]);
+		} else if (e.key === "Backspace" && !input.value && r.items.length) {
+			e.preventDefault();
+			change((items) => items.slice(0, -1));
+		} else if (e.key === "Escape") view.focus();
+	});
+	wrap.append(input);
+	return wrap;
+}
+
+// A small menu (the app's .item-menu look). entries: [label, run, cls?] or
+// null for a divider. Closes on a pick, Escape or a press elsewhere.
+function menu(entries, x, y) {
+	document.querySelector(".item-menu")?.remove();
+	const box = el("div", "item-menu");
+	box.setAttribute("role", "menu");
+	for (const entry of entries) {
+		if (!entry) { box.append(el("hr", "menu-rule")); continue; }
+		const [label, run, cls] = entry;
+		const b = el("button", cls || "", label);
 		b.type = "button";
+		b.setAttribute("role", "menuitem");
+		b.addEventListener("click", () => { close(); run(); });
+		box.append(b);
+	}
+	document.body.append(box);
+	const r = box.getBoundingClientRect();
+	box.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
+	box.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+	const away = (e) => { if (!box.contains(e.target)) close(); };
+	const esc = (e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
+	function close() {
+		box.remove();
+		document.removeEventListener("pointerdown", away, true);
+		document.removeEventListener("keydown", esc, true);
+	}
+	setTimeout(() => {
+		document.addEventListener("pointerdown", away, true);
+		document.addEventListener("keydown", esc, true);
+	});
+	box.querySelector("button")?.focus();
+}
+
+// A property name's menu: Rename, its type, Remove.
+function keyMenu(view, key, anchor) {
+	const r = rowNamed(view.state, key);
+	if (!r) return;
+	const at = anchor.getBoundingClientRect();
+	const fixed = r.type === "tags" || r.type === "yaml";
+	const types = fixed ? [] : TYPES.map((t) => [(t === r.type ? "✓ " : " ") + TYPE_LABELS[t], () => setType(view, key, t), "md-type-item"]);
+	menu([
+		["Rename…", () => renameRow(view, key)],
+		...(types.length ? [null, ...types] : []),
+		null,
+		["Remove", () => { const now = rowNamed(view.state, key); if (now) edit(view, removeEdit(view.state.doc, now)); }, "danger"],
+	], at.left, at.bottom + 4);
+}
+
+// Changes a property's type, here (converting its value) and for the name
+// everywhere (the vault's property types).
+function setType(view, key, type) {
+	const r = rowNamed(view.state, key);
+	// The website reads this property: changing its shape can change how
+	// (or whether) a page shows, so ask first.
+	if (r && r.type !== type && SITE_KEYS.has(key) && !confirm(`The website reads “${key}” as ${TYPE_LABELS[r.type]}. Changing it to ${TYPE_LABELS[type]} rewrites its value in this note (and shows it as ${TYPE_LABELS[type]} in every note), which may change how the site shows it.\n\nChange it anyway?`)) return;
+	chooseType(view, key, type);
+	if (!r) return;
+	const change = r.type === type ? null : convertEdit(r, type);
+	view.dispatch({ ...(change && !view.state.readOnly ? { changes: change, userEvent: "input.property" } : {}), effects: typesChanged.of(null) });
+	focusLater(view, key);
+}
+
+// Turns the name into a box; Enter renames, Escape doesn't.
+function renameRow(view, key) {
+	const row = view.dom.querySelector(`.md-prop[data-key="${CSS.escape(key)}"]`);
+	const btn = row?.querySelector(".md-prop-key");
+	if (!btn) return;
+	const input = el("input", "md-prop-rename");
+	input.value = key;
+	input.setAttribute("aria-label", "New name");
+	btn.replaceWith(input);
+	input.focus();
+	input.select();
+	let done = false;
+	const finish = (save) => {
+		if (done) return;
+		done = true;
+		const name = input.value.trim();
+		const r = rowNamed(view.state, key);
+		const fm = frontmatterLines(view.state.doc);
+		const problem = save && r && name !== key ? keyProblem(name, readRows(view.state.doc, fm), key) : null;
+		if (problem) { done = false; input.setCustomValidity(problem); input.reportValidity(); return; }
+		input.replaceWith(btn);
+		if (save && r && name !== key) { edit(view, renameEdit(view.state.doc, r, name)); focusLater(view, name); }
+	};
+	input.addEventListener("keydown", (e) => {
+		if (e.key === "Enter") { e.preventDefault(); finish(true); }
+		else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+		else input.setCustomValidity("");
+	});
+	input.addEventListener("blur", () => finish(true));
+}
+
+// The row for a new property: its name (with the vault's names offered), its
+// type (the name's own type when it has one) and Add.
+function newRowDOM(view) {
+	const row = el("div", "md-props-new");
+	const types = typesOf(view.state);
+	const listId = "md-prop-names";
+	let names = document.getElementById(listId);
+	if (!names) { names = el("datalist"); names.id = listId; document.body.append(names); }
+	names.replaceChildren(...[...new Set([...Object.keys(types), ...SITE_KEYS])].sort().map((k) => Object.assign(el("option"), { value: k })));
+	const name = el("input", "md-props-new-name");
+	name.placeholder = "Property name";
+	name.setAttribute("list", listId);
+	name.setAttribute("aria-label", "New property's name");
+	const pick = el("select", "md-props-new-type");
+	pick.setAttribute("aria-label", "Type");
+	for (const t of TYPES) pick.append(Object.assign(el("option", null, TYPE_LABELS[t]), { value: t }));
+	let picked = false;
+	pick.addEventListener("change", () => { picked = true; });
+	name.addEventListener("input", () => {
+		name.setCustomValidity("");
+		const k = name.value.trim();
+		if (!picked) pick.value = types[k] || (isTagsKey(k) ? "list" : DATE_KEY.test(k) ? "date" : "text");
+	});
+	const add = el("button", "md-props-new-add", "Add");
+	add.type = "button";
+	const cancel = el("button", "md-props-new-cancel", "Cancel");
+	cancel.type = "button";
+	const submit = () => {
+		const key = name.value.trim();
+		const doc = view.state.doc;
+		const fm = frontmatterLines(doc);
+		const problem = keyProblem(key, fm ? readRows(doc, fm) : []);
+		if (problem) { name.setCustomValidity(problem); name.reportValidity(); return; }
+		const type = pick.value;
+		if (!isTagsKey(key) && (types[key] ? types[key] !== type : type !== "text")) chooseType(view, key, type);
+		focusLater(view, key);
+		view.dispatch({ changes: addEdit(doc, fm, key, type), effects: [setAdding.of(false), setFolded.of(false), typesChanged.of(null)], userEvent: "input.property" });
+	};
+	const close = () => { view.dispatch({ effects: setAdding.of(false) }); view.focus(); };
+	for (const input of [name, pick]) input.addEventListener("keydown", (e) => {
+		if (e.key === "Enter") { e.preventDefault(); submit(); }
+		else if (e.key === "Escape") { e.preventDefault(); close(); }
+	});
+	add.addEventListener("click", submit);
+	cancel.addEventListener("click", close);
+	row.append(name, pick, add, cancel);
+	return row;
+}
+
+function openAdd(view) {
+	focusLater(view, null, "add");
+	view.dispatch({ effects: [setAdding.of(true), setFolded.of(false)] });
+}
+
+// Command: open the box's new-property row (also in a note with no
+// properties yet).
+export function addProperty(view) {
+	if (view.state.readOnly) return false;
+	if (view.state.field(source, false)) { view.dispatch({ effects: setSource.of(false) }); }
+	openAdd(view);
+	return true;
+}
+
+// Command: put the focus in a property's value, adding it (as text) when the
+// note doesn't have it yet (Banner image, Cover image).
+export function focusProperty(view, key) {
+	if (view.state.readOnly) return false;
+	const effects = [setFolded.of(false), showImageProps.of(true), setSource.of(false)];
+	focusLater(view, key);
+	if (rowNamed(view.state, key)) view.dispatch({ effects, scrollIntoView: true });
+	else view.dispatch({ changes: addEdit(view.state.doc, frontmatterLines(view.state.doc), key, "text"), effects, userEvent: "input.property" });
+	return true;
+}
+
+// The pill or header shown for a folded box, an empty note, and the YAML view.
+class FmWidget extends WidgetType {
+	// kind: "folded" (a pill with the count), "none" (+ Properties, a note
+	// with none), "source" (the header over the YAML), "end" (under it).
+	constructor(kind, count = 0) { super(); this.kind = kind; this.count = count; }
+	eq(o) { return o.kind === this.kind && o.count === this.count; }
+	toDOM(view) {
+		const b = el("button");
+		b.type = "button";
+		if (this.kind === "end") return el("span", "md-props-srcend");
+		if (this.kind === "source") {
+			const head = el("span", "md-props-head md-props-srchead");
+			if (this.kind === "source") {
+				head.append(el("span", "md-props-srclabel", "Properties · YAML"), el("span", "md-props-space"));
+				b.className = "md-props-source";
+				b.textContent = "Toggle source";
+				b.title = "Show the properties as a box again";
+				b.addEventListener("mousedown", (e) => { e.preventDefault(); view.dispatch({ effects: setSource.of(false) }); });
+				head.append(b);
+			}
+			return head;
+		}
+		const row = el("div", "md-fm-hidden" + (this.kind === "none" ? " md-fm-none" : ""));
 		if (this.kind === "none") {
-			const row = document.createElement("div");
-			row.className = "md-fm-hidden md-fm-none";
 			b.className = "md-fm-add md-fm-pill";
 			b.textContent = "+ Properties";
 			b.title = "Add properties to this note";
-			row.append(b);
-			return row;
-		}
-		if (this.kind === "add") {
-			b.className = "md-fm-add";
-			b.textContent = "+ Add property";
-			if (this.images == null) return b;
-			const wrap = document.createElement("span");
-			const img = document.createElement("button");
-			img.type = "button";
-			img.className = "md-fm-images";
-			img.setAttribute("aria-pressed", String(this.images));
-			img.textContent = this.images ? "Hide image properties" : "Image properties";
-			wrap.append(b, img);
-			return wrap;
+			b.addEventListener("mousedown", (e) => { e.preventDefault(); openAdd(view); });
 		} else {
-			b.className = "md-fm-toggle";
-			b.setAttribute("aria-expanded", String(this.kind === "open"));
-			b.textContent = this.kind === "open" ? "▾ Properties" : `Properties · ${this.count}`;
-			b.title = this.kind === "open" ? "Hide the properties" : "Show the properties";
+			b.className = "md-fm-toggle md-fm-pill";
+			b.setAttribute("aria-expanded", "false");
+			b.textContent = `Properties · ${this.count}`;
+			b.title = "Show the properties";
+			b.addEventListener("mousedown", (e) => { e.preventDefault(); setPropertiesHidden(view, false); });
 		}
-		if (this.kind === "folded") {
-			const row = document.createElement("div");
-			row.className = "md-fm-hidden";
-			b.classList.add("md-fm-pill");
-			row.append(b);
-			return row;
-		}
-		return b;
+		row.append(b);
+		return row;
 	}
-	ignoreEvent() { return false; }
+	ignoreEvent() { return true; }
 }
 
 function decorate(state) {
@@ -508,53 +807,33 @@ function decorate(state) {
 	const fm = frontmatterLines(doc);
 	if (!fm) {
 		if (state.readOnly || isPlannerPage(doc)) return Decoration.none;
-		return Decoration.set(Decoration.widget({ widget: new FmWidget("none"), block: true, side: -1 }).range(0));
+		const widget = state.field(adding) ? new BoxWidget(boxSpec(state, [])) : new FmWidget("none");
+		return Decoration.set(Decoration.widget({ widget, block: true, side: -1 }).range(0));
 	}
 	const open = doc.line(fm.open), close = doc.line(fm.close);
-	// Added in document order. (Not Decoration.set: an empty property's
-	// widget is a zero-length replace, which RangeSetBuilder takes and
-	// Decoration.range() refuses.)
-	const b = new RangeSetBuilder();
 	if (state.field(folded)) {
 		const planner = isPlannerPage(doc);
-		b.add(open.from, close.to, Decoration.replace({ widget: planner ? undefined : new FmWidget("folded", propertyCount(doc, fm)), block: true, atomic: true }));
+		return Decoration.set(Decoration.replace({ widget: planner ? undefined : new FmWidget("folded", propertyCount(doc, fm)), block: true, atomic: true }).range(open.from, close.to));
+	}
+	if (state.field(source)) {
+		const b = new RangeSetBuilder();
+		for (let n = fm.open; n <= fm.close; n++) {
+			const l = doc.line(n);
+			b.add(l.from, l.from, Decoration.line({ class: "md-fm md-fm-src" + (n === fm.open ? " md-first" : "") + (n === fm.close ? " md-last" : "") }));
+			if (n === fm.open || n === fm.close) b.add(l.from, l.to, Decoration.replace({ widget: new FmWidget(n === fm.open ? "source" : "end"), atomic: true }));
+		}
 		return b.finish();
 	}
-	// The styling stays put while editing: fences are always the header and
-	// the add button, and tags always pills (edited through the pills).
-	const pills = tagsIn(doc, fm);
-	const typed = new Map(propertiesIn(doc, fm).map((p) => [p.line, p]));
-	const hidden = (n) => (pills && n > pills.first && n <= pills.last) || [...typed.values()].some((p) => p.list && n > p.list.first && n <= p.list.last);
-	const images = imagePropertyLines(doc, fm), showImages = state.field(imagesShown);
-	for (let n = fm.open; n <= fm.close; n++) {
-		const group = !showImages && images.find((g) => g.first === n);
-		if (group) { // hidden, with the line break before it
-			b.add(doc.line(n - 1).to, doc.line(group.last).to, Decoration.replace({ atomic: true }));
-			n = group.last;
-			continue;
-		}
-		if (hidden(n)) continue; // folded into a pills line
-		const l = doc.line(n);
-		const fence = n === fm.open || n === fm.close;
-		const cls = "md-fm" + (fence ? " md-fm-fence" : "") + (n === fm.open ? " md-first" : "") + (n === fm.close ? " md-last" : "");
-		b.add(l.from, l.from, Decoration.line({ class: cls }));
-		if (fence) b.add(l.from, l.to, Decoration.replace({ widget: new FmWidget(n === fm.open ? "open" : "add", 0, n === fm.close && images.length ? showImages : null), atomic: true }));
-		if (pills && n === pills.first) b.add(pills.from, pills.to, Decoration.replace({ widget: new TagsWidget(pills.tags), atomic: true }));
-		const p = typed.get(n);
-		if (p) {
-			const widget = p.type === "list" ? new TagsWidget(p.list.tags, p.key) : p.type === "bool" ? new BoolWidget(p.key, /^true$/i.test(p.value)) : new DateWidget(p.key, p.type, p.value);
-			if (p.from === p.to) b.add(p.from, p.to, Decoration.widget({ widget, side: 1 }));
-			else b.add(p.from, p.to, Decoration.replace({ widget, atomic: true }));
-		}
-	}
-	return b.finish();
+	const rows = readRows(doc, fm, typesOf(state));
+	return Decoration.set(Decoration.replace({ widget: new BoxWidget(boxSpec(state, rows)), block: true, atomic: true }).range(open.from, close.to));
 }
 
 const decorations = StateField.define({
 	create: decorate,
 	update(value, tr) {
-		const refold = tr.effects.some((e) => e.is(setFolded)) || tr.startState.field(folded) !== tr.state.field(folded) || tr.startState.field(imagesShown) !== tr.state.field(imagesShown);
-		return tr.docChanged || tr.selection || refold ? decorate(tr.state) : value;
+		const redraw = tr.docChanged || tr.effects.some((e) => e.is(setFolded) || e.is(setSource) || e.is(setAdding) || e.is(showImageProps) || e.is(typesChanged) || e.is(vaultChanged))
+			|| tr.startState.field(folded) !== tr.state.field(folded) || tr.startState.field(imagesShown) !== tr.state.field(imagesShown);
+		return redraw ? decorate(tr.state) : value;
 	},
 	provide: (f) => [
 		EditorView.decorations.from(f),
@@ -566,26 +845,33 @@ const decorations = StateField.define({
 	],
 });
 
-const clicks = EditorView.domEventHandlers({
-	mousedown(e, view) {
-		const t = e.target;
-		if (t.classList?.contains("md-fm-toggle")) {
-			e.preventDefault();
-			setPropertiesHidden(view, !view.state.field(folded));
-			return true;
-		}
-		if (t.classList?.contains("md-fm-images")) {
-			e.preventDefault();
-			view.dispatch({ effects: showImageProps.of(!view.state.field(imagesShown)) });
-			return true;
-		}
-		if (t.classList?.contains("md-fm-add")) {
-			e.preventDefault();
-			addProperty(view);
-			return true;
-		}
-		return false;
-	},
+// Typing, pasting and deleting never reach into a drawn box: the box edits
+// itself (its edits carry "input.property"). Typing just after it goes on a
+// new line; deleting that only partly covers it does nothing. In the YAML
+// view (Toggle source) it's all text.
+const TYPING = ["input.type", "input.paste", "input.drop", "input.complete", "delete", "move"];
+const guardBox = EditorState.transactionFilter.of((tr) => {
+	if (!tr.docChanged || !TYPING.some((e) => tr.isUserEvent(e)) || tr.startState.field(source, false)) return tr;
+	const doc = tr.startState.doc;
+	const fm = frontmatterLines(doc);
+	if (!fm) return tr;
+	const from = doc.line(fm.open).from, to = doc.line(fm.close).to;
+	let hit = false, after = null, count = 0;
+	tr.changes.iterChanges((fA, tA, _fB, _tB, ins) => {
+		count++;
+		const text = ins.toString();
+		if (tA > fA) {
+			if (fA <= from && tA >= to) return; // the whole box goes
+			// Into it, or the line break just after it (gluing a line onto its fence).
+			if ((fA < to && tA > from) || fA === to) hit = true;
+		} else if (fA >= from && fA < to) hit = true;
+		else if (fA === to && !text.startsWith("\n")) after = text;
+	});
+	if (hit) return [];
+	if (after != null && count === 1) {
+		return { changes: { from: to, insert: "\n" + after }, selection: { anchor: to + 1 + after.length }, userEvent: "input.type", scrollIntoView: true };
+	}
+	return tr;
 });
 
 // Folds a view's properties box without changing the remembered setting
@@ -619,5 +905,5 @@ function backspaceAtBody(view) {
 	return start != null && sel.ranges.every((r) => r.empty && r.head === start);
 }
 
-export const frontmatterStyle = [folded, imagesShown, decorations, clicks, guardBody,
+export const frontmatterStyle = [folded, imagesShown, source, adding, decorations, guardBox, guardBody,
 	Prec.high(keymap.of([{ key: "Enter", run: enter }, { key: "Backspace", run: backspaceAtBody }, { key: "Mod-Backspace", run: backspaceAtBody }]))];
