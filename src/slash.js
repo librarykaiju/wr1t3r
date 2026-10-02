@@ -10,6 +10,7 @@ import { editBanner, editCover } from "./pretty.js";
 import { insertFootnote } from "./footnotes.js";
 import { dueCommand, reminderCommand } from "./due.js";
 import { inTable, addRow, addColumn, deleteRow, deleteColumn, formatTable } from "./table.js";
+import { colorMenu, alignMenu } from "./format.js";
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
 
@@ -33,6 +34,9 @@ export const COMMANDS = [
 	{ label: "Italic", template: "*${}*", keywords: "emphasis" },
 	{ label: "Strikethrough", template: "~~${}~~", keywords: "strike delete" },
 	{ label: "Highlight", template: "==${}==", keywords: "mark" },
+	{ label: "Underline", template: "<u>${}</u>", keywords: "underline u" },
+	{ label: "Text color", run: (view) => colorMenu(view), keywords: "colour color red blue green font" },
+	{ label: "Align", run: (view) => alignMenu(view), keywords: "center centre right justify alignment" },
 	{ label: "Inline code", template: "`${}`", keywords: "code" },
 	{ label: "Add property", run: addProperty, keywords: "frontmatter yaml properties metadata tags" },
 	{ label: "Banner image", run: editBanner, keywords: "banner header picture properties pretty" },

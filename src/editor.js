@@ -42,6 +42,7 @@ import { bases } from "./basesview.js";
 import { spellcheck, smartPunctuation } from "./writing.js";
 import { pasteAndDrop } from "./paste.js";
 import { manuscriptLayout } from "./manuscriptview.js";
+import { formatLook } from "./format.js";
 
 const fromSync = Annotation.define();
 
@@ -137,6 +138,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		marks(/\^\[[^\]\n]*\]/g, "md-footnote md-inline-note"), // ^[inline footnote]
 		marks(/(?<=\s)\^[A-Za-z0-9-]+$/gm, "md-blockid"), // "... ^block-id" at a line's end
 		marks(/<\/?[a-zA-Z][\w-]*(?:\s[^<>\n]*)?\/?>/g, "md-html"), // raw HTML tags
+		formatLook,
 		hashtags,
 		comments,
 		linkClicks((link) => follow?.(link)),
