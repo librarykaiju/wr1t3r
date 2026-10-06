@@ -2345,6 +2345,16 @@ async function uploadReminders() {
 const keyBytes = (b64) => Uint8Array.from(atob(b64.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64.length + 3) % 4)), (c) => c.charCodeAt(0));
 const sameKey = (buf, b64) => !!buf && keyBytes(b64).every((v, i) => new Uint8Array(buf)[i] === v);
 
+// Whether this device has a push subscription, which is what "on" means here.
+async function remindersHere() {
+	try {
+		return !!(await (await navigator.serviceWorker?.getRegistration())?.pushManager?.getSubscription());
+	} catch {
+		return false;
+	}
+}
+const markReminders = async () => markSeg("remSeg", await remindersHere());
+
 async function turnOnReminders() {
 	if (!("serviceWorker" in navigator) || !window.PushManager || !window.Notification) {
 		return toast(MAC && /iPhone|iPad/.test(navigator.userAgent) ? "On iPhone, reminders work in wr1t3r on the Home Screen: Share, Add to Home Screen, then open it from there and try again." : "This browser can't show reminders.", 12000);
@@ -2366,6 +2376,7 @@ async function turnOnReminders() {
 		if (e.status === 501) remindersOff = true;
 		toast("Couldn't turn on reminders: " + e.message, 12000);
 	}
+	markReminders();
 }
 
 async function turnOffReminders() {
@@ -2378,6 +2389,7 @@ async function turnOffReminders() {
 	} catch (e) {
 		toast("Couldn't turn off reminders: " + e.message, 8000);
 	}
+	markReminders();
 }
 
 // "Record a voice memo": records, transcribes, and puts the transcript in the
@@ -3534,6 +3546,7 @@ function showSettingsTab(tab, onPhoneList = false) {
 	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
 	if (tab === "focus") markSeg("focusSeg", $("app").classList.contains("focus-mode"));
 	if (tab === "sync") markSeg("ocrSeg", ocrOn());
+	if (tab === "tasks") markReminders();
 	$("settings").querySelector(".set-main").scrollTop = 0;
 }
 
@@ -3673,7 +3686,12 @@ function setupSettings() {
 		else { setOcrOn(false); toast("New pictures and PDFs won't be read. Ones already read stay searchable."); }
 		markSeg("ocrSeg", ocrOn());
 	});
-	$("setReminders").addEventListener("click", () => turnOnReminders());
+	$("remSeg").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b || b.getAttribute("aria-pressed") === "true") return;
+		if (b.dataset.on === "true") turnOnReminders();
+		else turnOffReminders();
+	});
 	$("setSignOut").addEventListener("click", () => signOut());
 	for (const name of Object.keys(ON_OFF)) {
 		applySetting(name, settingOn(name));
