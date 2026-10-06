@@ -372,6 +372,10 @@ A build with a Dropbox app key shows **Use Dropbox** on the sign-in screen. Note
 
 The calendar switches to the built-in one (below), task reminders show while wr1t3r is open (any tab) instead of being pushed, and picture search, grammar, word lookup, the food table and media lookups run on the device. What still needs the Worker (transcripts, server-side capture) shows an error on a Dropbox device for now. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
 
+## First run
+
+When the first sync finds the notebook empty, wr1t3r asks what it's for: writing, a journal and day planner, health and food, media logs, or research and clipping. Start turns on the areas those need and the rest off (written to `_wr1t3r/Settings.md`, see below), and by default adds a Welcome note that shows the way around, a sample `Draft/` manuscript for writing, and a Home screen pinning them. Skip leaves everything on and adds nothing. It's asked once per device, and never for a notebook with anything in it. On an iPhone or iPad outside the Home Screen it also says to add wr1t3r there, since Safari otherwise clears the offline copy after about a week. The choices and starter notes are in `src/onboarding.js`.
+
 ## Features and folders
 
 Settings > Features turns whole areas on or off for the notebook: long-form writing, boards, daily notes and planner, health and food, media logs, calendar, transcripts and voice memos, searchable pictures, capture and clipping, and reminders. An area that's off leaves the command palette, menus and buttons (`data-feature` in `index.html`, `body.no-<area>` in `style.css`); the notes it made stay as they are. The same tab sets wr1t3r's own folders inside the notes' folder: the Inbox note, uploads, clippings, compiled notes and the task lists.

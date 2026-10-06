@@ -29,6 +29,7 @@ import { openStorage, registerStorage, storageKind, setStorageKind } from "./sto
 import { notebookCalendar, CALENDAR_FOLDER } from "./notecal.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
+import { USES, DEFAULT_USES, featuresFor, starterNotes, needsHomeScreen } from "./onboarding.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
@@ -150,6 +151,7 @@ async function runSync() {
 		applyFeatures();
 		if (r.downloaded || r.deleted) refreshNotebookCalendar();
 		uploadReminders();
+		maybeWelcome();
 		lastError = null;
 		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
 		sortPending = null;
@@ -936,6 +938,44 @@ async function saveSettings(next) {
 		scheduleSync();
 	}
 	applyFeatures();
+}
+
+// ---- The first run (src/onboarding.js) ---------------------------------------
+//
+// After a sync that finds the notebook empty, ask what it's for once on this
+// device. Start turns those areas on (and the rest off) in the Settings note,
+// and can add starter notes; Skip leaves everything on.
+
+const WELCOMED = "wr1t3r-welcomed";
+function maybeWelcome() {
+	if (visible().length || readRaw(WELCOMED) || !$("welcome").hidden) return;
+	const box = $("welcomeUses");
+	box.textContent = "";
+	for (const u of USES) {
+		const lab = document.createElement("label");
+		const input = Object.assign(document.createElement("input"), { type: "checkbox", value: u.id, checked: DEFAULT_USES.includes(u.id) });
+		lab.append(input, Object.assign(document.createElement("b"), { textContent: u.label }), Object.assign(document.createElement("span"), { textContent: u.detail }));
+		box.append(lab);
+	}
+	$("welcomeIos").hidden = !needsHomeScreen(navigator.userAgent, matchMedia("(display-mode: standalone)").matches || navigator.standalone === true, navigator.maxTouchPoints);
+	$("welcome").hidden = false;
+	$("welcomeGo").focus();
+}
+
+async function finishWelcome(start) {
+	storeRaw(WELCOMED, "1");
+	$("welcome").hidden = true;
+	if (!start || visible().length) return; // something synced in meanwhile: leave it be
+	const uses = [...$("welcomeUses").querySelectorAll("input:checked")].map((i) => i.value);
+	const features = featuresFor(uses);
+	const files = $("welcomeStarter").checked ? starterNotes(uses) : [];
+	if (Object.values(features).includes(false)) files.push({ path: "_wr1t3r/Settings.md", text: writeSettings("", { ...readSettings(""), features }) });
+	for (const f of files) await change(f.path, (cur) => ({ path: f.path, text: f.text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	applyFeatures();
+	renderTree();
+	renderStatus();
+	scheduleSync(0);
+	if (files.some((f) => f.path === "Welcome.md")) openNote("Welcome.md");
 }
 
 // Hides what belongs to areas that are off: body.no-<area> (style.css) and
@@ -5178,6 +5218,8 @@ async function start() {
 	$("prevNote").addEventListener("click", () => stepFolder(-1));
 	$("nextNote").addEventListener("click", () => stepFolder(1));
 	$("palette").addEventListener("click", () => commandPalette());
+	$("welcomeForm").addEventListener("submit", (e) => { e.preventDefault(); finishWelcome(true); });
+	$("welcomeSkip").addEventListener("click", () => finishWelcome(false));
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);
 
 	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || tabs.find(tabOpen) || null);
