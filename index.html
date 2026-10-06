@@ -275,8 +275,11 @@
 						<div class="seg"><select id="dailyCal" aria-label="Calendar for the daily note's Timeline"><option value="">Off</option></select></div>
 						<p class="hint">Events from this calendar go into the Timeline when Today makes the note, or any time with “Add calendar events to the timeline”.</p>
 						<h2>Reminders</h2>
-						<div class="seg"><button id="setReminders" type="button">Turn on reminders on this device</button></div>
-						<p class="hint">Tasks with a ⏰ time notify this device, even with wr1t3r closed.</p>
+						<div class="seg" id="remSeg" title="Notifications for tasks with a ⏰ time, on this device only">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<p class="hint">Tasks with a ⏰ time notify this device, even with wr1t3r closed. Each phone and computer is turned on separately.</p>
 					</section>
 					<section class="set-pane" data-tab="home" data-title="Home" role="tabpanel" hidden>
 						<h2>Pinned tiles</h2>
