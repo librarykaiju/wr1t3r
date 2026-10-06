@@ -36,7 +36,7 @@ import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
 import { timelineChanges, eventsOn } from "./timeline.js";
 import { newNoteFrontmatter, withTitleHeading } from "./frontmatter.js";
-import { readTypes, writeTypes, listKeys } from "./properties.js";
+import { readTypes, writeTypes, listKeys, propertyUsage } from "./properties.js";
 import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
@@ -1614,6 +1614,13 @@ function propertyTypes() {
 	if (text !== typesCache.text) typesCache = { text, types: readTypes(text) };
 	if (listCache.at !== vaultStamp) listCache = { at: vaultStamp, types: listKeys([...notes.values()].filter((n) => !n.deleted && !n.binary).map((n) => n.text)) };
 	return { ...listCache.types, ...typesCache.types };
+}
+// Every property name and value in the vault with how many notes use it,
+// for the properties box's suggestions (propertyUsage in src/properties.js).
+let usageCache = { at: -1, usage: null };
+function propertyUsageNow() {
+	if (usageCache.at !== vaultStamp) usageCache = { at: vaultStamp, usage: propertyUsage([...notes.values()].filter((n) => !n.deleted && !n.binary).map((n) => n.text)) };
+	return usageCache.usage;
 }
 async function setPropertyType(key, type) {
 	if (propertyTypes()[key] === type) return;
@@ -4740,6 +4747,7 @@ const dataviewVault = {
 	text: (path) => { const n = notes.get(path); return n && !n.deleted && !n.binary ? n.text : null; },
 	// The vault's property types (src/properties.js), kept in _wr1t3r/Property Types.md.
 	propertyTypes: () => propertyTypes(),
+	propertyUsage: () => propertyUsageNow(),
 	setPropertyType: (key, type) => setPropertyType(key, type),
 	// A base's "+ New": the note's text as New note would start it.
 	newNoteText: (path) => (/(^|\/)_/.test(path) ? "" : withTitleHeading(newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA")), name(path))),
