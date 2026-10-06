@@ -80,7 +80,7 @@ import { setupToolbar } from "./toolbar.js";
 import * as versions from "./history.js";
 import { INBOX, captureEntry, appendCapture, stamp } from "./capture.js";
 import { recordVoice } from "./recorder.js";
-import { remindersIn } from "./reminders.js";
+import { remindersIn, dueReminders } from "./reminders.js";
 import { openHistory } from "./historyview.js";
 
 const $ = (id) => document.getElementById(id);
@@ -2426,15 +2426,20 @@ async function insertTranscript(path, at, md, what) {
 // pushes each one, when it's due, to every device that turned reminders on.
 // Only a changed list is sent.
 let remindersOff = false; // the Worker hasn't been given its keys yet
-async function uploadReminders() {
-	if (remindersOff || !navigator.onLine) return;
+// Every open task's reminder from six hours ago on, soonest first.
+function upcomingReminders() {
 	const now = Date.now(), list = [];
 	for (const n of notes.values()) {
 		if (!n || n.deleted || n.binary || !/\.md$/i.test(n.path) || /(^|\/)_templates\//i.test(n.path)) continue;
 		const text = n.path === editor.path ? editor.view.state.doc.toString() : n.text;
 		for (const r of remindersIn(n.path, text || "")) if (r.at > now - 6 * 3600000) list.push(r);
 	}
-	list.sort((a, b) => a.at - b.at);
+	return list.sort((a, b) => a.at - b.at);
+}
+
+async function uploadReminders() {
+	if (remindersOff || onDropbox || !navigator.onLine) return;
+	const list = upcomingReminders();
 	const body = JSON.stringify(list.slice(0, 1000));
 	if (body === readRaw("wr1t3rRemindersSent")) return;
 	try {
@@ -2456,7 +2461,10 @@ async function remindersHere() {
 		return false;
 	}
 }
-const markReminders = async () => markSeg("remSeg", await remindersHere());
+// Whether this device gets pushed reminders; when it doesn't, they show while
+// wr1t3r is open instead (checkAlerts).
+let pushHere = false;
+const markReminders = async () => { pushHere = await remindersHere(); markSeg("remSeg", pushHere); };
 
 async function turnOnReminders() {
 	if (!("serviceWorker" in navigator) || !window.PushManager || !window.Notification) {
@@ -4718,13 +4726,14 @@ async function addEvent(e) {
 	}
 }
 
-// Reminders from Google Calendar, while wr1t3r is open. Google's own app
-// still handles them when it isn't.
+// Calendar alerts while wr1t3r is open (Google's own app handles them when it
+// isn't), and task reminders on a device that doesn't get them pushed.
 function checkAlerts() {
 	const events = cal ? visibleEvents() : null;
 	const now = Date.now();
 	const since = Number(readRaw(ALERTED_KEY)) || now;
 	storeRaw(ALERTED_KEY, now);
+	if (!pushHere && featureOn("reminders")) for (const r of dueReminders(upcomingReminders(), since, now)) alertUser("Reminder", r.title);
 	if (!events) return;
 	for (const due of agenda.dueAlerts(events, since, now)) alertUser(due.event.title, agenda.alertText(due));
 }
@@ -4773,8 +4782,14 @@ function setupAgenda() {
 	setInterval(() => document.visibilityState === "visible" && loadAgenda(), 10 * 60000);
 	setInterval(renderAgenda, 60000); // "past" styling and the next-event label
 	renderAgenda();
-	checkAlerts();
+	// Knowing first whether push covers this device, so nothing alerts twice.
+	markReminders().finally(checkAlerts);
 	loadAgenda();
+	// No Worker, no push: reminders come while wr1t3r is open.
+	if (onDropbox) {
+		$("remSeg").hidden = true;
+		$("remHint").textContent = "Tasks with a ⏰ time notify you while wr1t3r is open, in any tab.";
+	}
 }
 
 // ---- start -------------------------------------------------------------------------

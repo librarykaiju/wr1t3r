@@ -49,3 +49,12 @@ test("setting and clearing a reminder", () => {
 	assert.equal(apply("- [ ] Call (@2026-10-03 14:00)", setReminderChanges("- [ ] Call (@2026-10-03 14:00)", 0, null)), "- [ ] Call");
 	assert.deepEqual(setReminderChanges("plain line", 0, "2026-10-03 14:00"), []);
 });
+
+test("due reminders: only those that came due since the last check, and not stale ones", async () => {
+	const { dueReminders } = await import("../src/reminders.js");
+	const at = (m) => ({ at: m * 60000, title: "t" + m });
+	const list = [at(10), at(20), at(30), at(40)];
+	assert.deepEqual(dueReminders(list, 15 * 60000, 31 * 60000).map((r) => r.title), ["t20", "t30"]);
+	assert.deepEqual(dueReminders(list, 0, 50 * 60000).map((r) => r.title), ["t40"], "older than 15 minutes is skipped");
+	assert.deepEqual(dueReminders(list, 30 * 60000, 30.3 * 60000), []);
+});

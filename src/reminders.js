@@ -29,6 +29,12 @@ export function taskTitle(body) {
 		.trim();
 }
 
+// The reminders that came due in (since, now], skipping any older than 15
+// minutes (the page was closed then), for alerts while wr1t3r is open.
+export function dueReminders(list, since, now) {
+	return list.filter((r) => r.at > since && r.at <= now && now - r.at < 15 * 60000).sort((a, b) => a.at - b.at);
+}
+
 // A short stable id, so the Worker knows a reminder it has already sent.
 function hash(s) {
 	let h = 2166136261;
