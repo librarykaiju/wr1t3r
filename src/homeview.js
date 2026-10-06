@@ -4,6 +4,7 @@
 // Section headers break the grid into labeled groups; they drag and have a
 // menu too.
 
+import { isBoardPath } from "./paths.js";
 import { pinKind, pinPath, pinTitle, pinColor, pinCover, isSection, tileOrdinals } from "./home.js";
 
 const ICONS = {
@@ -91,7 +92,7 @@ export function drawHome(grid, host) {
 		}
 		const k = pinKind(pin.link);
 		const path = k.kind === "note" ? pinPath(pin, paths, homeFile) : null;
-		const kind = k.kind === "note" && /\.base$/i.test(path || k.target) ? "base" : k.kind;
+		const kind = k.kind === "note" && isBoardPath(path || k.target) ? "base" : k.kind;
 		const tile = document.createElement("button");
 		tile.type = "button";
 		tile.className = "tile";

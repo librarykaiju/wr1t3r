@@ -49,7 +49,7 @@ export function plan(local, remote) {
 // "Folder/Note.md" -> "Folder/Note (conflict 2026-09-26).md", numbered if taken.
 export function conflictPath(path, taken, date = new Date()) {
 	const day = date.toISOString().slice(0, 10);
-	const m = path.match(/^(.*?)(\.md|\.base)$/i);
+	const m = path.match(/^(.*?)(\.md|\.board|\.base)$/i);
 	const stem = m ? m[1] : path;
 	const ext = m ? m[2] : "";
 	for (let n = 1; ; n++) {

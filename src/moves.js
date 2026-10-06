@@ -4,6 +4,7 @@
 // to it from other notes are rewritten the way a rename rewrites them.
 
 import { renameEdits, applyChanges } from "./vaultlinks.js";
+import { isBoardPath } from "./paths.js";
 
 const baseName = (p) => p.slice(p.lastIndexOf("/") + 1);
 const parentOf = (p) => {
@@ -25,8 +26,8 @@ export function movePlan(paths, item, folder, newName = null) {
 		const pairs = paths.filter((p) => p.startsWith(item)).map((p) => ({ from: p, to: dest + p.slice(item.length) }));
 		return { pairs, error: clash(paths, pairs) };
 	}
-	const ext = /\.base$/i.test(item) ? ".base" : ".md";
-	const to = folder + (newName != null ? (/\.(md|base)$/i.test(newName.trim()) ? newName.trim() : newName.trim() + ext) : baseName(item));
+	const ext = isBoardPath(item) ? item.slice(item.lastIndexOf(".")) : ".md";
+	const to = folder + (newName != null ? (/\.(md|board|base)$/i.test(newName.trim()) ? newName.trim() : newName.trim() + ext) : baseName(item));
 	if (to === item) return { pairs: [], error: null };
 	const pairs = [{ from: item, to }];
 	return { pairs, error: clash(paths, pairs) };
