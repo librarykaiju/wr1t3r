@@ -1,0 +1,187 @@
+// Page view: the note drawn on pages, as a word processor's print layout
+// does. The page is the size Page setup gives (src/pagelayout.js), its margins
+// padding around the text, and where a page fills up a gap is drawn: the rest
+// of that page with its number, the desk, and the next page's top margin. A
+// paragraph that runs off a page continues on the next, split at a line as it
+// wraps; a <div class="pagebreak"></div> line (Insert > Page break) starts a
+// new page. Lines far off screen are placed by estimate until they're drawn.
+// Nothing is added to the note.
+
+import { StateField, StateEffect } from "@codemirror/state";
+import { EditorView, ViewPlugin, Decoration, WidgetType, BlockType } from "@codemirror/view";
+import { pagePixels, paginate } from "./pagelayout.js";
+
+export const PAGE_BREAK_LINE = /^\s*<div class="pagebreak"><\/div>\s*$/;
+const GAP = 28; // the desk between pages, px
+
+const setPage = StateEffect.define(); // { on, setup }
+const setBreaks = StateEffect.define(); // [{ pos, inline, height, page, row?, end? }]
+
+const pageField = StateField.define({
+	create: () => ({ on: false, setup: null }),
+	update(v, tr) { for (const e of tr.effects) if (e.is(setPage)) v = e.value; return v; },
+	provide: (f) => EditorView.editorAttributes.from(f, (v) => {
+		if (!v.on) return {};
+		const p = pagePixels(v.setup);
+		return { class: "page-view", style: `--page-w: ${p.w}px; --page-m: ${p.margin}px; --page-gap: ${GAP}px;` };
+	}),
+});
+
+class Gap extends WidgetType {
+	constructor(height, page, inline, bottom, margin) { super(); Object.assign(this, { height, page, inline, bottom, margin }); }
+	eq(o) { return o.height === this.height && o.page === this.page && o.inline === this.inline && o.bottom === this.bottom; }
+	toDOM() {
+		const el = document.createElement(this.inline ? "span" : "div");
+		el.className = "page-gap" + (this.inline ? " inline" : "") + (this.bottom ? " last" : "");
+		el.style.height = this.height + "px";
+		el.setAttribute("aria-hidden", "true");
+		el.contentEditable = "false";
+		// The end of page n: its bottom margin, holding the page number.
+		const foot = document.createElement("span");
+		foot.className = "page-foot";
+		foot.style.height = this.margin + "px";
+		foot.textContent = String(this.page);
+		el.append(foot);
+		return el;
+	}
+	get estimatedHeight() { return this.height; }
+	ignoreEvent() { return true; }
+}
+
+const breakField = StateField.define({
+	create: () => [],
+	update(v, tr) {
+		for (const e of tr.effects) if (e.is(setBreaks)) return e.value;
+		if (tr.docChanged) return v.map((b) => ({ ...b, pos: tr.changes.mapPos(b.pos, -1) }));
+		if (tr.effects.some((e) => e.is(setPage) && !e.value.on)) return [];
+		return v;
+	},
+	provide: (f) => EditorView.decorations.from(f, (list) => {
+		if (!list.length) return Decoration.none;
+		return Decoration.set(list.map((b) => Decoration.widget({
+			widget: new Gap(b.height, b.page, b.inline, !!b.end, b.margin),
+			block: !b.inline, side: b.end ? 1 : -1,
+		}).range(b.pos)), true);
+	}),
+});
+
+export const isPageView = (view) => !!view?.state.field(pageField, false)?.on;
+export function setPageView(view, on, setup) {
+	if (view) view.dispatch({ effects: [setPage.of({ on: !!on, setup }), ...(on ? [] : [setBreaks.of([])])] });
+}
+
+// Measures the note's lines and works out the page breaks, ignoring the gaps
+// already drawn (so the answer doesn't move as they come and go).
+function measure(view) {
+	const page = view.state.field(pageField);
+	if (!page.on) return null;
+	const px = pagePixels(page.setup);
+	const contentH = px.h - 2 * px.margin;
+	const doc = view.state.doc;
+	const drawn = view.state.field(breakField);
+	const lh = view.defaultLineHeight;
+	const { from: vFrom, to: vTo } = view.viewport;
+	const contentLeft = view.contentDOM.getBoundingClientRect().left + px.margin + 2;
+	const blocks = [];
+	let last = -1;
+	for (let n = 1; n <= doc.lines; n++) {
+		const line = doc.line(n);
+		const blk = view.lineBlockAt(line.from);
+		if (blk.from === last) continue;
+		last = blk.from;
+		const mine = drawn.filter((b) => !b.end && b.pos >= blk.from && b.pos <= blk.to);
+		const lead = mine.find((b) => !b.inline && b.pos === blk.from)?.height || 0;
+		const height = blk.height - mine.reduce((s, b) => s + b.height, 0);
+		// Plain text, or text with one of our gaps in front of it.
+		const parts = Array.isArray(blk.type) ? blk.type : [blk];
+		const text = parts.filter((x) => x.type === BlockType.Text).length === 1 && parts.length === (lead ? 2 : 1);
+		let rows = 1;
+		if (text && height > lh * 1.5) {
+			const r = Math.round(height / lh);
+			if (Math.abs(height - r * lh) < 2) rows = r;
+		}
+		const inView = blk.from >= vFrom && blk.to <= vTo;
+		const split = (row) => {
+			if (!inView || rows < 2) return null;
+			const before = mine.filter((b) => b.inline && b.row != null && b.row <= row).reduce((s, b) => s + b.height, 0);
+			const y = view.documentTop + blk.top + lead + before + row * lh + lh / 2;
+			const pos = view.posAtCoords({ x: contentLeft, y }, false);
+			return pos > blk.from && pos < blk.to ? pos : null;
+		};
+		const next = blk.to + 1 <= doc.length ? blk.to + 1 : null;
+		blocks.push({ from: blk.from, height, rows, split, breakAfter: PAGE_BREAK_LINE.test(line.text), next });
+	}
+	const r = paginate(blocks, contentH);
+	const out = r.breaks.map((b, i) => ({ pos: b.pos, inline: b.inline, row: b.row, page: i + 1, margin: px.margin, height: Math.round(b.fill + 2 * px.margin + GAP) }));
+	out.push({ pos: doc.length, inline: false, end: true, page: r.pages, margin: px.margin, height: Math.round(r.lastFill + px.margin) });
+	return out;
+}
+
+const same = (a, b) => a.length === b.length && a.every((x, i) => x.pos === b[i].pos && x.height === b[i].height && x.inline === b[i].inline && x.page === b[i].page);
+
+const pager = ViewPlugin.fromClass(class {
+	constructor(view) { this.view = view; this.pending = false; this.burst = []; this.schedule(); }
+	update(u) {
+		const changed = u.docChanged || u.viewportChanged || u.geometryChanged || u.heightChanged
+			|| u.startState.field(pageField) !== u.state.field(pageField);
+		if (changed) this.schedule();
+		if (u.state.field(pageField).on) this.align();
+	}
+	// Gaps span the whole page: one inside an indented list item starts at the
+	// item's indent, so each is pulled out to the page's edges.
+	align() {
+		this.view.requestMeasure({
+			key: "page-align",
+			read: (view) => {
+				const page = view.contentDOM.getBoundingClientRect();
+				return [...view.contentDOM.querySelectorAll(".page-gap")].map((el) => {
+					const r = el.getBoundingClientRect();
+					return { el, shift: r.left - page.left, width: page.width, current: parseFloat(el.style.marginLeft) || null };
+				});
+			},
+			write: (gaps) => {
+				for (const g of gaps) {
+					const base = g.current ?? (parseFloat(getComputedStyle(g.el).marginLeft) || 0);
+					if (Math.abs(g.shift) < 0.5 && g.el.style.width === g.width + "px") continue;
+					g.el.style.marginLeft = base - g.shift + "px";
+					g.el.style.width = g.width + "px";
+				}
+			},
+		});
+	}
+	schedule() {
+		if (this.pending || !this.view.state.field(pageField).on) return;
+		this.pending = true;
+		this.view.requestMeasure({
+			read: (view) => measure(view),
+			write: (list, view) => {
+				this.pending = false;
+				if (!list || same(list, view.state.field(breakField))) return;
+				// Guard against layouts that never settle: at most 8 redraws a second.
+				const now = Date.now();
+				this.burst = this.burst.filter((t) => now - t < 1000);
+				if (this.burst.length >= 8) { setTimeout(() => this.schedule(), 1000); return; }
+				this.burst.push(now);
+				queueMicrotask(() => view.dispatch({ effects: setBreaks.of(list) }));
+			},
+		});
+	}
+});
+
+// A page break line shows as a labeled rule while the cursor is off it.
+class BreakRule extends WidgetType {
+	eq() { return true; }
+	toDOM() { const d = document.createElement("div"); d.className = "md-pagebreak"; d.textContent = "Page break"; return d; }
+}
+const breakRule = Decoration.replace({ widget: new BreakRule(), block: true });
+const breakLines = EditorView.decorations.compute(["doc", "selection"], (state) => {
+	const out = [];
+	const head = state.selection.main.head;
+	for (let n = 1; n <= state.doc.lines; n++) {
+		const l = state.doc.line(n);
+		if (l.text.includes("pagebreak") && PAGE_BREAK_LINE.test(l.text) && !(head >= l.from && head <= l.to)) out.push(breakRule.range(l.from, l.to));
+	}
+	return Decoration.set(out);
+});
+
+export const pageView = [pageField, breakField, pager, breakLines];

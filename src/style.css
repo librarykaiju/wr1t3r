@@ -308,6 +308,40 @@ body:has(.settings-win:not([hidden])) #notices #status { display: none; }
 #toolbar .tb-highlight { background: var(--hl); color: var(--fg); height: 22px; margin: 0 2px; }
 #toolbar .tb-sep { flex: none; width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
 main:not(.has-note) #toolbar, main.has-folder #toolbar, #app.no-toolbar #toolbar { display: none; }
+/* Page layout off (the setting): no page button on the toolbar. */
+#app.no-pages #toolbar .tb-page-layout { display: none; }
+.page-setup { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.page-setup select { flex: 1 1 140px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: 14px var(--sans); }
+/* Page view (src/pageview.js): the note on pages of the Page setup size, on
+   a desk. The text sits inside the margins; a gap ends one page (with its
+   number in the bottom margin) and starts the next. */
+:is(#editor, #refView) .page-view .cm-scroller { background: color-mix(in srgb, var(--fg) 9%, var(--bg)); }
+:is(#editor, #refView) .page-view .cm-content {
+	box-sizing: border-box; width: min(var(--page-w), calc(100% - 24px)); max-width: none; margin: 24px auto;
+	padding: var(--page-m) var(--page-m) 0; background: var(--card); box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
+}
+.page-view .page-gap { display: block; position: relative; margin-left: calc(-1 * var(--page-m)); width: calc(100% + 2 * var(--page-m)); text-indent: 0; background: linear-gradient(var(--card), var(--card)) top / 100% calc(100% - var(--page-gap) - var(--page-m)) no-repeat, linear-gradient(var(--card), var(--card)) bottom / 100% var(--page-m) no-repeat, color-mix(in srgb, var(--fg) 9%, var(--bg)); user-select: none; }
+.page-view .page-gap.last { background: var(--card); }
+.page-view .page-gap .page-foot { position: absolute; left: 0; right: 0; bottom: calc(var(--page-gap) + var(--page-m)); display: flex; align-items: center; justify-content: center; color: var(--muted); font: 12px var(--sans); }
+.page-view .page-gap.last .page-foot { bottom: 0; }
+/* Track changes (src/trackview.js): insertions green and underlined,
+   deletions red and struck, comments a bubble. "Show as final" hides it all. */
+:is(#editor, #refView) .tc-ins { color: color-mix(in srgb, #1a7f37 70%, var(--fg)); text-decoration: underline; text-decoration-color: #1a7f37; text-underline-offset: 2px; background: color-mix(in srgb, #1a7f37 8%, transparent); }
+:is(#editor, #refView) .tc-del { color: color-mix(in srgb, #cf222e 75%, var(--fg)); text-decoration: line-through; text-decoration-color: #cf222e; background: color-mix(in srgb, #cf222e 7%, transparent); }
+:is(#editor, #refView) .tc-mark { background: color-mix(in srgb, var(--hl) 70%, transparent); }
+:is(#editor, #refView) .tc-comment { color: var(--muted); font: italic 0.9em var(--sans); background: var(--panel); border-radius: 4px; padding: 0 3px; }
+:is(#editor, #refView) .tc-comment-icon { cursor: help; font-size: 0.85em; margin: 0 1px; }
+.tc-final .tc-del, .tc-final .tc-comment-icon { display: none; }
+.tc-final .tc-ins, .tc-final .tc-mark { color: inherit; text-decoration: none; background: none; }
+#toolbar .tb-review[aria-pressed="true"] { color: #1a7f37; background: color-mix(in srgb, #1a7f37 14%, var(--bg)); }
+/* Font and text size sit on the toolbar; Settings shows them only where the
+   toolbar doesn't (phones, or with the toolbar turned off). */
+#toolbar .tb-font { flex: none; height: 26px; max-width: 132px; padding: 0 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: 13px var(--sans); }
+#toolbar .tb-size { flex: none; display: inline-flex; align-items: center; margin-left: 4px; }
+#toolbar .tb-size button { min-width: 22px; font-size: 16px; }
+#toolbar .tb-size-val { min-width: 22px; text-align: center; color: var(--fg); font: 13px var(--sans); font-variant-numeric: tabular-nums; }
+#toolbar .tb-inline-code svg, #toolbar .tb-insert svg { stroke-width: 2; }
+@media (min-width: 700px) and (pointer: fine), (min-width: 1024px) { #app:not(.no-toolbar) .set-type { display: none; } }
 @media (max-width: 699px), (pointer: coarse) and (max-width: 1023px) { #toolbar { display: none; } }
 /* The reference pane: another note, read-only, beside the one being edited (wide screens). */
 #ref { flex: 0 0 42%; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--bg); }

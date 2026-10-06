@@ -171,14 +171,14 @@
 							<button type="button" data-theme="light">Light</button>
 							<button type="button" data-theme="dark">Dark</button>
 						</div>
-						<h2>Text size</h2>
-						<div class="seg">
+						<h2 class="set-type">Text size</h2>
+						<div class="seg set-type">
 							<button id="smaller" type="button" aria-label="Smaller text">A&minus;</button>
 							<span id="sizeVal" class="val">19</span>
 							<button id="larger" type="button" aria-label="Larger text">A+</button>
 						</div>
-						<h2>Font</h2>
-						<select id="fontPick" aria-label="Font">
+						<h2 class="set-type">Font</h2>
+						<select id="fontPick" class="set-type" aria-label="Font">
 							<option value="serif">Serif</option>
 							<option value="sans">Sans</option>
 							<option value="mono">Mono</option>
@@ -219,6 +219,16 @@
 						<div class="seg" data-setting="toolbar" title="Buttons for bold, lists, links, pictures and printing above the note">
 							<button type="button" data-on="true">On</button>
 							<button type="button" data-on="false">Off</button>
+						</div>
+						<h2>Page layout</h2>
+						<div class="seg" id="pageSeg" title="Shows notes on pages, with margins, page breaks and page numbers, as a word processor's print layout does">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<div class="page-setup" title="The page the page layout, printing and PDF and Word exports use">
+							<select id="pageSize" aria-label="Paper size"></select>
+							<select id="pageOrient" aria-label="Orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
+							<select id="pageMargin" aria-label="Margins"></select>
 						</div>
 						<h2>Daily word goal</h2>
 						<div><input id="setDayGoal" type="number" min="0" step="50" inputmode="numeric" placeholder="None" aria-label="Words to write each day"></div>

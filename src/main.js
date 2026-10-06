@@ -66,6 +66,10 @@ import { lookUp } from "./lookup.js";
 import { setupGrammar, setGrammar, checkNote, grammarOn, grammarAtCursor } from "./grammar.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
 import { setDoneDates, sortChecklists } from "./tasks.js";
+import { menu as dropMenu } from "./basesui.js";
+import { SIZES, MARGINS, readSetup, setPageSetup } from "./pagelayout.js";
+import { setPageView, isPageView } from "./pageview.js";
+import { setTracking, isTracking, setFinalView, isFinalView, acceptChange, rejectChange, resolveEvery, gotoChange, addComment, countChanges } from "./trackview.js";
 import { setPictureHost } from "./paste.js";
 import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
 import { setupToolbar } from "./toolbar.js";
@@ -320,7 +324,7 @@ function onNote(path, note) {
 	if (!note || note.deleted) {
 		toast(`${name(path)} was deleted elsewhere.`);
 		closeTab(path);
-	} else if (!note.dirty) { editor.replace(note); refreshCount(true); sortPending = path; }
+	} else if (!note.dirty) { editor.replace(note); refreshCount(true); sortPending = path; applyTracking(); }
 }
 
 // Checklists sort (done tasks to the bottom, src/tasks.js) when a note opens
@@ -1648,7 +1652,110 @@ function openNote(path, { replace = false, tab = true } = {}) {
 	renderFolderNav();
 	refreshCount(true);
 	renderHome();
+	applyTracking();
+	applyPageView();
 	if (has) sortOnOpen(path);
+}
+
+// ---- page layout -----------------------------------------------------------
+// Page view and Page setup (src/pageview.js, src/pagelayout.js), per device.
+// Printing and exports use the same page.
+let pageSetupNow = readSetup(readJSON("wr1t3rPage", null));
+setPageSetup(pageSetupNow);
+const pageViewOn = () => readRaw("wr1t3rPageView") === "on";
+// Page layout is a setting (Settings > Writing, off to start): off, notes
+// show as usual and the toolbar has no page button; Page setup still sets
+// the page printing and exports use.
+function applyPageView() {
+	const view = editor?.view, on = pageViewOn();
+	if (view && (isPageView(view) !== on || on)) setPageView(view, on, pageSetupNow);
+	$("app").classList.toggle("no-pages", !on);
+	toolbarUi?.refreshPage(on);
+	if ($("pageSeg")) {
+		markSeg("pageSeg", on);
+		$("pageSize").value = pageSetupNow.size;
+		$("pageOrient").value = pageSetupNow.orient;
+		$("pageMargin").value = pageSetupNow.margin;
+	}
+}
+function togglePageView(on = !pageViewOn()) {
+	storeRaw("wr1t3rPageView", on ? "on" : null);
+	applyPageView();
+	toast(on ? "Page layout on: notes show on pages. Paper and margins are in the toolbar's page menu and Settings > Writing." : "Page layout off.", 3000);
+}
+function changePageSetup(patch) {
+	pageSetupNow = readSetup({ ...pageSetupNow, ...patch });
+	writeJSON("wr1t3rPage", pageSetupNow);
+	setPageSetup(pageSetupNow);
+	applyPageView();
+}
+function setupPageSettings() {
+	for (const [k, v] of Object.entries(SIZES)) $("pageSize").append(new Option(v.label, k));
+	for (const [k, v] of Object.entries(MARGINS)) $("pageMargin").append(new Option("Margins: " + v.label, k));
+	$("pageSeg").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (b) togglePageView(b.dataset.on === "true");
+	});
+	$("pageSize").addEventListener("change", (e) => changePageSetup({ size: e.target.value }));
+	$("pageOrient").addEventListener("change", (e) => changePageSetup({ orient: e.target.value }));
+	$("pageMargin").addEventListener("change", (e) => changePageSetup({ margin: e.target.value }));
+	applyPageView();
+}
+// The toolbar's Page layout menu.
+function pageMenu(view, btn) {
+	const r = btn.getBoundingClientRect();
+	const tick = (on) => (on ? "✓ " : "\u2003");
+	dropMenu([
+		[tick(pageViewOn()) + "Page layout", () => togglePageView()],
+		null,
+		...Object.entries(SIZES).map(([k, v]) => [tick(pageSetupNow.size === k) + v.label, () => changePageSetup({ size: k })]),
+		null,
+		[tick(pageSetupNow.orient === "portrait") + "Portrait", () => changePageSetup({ orient: "portrait" })],
+		[tick(pageSetupNow.orient === "landscape") + "Landscape", () => changePageSetup({ orient: "landscape" })],
+		null,
+		...Object.entries(MARGINS).map(([k, v]) => [tick(pageSetupNow.margin === k) + "Margins: " + v.label, () => changePageSetup({ margin: k })]),
+	], r.left, r.bottom + 4);
+}
+
+// ---- track changes ---------------------------------------------------------
+// Which notes are tracking their changes (src/trackview.js), per device.
+const TRACK_KEY = "wr1t3r-tracking";
+let trackedNotes = new Set(readJSON(TRACK_KEY, []));
+function applyTracking() {
+	const on = !!editor?.path && trackedNotes.has(editor.path);
+	if (editor?.view && isTracking(editor.view) !== on) setTracking(editor.view, on);
+	toolbarUi?.refreshReview(on);
+}
+function toggleTracking(on = !trackedNotes.has(editor.path)) {
+	if (!editor.path) return;
+	on ? trackedNotes.add(editor.path) : trackedNotes.delete(editor.path);
+	writeJSON(TRACK_KEY, [...trackedNotes]);
+	applyTracking();
+	toast(on ? "Tracking changes: new text is underlined, deleted text struck through." : "Stopped tracking changes. The changes already marked stay until you accept or reject them.", 3500);
+}
+function reviewAll(accept) {
+	const view = activeView();
+	const n = resolveEvery(view, accept);
+	toast(n ? `${accept ? "Accepted" : "Rejected"} ${n} change${n === 1 ? "" : "s"}.` : "No changes to review.", 2500);
+}
+// The toolbar's Review menu.
+function reviewMenu(view, btn) {
+	const r = btn.getBoundingClientRect();
+	const n = countChanges(view);
+	dropMenu([
+		[(isTracking(view) ? "✓ " : "\u2003") + "Track changes", () => toggleTracking()],
+		[(isFinalView(view) ? "✓ " : "\u2003") + "Show as final (hide changes)", () => setFinalView(view, !isFinalView(view))],
+		null,
+		["Next change", () => gotoChange(view, 1) || toast("No changes in this note.")],
+		["Previous change", () => gotoChange(view, -1) || toast("No changes in this note.")],
+		["Accept change at cursor", () => acceptChange(view) || toast("Put the cursor in a change first.")],
+		["Reject change at cursor", () => rejectChange(view) || toast("Put the cursor in a change first.")],
+		null,
+		["New comment", () => addComment(view)],
+		null,
+		[`Accept all changes${n ? ` (${n})` : ""}`, () => reviewAll(true)],
+		[`Reject all changes${n ? ` (${n})` : ""}`, () => reviewAll(false), "danger"],
+	], r.left, r.bottom + 4);
 }
 
 // ---- a folder as a manuscript: corkboard, outliner, scrivenings -----------------
@@ -2386,6 +2493,12 @@ function allCommands() {
 		["Toggle left sidebar", () => showLeft(leftShut()), "notes list panel collapse hide show"],
 		["Toggle right sidebar", () => showRight(rightShut()), "calendar agenda contents panel collapse hide show"],
 		["Toggle focus mode", () => toggleFocus(), "distraction free typewriter zen dim writing mode"],
+		["Toggle page layout", () => togglePageView(), "page view print layout pages paper margins word processor"],
+		["Track changes", () => toggleTracking(), "track changes revisions review suggest edits criticmarkup", true],
+		["Accept all changes", () => reviewAll(true), "track changes review revisions", true],
+		["Reject all changes", () => reviewAll(false), "track changes review revisions", true],
+		["Next change", () => gotoChange(activeView(), 1), "track changes review", true],
+		["New comment", () => addComment(activeView()), "track changes review comment note annotation", true],
 		["Look up word", () => lookUpWord(activeView()), "dictionary define definition thesaurus synonym meaning", true],
 		["Toggle Live Preview", toggleLivePreview, "markdown symbols hide"],
 		["Toggle readable line length", toggleLineLength, "width wide full center column"],
@@ -3199,10 +3312,14 @@ const FONTS = {
 	humanist: 'Optima, Candara, "Avenir Next", "Noto Sans", sans-serif',
 	typewriter: '"Courier Prime", "American Typewriter", "Courier New", Courier, monospace',
 };
+const FONT_NAMES = { serif: "Serif", sans: "Sans", mono: "Mono", georgia: "Georgia", palatino: "Palatino", garamond: "Garamond", humanist: "Humanist sans", typewriter: "Typewriter" };
+let fontName = "serif", toolbarUi = null;
 function applyFont(name) {
 	const key = FONTS[name] ? name : "serif";
+	fontName = key;
 	document.documentElement.style.setProperty("--editor-font", FONTS[key]);
 	$("fontPick").value = key;
+	toolbarUi?.refreshType();
 	editor?.view.requestMeasure();
 }
 
@@ -3210,8 +3327,13 @@ function applySize(px) {
 	fontSize = clamp(px, 14, 30);
 	document.documentElement.style.setProperty("--editor-size", fontSize + "px");
 	$("sizeVal").textContent = fontSize;
+	toolbarUi?.refreshType();
 	editor?.view.requestMeasure();
 }
+
+// The font and size, from the toolbar or Settings, kept per device.
+function setFont(name) { applyFont(name); storeRaw("wr1t3rFont", fontName === "serif" ? null : fontName); }
+function setSize(px) { applySize(px); storeRaw("wr1t3rFontSize", fontSize); }
 
 // Live Preview hides markdown symbols off the cursor line (off unless chosen).
 function applyMode(mode) {
@@ -3482,9 +3604,9 @@ function setupSettings() {
 	$("homeAdd").addEventListener("click", (e) => { e.stopPropagation(); addTile(); });
 	$("homeEdit").addEventListener("click", editHomeNote);
 	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
-	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
-	$("fontPick").addEventListener("change", (e) => { applyFont(e.target.value); storeRaw("wr1t3rFont", e.target.value === "serif" ? null : e.target.value); });
-	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });
+	$("smaller").addEventListener("click", () => setSize(fontSize - 1));
+	$("fontPick").addEventListener("change", (e) => setFont(e.target.value));
+	$("larger").addEventListener("click", () => setSize(fontSize + 1));
 	document.addEventListener("click", (e) => {
 		// A menu item removes itself before this runs; menus and the palette
 		// opened from Aa > Home keep the panel open.
@@ -3760,6 +3882,8 @@ function toggleTimer() {
 	else {
 		if (timer.phase === "work" && timer.left === pomo.minutes(lengths, "work")) written = 0;
 		timer = pomo.start(timer, Date.now());
+		// Starting a focus block goes into focus mode; Esc leaves it and the timer keeps going.
+		if (timer.phase === "work" && editor?.path && !$("app").classList.contains("focus-mode")) toggleFocus(true);
 	}
 	saveTimer();
 	runTicker();
@@ -4655,7 +4779,14 @@ async function start() {
 	setupColumns();
 	refreshKeyboardBar = setupKeyboardBar($("app"), activeView);
 	setupGrammar((text) => api.grammar(text), grammarTrouble);
-	setupToolbar($("toolbar"), activeView, { print: () => exportNote(editor.path), lookUp: (view) => lookUpWord(view) });
+	toolbarUi = setupToolbar($("toolbar"), activeView, {
+		print: () => exportNote(editor.path), lookUp: (view) => lookUpWord(view),
+		type: { fonts: Object.keys(FONTS).map((k) => [k, FONT_NAMES[k], FONTS[k]]), font: () => fontName, setFont, size: () => fontSize, setSize },
+		review: reviewMenu,
+		page: pageMenu,
+	});
+	applyTracking();
+	setupPageSettings();
 	if (readRaw("wr1t3rFocus") === "on") toggleFocus(true);
 	$("focusExit").addEventListener("click", () => toggleFocus(false));
 	document.addEventListener("keydown", (e) => {
