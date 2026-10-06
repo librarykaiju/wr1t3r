@@ -26,6 +26,7 @@ import { local, meta, persist } from "./store.js";
 import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.js";
 import { api, token, setToken, AuthError } from "./api.js";
 import { openStorage, registerStorage, storageKind, setStorageKind } from "./storage.js";
+import { notebookCalendar, CALENDAR_FOLDER } from "./notecal.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { sync, conflictPath } from "./sync.js";
@@ -147,6 +148,7 @@ async function runSync() {
 		refreshAttachments();
 		lastSynced = new Date();
 		applyFeatures();
+		if (r.downloaded || r.deleted) refreshNotebookCalendar();
 		uploadReminders();
 		lastError = null;
 		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
@@ -3160,7 +3162,7 @@ async function timelineEvents(date) {
 	if (!id) return null;
 	const from = agenda.startOfDay(date);
 	try {
-		return eventsOn((await api.events(from, agenda.addDays(from, 1), [id])).events, from);
+		return eventsOn((await calendarDo((c) => c.events(from, agenda.addDays(from, 1), [id]))).events, from);
 	} catch (e) {
 		if (e instanceof AuthError) signOut(SIGNED_OUT);
 		else toast("Couldn't load calendar events" + (e instanceof TypeError ? " while offline." : ": " + e.message));
@@ -4194,7 +4196,36 @@ function setupFocusTools() {
 	runTicker();
 }
 
-// ---- agenda (Google Calendar) ------------------------------------------------------------
+// ---- agenda (Google Calendar, or the notebook's own) ------------------------------------
+
+// Google Calendar goes through the Worker. With no Worker (Dropbox), or a
+// Worker without Google set up, events are notes in _wr1t3r/Calendar/
+// (src/notecal.js), which answer the same calls.
+let calNotebook = onDropbox;
+const noteCal = notebookCalendar({
+	folder: () => { const h = homeFile(); return h.slice(0, h.lastIndexOf("/") + 1) + CALENDAR_FOLDER; },
+	notes: () => visible().filter((n) => !n.binary),
+	create: (folder, noteName, text) => dataviewVault.create(folder, noteName, () => text, { open: false }),
+	write: (path, fn) => dataviewVault.write(path, fn),
+	async remove(path) {
+		await change(path, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
+		renderStatus();
+		renderTree();
+		scheduleSync();
+	},
+});
+async function calendarDo(fn) {
+	if (!calNotebook) {
+		try { return await fn(api); } catch (e) { if (!e.body?.setup) throw e; calNotebook = true; }
+	}
+	return fn(noteCal);
+}
+// After a sync brings in event notes from another device.
+function refreshNotebookCalendar() {
+	if (!calNotebook || !featureOn("calendar")) return;
+	monthData = null; pickData = null;
+	loadAgenda(true);
+}
 
 const AGENDA_KEY = "wr1t3rAgenda", ALERTED_KEY = "wr1t3rAlertedAt", FILTER_KEY = "wr1t3rCalShow";
 let cal = readJSON(AGENDA_KEY, null); // {at, events} -- the last agenda, for offline
@@ -4237,12 +4268,12 @@ const idsKey = () => [...shownIds()].sort().join(",");
 
 async function rangeEvents(from, days) {
 	const picked = readJSON(FILTER_KEY, null);
-	const r = await api.events(from, agenda.addDays(from, days), Array.isArray(picked) ? picked : null);
+	const r = await calendarDo((c) => c.events(from, agenda.addDays(from, days), Array.isArray(picked) ? picked : null));
 	return r.events;
 }
 
 async function loadMonth() {
-	if (!desk.matches || $("agenda").hidden || calState === "setup" || !navigator.onLine) return;
+	if (!desk.matches || $("agenda").hidden || calState === "setup" || (!navigator.onLine && !calNotebook)) return;
 	const key = agenda.dayKey(monthShown) + "|" + idsKey();
 	if (monthData?.key === key && Date.now() - monthData.at < 5 * 60000) return;
 	try {
@@ -4330,12 +4361,12 @@ function showMonth(n) {
 
 async function loadAgenda(force = false) {
 	if ((calLoading && !force) || !featureOn("calendar")) return;
-	if (!navigator.onLine) { calState = "offline"; renderAgenda(); return; }
+	if (!navigator.onLine && !calNotebook) { calState = "offline"; renderAgenda(); return; }
 	calLoading = true;
 	const from = agenda.startOfDay(new Date());
 	try {
 		const picked = readJSON(FILTER_KEY, null);
-		const r = await api.events(from, agenda.addDays(from, agenda.DAYS), Array.isArray(picked) ? picked : null);
+		const r = await calendarDo((c) => c.events(from, agenda.addDays(from, agenda.DAYS), Array.isArray(picked) ? picked : null));
 		const fetched = Array.isArray(picked) ? picked : r.calendars.filter((c) => c.shown).map((c) => c.id);
 		cal = { at: Date.now(), events: r.events, calendars: r.calendars, fetched };
 		writeJSON(AGENDA_KEY, cal);
@@ -4482,12 +4513,12 @@ function eventRow(e, now) {
 // Deletes an event from Google Calendar (one occurrence of a repeating one),
 // and its line from that day's planner Timeline when it was brought in there.
 async function deleteEvent(e, button) {
-	if (!navigator.onLine) return toast("Deleting an event needs a connection.");
+	if (!navigator.onLine && !calNotebook) return toast("Deleting an event needs a connection.");
 	const when = agenda.timeLabel(e);
-	if (!confirm(`Delete “${e.title}” (${when}) from Google Calendar?` + (/_\d{8}(T\d{6}Z)?$/.test(e.id) ? "\n\nIt repeats: only this occurrence is deleted." : ""))) return;
+	if (!confirm(`Delete “${e.title}” (${when})${calNotebook ? "" : " from Google Calendar"}?` + (e.repeats || /_\d{8}(T\d{6}Z)?$/.test(e.id) ? "\n\nIt repeats: only this occurrence is deleted." : ""))) return;
 	button.disabled = true;
 	try {
-		await api.deleteEvent(e.calendar, e.id);
+		await calendarDo((c) => c.deleteEvent(e.calendar, e.id));
 	} catch (err) {
 		button.disabled = false;
 		if (err instanceof AuthError) return signOut(SIGNED_OUT);
@@ -4605,6 +4636,8 @@ function showAddEvent(on, day = null) {
 	$("evEnd").value = hm(new Date(start.getTime() + 3600000));
 	evPrevStart = $("evStart").value;
 	allDayFields();
+	$("evRepeatRow").hidden = !calNotebook;
+	$("addEvent").querySelector("[type=submit]").textContent = calNotebook ? "Add event" : "Add to Google Calendar";
 	$("evTitle").focus();
 }
 
@@ -4656,7 +4689,7 @@ function allDayFields() {
 
 async function addEvent(e) {
 	e.preventDefault();
-	if (!navigator.onLine) { $("evError").textContent = "Adding events needs a connection."; return; }
+	if (!navigator.onLine && !calNotebook) { $("evError").textContent = "Adding events needs a connection."; return; }
 	const all = $("evAllDay").checked;
 	if (all && $("evEndDate").value && $("evEndDate").value < $("evDate").value) { $("evError").textContent = "The last day is before the first."; return; }
 	const submit = $("addEvent").querySelector("[type=submit]");
@@ -4669,10 +4702,11 @@ async function addEvent(e) {
 		}, Intl.DateTimeFormat().resolvedOptions().timeZone);
 		const calendarId = $("evCalendar").value;
 		if (calendarId) { body.calendarId = calendarId; storeRaw("wr1t3rEventCal", calendarId); }
-		await api.addEvent(body);
+		if (calNotebook && $("evRepeat").value) body.repeat = $("evRepeat").value;
+		await calendarDo((c) => c.addEvent(body));
 		showAddEvent(false);
 		const where = cal?.calendars?.find((c) => c.id === calendarId);
-		toast(`Added “${body.title}” to ${where && !where.primary ? agenda.calendarLabel(where) : "Google Calendar"}.`);
+		toast(calNotebook ? `Added “${body.title}”.` : `Added “${body.title}” to ${where && !where.primary ? agenda.calendarLabel(where) : "Google Calendar"}.`);
 		cal = cal && { ...cal, at: 0 };
 		monthData = null; pickData = null;
 		await loadAgenda();
