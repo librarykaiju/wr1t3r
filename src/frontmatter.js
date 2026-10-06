@@ -12,6 +12,7 @@ import { snippet } from "@codemirror/autocomplete";
 import { linkOpener } from "./links.js";
 import { notePath, vaultHost, vaultChanged } from "./vault.js";
 import { SITE_KEYS } from "./sitekeys.js";
+import { healthDayOf } from "./planner.js";
 import { TYPES, TYPE_LABELS, DATE_KEY, isTagsKey, readRows, itemsOf, setEdit, convertEdit, removeEdit, renameEdit, addEdit, keyProblem, suggest } from "./properties.js";
 
 const FENCE = /^---[ \t]*$/;
@@ -268,17 +269,19 @@ const imagesShown = StateField.define({
 // The properties box starts hidden, shown as a small "Properties" button at
 // the top of the note, except in logs/, sketchbooks/ and catalog/, whose properties
 // (covers, ratings, shelves) are what the notes are for. A planner page
-// (src/plannerview.js) hides it with no button at all; the planner's header
-// has one. Showing or hiding it is remembered per note until the page reloads.
+// (src/plannerview.js) and a day's health note hide it with no button at
+// all; their headers have one. Showing or hiding it is remembered per note
+// until the page reloads.
 const SHOWN_FOLDERS = /(^|\/)(logs|sketchbooks|catalog)\//i;
 const PLANNER_FENCE = /(^|\n)```wr1t3r-planner[ \t]*\r?\n/;
 export const isPlannerPage = (doc) => PLANNER_FENCE.test(doc.sliceString(0, Math.min(doc.length, 20000)));
+const hasHeader = (state) => isPlannerPage(state.doc) || !!healthDayOf(state.facet(notePath));
 const chosen = new Map(); // path -> hidden
 
 function startsHidden(state) {
 	const path = state.facet(notePath);
 	if (path && chosen.has(path)) return chosen.get(path);
-	return isPlannerPage(state.doc) || !SHOWN_FOLDERS.test(path || "");
+	return hasHeader(state) || !SHOWN_FOLDERS.test(path || "");
 }
 
 const setFolded = StateEffect.define();
@@ -912,7 +915,7 @@ function decorate(state) {
 	}
 	const open = doc.line(fm.open), close = doc.line(fm.close);
 	if (state.field(folded)) {
-		const planner = isPlannerPage(doc);
+		const planner = hasHeader(state);
 		return Decoration.set(Decoration.replace({ widget: planner ? undefined : new FmWidget("folded", propertyCount(doc, fm)), block: true, atomic: true }).range(open.from, close.to));
 	}
 	if (state.field(source)) {

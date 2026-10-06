@@ -2,7 +2,8 @@
 // a banner and the day's title, four health buttons (Food, Water, Meds,
 // Mood) that write to the day's health note, then two columns, the timeline
 // from 9 AM to 9 PM beside the day's task lists. Everything under the block
-// (the note's "# Notes") is the note as usual.
+// (the note's "# Notes") is the note as usual. The health note gets the same
+// title row, with a pill back to the daily note (healthHeader below).
 
 import { StateField, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType } from "@codemirror/view";
@@ -12,6 +13,7 @@ import {
 	PLANNER, readPlanner, writePlanner, setEntryColor, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
 	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
 	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine, cardColor, editPlannerBlock,
+	dailyPathFor, healthDayOf,
 } from "./planner.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
@@ -19,7 +21,7 @@ import { isoDay } from "./tasks.js";
 import { imageRef } from "./pretty.js";
 import { resolveNote } from "./links.js";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
-import { propertiesFolded, setPropertiesHidden } from "./frontmatter.js";
+import { propertiesFolded, setPropertiesHidden, frontmatterLines } from "./frontmatter.js";
 import { openPanel, redrawPanel } from "./basesui.js";
 import { onMenu } from "./homeview.js";
 import { EVENT_COLORS } from "./agenda.js";
@@ -86,6 +88,34 @@ export function importEvents(view, events) {
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const fmt = (n) => Math.round(n).toLocaleString();
 
+// "2026-09-30" -> "Tuesday, September 30, 2026".
+const dayTitle = (day) => new Date(day + "T12:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+// The title row: the title, "Today" when day is today, then pill buttons on
+// the right. links: [[text, title, run]].
+function titleRow(title, day, links) {
+	const head = el("div", "planner-head");
+	head.append(el("h1", "planner-title", title));
+	if (day && day === isoDay(new Date())) head.append(el("span", "planner-today", "Today"));
+	const box = el("span", "planner-links");
+	for (const [text, title, run] of links) {
+		const b = el("button", "planner-link", text);
+		b.type = "button";
+		b.title = title;
+		b.addEventListener("mousedown", (e) => e.preventDefault());
+		b.addEventListener("click", run);
+		box.append(b);
+	}
+	head.append(box);
+	return head;
+}
+
+// The Properties pill both headers share.
+function propertiesLink(view) {
+	const hidden = propertiesFolded(view.state);
+	return [hidden ? "Properties" : "Hide properties", hidden ? "Show this note's properties" : "Hide this note's properties", () => setPropertiesHidden(view, !hidden)];
+}
+
 class PlannerWidget extends WidgetType {
 	constructor(p) {
 		super();
@@ -125,25 +155,11 @@ class PlannerWidget extends WidgetType {
 			fig.append(img);
 			out.push(fig);
 		}
-		const d = this.day && new Date(this.day + "T12:00");
-		const title = this.cfg.title || (d ? d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : this.path.split("/").pop().replace(/\.md$/i, ""));
-		const head = el("div", "planner-head");
-		head.append(el("h1", "planner-title", title));
-		if (d && this.day === isoDay(new Date())) head.append(el("span", "planner-today", "Today"));
-		const links = el("span", "planner-links");
-		const link = (text, title, run) => {
-			const b = el("button", "planner-link", text);
-			b.type = "button";
-			b.title = title;
-			b.addEventListener("mousedown", (e) => e.preventDefault());
-			b.addEventListener("click", run);
-			links.append(b);
-		};
-		if (this.day && host) link("Health note", "Open this day's health note", async () => { const p = await host.healthNote(this.path); if (p) host.open(p); });
-		const hidden = propertiesFolded(view.state);
-		link(hidden ? "Properties" : "Hide properties", hidden ? "Show this note's properties" : "Hide this note's properties", () => setPropertiesHidden(view, !hidden));
-		head.append(links);
-		out.push(head);
+		const links = [];
+		if (this.day && host) links.push(["Health note", "Open this day's health note", async () => { const p = await host.healthNote(this.path); if (p) host.open(p); }]);
+		links.push(propertiesLink(view));
+		const title = this.cfg.title || (this.day ? dayTitle(this.day) : this.path.split("/").pop().replace(/\.md$/i, ""));
+		out.push(titleRow(title, this.day, links));
 		return out;
 	}
 
@@ -661,6 +677,61 @@ export const plannerBlocks = StateField.define({
 	update(deco, tr) {
 		const vault = tr.effects.some((e) => e.is(vaultChanged));
 		if (tr.docChanged || tr.selection || vault || propertiesFolded(tr.startState) !== propertiesFolded(tr.state) || syntaxTree(tr.startState) !== syntaxTree(tr.state)) return build(tr.state);
+		return deco;
+	},
+	provide: (f) => EditorView.decorations.from(f),
+});
+
+// ---- A health note's header -------------------------------------------------
+// "…/2026-09-30 Health.md" opens with the planner's title row: the date, then
+// a "Daily planner" pill back to "…/2026-09-30.md" and the Properties pill.
+// It's drawn over the template's link line ("📅 [[2026-09-30|← Daily
+// Planner]]") when the body starts with one, which shows as text again while
+// the cursor is in it; without one it sits above the body.
+
+const BACK_LINK = /^\s*(?:📅\s*)?\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]\s*$/u;
+
+class HealthHeadWidget extends WidgetType {
+	constructor(day, path, propsHidden) {
+		super();
+		Object.assign(this, { day, path, propsHidden });
+	}
+	eq(o) { return o.day === this.day && o.path === this.path && o.propsHidden === this.propsHidden; }
+	toDOM(view) {
+		const daily = dailyPathFor(this.path);
+		const open = () => {
+			const vault = view.state.facet(vaultHost);
+			const have = vault?.paths().find((p) => p.toLowerCase() === daily.toLowerCase());
+			if (have) host?.open(have);
+			else host?.toast?.(`There's no daily note for ${this.day}.`);
+		};
+		const wrap = el("div", "planner health-head");
+		wrap.append(titleRow(dayTitle(this.day), this.day, [["Daily planner", "Open this day's daily note", open], propertiesLink(view)]));
+		return wrap;
+	}
+	ignoreEvent() { return true; }
+}
+
+function buildHealthHead(state) {
+	const path = state.facet(notePath), day = healthDayOf(path);
+	if (!day || !host || UNTRUSTED.test(path)) return Decoration.none;
+	const doc = state.doc, fm = frontmatterLines(doc);
+	const n = fm ? fm.close + 1 : 1;
+	const widget = new HealthHeadWidget(day, path, propertiesFolded(state));
+	if (n > doc.lines) return Decoration.set(Decoration.widget({ widget, block: true, side: 1 }).range(doc.length));
+	const line = doc.line(n);
+	const target = line.text.match(BACK_LINK)?.[1];
+	const isBack = target && target.trim().split("/").pop().replace(/\.md$/i, "").replace(/\./g, "-") === day;
+	// A cursor at the line's start (where a note opens) leaves it drawn.
+	const touched = state.selection.ranges.some((r) => r.to > line.from && r.from <= line.to);
+	if (isBack && !touched) return Decoration.set(Decoration.replace({ widget, block: true }).range(line.from, line.to));
+	return Decoration.set(Decoration.widget({ widget, block: true, side: -1 }).range(line.from));
+}
+
+export const healthHeader = StateField.define({
+	create: buildHealthHead,
+	update(deco, tr) {
+		if (tr.docChanged || tr.selection || propertiesFolded(tr.startState) !== propertiesFolded(tr.state)) return buildHealthHead(tr.state);
 		return deco;
 	},
 	provide: (f) => EditorView.decorations.from(f),

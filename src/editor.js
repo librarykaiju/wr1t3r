@@ -19,7 +19,7 @@ import { stripFrontmatter } from "./count.js";
 import { dataviewJs } from "./dataview.js";
 import { cardsBlocks } from "./cardsblock.js";
 import { taskLists } from "./tasklistview.js";
-import { plannerBlocks } from "./plannerview.js";
+import { plannerBlocks, healthHeader } from "./plannerview.js";
 import { drawnBlocks } from "./drawnblocks.js";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { backlinks } from "./backlinks.js";
@@ -177,6 +177,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		trackChanges,
 		pageView,
 		plannerBlocks,
+		healthHeader,
 		drawnBlocks,
 		spellcheck,
 		smartPunctuation,
