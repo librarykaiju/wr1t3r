@@ -5,16 +5,17 @@
 // paragraph that runs off a page continues on the next, split at a line as it
 // wraps; a <div class="pagebreak"></div> line (Insert > Page break) starts a
 // new page. Lines far off screen are placed by estimate until they're drawn.
+// Page setup's header and footer show in each page's top and bottom margins.
 // Nothing is added to the note.
 
 import { StateField, StateEffect } from "@codemirror/state";
 import { EditorView, ViewPlugin, Decoration, WidgetType, BlockType } from "@codemirror/view";
-import { pagePixels, paginate } from "./pagelayout.js";
+import { pagePixels, paginate, readSetup, marginParts, marginText } from "./pagelayout.js";
 
 export const PAGE_BREAK_LINE = /^\s*<div class="pagebreak"><\/div>\s*$/;
 const GAP = 28; // the desk between pages, px
 
-const setPage = StateEffect.define(); // { on, setup }
+const setPage = StateEffect.define(); // { on, setup } (setup.title: the note's, for {title})
 const setBreaks = StateEffect.define(); // [{ pos, inline, height, page, row?, end? }]
 
 const pageField = StateField.define({
@@ -27,21 +28,34 @@ const pageField = StateField.define({
 	}),
 });
 
+// A header or footer line: [left, center, right] in a page margin.
+function marginLine(cls, cells, height) {
+	const row = document.createElement("span");
+	row.className = "page-mline " + cls;
+	row.style.height = height + "px";
+	for (const t of cells) { const c = document.createElement("span"); c.textContent = t; row.append(c); }
+	return row;
+}
+// The header and footer texts for page n of pages, or null for none.
+function marginCells(setup, edge, page, pages) {
+	const parts = marginParts(setup[edge], { title: setup.title || "" });
+	return parts && ["left", "center", "right"].map((k) => marginText(parts[k], page, pages));
+}
+const sameCells = (a, b) => (a ? a.join("|") : null) === (b ? b.join("|") : null);
+
 class Gap extends WidgetType {
-	constructor(height, page, inline, bottom, margin) { super(); Object.assign(this, { height, page, inline, bottom, margin }); }
-	eq(o) { return o.height === this.height && o.page === this.page && o.inline === this.inline && o.bottom === this.bottom; }
+	constructor(height, page, inline, bottom, margin, foot, head) { super(); Object.assign(this, { height, page, inline, bottom, margin, foot, head }); }
+	eq(o) { return o.height === this.height && o.page === this.page && o.inline === this.inline && o.bottom === this.bottom && sameCells(o.foot, this.foot) && sameCells(o.head, this.head); }
 	toDOM() {
 		const el = document.createElement(this.inline ? "span" : "div");
 		el.className = "page-gap" + (this.inline ? " inline" : "") + (this.bottom ? " last" : "");
 		el.style.height = this.height + "px";
 		el.setAttribute("aria-hidden", "true");
 		el.contentEditable = "false";
-		// The end of page n: its bottom margin, holding the page number.
-		const foot = document.createElement("span");
-		foot.className = "page-foot";
-		foot.style.height = this.margin + "px";
-		foot.textContent = String(this.page);
-		el.append(foot);
+		// The end of page n: its bottom margin, holding the footer, and the
+		// next page's top margin, holding its header.
+		if (this.foot) el.append(marginLine("page-foot", this.foot, this.margin));
+		if (this.head && !this.bottom) el.append(marginLine("page-head", this.head, this.margin));
 		return el;
 	}
 	get estimatedHeight() { return this.height; }
@@ -59,7 +73,7 @@ const breakField = StateField.define({
 	provide: (f) => EditorView.decorations.from(f, (list) => {
 		if (!list.length) return Decoration.none;
 		return Decoration.set(list.map((b) => Decoration.widget({
-			widget: new Gap(b.height, b.page, b.inline, !!b.end, b.margin),
+			widget: new Gap(b.height, b.page, b.inline, !!b.end, b.margin, b.foot, b.head),
 			block: !b.inline, side: b.end ? 1 : -1,
 		}).range(b.pos)), true);
 	}),
@@ -76,6 +90,7 @@ function measure(view) {
 	const page = view.state.field(pageField);
 	if (!page.on) return null;
 	const px = pagePixels(page.setup);
+	const setup = { ...readSetup(page.setup), title: page.setup?.title };
 	const contentH = px.h - 2 * px.margin;
 	const doc = view.state.doc;
 	const drawn = view.state.field(breakField);
@@ -112,20 +127,33 @@ function measure(view) {
 		blocks.push({ from: blk.from, height, rows, split, breakAfter: PAGE_BREAK_LINE.test(line.text), next });
 	}
 	const r = paginate(blocks, contentH);
-	const out = r.breaks.map((b, i) => ({ pos: b.pos, inline: b.inline, row: b.row, page: i + 1, margin: px.margin, height: Math.round(b.fill + 2 * px.margin + GAP) }));
-	out.push({ pos: doc.length, inline: false, end: true, page: r.pages, margin: px.margin, height: Math.round(r.lastFill + px.margin) });
-	return out;
+	const cells = (edge, n) => marginCells(setup, edge, n, r.pages);
+	const out = r.breaks.map((b, i) => ({ pos: b.pos, inline: b.inline, row: b.row, page: i + 1, margin: px.margin, height: Math.round(b.fill + 2 * px.margin + GAP), foot: cells("footer", i + 1), head: cells("header", i + 2) }));
+	out.push({ pos: doc.length, inline: false, end: true, page: r.pages, margin: px.margin, height: Math.round(r.lastFill + px.margin), foot: cells("footer", r.pages) });
+	return { breaks: out, firstHead: cells("header", 1), margin: px.margin };
 }
 
-const same = (a, b) => a.length === b.length && a.every((x, i) => x.pos === b[i].pos && x.height === b[i].height && x.inline === b[i].inline && x.page === b[i].page);
+const same = (a, b) => a.length === b.length && a.every((x, i) => x.pos === b[i].pos && x.height === b[i].height && x.inline === b[i].inline && x.page === b[i].page && sameCells(x.foot, b[i].foot) && sameCells(x.head, b[i].head));
 
 const pager = ViewPlugin.fromClass(class {
-	constructor(view) { this.view = view; this.pending = false; this.burst = []; this.schedule(); }
+	constructor(view) { this.view = view; this.pending = false; this.burst = []; this.head = null; this.schedule(); }
 	update(u) {
 		const changed = u.docChanged || u.viewportChanged || u.geometryChanged || u.heightChanged
 			|| u.startState.field(pageField) !== u.state.field(pageField);
 		if (changed) this.schedule();
 		if (u.state.field(pageField).on) this.align();
+		else this.setHead(null);
+	}
+	destroy() { this.head?.remove(); }
+	// Page 1's header sits in the content's top padding, outside any line, so
+	// it's an overlay on the scroller rather than a widget.
+	setHead(cells, margin) {
+		if (!cells) { this.head?.remove(); this.head = null; this.headCells = null; return; }
+		const line = marginLine("page-head first", cells, margin);
+		line.setAttribute("aria-hidden", "true");
+		if (this.head) this.head.replaceWith(line); else this.view.scrollDOM.append(line);
+		this.head = line;
+		this.align();
 	}
 	// Gaps span the whole page: one inside an indented list item starts at the
 	// item's indent, so each is pulled out to the page's edges.
@@ -133,13 +161,16 @@ const pager = ViewPlugin.fromClass(class {
 		this.view.requestMeasure({
 			key: "page-align",
 			read: (view) => {
-				const page = view.contentDOM.getBoundingClientRect();
-				return [...view.contentDOM.querySelectorAll(".page-gap")].map((el) => {
+				const page = view.contentDOM.getBoundingClientRect(), sc = view.scrollDOM.getBoundingClientRect();
+				const head = this.head && { top: page.top - sc.top + view.scrollDOM.scrollTop, left: page.left - sc.left + view.scrollDOM.scrollLeft, width: page.width };
+				const gaps = [...view.contentDOM.querySelectorAll(".page-gap")].map((el) => {
 					const r = el.getBoundingClientRect();
 					return { el, shift: r.left - page.left, width: page.width, current: parseFloat(el.style.marginLeft) || null };
 				});
+				return { gaps, head };
 			},
-			write: (gaps) => {
+			write: ({ gaps, head }) => {
+				if (head && this.head) Object.assign(this.head.style, { top: head.top + "px", left: head.left + "px", width: head.width + "px" });
 				for (const g of gaps) {
 					const base = g.current ?? (parseFloat(getComputedStyle(g.el).marginLeft) || 0);
 					if (Math.abs(g.shift) < 0.5 && g.el.style.width === g.width + "px") continue;
@@ -154,9 +185,15 @@ const pager = ViewPlugin.fromClass(class {
 		this.pending = true;
 		this.view.requestMeasure({
 			read: (view) => measure(view),
-			write: (list, view) => {
+			write: (m, view) => {
 				this.pending = false;
-				if (!list || same(list, view.state.field(breakField))) return;
+				if (!m) return;
+				if (!sameCells(m.firstHead, this.headCells) || m.margin !== this.headMargin) {
+					this.headCells = m.firstHead; this.headMargin = m.margin;
+					this.setHead(m.firstHead, m.margin);
+				}
+				const list = m.breaks;
+				if (same(list, view.state.field(breakField))) return;
 				// Guard against layouts that never settle: at most 8 redraws a second.
 				const now = Date.now();
 				this.burst = this.burst.filter((t) => now - t < 1000);

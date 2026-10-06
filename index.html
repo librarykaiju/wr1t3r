@@ -230,6 +230,12 @@
 							<select id="pageOrient" aria-label="Orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
 							<select id="pageMargin" aria-label="Margins"></select>
 						</div>
+						<h2>Header and footer</h2>
+						<div class="page-setup" title="A line in each page's top and bottom margin, on screen, in print and in Word">
+							<input id="pageHeader" type="text" maxlength="200" placeholder="Header (none)" aria-label="Header">
+							<input id="pageFooter" type="text" maxlength="200" placeholder="Footer (none)" aria-label="Footer">
+						</div>
+						<p class="hint">{page}, {pages}, {title} and {date} fill in. A | splits the line: left | right, or left | center | right.</p>
 						<h2>Daily word goal</h2>
 						<div><input id="setDayGoal" type="number" min="0" step="50" inputmode="numeric" placeholder="None" aria-label="Words to write each day"></div>
 						<p class="hint">Words a day, shown in the word count. A note can have its own with a goal: property.</p>

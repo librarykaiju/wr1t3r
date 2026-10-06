@@ -82,3 +82,15 @@ test("exports read the final text", async () => {
 	const { cleanNote } = await import("../src/compile.js");
 	assert.equal(cleanNote("---\nx: 1\n---\nIt {--was--}{++is++} done."), "It is done.");
 });
+
+test("comments: listed with what they're about, and resolved", async () => {
+	const { commentsIn, resolveComment } = await import("../src/trackchanges.js");
+	const t = "A {==big==}{>>too strong?<<} dog{>>lone<<}.";
+	const list = commentsIn(t);
+	assert.deepEqual(list.map((c) => [c.text, c.quote]), [["too strong?", "big"], ["lone", ""]]);
+	const apply = (text, ch) => ch.reduceRight((s, c) => s.slice(0, c.from) + c.insert + s.slice(c.to), text);
+	assert.equal(apply(t, resolveComment(t, list[0].from)), "A big dog{>>lone<<}.");
+	assert.equal(apply(t, resolveComment(t, 3)), "A big dog{>>lone<<}.");
+	assert.equal(apply(t, resolveComment(t, list[1].from + 1)), "A {==big==}{>>too strong?<<} dog.");
+	assert.equal(resolveComment("no comments", 2), null);
+});

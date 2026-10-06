@@ -2,7 +2,7 @@
 // page (also what's printed to PDF), and to a Word file. Both come from one
 // markdown-it parse, so they agree on what the text is.
 
-import { pageRule, pageTwips, pageSetup } from "./pagelayout.js";
+import { pageRule, pageTwips, pageSetup, marginParts } from "./pagelayout.js";
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
 
@@ -94,7 +94,7 @@ export function toHTML(markdown, { title = "", images = new Map(), layout = "boo
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title || "Compiled")}</title>
-<style>${BOOK_CSS.replace("@page { margin: 1in; }", pageRule(pageSetup()))}</style>
+<style>${BOOK_CSS.replace("@page { margin: 1in; }", pageRule(pageSetup(), { title, titlePage: body.includes('class="title-page"') }))}</style>
 </head>
 <body><main${layout === "manuscript" ? ' class="manuscript"' : ""}>
 ${body}</main></body>
@@ -108,6 +108,31 @@ ${body}</main></body>
 function wordPage() {
 	const p = pageTwips(pageSetup());
 	return { size: { width: p.width, height: p.height }, margin: { top: p.margin, right: p.margin, bottom: p.margin, left: p.margin } };
+}
+
+// Page setup's header and footer, as Word's: one line each, centered, or with
+// tab stops for left | center | right. -> { headers, footers } for a section.
+function wordMargins(d, title, titlePage) {
+	const { Header, Footer, Paragraph, TextRun, PageNumber, AlignmentType, TabStopType } = d;
+	const s = pageSetup(), p = pageTwips(s), width = p.width - 2 * p.margin;
+	const line = (text) => {
+		const parts = marginParts(text, { title });
+		if (!parts) return null;
+		const runs = (pieces) => pieces.map((x) => (typeof x === "string" ? new TextRun({ text: x, size: 18, color: "555555" })
+			: new TextRun({ children: [x.field === "page" ? PageNumber.CURRENT : PageNumber.TOTAL_PAGES], size: 18, color: "555555" })));
+		if (!parts.left.length && !parts.right.length) return new Paragraph({ alignment: AlignmentType.CENTER, children: runs(parts.center) });
+		const tab = () => new TextRun({ text: "\t", size: 18 });
+		return new Paragraph({
+			tabStops: [{ type: TabStopType.CENTER, position: Math.round(width / 2) }, { type: TabStopType.RIGHT, position: width }],
+			children: [...runs(parts.left), tab(), ...runs(parts.center), tab(), ...runs(parts.right)],
+		});
+	};
+	const out = {};
+	const head = line(s.header), foot = line(s.footer);
+	const bare = () => new Paragraph({ children: [] });
+	if (head) out.headers = { default: new Header({ children: [head] }), ...(titlePage ? { first: new Header({ children: [bare()] }) } : {}) };
+	if (foot) out.footers = { default: new Footer({ children: [foot] }), ...(titlePage ? { first: new Footer({ children: [bare()] }) } : {}) };
+	return out;
 }
 
 export async function toDocx(markdown, { title = "", author = "", images = new Map(), layout = "book" } = {}) {
@@ -276,7 +301,7 @@ export async function toDocx(markdown, { title = "", author = "", images = new M
 			}],
 		},
 		footnotes,
-		sections: [{ properties: { page: wordPage() }, children: out }],
+		sections: [{ properties: { page: wordPage(), titlePage: !!(title || author) }, ...wordMargins(d, title, !!(title || author)), children: out }],
 	});
 	return Packer.toBlob(doc);
 }
