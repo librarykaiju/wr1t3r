@@ -2496,6 +2496,17 @@ async function turnOnReminders() {
 	markReminders();
 }
 
+async function backupNow() {
+	const note = toast("Backing up to Google Drive…", 120000);
+	try {
+		const { files, last, folder } = await api.backupNow().finally(note.close);
+		if (last?.error) return toast(`Backup stopped after ${last.copied} files: ${last.error}`, 15000);
+		toast(last.remaining ? `Copied ${last.copied} files to "${folder}" in Google Drive; ${last.remaining} more go in the next hourly runs.` : `Backup is up to date: ${files} files in "${folder}" in Google Drive.`, 10000);
+	} catch (e) {
+		toast(e.status === 404 ? "The Drive backup isn't set up on the Worker yet (see README, Google Drive backup)." : "Couldn't back up: " + e.message, 12000);
+	}
+}
+
 async function turnOffReminders() {
 	try {
 		const sub = await (await navigator.serviceWorker?.getRegistration())?.pushManager?.getSubscription();
@@ -2674,6 +2685,7 @@ function allCommands() {
 		["Transcribe a video or audio file", transcribeIntoNote, "transcript speech text speakers video audio mp4 mov podcast interview", true],
 		["Turn on reminders on this device", turnOnReminders, "notifications push alerts remind alarm phone"],
 		["Turn off reminders on this device", turnOffReminders, "notifications push alerts remind stop mute"],
+		["Back up to Google Drive now", backupNow, "backup drive google copy save safety"],
 		["Capture to the Inbox", captureCommand, "quick capture inbox jot idea note share"],
 		["Record a voice memo", voiceMemo, "voice memo record microphone dictate audio speech transcribe"],
 		["Clip a web page", () => clipPage(prompt("Web page to clip:") || ""), "save article"],

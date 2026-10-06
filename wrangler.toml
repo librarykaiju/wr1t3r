@@ -19,6 +19,10 @@ VAULT_PREFIX = ""
 # Site templates, and the site's not-found page; wr1t3r never lists, reads or
 # writes them.
 EXCLUDE = "_includes/,content/404.md"
+# The whole bucket is copied hourly into this folder at the top of Google
+# Drive (worker/backup.js); remove the line to stop. Uses the Google sign-in
+# below, which needs the Drive scope.
+DRIVE_BACKUP = "wr1t3r-vault-backup"
 
 # The bucket Remotely Save syncs Obsidian with. wr1t3r reads and writes it
 # directly, so an edit reaches every device on its next Remotely Save sync,
@@ -36,8 +40,9 @@ binding = "AI"
 #   WR1T3R_TOKEN  -- any long random string; the page asks for it once per
 #                    device and sends it as a Bearer token
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
-#                 -- optional, for the agenda; `npm run google-auth` sets all
-#                    three (see README, "Google Calendar")
+#                 -- optional, for the agenda and the Drive backup;
+#                    `npm run google-auth` sets all three (see README,
+#                    "Google Calendar")
 #
 # To use a GitHub repo instead of R2 (for example in a fork), set
 #   BACKEND = "github"
@@ -49,5 +54,6 @@ binding = "AI"
 
 # Task reminders (worker/push.js): checked every minute. Needs the secrets
 # VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY; `npm run vapid` makes them.
+# The vault's backup to Google Drive (worker/backup.js): a batch every hour.
 [triggers]
-crons = ["* * * * *"]
+crons = ["* * * * *", "17 * * * *"]
