@@ -700,7 +700,7 @@ function itemMenu(item, x, y) {
 			...(featureOn("longform") ? [
 				["Corkboard", () => openFolderView(item, "corkboard")],
 				["Outliner", () => openFolderView(item, "outliner")],
-				["Scrivenings", () => openFolderView(item, "scrivenings")],
+				["Draft", () => openFolderView(item, "scrivenings")],
 				["Compile…", () => openCompile(item)],
 			] : []),
 			...(featureOn("boards") ? [["New board…", () => newBase(item)]] : []),
@@ -1375,7 +1375,7 @@ function renderHomeSettings() {
 		row.className = "home-pin";
 		row.style.setProperty("--tc", pinColor(pin, ordinal[i]));
 		row.title = "Change, move or unpin this tile";
-		const what = { note: isBoardPath(path || k.target || "") ? "board" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "one document" : k.view, command: "command", url: "web page" }[k.kind];
+		const what = { note: isBoardPath(path || k.target || "") ? "board" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "draft" : k.view, command: "command", url: "web page" }[k.kind];
 		const nm = document.createElement("span");
 		nm.textContent = pinTitle(pin, path);
 		const kind = document.createElement("small");
@@ -1481,7 +1481,7 @@ function tileMenu(i, x, y, store = homeStore) {
 	}
 	const k = pinKind(pin.link);
 	const views = k.kind === "folder" || k.kind === "view"
-		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as one document"]]
+		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as draft"]]
 			.filter(([v]) => v !== (k.kind === "view" ? k.view : "corkboard"))
 			.map(([v, label]) => [label, () => set({ link: v === "corkboard" ? folderLink(k.folder) : viewLink(v, k.folder) })])
 		: [];
@@ -2214,7 +2214,7 @@ function cardMenu(item, x, y, index, what) {
 	showMenu([
 		["Open", () => (isFolder ? openFolderView(item, null, { replace: true }) : openNote(item))],
 		...(isFolder ? [] : [
-			["Open in Scrivenings", () => { openFolderView(folder, "scrivenings", { tab: false }); scriv?.show(item); }],
+			["Open in Draft", () => { openFolderView(folder, "scrivenings", { tab: false }); scriv?.show(item); }],
 			["Label color…", () => labelMenu(item, x, y)],
 			["Status…", () => {
 				const v = prompt("Status (empty to clear):", info.status);
@@ -2247,7 +2247,7 @@ function folderMore() {
 		["New note here", () => addCard(folder, orderOf(folder).length)],
 		pinned
 			? ["Unpin from Home", () => savePins(pins().filter((p) => !pinOpens(p, { folder, view }, paths, homeFile())))]
-			: ["Pin to Home", () => addPin({ link: viewLink(view, folder) }, `${itemLabel(folder)} (${view})`)],
+			: ["Pin to Home", () => addPin({ link: viewLink(view, folder) }, `${itemLabel(folder)} (${view === "scrivenings" ? "draft" : view})`)],
 		[dataviewVault.text(bp) != null ? "Open the binder note" : "Save this order as a binder note", async () => {
 			if (dataviewVault.text(bp) == null) await saveOrder(folder, orderOf(folder));
 			openNote(bp);
@@ -2269,7 +2269,7 @@ function pickFolder(what) {
 	const all = [...folders].filter((f) => f.startsWith(home) && f !== home)
 		.sort((a, b) => (b === here) - (a === here) || a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
 	openPalette({
-		placeholder: what === "compile" ? "Compile which folder?" : `Show which folder as ${what === "corkboard" ? "a corkboard" : what === "outliner" ? "an outline" : "one document"}?`,
+		placeholder: what === "compile" ? "Compile which folder?" : `Show which folder as ${what === "corkboard" ? "a corkboard" : what === "outliner" ? "an outline" : "a draft"}?`,
 		items: all.map((f) => ({ label: folderLabel(f), detail: "folder", run: () => (what === "compile" ? openCompile(f) : openFolderView(f, what)) })),
 	});
 }
@@ -2719,7 +2719,7 @@ function allCommands() {
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
 		["Open corkboard", () => pickFolder("corkboard"), "scrivener index cards folder board order"],
 		["Open outliner", () => pickFolder("outliner"), "scrivener outline table folder order"],
-		["Open scrivenings", () => pickFolder("scrivenings"), "scrivener one document whole folder read"],
+		["Open draft", () => pickFolder("scrivenings"), "scrivenings scrivener one document whole folder read draft"],
 		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Transcribe a video or audio file", transcribeIntoNote, "transcript speech text speakers video audio mp4 mov podcast interview", true],

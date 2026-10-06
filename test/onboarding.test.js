@@ -31,19 +31,19 @@ test("starter notes follow the uses, and Home pins them", () => {
 	const writing = starterNotes(["writing"]);
 	const paths = writing.map((n) => n.path);
 	assert.ok(paths.includes("Welcome.md"));
-	assert.ok(paths.includes("Draft/01 Opening.md"));
+	assert.ok(paths.includes("My Story/01 Opening.md"));
 	assert.ok(paths.includes("_wr1t3r/Home.md"));
 	assert.ok(!paths.includes("Inbox.md"));
 	const pins = readPins(writing.find((n) => n.path === "_wr1t3r/Home.md").text);
-	assert.deepEqual(pins.map((p) => p.link), ["[[Welcome]]", "corkboard:Draft"]);
-	assert.equal(pins[1].title, "Draft");
-	assert.equal(cardInfo("Draft/01 Opening.md", writing[1].text).synopsis, "Where the story starts, and who we meet first.");
+	assert.deepEqual(pins.map((p) => p.link), ["[[Welcome]]", "corkboard:My Story"]);
+	assert.equal(pins[1].title, "My Story");
+	assert.equal(cardInfo("My Story/01 Opening.md", writing[1].text).synopsis, "Where the story starts, and who we meet first.");
 	assert.match(writing[0].text, /corkboard/);
 
 	const other = starterNotes(["planner", "research"], "content/");
 	const op = other.map((n) => n.path);
 	assert.ok(op.includes("content/Inbox.md"));
-	assert.ok(!op.some((p) => p.includes("Draft/")));
+	assert.ok(!op.some((p) => p.includes("My Story/")));
 	const pins2 = readPins(other.find((n) => n.path === "content/_wr1t3r/Home.md").text).map((p) => p.link);
 	assert.deepEqual(pins2, ["[[Welcome]]", "command:Open today's daily note", "[[Inbox]]"]);
 	assert.doesNotMatch(other[0].text, /corkboard/);

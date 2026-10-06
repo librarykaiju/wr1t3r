@@ -54,7 +54,7 @@ function welcomeText(uses) {
 		"",
 		"## Long-form",
 		"",
-		"The [[Draft/01 Opening|Draft]] folder is a sample manuscript, one note per scene. Open it as a corkboard (Commands > Open corkboard) to move scenes around, as an outline, or as scrivenings to read them as one. Commands > Compile a folder joins them into one file.",
+		"The [[My Story/01 Opening|My Story]] folder is a sample manuscript, one note per scene. Open it as a corkboard (Commands > Open corkboard) to move scenes around, as an outline, or as a draft to read and edit them as one document. Commands > Compile a folder joins them into one file.",
 	);
 	if (has(uses, "planner") || has(uses, "health")) lines.push(
 		"",
@@ -86,11 +86,11 @@ export function starterNotes(uses, root = "") {
 	const pins = [{ link: "[[Welcome]]", color: 4 }];
 	if (has(uses, "writing")) {
 		out.push(
-			{ path: root + "Draft/01 Opening.md", text: scene("Opening", "Where the story starts, and who we meet first.", "draft", "Write your first scene here. Each scene is its own note, so they're easy to move around on the corkboard.") },
-			{ path: root + "Draft/02 Trouble.md", text: scene("Trouble", "Something goes wrong.", "idea", "The synopsis property above is what the corkboard card shows.") },
-			{ path: root + "Draft/03 Turn.md", text: scene("Turn", "Nothing is the same after this.", "idea", "") },
+			{ path: root + "My Story/01 Opening.md", text: scene("Opening", "Where the story starts, and who we meet first.", "draft", "Write your first scene here. Each scene is its own note, so they're easy to move around on the corkboard.") },
+			{ path: root + "My Story/02 Trouble.md", text: scene("Trouble", "Something goes wrong.", "idea", "The synopsis property above is what the corkboard card shows.") },
+			{ path: root + "My Story/03 Turn.md", text: scene("Turn", "Nothing is the same after this.", "idea", "") },
 		);
-		pins.push({ link: "corkboard:" + root + "Draft", title: "Draft", color: 2 });
+		pins.push({ link: "corkboard:" + root + "My Story", title: "My Story", color: 2 });
 	}
 	if (has(uses, "planner") || has(uses, "health")) pins.push({ link: "command:Open today's daily note", title: "Today", color: 5 });
 	if (has(uses, "research")) pins.push({ link: "[[Inbox]]", color: 6 });
