@@ -14,7 +14,7 @@ import { parseQuery, matches, snippet, isArchived, asksForArchive, archiveText }
 import { openPalette } from "./palette.js";
 import { starterBase } from "./baseconfig.js";
 import { EDIT_ACTIONS, DEFAULT_KEYS, keyName, showKey, usableKey, bindings, rebind, macAlias } from "./hotkeys.js";
-import { templatesIn, insertTemplate } from "./templates.js";
+import { templatesIn, insertTemplate, isTemplatePath, templatesFolder } from "./templates.js";
 import { COMMANDS, setSlashExtras } from "./slash.js";
 import { runCommand } from "./kbbar.js";
 import { inTable } from "./table.js";
@@ -476,11 +476,13 @@ function renderTree() {
 	renderFolderNav();
 	renderHome();
 	renderHomeSettings();
+	renderTemplateSettings();
 	const tree = $("tree");
 	const q = $("filter").value.trim();
 	tree.replaceChildren();
-	// wr1t3r's own files (the Home note) are edited from Aa > Home instead.
-	const list = visible().filter((n) => !isAppFile(n.path));
+	// wr1t3r's own files (the Home note) are edited from Aa > Home instead, and
+	// templates from Aa > Templates.
+	const list = visible().filter((n) => !isAppFile(n.path) && !isTemplatePath(n.path));
 	if (q) {
 		// Words, "phrases", path:, file:, tag:/#tag and -word (src/search.js).
 		// Archived notes are found too; "archive" alone lists them all first.
@@ -1240,6 +1242,39 @@ function renderHomeSettings() {
 		box.append(row);
 	});
 	if (!list.length) box.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "Nothing pinned yet." }));
+}
+
+// Aa > Templates: the vault's templates (out of the notes list), each opening
+// a menu to open, rename or delete it.
+function renderTemplateSettings() {
+	const box = $("templateList");
+	if (!box || $("settings").hidden) return;
+	box.replaceChildren();
+	for (const t of vaultTemplates()) {
+		const row = document.createElement("button");
+		row.type = "button";
+		row.className = "home-pin template-row";
+		row.title = "Open, rename or delete this template";
+		const nm = document.createElement("span");
+		nm.textContent = t.name;
+		row.append(nm);
+		const menu = (x, y) => showMenu([
+			["Open", () => { openSettings(false); openNote(t.path); }],
+			["Rename…", () => renameItem(t.path)],
+			["Delete", () => removeNote(t.path), "danger"],
+		], x, y);
+		row.addEventListener("click", (e) => { e.stopPropagation(); const r = row.getBoundingClientRect(); menu(r.left + 12, r.bottom + 2); });
+		onMenu(row, menu);
+		box.append(row);
+	}
+	if (!box.childElementCount) box.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "No templates yet." }));
+}
+
+// A new, empty template in the folder the others are in.
+function newTemplate() {
+	const list = visible();
+	openSettings(false);
+	newNote(templatesFolder(list.map((n) => n.path), commonFolder(list)) + "Untitled.md");
 }
 
 async function editHomeNote() {
@@ -3493,6 +3528,7 @@ function showSettingsTab(tab, onPhoneList = false) {
 	$("setTitle").textContent = pane.dataset.title;
 	$("settings").classList.toggle("pane-open", !onPhoneList);
 	if (tab === "home") renderHomeSettings();
+	if (tab === "templates") renderTemplateSettings();
 	if (tab === "hotkeys") renderHotkeyTab();
 	if (tab === "sync") $("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
 	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
@@ -3649,6 +3685,7 @@ function setupSettings() {
 		});
 	}
 	$("homeAdd").addEventListener("click", (e) => { e.stopPropagation(); addTile(); });
+	$("templateAdd").addEventListener("click", (e) => { e.stopPropagation(); newTemplate(); });
 	$("homeEdit").addEventListener("click", editHomeNote);
 	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
 	$("smaller").addEventListener("click", () => setSize(fontSize - 1));
