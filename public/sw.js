@@ -19,7 +19,8 @@ async function cacheShell() {
 
 // Drops files from earlier builds. Kept: the page, the sandbox, what the page
 // points at, and every built file those scripts can load later (lazy parts
-// like export or PDF import, named inside the scripts), cached or not yet.
+// like export or PDF import, and the grammar checker's WebAssembly, named
+// inside the scripts), cached or not yet.
 async function prune(cache, assets) {
 	const keep = new Set(["/", SANDBOX]);
 	const queue = [...assets];
@@ -30,7 +31,7 @@ async function prune(cache, assets) {
 		if (!/\.m?js$/.test(path)) continue;
 		const hit = await cache.match(path);
 		if (!hit) continue;
-		for (const m of (await hit.text()).matchAll(/(?:\.\/|\/?assets\/)([\w.-]+\.(?:m?js|css))/g)) queue.push("/assets/" + m[1]);
+		for (const m of (await hit.text()).matchAll(/(?:\.\/|\/?assets\/)([\w.-]+\.(?:m?js|css|wasm))/g)) queue.push("/assets/" + m[1]);
 	}
 	for (const req of await cache.keys()) {
 		if (!keep.has(new URL(req.url).pathname)) await cache.delete(req);

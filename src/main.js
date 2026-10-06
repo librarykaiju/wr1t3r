@@ -3567,7 +3567,7 @@ let grammarWarned = false;
 function grammarTrouble(e) {
 	if (grammarWarned) return;
 	grammarWarned = true;
-	toast(navigator.onLine ? "Grammar check: " + e.message : "Grammar check needs a connection.", 4000);
+	toast(navigator.onLine || onDropbox ? "Grammar check: " + e.message : "Grammar check needs a connection.", 4000);
 	setTimeout(() => (grammarWarned = false), 60000);
 }
 
@@ -4998,7 +4998,9 @@ async function start() {
 	setupToc();
 	setupColumns();
 	refreshKeyboardBar = setupKeyboardBar($("app"), activeView);
-	setupGrammar((text) => api.grammar(text), grammarTrouble);
+	// With no Worker, Harper checks on this device (src/localgrammar.js).
+	setupGrammar(onDropbox ? (text) => import("./localgrammar.js").then((g) => g.checkHere(text)) : (text) => api.grammar(text), grammarTrouble);
+	if (onDropbox) document.querySelector('[data-setting="grammar"]').title = "Underline grammar problems in paragraphs you edit. Checked on this device; the first time downloads the checker";
 	toolbarUi = setupToolbar($("toolbar"), activeView, {
 		print: () => exportNote(editor.path), lookUp: (view) => lookUpWord(view),
 		type: { fonts: Object.keys(FONTS).map((k) => [k, FONT_NAMES[k], FONTS[k]]), font: () => fontName, setFont, size: () => fontSize, setSize },
