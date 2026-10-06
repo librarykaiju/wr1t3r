@@ -3583,7 +3583,8 @@ function grammarTrouble(e) {
 
 function lookUpWord(view) {
 	if (!view) return;
-	lookUp(view, (w) => api.define(w), (t) => toast(t, 3000));
+	// With no Worker, the page asks the dictionary services itself (src/define.js).
+	lookUp(view, (w) => (onDropbox ? import("./define.js").then((d) => d.defineHere(w)) : api.define(w)), (t) => toast(t, 3000));
 }
 
 function toggleLineLength() {

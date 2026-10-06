@@ -41,3 +41,24 @@ test("define API shapes the two services' answers", async () => {
 		globalThis.fetch = real;
 	}
 });
+
+test("the page can look a word up itself, with the same answer shape", async () => {
+	const { defineHere } = await import("../src/define.js");
+	const real = globalThis.fetch;
+	const seen = [];
+	globalThis.fetch = async (url) => {
+		seen.push(url);
+		if (url.includes("dictionaryapi")) return new Response(JSON.stringify([{ phonetic: "/x/", meanings: [{ partOfSpeech: "noun", definitions: [{ definition: "A plot." }], synonyms: ["yard"] }] }]));
+		return new Response(JSON.stringify([{ word: "plot" }]));
+	};
+	try {
+		const r = await defineHere("  Garden ");
+		assert.equal(r.word, "garden");
+		assert.deepEqual(r.meanings, [{ part: "noun", definitions: [{ text: "A plot.", example: "" }] }]);
+		assert.deepEqual(r.synonyms, ["yard", "plot"]);
+		assert.equal(seen.length, 3);
+		await assert.rejects(defineHere("two words!"), /one word/);
+	} finally {
+		globalThis.fetch = real;
+	}
+});
