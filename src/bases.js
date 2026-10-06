@@ -1,4 +1,4 @@
-// Obsidian Bases: a .base file (or a ```base block) is YAML describing views
+// Boards (Obsidian Bases): a .board or .base file (or a ```board block) is YAML describing views
 // of notes, picked by filters and shown with some of their properties:
 //
 //   filters:                       # every view: all of these must hold

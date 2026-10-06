@@ -4,7 +4,7 @@
 //
 //   ---
 //   pins:
-//     - link: "[[Reading log]]"          a note or a .base
+//     - link: "[[Reading log]]"          a note or a board
 //       color: 3                         1-7: the theme's rainbow (--f1..--f7), or "#hex"
 //       cover: "[[covers/reading.jpg]]"  any image Pretty Properties takes, or "none"
 //     - link: "folder:content/_daily"    a folder: opens it as a corkboard
@@ -22,6 +22,7 @@
 import { Text } from "@codemirror/state";
 import { parseYaml } from "./bases.js";
 import { resolveNote } from "./links.js";
+import { isBoardPath } from "./paths.js";
 import { prettyOf, imageRef } from "./pretty.js";
 
 export const HOME_FOLDER = "_wr1t3r/";
@@ -146,12 +147,12 @@ export function pinKind(link) {
 const baseName = (p) => p.split("/").pop();
 const shown = (p) => baseName(p).replace(/\.md$/i, "");
 
-// The vault path a note pin opens, or null. A .base is found by its name, or
+// The vault path a note pin opens, or null. A board is found by its name, or
 // its path from the vault root; a note the way Obsidian finds a [[link]].
 export function pinPath(pin, paths, fromPath) {
 	const k = pinKind(pin.link);
 	if (k.kind !== "note" || !k.target) return null;
-	if (/\.base$/i.test(k.target)) {
+	if (isBoardPath(k.target)) {
 		const want = k.target.replace(/^\/+/, "").toLowerCase();
 		const hits = paths.filter((p) => p.toLowerCase() === want || p.toLowerCase().endsWith("/" + want));
 		return hits.sort((a, b) => a.length - b.length || a.localeCompare(b))[0] || null;
@@ -178,7 +179,7 @@ export function pinTitle(pin, path) {
 	if (k.kind === "command") return k.command;
 	if (k.kind === "folder") return k.folder.slice(0, -1).split("/").pop() || "Folder";
 	if (k.kind === "view") return k.folder.slice(0, -1).split("/").pop() || "Folder";
-	return (path ? baseName(path) : baseName(k.target)).replace(/\.(md|base)$/i, "") || "Note";
+	return (path ? baseName(path) : baseName(k.target)).replace(/\.(md|board|base)$/i, "") || "Note";
 }
 
 // "var(--f3)" for colors 1-7 (the theme's rainbow), a "#hex" as is, or the

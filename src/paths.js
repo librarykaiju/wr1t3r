@@ -1,11 +1,16 @@
 // Shared by the page and the Worker: what counts as a note path.
-// A relative path to a .md file (or a .base file: Obsidian Bases, src/bases.js), with no hidden folders (.obsidian, .trash)
+// A relative path to a .md file (or a board: src/bases.js), with no hidden folders (.obsidian, .trash)
 // and nothing that could climb out of the vault.
 export function isNotePath(path) {
 	if (typeof path !== "string" || !path || path.length > 1000) return false;
-	if (!/\.(md|base)$/i.test(path) || path.includes("\\") || path.includes("\0")) return false;
+	if (!/\.(md|board|base)$/i.test(path) || path.includes("\\") || path.includes("\0")) return false;
 	return path.split("/").every((seg) => seg && seg !== ".." && !seg.startsWith("."));
 }
+
+// A board is YAML describing views of notes. New ones are .board; .base
+// (Obsidian Bases, the same YAML) still opens as one.
+export const BOARD_EXT = ".board";
+export const isBoardPath = (path) => /\.(board|base)$/i.test(path || "");
 
 // Attachments wr1t3r shows (read-only): images, PDFs, audio and video, by extension.
 export const ATTACHMENT_TYPES = {

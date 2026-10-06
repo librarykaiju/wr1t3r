@@ -29,7 +29,7 @@ import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
 import { contentHash } from "./localvault.js";
-import { isNotePath, isAttachmentPath } from "./paths.js";
+import { isNotePath, isAttachmentPath, isBoardPath, BOARD_EXT } from "./paths.js";
 import { counts, countWords, stats, noteGoal } from "./count.js";
 import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
@@ -598,7 +598,7 @@ function renderTree() {
 					if (node.folders.has(dir)) drawFolder(into, dir, node.folders.get(dir), prefix, depth);
 				} else if (byPath.has(it.path)) into.append(itemRow(link(byPath.get(it.path), name(it.path)), it.path));
 			}
-			for (const n of node.notes) if (!/\.md$/i.test(n.path)) into.append(itemRow(link(n, name(n.path)), n.path)); // .base files
+			for (const n of node.notes) if (!/\.md$/i.test(n.path)) into.append(itemRow(link(n, name(n.path)), n.path)); // boards
 			return;
 		}
 		for (const [dir, child] of node.folders) drawFolder(into, dir, child, prefix, depth);
@@ -777,41 +777,8 @@ async function moveItem(item, folder, newName = null) {
 	if (error) return toast(error);
 	if (!pairs.length) return;
 	if (pairs.some((p) => !isNotePath(p.to))) return toast("That isn't a usable name.");
-	const textOf = (p) => (p === editor.path ? editor.text() : notes.get(p)?.binary ? null : notes.get(p)?.text);
-	const edits = moveLinkEdits(pairs, paths, textOf);
-	const moved = new Set(pairs.map((p) => p.to));
-	// Folder binders (their order) always follow; other notes' links are asked about.
-	const binders = edits.filter((e) => !moved.has(e.path) && isBinder(e.path));
-	const others = edits.filter((e) => !moved.has(e.path) && !isBinder(e.path));
-	const n = others.reduce((a, e) => a + e.count, 0);
-	const update = others.length && confirm(`Update ${n} link${n === 1 ? "" : "s"} in ${others.length} other note${others.length === 1 ? "" : "s"} to point at the new place?`);
-	for (const e of binders) {
-		await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
-		editor.forget(e.path);
-	}
-	if (update) {
-		for (const e of others) {
-			await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
-			editor.forget(e.path);
-		}
-	}
-	const own = new Map(edits.filter((e) => moved.has(e.path)).map((e) => [e.path, e.text]));
 	const was = editor.path;
-	for (const { from, to } of pairs) {
-		const note = notes.get(from);
-		const body = note.binary ? { bytes: note.bytes, binary: true } : { text: own.get(to) ?? textOf(from) };
-		await change(to, (cur) => ({ path: to, ...body, base: cur?.base ?? null, dirty: true, deleted: false }));
-		await change(from, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
-		await versions.move(from, to);
-		editor.forget(from);
-	}
-	const map = new Map(pairs.map((p) => [p.from, p.to]));
-	const moveTo = (p) => map.get(p) ?? p;
-	tabs = tabs.map(moveTo);
-	saveTabs();
-	bookmarks = bookmarks.map(moveTo);
-	writeJSON(BOOKMARKS_KEY, bookmarks);
-	if (ref.path && map.has(ref.path)) { ref.path = map.get(ref.path); saveRef(); }
+	const map = await relocate(pairs, paths, null);
 	const destFolder = item.endsWith("/") ? pairs[0].to.slice(0, pairs[0].to.length - (pairs[0].from.length - item.length)) : null;
 	await followPins(map, paths, destFolder && item, destFolder);
 	// A renamed folder keeps its place in its parent's binder.
@@ -1262,7 +1229,7 @@ function renderHomeSettings() {
 		row.className = "home-pin";
 		row.style.setProperty("--tc", pinColor(pin, ordinal[i]));
 		row.title = "Change, move or unpin this tile";
-		const what = { note: /\.base$/i.test(path || k.target || "") ? "board" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "one document" : k.view, command: "command", url: "web page" }[k.kind];
+		const what = { note: isBoardPath(path || k.target || "") ? "board" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "one document" : k.view, command: "command", url: "web page" }[k.kind];
 		const nm = document.createElement("span");
 		nm.textContent = pinTitle(pin, path);
 		const kind = document.createElement("small");
@@ -2486,6 +2453,7 @@ function allCommands() {
 		["New note from template", newFromTemplate, "templater"],
 		...NEW_NOTE_KINDS.map((k) => [k.label, () => newKindNote(k), `create template ${k.template.toLowerCase()} ${k.keywords}`]),
 		["New board file", () => newBase(), "create database table grid gallery kanban view bases base"],
+		["Rename .base files to .board", convertBoards, "convert boards bases obsidian extension"],
 		["Clean up properties", cleanUpProperties, "yaml frontmatter properties empty rename merge delete tidy vault"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
@@ -2824,13 +2792,75 @@ function taken(path) {
 	return false;
 }
 
+// Moves notes (pairs of { from, to }) and points links to them at their new
+// places: folder binders always, other notes' links when ask is true, or
+// when the person says so if ask is null. -> the from -> to Map.
+async function relocate(pairs, paths, ask) {
+	const textOf = (p) => (p === editor.path ? editor.text() : notes.get(p)?.binary ? null : notes.get(p)?.text);
+	const edits = moveLinkEdits(pairs, paths, textOf);
+	const moved = new Set(pairs.map((p) => p.to));
+	// Folder binders (their order) always follow; other notes' links are asked about.
+	const binders = edits.filter((e) => !moved.has(e.path) && isBinder(e.path));
+	const others = edits.filter((e) => !moved.has(e.path) && !isBinder(e.path));
+	const n = others.reduce((a, e) => a + e.count, 0);
+	const update = others.length && (ask ?? confirm(`Update ${n} link${n === 1 ? "" : "s"} in ${others.length} other note${others.length === 1 ? "" : "s"} to point at the new place?`));
+	for (const e of binders) {
+		await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
+		editor.forget(e.path);
+	}
+	if (update) {
+		for (const e of others) {
+			await change(e.path, (cur) => (cur ? { ...cur, text: e.text, dirty: true } : cur));
+			editor.forget(e.path);
+		}
+	}
+	const own = new Map(edits.filter((e) => moved.has(e.path)).map((e) => [e.path, e.text]));
+	for (const { from, to } of pairs) {
+		const note = notes.get(from);
+		const body = note.binary ? { bytes: note.bytes, binary: true } : { text: own.get(to) ?? textOf(from) };
+		await change(to, (cur) => ({ path: to, ...body, base: cur?.base ?? null, dirty: true, deleted: false }));
+		await change(from, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
+		await versions.move(from, to);
+		editor.forget(from);
+	}
+	const map = new Map(pairs.map((p) => [p.from, p.to]));
+	const moveTo = (p) => map.get(p) ?? p;
+	tabs = tabs.map(moveTo);
+	saveTabs();
+	bookmarks = bookmarks.map(moveTo);
+	writeJSON(BOOKMARKS_KEY, bookmarks);
+	if (ref.path && map.has(ref.path)) { ref.path = map.get(ref.path); saveRef(); }
+	return map;
+}
+
+// Renames every .base board (Obsidian's name for them) to .board, after
+// asking, and points links, embeds and Home pins at the new names.
+async function convertBoards() {
+	const paths = visible().map((n) => n.path);
+	const pairs = paths.filter((p) => /\.base$/i.test(p)).map((from) => ({ from, to: from.replace(/\.base$/i, BOARD_EXT) }));
+	if (!pairs.length) return toast("There are no .base files to rename.");
+	const taken = new Set(paths.map((p) => p.toLowerCase()));
+	const clash = pairs.find((p) => taken.has(p.to.toLowerCase()));
+	if (clash) return toast(`There's already a board at “${clash.to}”.`);
+	if (!confirm(`Rename ${pairs.length} .base file${pairs.length === 1 ? "" : "s"} to ${BOARD_EXT}? Links and Home pins to them follow.`)) return;
+	const was = editor.path;
+	const map = await relocate(pairs, paths, true);
+	await followPins(map, paths);
+	if (was && map.has(was)) openNote(map.get(was), { tab: false });
+	else renderTabs();
+	renderTree();
+	renderStatus();
+	scheduleSync(0);
+	toast(`Renamed ${pairs.length} board${pairs.length === 1 ? "" : "s"} to ${BOARD_EXT}.`);
+}
+
 function normalise(input) {
 	let p = input.trim().replace(/^\/+/, "");
-	if (!/\.(md|base)$/i.test(p)) p += ".md";
+	if (!/\.(md|board|base)$/i.test(p)) p += ".md";
 	return p;
 }
 
-// A new .base starts as Obsidian starts one: a table of every note.
+// A new board starts as Obsidian starts a base: a table of every note.
 const NEW_BASE = "views:\n  - type: table\n    name: Table\n";
 
 async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = null) {
@@ -2843,7 +2873,7 @@ async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = 
 	// note replaces it in the vault.
 	// Notes that could be published start with the Note template's properties,
 	// including today's date; "_" folders never publish, so they start empty.
-	const text = makeText ? makeText(path) : /\.base$/i.test(path) ? NEW_BASE : /(^|\/)_/.test(path) ? "" : withTitleHeading(newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA")), name(path));
+	const text = makeText ? makeText(path) : isBoardPath(path) ? NEW_BASE : /(^|\/)_/.test(path) ? "" : withTitleHeading(newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA")), name(path));
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	// Focus goes back to the New button once the name prompt closes; take it
@@ -2902,7 +2932,7 @@ async function newKindNote(kind, { blank = false } = {}) {
 }
 
 // "New base": pick the folder it shows (the palette's first row is every
-// note), then its name; it's saved in that folder as "<Folder>.base" unless
+// note), then its name; it's saved in that folder as "<Folder>.board" unless
 // renamed, and opens in its Grid.
 function newBase(folder = null) {
 	if (folder != null) return nameBase(folder);
@@ -2926,9 +2956,10 @@ function newBase(folder = null) {
 
 async function nameBase(folder) {
 	const home = folder || commonFolder(visible());
-	const input = prompt("New board (folders with /):", home + (folder ? itemLabel(folder) : "Untitled") + ".base");
+	const input = prompt("New board (folders with /):", home + (folder ? itemLabel(folder) : "Untitled") + BOARD_EXT);
 	if (input == null) return;
-	const path = input.trim().replace(/^\/+/, "").replace(/(\.base)?$/i, ".base");
+	let path = input.trim().replace(/^\/+/, "");
+	if (!isBoardPath(path)) path += BOARD_EXT;
 	if (!isNotePath(path)) return toast("That isn't a usable name.");
 	if (taken(path)) return openNote([...notes.keys()].find((p) => p.toLowerCase() === path.toLowerCase() && !notes.get(p).deleted));
 	const text = starterBase(folder, visible().filter((n) => n.path.startsWith(folder) && /\.md$/i.test(n.path) && !n.binary).map((n) => n.text));
@@ -4733,7 +4764,7 @@ function diffChange(a, b) {
 // What dataviewjs blocks (src/dataview.js) may read: notes on this device, and
 // public web pages through the Worker, as the clipper fetches them.
 const dataviewVault = {
-	paths: () => cachedPaths("notes", (n) => !n.binary && !/\.base$/i.test(n.path)),
+	paths: () => cachedPaths("notes", (n) => !n.binary && !isBoardPath(n.path)),
 	files: () => cachedPaths("files", (n) => !n.binary),
 	// A base changing a note's property: the open note through the editor (so
 	// it can be undone there), others saved and synced like any edit.

@@ -136,7 +136,7 @@ export function resolveNote(link, fromPath, paths) {
 	if (!link.note.trim()) return fromPath || null; // [[#Heading]] or [text](#heading)
 	let want = link.note.trim().replace(/^\.\//, "").replace(/^\/+/, "");
 	if (!want) return null;
-	if (!/\.md$/i.test(want)) want += ".md";
+	if (!/\.(md|board|base)$/i.test(want)) want += ".md"; // boards are linked with their extension
 	const { lower, byName } = pathIndex(paths);
 	const folder = fromPath && fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/") + 1) : "";
 	const parts = [];

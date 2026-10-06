@@ -1,4 +1,4 @@
-// Bases on screen: a .base note shows its views in place of its YAML (the
+// Bases on screen: a board note (.board, or .base) shows its views in place of its YAML (the
 // </> button shows the YAML, "Show base" goes back), and ```base blocks in
 // notes do the same while the cursor is outside them, like dataview blocks.
 //
@@ -37,8 +37,9 @@ import { imageRef } from "./pretty.js";
 import { parseFrontmatter } from "./dvpage.js";
 import { noteTags } from "./frontmatter.js";
 import { calendar, timeline } from "./basescalendar.js";
+import { isBoardPath } from "./paths.js";
 
-const isBase = (path) => /\.base$/i.test(path || "");
+const isBase = isBoardPath;
 // A board in a note: ```board (what wr1t3r writes), or Obsidian's ```base.
 export const BOARD_FENCES = ["board", "base"];
 // A board block's own look, from its top-level wr1t3r: key:
@@ -92,7 +93,7 @@ const showSource = StateField.define({
 	},
 });
 
-// While a .base note shows its views, typing can't change the hidden YAML.
+// While a board note shows its views, typing can't change the hidden YAML.
 const guard = EditorState.transactionFilter.of((tr) => {
 	if (!tr.docChanged || !(tr.isUserEvent("input") || tr.isUserEvent("delete") || tr.isUserEvent("move"))) return tr;
 	return isBase(tr.startState.facet(notePath)) && !tr.startState.field(showSource, false) ? [] : tr;
@@ -1206,7 +1207,7 @@ async function newNote(ctx, props = {}) {
 
 // ---- Around the widget --------------------------------------------------------------
 
-// "Show base" over a .base note's YAML.
+// "Show base" over a board note's YAML.
 class SourceBar extends WidgetType {
 	eq() { return true; }
 	toDOM(view) {
@@ -1255,7 +1256,7 @@ const views = StateField.define({
 	provide: (f) => EditorView.decorations.from(f),
 });
 
-// No text cursor beside a .base note's views.
+// No text cursor beside a board note's views.
 const mode = EditorView.editorAttributes.compute([notePath, showSource], (state) =>
 	isBase(state.facet(notePath)) && !state.field(showSource, false) ? { class: "md-base-mode" } : {});
 
