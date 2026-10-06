@@ -30,6 +30,7 @@ import { notebookCalendar, CALENDAR_FOLDER } from "./notecal.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { USES, DEFAULT_USES, featuresFor, starterNotes, needsHomeScreen } from "./onboarding.js";
+import { DEFAULT_API, licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, maskKey } from "./license.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
@@ -976,6 +977,123 @@ async function finishWelcome(start) {
 	renderStatus();
 	scheduleSync(0);
 	if (files.some((f) => f.path === "Welcome.md")) openNote("Welcome.md");
+}
+
+// ---- The license key (src/license.js) -----------------------------------------
+//
+// Only a build with VITE_LS_STORE_ID asks for one. A trial per device, then
+// the key window until a key is activated; Settings > License shows it.
+
+const env = import.meta.env || {};
+const LICENSE = { store: env.VITE_LS_STORE_ID || "", product: env.VITE_LS_PRODUCT_ID || "", api: env.VITE_LICENSE_API || DEFAULT_API, buy: env.VITE_BUY_URL || "" };
+const licensing = !!LICENSE.store;
+const LICENSE_KEY = "wr1t3r-license", TRIAL_KEY = "wr1t3r-trial-start";
+const savedLicense = () => readJSON(LICENSE_KEY, null);
+const licenseNow = () => licenseState(savedLicense(), Number(readRaw(TRIAL_KEY)) || null);
+
+function deviceName() {
+	const ua = navigator.userAgent;
+	const kind = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux|CrOS/.test(ua) ? "Linux" : "a browser";
+	return "wr1t3r on " + kind;
+}
+
+function setupLicense() {
+	if (!licensing) {
+		document.querySelectorAll('[data-tab="license"]').forEach((el) => el.remove());
+		return;
+	}
+	if (!readRaw(TRIAL_KEY)) storeRaw(TRIAL_KEY, String(Date.now()));
+	$("licenseBuy").hidden = !LICENSE.buy;
+	if (LICENSE.buy) $("licenseBuy").href = LICENSE.buy;
+	$("licenseForm").addEventListener("submit", (e) => { e.preventDefault(); enterLicense(); });
+	$("licenseLater").addEventListener("click", () => ($("license").hidden = true));
+	$("licenseOut").addEventListener("click", () => signOut());
+	const st = licenseNow();
+	if (st.status === "ended") showLicense(true);
+	else if (st.status === "trial" && st.daysLeft <= 3) toast(`wr1t3r's free trial ends in ${st.daysLeft} day${st.daysLeft === 1 ? "" : "s"}. Settings > License takes your key.`, 8000);
+	recheckLicense();
+}
+
+// The key window. required: the trial is over, so it can't be put away.
+function showLicense(required = false) {
+	$("licenseTitle").textContent = required ? "Your free trial has ended" : "Enter your license key";
+	$("licenseHint").textContent = required
+		? "Your notes are safe in your own storage. To keep writing in wr1t3r, enter the license key from your purchase email."
+		: "It's in the email from your purchase.";
+	$("licenseLater").hidden = required;
+	$("licenseOut").hidden = !required;
+	$("licenseError").hidden = true;
+	$("license").hidden = false;
+	$("license").dataset.required = required ? "1" : "";
+	$("licenseKey").focus();
+}
+
+async function enterLicense() {
+	const go = $("licenseGo"), err = $("licenseError");
+	go.disabled = true;
+	err.hidden = true;
+	try {
+		const lic = await activateLicense($("licenseKey").value, { ...LICENSE, name: deviceName() });
+		writeJSON(LICENSE_KEY, lic);
+		$("licenseKey").value = "";
+		$("license").hidden = true;
+		toast(lic.name ? `Thanks, ${lic.name}. wr1t3r is yours.` : "Thanks. wr1t3r is yours.");
+		renderLicenseSettings();
+	} catch (e) {
+		err.textContent = e instanceof TypeError ? "Couldn't reach Lemon Squeezy. Check the connection and try again." : e.message;
+		err.hidden = false;
+	} finally {
+		go.disabled = false;
+	}
+}
+
+// About once a week while online. Offline or a server hiccup changes nothing.
+async function recheckLicense() {
+	const lic = savedLicense();
+	if (!dueCheck(lic) || !navigator.onLine) return;
+	let next;
+	try { next = await checkLicense(lic, LICENSE); } catch { return; }
+	if (next) return writeJSON(LICENSE_KEY, next);
+	storeRaw(LICENSE_KEY, null);
+	renderLicenseSettings();
+	if (licenseNow().status === "ended") showLicense(true);
+	toast("This device's license key is no longer active.", 8000);
+}
+
+// Settings > License.
+function renderLicenseSettings() {
+	const pane = document.querySelector('.set-pane[data-tab="license"]');
+	if (!pane) return;
+	pane.textContent = "";
+	const lic = savedLicense(), st = licenseNow();
+	const p = (t, cls) => Object.assign(document.createElement("p"), { textContent: t, className: cls || "" });
+	const button = (t, fn) => { const b = Object.assign(document.createElement("button"), { type: "button", textContent: t }); b.addEventListener("click", fn); return b; };
+	const h2 = Object.assign(document.createElement("h2"), { textContent: "This device" });
+	pane.append(h2);
+	if (st.status === "licensed") {
+		pane.append(p(`Licensed${lic.name ? " to " + lic.name : ""}. Key ${maskKey(lic.key)}.`));
+		pane.append(button("Remove from this device", async (e) => {
+			if (!confirm("Remove the license from this device? You can enter the key again, here or on another device.")) return;
+			e.target.disabled = true;
+			try {
+				await deactivateLicense(lic, LICENSE);
+				storeRaw(LICENSE_KEY, null);
+				renderLicenseSettings();
+				if (licenseNow().status === "ended") showLicense(true);
+			} catch (err) {
+				toast(err instanceof TypeError ? "Couldn't reach Lemon Squeezy." : err.message);
+				e.target.disabled = false;
+			}
+		}));
+		pane.append(p("Frees this device's place on the key, so you can use it on another one.", "hint"));
+	} else {
+		pane.append(p(st.status === "trial" ? `Free trial: ${st.daysLeft} day${st.daysLeft === 1 ? "" : "s"} left on this device.` : "The free trial has ended on this device."));
+		pane.append(button("Enter license key", () => showLicense(st.status === "ended")));
+		if (LICENSE.buy) {
+			const a = Object.assign(document.createElement("a"), { href: LICENSE.buy, target: "_blank", rel: "noopener", textContent: "Buy wr1t3r" });
+			pane.append(Object.assign(document.createElement("p"), { className: "hint" }).appendChild(a).parentNode);
+		}
+	}
 }
 
 // Hides what belongs to areas that are off: body.no-<area> (style.css) and
@@ -3717,6 +3835,7 @@ function showSettingsTab(tab, onPhoneList = false) {
 	if (tab === "home") renderHomeSettings();
 	if (tab === "templates") renderTemplateSettings();
 	if (tab === "features") renderFeatureSettings();
+	if (tab === "license") renderLicenseSettings();
 	if (tab === "hotkeys") renderHotkeyTab();
 	if (tab === "sync") {
 		$("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
@@ -5118,6 +5237,7 @@ const dataviewVault = {
 
 async function start() {
 	$("app").hidden = false;
+	if (!licensing) setupLicense(); // takes the License tab out before Settings sees it
 	editor = createEditor($("editor"), { onChange: onEdit, onUpdate: () => { refreshCount(); refreshKeyboardBar?.(); }, onLink: followLink, vault: dataviewVault });
 	setupSettings();
 	setupFocusTools();
@@ -5227,6 +5347,7 @@ async function start() {
 	renderStatus();
 	runSync();
 	captureFromShare();
+	if (licensing) setupLicense();
 }
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
