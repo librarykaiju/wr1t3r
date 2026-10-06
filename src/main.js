@@ -25,6 +25,7 @@ import { openSearchPanel } from "@codemirror/search";
 import { local, meta, persist } from "./store.js";
 import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.js";
 import { api, token, setToken, AuthError } from "./api.js";
+import { openStorage } from "./storage.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
@@ -100,6 +101,8 @@ class NoteMap extends Map {
 	}
 }
 const notes = new NoteMap();
+// Where the notebook lives (src/storage.js); the Worker unless this device picked another.
+const remote = openStorage();
 let editor;
 
 // ---- storage: one write chain so saves land in order ----------------------
@@ -135,7 +138,7 @@ async function runSync() {
 	renderStatus();
 	try {
 		await writing;
-		const r = await sync({ local, api, onNote });
+		const r = await sync({ local, api: remote, onNote });
 		refreshAttachments();
 		lastSynced = new Date();
 		uploadReminders();
@@ -252,10 +255,10 @@ async function localPass() {
 			},
 			conflictPath: (path) => conflictPath(path, (p) => taken(p)),
 			attachments: () => (attachmentsLoaded ? attachments : null),
-			fetchAttachment: (file) => attachmentBlob(file, (p) => api.attachment(p)),
+			fetchAttachment: (file) => attachmentBlob(file, (p) => remote.attachment(p)),
 			async uploadPicture(path, blob) {
 				if (!navigator.onLine) throw new Error("offline");
-				const added = await api.uploadAttachment(path, blob);
+				const added = await remote.uploadAttachment(path, blob);
 				if (!added) return null; // the vault has one by that name; it comes down next pass
 				attachments = [...attachments.filter((x) => x.path !== path), added];
 				meta.set("attachments", attachments).catch(() => {});
@@ -2150,7 +2153,7 @@ function openCompile(folder) {
 		async image(name) {
 			const path = dataviewVault.resolveAttachment(name, bp);
 			const file = path && attachmentKind(path) === "image" && attachments.find((f) => f.path === path);
-			return file ? attachmentBlob(file, (p) => api.attachment(p)) : null;
+			return file ? attachmentBlob(file, (p) => remote.attachment(p)) : null;
 		},
 		async saveToVault(nm, text) {
 			const path = commonFolder(visible()) + COMPILED_FOLDER + nm + ".md";
@@ -4647,7 +4650,7 @@ function showLogin(message = "") {
 		e.preventDefault();
 		setToken($("token").value.trim());
 		try {
-			await api.check();
+			await remote.check();
 			$("login").hidden = true;
 			start();
 		} catch (err) {
@@ -4670,7 +4673,7 @@ async function loadAttachments() {
 }
 async function refreshAttachments() {
 	try {
-		const list = await api.attachments();
+		const list = await remote.attachments();
 		const changed = JSON.stringify(list) !== JSON.stringify(attachments);
 		attachments = list;
 		attachmentsLoaded = true;
@@ -4745,7 +4748,7 @@ async function uploadPicture(file, notePath) {
 	try {
 		for (let tries = 0; tries < 3; tries++) {
 			const path = freePath(folder + pictureName(file), taken());
-			const added = await api.uploadAttachment(path, file);
+			const added = await remote.uploadAttachment(path, file);
 			if (!added) { attachments.push({ path, version: "", size: 0 }); continue; } // taken on the vault, not here yet
 			attachments = [...attachments.filter((f) => f.path !== path), added];
 			meta.set("attachments", attachments).catch(() => {});
@@ -4780,7 +4783,7 @@ function exportNote(path) {
 		async image(nm) {
 			const p = dataviewVault.resolveAttachment(nm, path);
 			const file = p && attachmentKind(p) === "image" && attachments.find((f) => f.path === p);
-			return file ? attachmentBlob(file, (q) => api.attachment(q)) : null;
+			return file ? attachmentBlob(file, (q) => remote.attachment(q)) : null;
 		},
 		toast,
 	});
@@ -4862,7 +4865,7 @@ const dataviewVault = {
 	resolveAttachment: (name, from) => resolveAttachment(name, from, attachments.map((f) => f.path)),
 	attachmentURL(path) {
 		const file = attachments.find((f) => f.path === path);
-		return file ? attachmentURL(file, (p) => api.attachment(p)) : Promise.reject(new Error("No such attachment"));
+		return file ? attachmentURL(file, (p) => remote.attachment(p)) : Promise.reject(new Error("No such attachment"));
 	},
 	async fetch(url) {
 		const res = await fetch("/api/fetch?url=" + encodeURIComponent(url), { headers: { Authorization: "Bearer " + token() }, cache: "no-store" });
