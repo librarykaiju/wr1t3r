@@ -1496,7 +1496,13 @@ setPlannerHost({
 	image: (ref, from) => tileImage(ref, from),
 	open: (path) => openNote(path),
 	toast: (text) => toast(text),
-	usda: (q) => api.usdaSearch(q),
+	// Live USDA search through the Worker; with no Worker or no USDA key, the
+	// SR Legacy table shipped with the app (src/foodtable.js).
+	async usda(q) {
+		const here = () => import("./foodtable.js").then((t) => t.searchBundled(q));
+		if (onDropbox) return here();
+		try { return await api.usdaSearch(q); } catch (e) { if (e.body?.setup) return here(); throw e; }
+	},
 });
 
 // Drops keys set to nothing, so they come out of the file.
