@@ -55,6 +55,7 @@
 //   /api/ocr                       text read from pictures and PDFs, for search;
 //                                  see worker/ocr.js
 //   GET    /api/define?word=       dictionary and thesaurus; see worker/define.js
+//   /api/backup                    the vault's backup to Google Drive; see worker/backup.js
 
 import { r2Backend } from "./r2.js";
 import { githubBackend } from "./github.js";
@@ -67,6 +68,7 @@ import { pushApi, sendDue } from "./push.js";
 import { ocrApi } from "./ocr.js";
 import { defineApi } from "./define.js";
 import { grammarApi } from "./grammar.js";
+import { backupApi, backupConfigured, runBackup } from "./backup.js";
 import { HttpError, toBase64 } from "./util.js";
 import { isNotePath, isAttachmentPath, attachmentType } from "../src/paths.js";
 import { INBOX, captureEntry, appendCapture, stamp } from "../src/capture.js";
@@ -76,6 +78,7 @@ const READ_BATCH = 25;
 // Pictures pasted or dropped into a note. No SVG: it can carry scripts.
 const UPLOAD_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp"]);
 const MAX_UPLOAD = 20 * 1024 * 1024;
+const EVERY_MINUTE = "* * * * *";
 
 export default {
 	async fetch(request, env) {
@@ -100,6 +103,8 @@ export default {
 			if (def) return json(def);
 			const grammar = await grammarApi(request, env, url);
 			if (grammar) return json(grammar);
+			const backup = await backupApi(request, env, url);
+			if (backup) return json(backup);
 			if (url.pathname === "/api/capture" && request.method === "POST") return json(await capture(request, backend(env), env, excluded(env)));
 			return (await api(request, backend(env), url, excluded(env))) || json({ error: "Not found" }, 404);
 		} catch (err) {
@@ -107,9 +112,11 @@ export default {
 			return json({ error: String(err?.message || err) }, 500);
 		}
 	},
-	// Every minute ([triggers] in wrangler.toml): task reminders that are due.
+	// [triggers] in wrangler.toml: every minute, task reminders that are due;
+	// the hourly one, a batch of the Google Drive backup.
 	async scheduled(event, env, ctx) {
-		ctx.waitUntil(sendDue(env));
+		if (event.cron === EVERY_MINUTE) ctx.waitUntil(sendDue(env));
+		else if (backupConfigured(env)) ctx.waitUntil(runBackup(env));
 	},
 };
 

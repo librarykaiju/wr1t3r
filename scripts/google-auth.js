@@ -1,4 +1,4 @@
-// One-time Google sign-in for the agenda. Run on your own computer, in this
+// One-time Google sign-in for the agenda and the Drive backup. Run on your own computer, in this
 // folder:  npm run google-auth
 //
 // It asks for the OAuth client ID and secret from Google Cloud (a "Desktop
@@ -12,7 +12,8 @@ import { randomBytes, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 
-const SCOPE = "https://www.googleapis.com/auth/calendar";
+// Calendar, and Drive files this app makes (the backup; it can't see the rest).
+const SCOPE = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.file";
 const b64url = (buf) => buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 const rl = createInterface({ input: process.stdin, output: process.stdout });

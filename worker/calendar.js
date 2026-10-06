@@ -28,7 +28,7 @@ export function calendarConfigured(env) {
 	return !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REFRESH_TOKEN);
 }
 
-async function accessToken(env) {
+export async function accessToken(env) {
 	const key = env.GOOGLE_REFRESH_TOKEN;
 	if (cached?.key === key && cached.expires > Date.now() + 60000) return cached.token;
 	const res = await fetch(env.GOOGLE_TOKEN_URL || "https://oauth2.googleapis.com/token", {
