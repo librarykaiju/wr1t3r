@@ -57,7 +57,7 @@ async function addTask(view, cfg, tag, day, text) {
 	const target = cfg.inbox ? resolveNote({ note: cfg.inbox.replace(/^\[\[|\]\]$/g, "").split("|")[0], heading: "", wiki: true }, view.state.facet(notePath), paths)
 		: names.map((f) => paths.filter((p) => p.split("/").pop().toLowerCase() === f && !/(^|\/)_templates\//i.test(p)).sort((a, b) => a.length - b.length)[0]).find(Boolean);
 	if (target) await host.write(target, (t) => appendTask(t, line));
-	else await host.create(root + "_docs/", file.slice(0, -3), () => `# ${title}\n\n${line}\n`, { open: false });
+	else await host.create(host.listsFolder?.() ?? root + "_docs/", file.slice(0, -3), () => `# ${title}\n\n${line}\n`, { open: false });
 }
 
 function setTaskDue(view, t, day) {
