@@ -3382,9 +3382,12 @@ async function clipPage(url) {
 // up, remembered so the commands are there offline too.
 const MEDIA_KEY = "wr1t3r-media-kinds";
 let mediaKinds = readJSON(MEDIA_KEY, []);
+// Media lookups through the Worker, or with no Worker the same code in the
+// page (src/mediahere.js).
+const mediaSource = () => (onDropbox ? import("./mediahere.js").then((m) => m.mediaHere) : Promise.resolve(api));
 async function loadMediaKinds() {
 	try {
-		mediaKinds = await api.mediaKinds();
+		mediaKinds = await (await mediaSource()).mediaKinds();
 		writeJSON(MEDIA_KEY, mediaKinds);
 	} catch {}
 }
@@ -3397,7 +3400,7 @@ async function newMediaNote(k, kind = null) {
 	if (!navigator.onLine) return toast("Media lookups need a connection.");
 	try {
 		let progress = null;
-		const made = await makeMediaNote(k, api, (text) => {
+		const made = await makeMediaNote(k, await mediaSource(), (text) => {
 			if (text) progress ? progress.set(text) : (progress = toast(text, 60000));
 			else { progress?.close(); progress = null; }
 		}, { blank: kind ? `Start a blank ${kind.label.replace(/^New /, "")}` : null });

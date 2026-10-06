@@ -268,7 +268,7 @@ Until it's set, **Search USDA** says the key is missing.
 
 The command palette's **Create movie/TV note**, **Create book note**, **Create music note**, **Create game note**, **Create comic note** and **Create podcast note** do what the Media Notes Obsidian plugin does, with the same properties, so a note made here matches one made in Obsidian. Search, pick a result (and a cover, for books and games), and the note opens in its folder with the looked-up properties and an empty `## Notes` heading. The Worker does the lookups (`worker/media.js`), since most of these services don't answer browsers directly, and it holds the keys; the page never sees them.
 
-Books (Open Library and Google Books), music (MusicBrainz and Cover Art Archive) and podcasts (iTunes) need no key. The others show up once their keys are set:
+Books (Open Library and Google Books), music (MusicBrainz and Cover Art Archive) and podcasts (iTunes) need no key. Movies and TV, games and comics need no key either: without one they come from Wikidata, with the summary and picture from the Wikipedia article (`worker/wikimedia.js`). Fewer details (no Steam banner, no IGDB box art, single comic issues are thin), but nothing to sign up for. On a Dropbox device the page runs the same lookups itself, with no keys. A key swaps in the richer service:
 
 ```sh
 npx wrangler secret put OMDB_API_KEY        # movies and TV, free at omdbapi.com/apikey.aspx
