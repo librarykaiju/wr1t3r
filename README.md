@@ -334,6 +334,8 @@ Anything captured lands as an open task at the end of `content/Inbox.md` (change
 
 The palette's "Make pictures and PDFs searchable" sends each picture (JPEG, PNG, GIF, WebP) and PDF in the vault to Claude (Haiku 4.5) once, through the Worker, to read the text in it, or to say in a sentence what a picture shows when it has no text. Sidebar search then finds them; clicking a result opens the file. While it's on, new pictures and PDFs are read after each sync, up to ten at a time. It needs the `ANTHROPIC_API_KEY` secret (the one media notes use). The texts live in the bucket at `.wr1t3r/ocr.json`. Pictures over 5 MB and PDFs over 32 MB or 100 pages are skipped.
 
+With no Worker (Dropbox) or no `ANTHROPIC_API_KEY`, the device reads them itself: Tesseract for pictures (printed English text; no descriptions of pictures without text), and the PDF's own text layer, with the first five pages of a scanned PDF read like pictures. The engine and language data (about 7 MB) are served from this site under `/ocr/` and downloaded the first time. The texts stay on that device.
+
 ## Board column totals
 
 In a board's Grid, click under a column to pick its total: Sum, Average, Median, Smallest, Largest, Range, Standard deviation, Earliest or Latest date, Checked, Unchecked, Filled, Empty, or Unique values. It's saved in the view's `summaries:`.
