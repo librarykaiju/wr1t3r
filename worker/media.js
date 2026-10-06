@@ -433,7 +433,7 @@ const NOTE = {
 			streamingServices: [], shelf: [], rating: [],
 			coverImage: t.Poster && t.Poster !== "N/A" ? t.Poster : "",
 			summary: t.Plot && t.Plot !== "N/A" ? t.Plot : "",
-			sticky: false, draft: true, date: today, eyebrow: null,
+			sticky: false, publish: false, date: today, eyebrow: null,
 		};
 		const fields = t.Type === "series" ? common : { title: common.title, director: splitList(t.Director), ...common };
 		return { fields, year: t.Year };
@@ -454,7 +454,7 @@ const NOTE = {
 				title: b.title, author: b.authors, series: [], volume: null, format: [],
 				subjects: tags.subjects.length ? tags.subjects : olSubjects,
 				genre: [], vibesAndThemes: tags.vibesAndThemes, shelf: [], rating: [],
-				coverImage: cover, summary, sticky: false, draft: true, date: today, eyebrow: null,
+				coverImage: cover, summary, sticky: false, publish: false, date: today, eyebrow: null,
 			},
 			year: str(ref.year, 10),
 		};
@@ -487,7 +487,7 @@ const NOTE = {
 				language: languageName(release?.["text-representation"]?.language),
 				releasedOn: usDate(release?.date),
 				albumDuration: duration(all.reduce((s, t) => s + (t.length || 0), 0)) || null,
-				tracks, tags: (group.tags || []).map((t) => t.name), rating: [], sticky: null, draft: true, eyebrow: null,
+				tracks, tags: (group.tags || []).map((t) => t.name), rating: [], sticky: null, publish: false, eyebrow: null,
 			},
 			year: release?.date?.slice(0, 4) || str(ref.year, 10),
 		};
@@ -503,7 +503,7 @@ const NOTE = {
 				platform: (g.platforms || []).map((d) => d.platform.name),
 				genre: (g.genres || []).map((d) => d.name),
 				status: [], rating: [], coverImage: cover, banner,
-				description: g.description_raw || "", tags: [], sticky: false, draft: true, date: today, eyebrow: null,
+				description: g.description_raw || "", tags: [], sticky: false, publish: false, date: today, eyebrow: null,
 			},
 			year: g.released?.slice(0, 4) || "",
 		};
@@ -524,7 +524,7 @@ const NOTE = {
 				format: "💬 Comic", publisher, subjects: ["Comics & Graphic Novels"], genre: ["comics"],
 				vibesAndThemes: [], shelf: [], rating: [],
 				coverImage: i.image?.original_url || i.image?.medium_url || "",
-				summary: plainText(i.description), sticky: false, draft: true, date: today, eyebrow: plainText(i.deck) || null,
+				summary: plainText(i.description), sticky: false, publish: false, date: today, eyebrow: plainText(i.deck) || null,
 			},
 			year: i.cover_date ? i.cover_date.slice(0, 4) : "",
 		};
@@ -536,7 +536,7 @@ const NOTE = {
 				title: str(ref.title), creator: str(ref.creator),
 				genre: Array.isArray(ref.genre) ? ref.genre.slice(0, 10).map((g) => str(g, 100)) : [],
 				shelf: [], rating: [], coverImage: httpsUrl(ref.artworkUrl), externalUrl: httpsUrl(ref.collectionViewUrl),
-				summary: "", sticky: false, draft: true, date: today, eyebrow: null,
+				summary: "", sticky: false, publish: false, date: today, eyebrow: null,
 			},
 			year: "",
 		};
