@@ -194,6 +194,26 @@ Below them are Home's pinned tiles (`src/home.js`, `src/homeview.js`), kept in `
 3. Cloudflare dashboard → **Workers & Pages** → `wr1t3r` → **Settings** → **Domains & Routes** → **Add** → **Custom domain** → `wr1t3r.brandonj.ink`.
 4. Open it, paste the token. On iPhone, **Share** → **Add to Home Screen**; otherwise Safari may clear the offline copy after about a week without use.
 
+## Built-in calendar
+
+With no Google Calendar (a Dropbox device, or a Worker without the Google settings below), the agenda, month view, Timeline and event alerts use events kept in the notebook: one note per event in `_wr1t3r/Calendar/`, so they work offline and sync like any note. Add them with **+ Add event** (it can repeat daily, weekly, monthly or yearly), or write one by hand:
+
+```yaml
+---
+title: Dentist
+start: 2026-10-07T15:00   # a date alone is all day
+end: 2026-10-07T16:00     # all day: the last day
+location: Main St
+color: 7                  # a Google event color number
+reminder: 30              # minutes before, or none
+repeat: weekly            # daily, weekly, monthly, yearly
+until: 2026-12-31
+skip: [2026-10-14]        # occurrences deleted from the agenda
+---
+```
+
+Alerts show while wr1t3r is open. Times are wall-clock times on the device showing them.
+
 ## Google Calendar
 
 This is a one-time setup, done in a browser and a terminal on your computer.
@@ -336,7 +356,7 @@ A build with a Dropbox app key shows **Use Dropbox** on the sign-in screen. Note
 3. Settings: add the page's address as a Redirect URI (`https://your.host/`, with the slash). Copy the **App key** (the secret isn't used).
 4. Build with it: `VITE_DROPBOX_APP_KEY=<app key> npm run deploy`.
 
-What needs the Worker (transcripts, calendar, reminders, picture search, lookups, server-side capture) shows an error on a Dropbox device for now. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
+The calendar switches to the built-in one (below). What else needs the Worker (transcripts, push reminders, picture search, lookups, server-side capture) shows an error on a Dropbox device for now. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
 
 ## Features and folders
 

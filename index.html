@@ -373,6 +373,15 @@
 					<div id="evColors" role="radiogroup" aria-label="Event color"></div>
 				</div>
 				<input id="evLocation" placeholder="Location (optional)" maxlength="1000" aria-label="Location">
+				<label class="row" id="evRepeatRow" hidden>Repeats
+					<select id="evRepeat" aria-label="Repeats">
+						<option value="">Never</option>
+						<option value="daily">Every day</option>
+						<option value="weekly">Every week</option>
+						<option value="monthly">Every month</option>
+						<option value="yearly">Every year</option>
+					</select>
+				</label>
 				<label class="row">Reminder
 					<select id="evReminder" aria-label="Reminder">
 						<option value="">Calendar default</option>
