@@ -152,6 +152,7 @@
 						<button type="button" role="tab" data-tab="features">Features</button>
 						<button type="button" role="tab" data-tab="hotkeys">Hotkeys</button>
 						<button type="button" role="tab" data-tab="sync">Sync and files</button>
+						<button type="button" role="tab" data-tab="license">License</button>
 					</div>
 				</nav>
 				<div class="set-main">
@@ -299,6 +300,7 @@
 						<p class="hint">Templates live in the vault's _templates folder and stay out of the notes list. Each one is also a / command and an “Insert template” command you can give a hotkey.</p>
 					</section>
 					<section class="set-pane" data-tab="features" data-title="Features" role="tabpanel" hidden></section>
+					<section class="set-pane" data-tab="license" data-title="License" role="tabpanel" hidden></section>
 					<section class="set-pane" data-tab="hotkeys" data-title="Hotkeys" role="tabpanel" hidden>
 						<input id="hotkeyFilter" type="search" placeholder="Find a command" aria-label="Find a command" autocomplete="off">
 						<div id="hotkeyList" class="hotkey-list"></div>
@@ -412,6 +414,16 @@
 				<label class="welcome-check"><input type="checkbox" id="welcomeStarter" checked> Add a welcome note, starter notes and a Home screen</label>
 				<p id="welcomeIos" class="welcome-tip" hidden><b>On iPhone or iPad,</b> tap Share, then Add to Home Screen, and open wr1t3r from there. Safari clears the offline copy of a site that isn't on the Home Screen after about a week without a visit.</p>
 				<div class="welcome-actions"><button id="welcomeSkip" type="button" class="quiet">Skip</button><button id="welcomeGo" type="submit">Start</button></div>
+			</form>
+		</div>
+		<!-- The product build's license key (src/license.js). -->
+		<div id="license" class="settings-win welcome-win" role="dialog" aria-modal="true" aria-labelledby="licenseTitle" hidden>
+			<form class="welcome-box" id="licenseForm">
+				<h1 id="licenseTitle">Enter your license key</h1>
+				<p class="hint" id="licenseHint">It's in the email from your purchase.</p>
+				<input id="licenseKey" class="welcome-input" type="text" placeholder="License key" aria-label="License key" autocomplete="off" autocapitalize="off" spellcheck="false">
+				<p id="licenseError" class="welcome-error" role="alert" hidden></p>
+				<div class="welcome-actions"><a id="licenseBuy" class="welcome-link" target="_blank" rel="noopener">Buy wr1t3r</a><button id="licenseLater" type="button" class="quiet">Not now</button><button id="licenseOut" type="button" class="quiet" hidden>Sign out</button><button id="licenseGo" type="submit">Activate</button></div>
 			</form>
 		</div>
 		<!-- Every notice in one corner: messages stack above the last sync time. -->

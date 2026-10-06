@@ -376,6 +376,18 @@ The calendar switches to the built-in one (below), task reminders show while wr1
 
 When the first sync finds the notebook empty, wr1t3r asks what it's for: writing, a journal and day planner, health and food, media logs, or research and clipping. Start turns on the areas those need and the rest off (written to `_wr1t3r/Settings.md`, see below), and by default adds a Welcome note that shows the way around, a sample `My Story/` manuscript for writing, and a Home screen pinning them. Skip leaves everything on and adds nothing. It's asked once per device, and never for a notebook with anything in it. On an iPhone or iPad outside the Home Screen it also says to add wr1t3r there, since Safari otherwise clears the offline copy after about a week. The choices and starter notes are in `src/onboarding.js`.
 
+## License key (product build)
+
+A build with `VITE_LS_STORE_ID` set asks for a [Lemon Squeezy](https://lemonsqueezy.com) license key. Without it (the personal build) nothing here applies and there's no License tab.
+
+Each device gets a 14-day free trial from the day it's first opened. After that a window asks for the key; the notes stay in the user's own storage throughout. Activating a key registers the device with Lemon Squeezy (named like "wr1t3r on iPhone"), so the product's activation limit caps devices, and Settings > License can remove a device to free its place. Keys are checked again about once a week while online; a refunded or disabled key, or a removed device, goes back to asking. Being offline never does. The check runs in the page (`src/license.js`), so it keeps honest people honest and no more.
+
+1. In Lemon Squeezy, make the product with **Generate license keys** on and an activation limit (5 devices, say).
+2. Note the store's ID (Settings > Stores) and the product's ID, and copy the product's checkout link.
+3. Build with them: `VITE_LS_STORE_ID=<store id> VITE_LS_PRODUCT_ID=<product id> VITE_BUY_URL=<checkout link> npm run build`. The product ID is optional; without it any product in the store is accepted.
+
+`VITE_LICENSE_API` points the checks somewhere other than `https://api.lemonsqueezy.com/v1/licenses` (a proxy, if a browser can't reach it directly); add that host to `connect-src` in `public/_headers` too.
+
 ## Features and folders
 
 Settings > Features turns whole areas on or off for the notebook: long-form writing, boards, daily notes and planner, health and food, media logs, calendar, transcripts and voice memos, searchable pictures, capture and clipping, and reminders. An area that's off leaves the command palette, menus and buttons (`data-feature` in `index.html`, `body.no-<area>` in `style.css`); the notes it made stay as they are. The same tab sets wr1t3r's own folders inside the notes' folder: the Inbox note, uploads, clippings, compiled notes and the task lists.

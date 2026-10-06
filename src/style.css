@@ -272,6 +272,9 @@ body:has(.settings-win:not([hidden])) #notices #status { display: none; }
 .welcome-check { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-bottom: 16px; }
 .welcome-tip { font-size: 14px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); margin: 0 0 16px; }
 .welcome-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.welcome-actions .welcome-link { margin-right: auto; align-self: center; font-size: 14px; color: var(--link, var(--accent)); }
+.welcome-input { width: 100%; box-sizing: border-box; font: inherit; font-family: var(--mono, monospace); font-size: 15px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); margin-bottom: 12px; }
+.welcome-error { font-size: 14px; color: var(--danger, #c0392b); margin: -4px 0 12px; }
 .hotkey-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 10px; }
 .hotkey-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 7px 12px; font: inherit; font-family: var(--sans); font-size: 14px; color: var(--fg); cursor: pointer; min-height: 0; }
 .hotkey-row:first-child { border-top: 0; }
