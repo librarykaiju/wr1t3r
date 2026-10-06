@@ -220,6 +220,16 @@
 							<button type="button" data-on="true">On</button>
 							<button type="button" data-on="false">Off</button>
 						</div>
+						<h2>Page layout</h2>
+						<div class="seg" id="pageSeg" title="Shows notes on pages, with margins, page breaks and page numbers, as a word processor's print layout does">
+							<button type="button" data-on="true">On</button>
+							<button type="button" data-on="false">Off</button>
+						</div>
+						<div class="page-setup" title="The page the page layout, printing and PDF and Word exports use">
+							<select id="pageSize" aria-label="Paper size"></select>
+							<select id="pageOrient" aria-label="Orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
+							<select id="pageMargin" aria-label="Margins"></select>
+						</div>
 						<h2>Daily word goal</h2>
 						<div><input id="setDayGoal" type="number" min="0" step="50" inputmode="numeric" placeholder="None" aria-label="Words to write each day"></div>
 						<p class="hint">Words a day, shown in the word count. A note can have its own with a goal: property.</p>

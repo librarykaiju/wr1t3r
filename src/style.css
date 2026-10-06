@@ -308,6 +308,10 @@ body:has(.settings-win:not([hidden])) #notices #status { display: none; }
 #toolbar .tb-highlight { background: var(--hl); color: var(--fg); height: 22px; margin: 0 2px; }
 #toolbar .tb-sep { flex: none; width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
 main:not(.has-note) #toolbar, main.has-folder #toolbar, #app.no-toolbar #toolbar { display: none; }
+/* Page layout off (the setting): no page button on the toolbar. */
+#app.no-pages #toolbar .tb-page-layout { display: none; }
+.page-setup { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.page-setup select { flex: 1 1 140px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: 14px var(--sans); }
 /* Page view (src/pageview.js): the note on pages of the Page setup size, on
    a desk. The text sits inside the margins; a gap ends one page (with its
    number in the bottom margin) and starts the next. */

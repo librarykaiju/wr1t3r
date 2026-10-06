@@ -1663,14 +1663,25 @@ function openNote(path, { replace = false, tab = true } = {}) {
 let pageSetupNow = readSetup(readJSON("wr1t3rPage", null));
 setPageSetup(pageSetupNow);
 const pageViewOn = () => readRaw("wr1t3rPageView") === "on";
+// Page layout is a setting (Settings > Writing, off to start): off, notes
+// show as usual and the toolbar has no page button; Page setup still sets
+// the page printing and exports use.
 function applyPageView() {
-	const view = editor?.view;
-	if (view && (isPageView(view) !== pageViewOn() || isPageView(view))) setPageView(view, pageViewOn(), pageSetupNow);
-	toolbarUi?.refreshPage(pageViewOn());
+	const view = editor?.view, on = pageViewOn();
+	if (view && (isPageView(view) !== on || on)) setPageView(view, on, pageSetupNow);
+	$("app").classList.toggle("no-pages", !on);
+	toolbarUi?.refreshPage(on);
+	if ($("pageSeg")) {
+		markSeg("pageSeg", on);
+		$("pageSize").value = pageSetupNow.size;
+		$("pageOrient").value = pageSetupNow.orient;
+		$("pageMargin").value = pageSetupNow.margin;
+	}
 }
 function togglePageView(on = !pageViewOn()) {
 	storeRaw("wr1t3rPageView", on ? "on" : null);
 	applyPageView();
+	toast(on ? "Page layout on: notes show on pages. Paper and margins are in the toolbar's page menu and Settings > Writing." : "Page layout off.", 3000);
 }
 function changePageSetup(patch) {
 	pageSetupNow = readSetup({ ...pageSetupNow, ...patch });
@@ -1678,12 +1689,24 @@ function changePageSetup(patch) {
 	setPageSetup(pageSetupNow);
 	applyPageView();
 }
+function setupPageSettings() {
+	for (const [k, v] of Object.entries(SIZES)) $("pageSize").append(new Option(v.label, k));
+	for (const [k, v] of Object.entries(MARGINS)) $("pageMargin").append(new Option("Margins: " + v.label, k));
+	$("pageSeg").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (b) togglePageView(b.dataset.on === "true");
+	});
+	$("pageSize").addEventListener("change", (e) => changePageSetup({ size: e.target.value }));
+	$("pageOrient").addEventListener("change", (e) => changePageSetup({ orient: e.target.value }));
+	$("pageMargin").addEventListener("change", (e) => changePageSetup({ margin: e.target.value }));
+	applyPageView();
+}
 // The toolbar's Page layout menu.
 function pageMenu(view, btn) {
 	const r = btn.getBoundingClientRect();
 	const tick = (on) => (on ? "✓ " : "\u2003");
 	dropMenu([
-		[tick(pageViewOn()) + "Page view", () => togglePageView()],
+		[tick(pageViewOn()) + "Page layout", () => togglePageView()],
 		null,
 		...Object.entries(SIZES).map(([k, v]) => [tick(pageSetupNow.size === k) + v.label, () => changePageSetup({ size: k })]),
 		null,
@@ -2470,7 +2493,7 @@ function allCommands() {
 		["Toggle left sidebar", () => showLeft(leftShut()), "notes list panel collapse hide show"],
 		["Toggle right sidebar", () => showRight(rightShut()), "calendar agenda contents panel collapse hide show"],
 		["Toggle focus mode", () => toggleFocus(), "distraction free typewriter zen dim writing mode"],
-		["Toggle page view", () => togglePageView(), "page layout print layout pages paper margins word processor", true],
+		["Toggle page layout", () => togglePageView(), "page view print layout pages paper margins word processor"],
 		["Track changes", () => toggleTracking(), "track changes revisions review suggest edits criticmarkup", true],
 		["Accept all changes", () => reviewAll(true), "track changes review revisions", true],
 		["Reject all changes", () => reviewAll(false), "track changes review revisions", true],
@@ -4763,7 +4786,7 @@ async function start() {
 		page: pageMenu,
 	});
 	applyTracking();
-	applyPageView();
+	setupPageSettings();
 	if (readRaw("wr1t3rFocus") === "on") toggleFocus(true);
 	$("focusExit").addEventListener("click", () => toggleFocus(false));
 	document.addEventListener("keydown", (e) => {
