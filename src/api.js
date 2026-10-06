@@ -1,4 +1,8 @@
 // Talks to the Worker. The token lives in localStorage, like Reader's.
+//
+// Two parts: workerStorage() is the Worker as the place notes live (one of
+// the storage kinds in src/storage.js), and `api` is everything else the
+// Worker does for the page (transcripts, calendar, media lookups...).
 
 import { READ_BATCH } from "./sync.js";
 
@@ -13,10 +17,10 @@ export function setToken(t) {
 
 export class AuthError extends Error {}
 
-async function call(path, init = {}) {
-	const res = await fetch(path, {
+async function call(path, init = {}, get = (...a) => fetch(...a), auth = token) {
+	const res = await get(path, {
 		...init,
-		headers: { Authorization: "Bearer " + token(), ...init.headers },
+		headers: { Authorization: "Bearer " + auth(), ...init.headers },
 		cache: "no-store",
 	});
 	if (res.status === 401) throw new AuthError("Wrong or missing token");
@@ -38,31 +42,68 @@ function fromBase64(b64) {
 
 const q = (path) => "/api/file?path=" + encodeURIComponent(path);
 
+// The Worker as storage (see src/storage.js for what each method promises).
+// `get` and `auth` are fetch and the token, swappable for tests.
+export function workerStorage({ get, auth } = {}) {
+	const c = (path, init) => call(path, init, get, auth);
+	return {
+		async check() {
+			await jsonOrThrow(await c("/api/files"));
+		},
+		async list() {
+			return (await jsonOrThrow(await c("/api/files"))).files;
+		},
+		async attachments() {
+			return (await jsonOrThrow(await c("/api/attachments"))).files;
+		},
+		async attachment(path) {
+			const res = await c("/api/attachment?path=" + encodeURIComponent(path));
+			if (!res.ok) await jsonOrThrow(res);
+			return res.blob();
+		},
+		// A new picture; false if the name is taken.
+		async uploadAttachment(path, blob) {
+			const res = await c("/api/attachment?path=" + encodeURIComponent(path), {
+				method: "PUT",
+				headers: { "If-None-Match": "*", "Content-Type": blob.type || "application/octet-stream" },
+				body: blob,
+			});
+			if (res.status === 412) return false;
+			return { path, version: (await jsonOrThrow(res)).version, size: blob.size };
+		},
+		async read(paths) {
+			const out = [];
+			for (let i = 0; i < paths.length; i += READ_BATCH) {
+				const res = await c("/api/files/read", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ paths: paths.slice(i, i + READ_BATCH) }),
+				});
+				for (const f of (await jsonOrThrow(res)).files) {
+					out.push(f.missing ? f : { path: f.path, version: f.version, bytes: fromBase64(f.data) });
+				}
+			}
+			return out;
+		},
+		async write(path, bytes, expected) {
+			const res = await c(q(path), {
+				method: "PUT",
+				headers: expected ? { "If-Match": `"${expected}"` } : { "If-None-Match": "*" },
+				body: bytes,
+			});
+			if (res.status === 412) return { ok: false, version: (await res.json().catch(() => ({}))).version ?? null };
+			return { ok: true, version: (await jsonOrThrow(res)).version };
+		},
+		async remove(path, expected) {
+			const res = await c(q(path), { method: "DELETE", headers: { "If-Match": `"${expected}"` } });
+			if (res.status === 412) return { ok: false, version: (await res.json().catch(() => ({}))).version ?? null };
+			if (!res.ok) await jsonOrThrow(res);
+			return { ok: true };
+		},
+	};
+}
+
 export const api = {
-	async check() {
-		await jsonOrThrow(await call("/api/files"));
-	},
-	async list() {
-		return (await jsonOrThrow(await call("/api/files"))).files;
-	},
-	async attachments() {
-		return (await jsonOrThrow(await call("/api/attachments"))).files;
-	},
-	async attachment(path) {
-		const res = await call("/api/attachment?path=" + encodeURIComponent(path));
-		if (!res.ok) await jsonOrThrow(res);
-		return res.blob();
-	},
-	// A new picture; false if the name is taken.
-	async uploadAttachment(path, blob) {
-		const res = await call("/api/attachment?path=" + encodeURIComponent(path), {
-			method: "PUT",
-			headers: { "If-None-Match": "*", "Content-Type": blob.type || "application/octet-stream" },
-			body: blob,
-		});
-		if (res.status === 412) return false;
-		return { path, version: (await jsonOrThrow(res)).version, size: blob.size };
-	},
 	// 16 kHz mono WAV -> { duration, segments } (src/transcript.js).
 	async transcribe(wav) {
 		return jsonOrThrow(await call("/api/transcribe", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav }));
@@ -94,29 +135,6 @@ export const api = {
 	},
 	async obsidian() {
 		return jsonOrThrow(await call("/api/obsidian"));
-	},
-	async read(paths) {
-		const out = [];
-		for (let i = 0; i < paths.length; i += READ_BATCH) {
-			const res = await call("/api/files/read", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ paths: paths.slice(i, i + READ_BATCH) }),
-			});
-			for (const f of (await jsonOrThrow(res)).files) {
-				out.push(f.missing ? f : { path: f.path, version: f.version, bytes: fromBase64(f.data) });
-			}
-		}
-		return out;
-	},
-	async write(path, bytes, expected) {
-		const res = await call(q(path), {
-			method: "PUT",
-			headers: expected ? { "If-Match": `"${expected}"` } : { "If-None-Match": "*" },
-			body: bytes,
-		});
-		if (res.status === 412) return { ok: false, version: (await res.json().catch(() => ({}))).version ?? null };
-		return { ok: true, version: (await jsonOrThrow(res)).version };
 	},
 	async events(from, to, calendars) {
 		const qs = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
@@ -150,11 +168,5 @@ export const api = {
 	},
 	async usdaSearch(q) {
 		return (await jsonOrThrow(await call("/api/usda/search?" + new URLSearchParams({ q })))).results;
-	},
-	async remove(path, expected) {
-		const res = await call(q(path), { method: "DELETE", headers: { "If-Match": `"${expected}"` } });
-		if (res.status === 412) return { ok: false, version: (await res.json().catch(() => ({}))).version ?? null };
-		if (!res.ok) await jsonOrThrow(res);
-		return { ok: true };
 	},
 };
