@@ -6,6 +6,19 @@
 
 const FM = /^---[ \t]*\r?\n([\s\S]*?\r?\n)?(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
 
+const IN_TEMPLATES = /(^|\/)_templates\//i;
+
+// Whether a path is in a _templates folder. Those stay out of the notes list;
+// Aa > Templates lists them instead.
+export const isTemplatePath = (path) => IN_TEMPLATES.test(path);
+
+// The _templates folder new templates go in: the one the vault's templates
+// are already in (the shallowest, if there are several), else home + "_templates/".
+export function templatesFolder(paths, home = "") {
+	const dirs = paths.filter((p) => /\.md$/i.test(p) && IN_TEMPLATES.test(p)).map((p) => p.slice(0, p.toLowerCase().indexOf("_templates/") + 11));
+	return dirs.sort((a, b) => a.length - b.length)[0] || home + "_templates/";
+}
+
 // The templates among paths: [{ path, name }] by name.
 export function templatesIn(paths) {
 	return paths

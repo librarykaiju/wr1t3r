@@ -147,6 +147,7 @@
 						<button type="button" role="tab" data-tab="focus">Focus</button>
 						<button type="button" role="tab" data-tab="tasks">Tasks and daily note</button>
 						<button type="button" role="tab" data-tab="home">Home</button>
+						<button type="button" role="tab" data-tab="templates">Templates</button>
 						<button type="button" role="tab" data-tab="hotkeys">Hotkeys</button>
 						<button type="button" role="tab" data-tab="sync">Sync and files</button>
 					</div>
@@ -285,6 +286,12 @@
 							<button id="homeEdit" type="button">Edit as text</button>
 						</div>
 						<p class="hint">Tiles and their order sync through _wr1t3r/Home.md, which stays out of the notes list. Pinned folders open as a corkboard.</p>
+					</section>
+					<section class="set-pane" data-tab="templates" data-title="Templates" role="tabpanel" hidden>
+						<h2>Templates</h2>
+						<div id="templateList" class="home-pins"></div>
+						<div class="seg"><button id="templateAdd" type="button">New template</button></div>
+						<p class="hint">Templates live in the vault's _templates folder and stay out of the notes list. Each one is also a / command and an “Insert template” command you can give a hotkey.</p>
 					</section>
 					<section class="set-pane" data-tab="hotkeys" data-title="Hotkeys" role="tabpanel" hidden>
 						<input id="hotkeyFilter" type="search" placeholder="Find a command" aria-label="Find a command" autocomplete="off">

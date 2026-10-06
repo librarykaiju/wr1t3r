@@ -1388,6 +1388,7 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 }
 .home-pin span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .home-pin small { flex: none; color: var(--muted); font-size: 12px; }
+.template-row { --tc: var(--mark); }
 .home-pin-section { --tc: var(--mark); margin-top: 6px; background: none; border-style: dashed; color: var(--muted); font-weight: 600; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; }
 @media (hover: hover) { .home-pin:hover { background: color-mix(in srgb, var(--tc) 32%, var(--bg)); } }
 .item-menu .swatches { display: grid; grid-template-columns: repeat(4, 32px); gap: 8px; padding: 8px; }
