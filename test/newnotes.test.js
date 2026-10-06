@@ -9,6 +9,9 @@ test("each kind files into its folder, the logs into the media lookups' folders 
 	assert.equal(kindFolder(kind("Journal"), "content/"), "content/journal/");
 	assert.equal(kindFolder(kind("Microblog"), "content/"), "content/microblog/");
 	assert.equal(kindFolder(kind("Note"), "content/"), "content/notes/");
+	assert.equal(kindFolder(kind("Catalog Entry"), "content/"), "content/info/catalog/");
+	assert.equal(kindFolder(kind("Tools Entry"), "content/"), "content/info/tools/");
+	assert.equal(kindForTemplate("content/_templates/Tools Entry.md"), kind("Tools Entry"));
 	assert.equal(kindFolder(kind("Series"), "content/"), "content/logs/movies-tv/");
 	assert.equal(kindFolder(kind("Book"), "content/", [{ kind: "book", folder: "content/reading" }]), "content/reading/");
 	assert.equal(kindFolder(kind("Journal"), "content/", [{ kind: "book", folder: "content/reading" }]), "content/journal/");
