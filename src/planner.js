@@ -269,6 +269,14 @@ export function healthPathFor(dailyPath) {
 	return String(dailyPath).replace(/\.md$/i, "") + " Health.md";
 }
 
+// The other way: "…/2026-09-30 Health.md" -> "…/2026-09-30.md", and its day
+// ("2026-09-30"), or null when the path isn't a health note.
+export const dailyPathFor = (healthPath) => String(healthPath).replace(/ Health\.md$/i, ".md");
+export function healthDayOf(path) {
+	const m = String(path || "").split("/").pop().match(/^(\d{4})[-.](\d{2})[-.](\d{2}) Health\.md$/i);
+	return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
 const norm = (s) => String(s).replace(/\s+/g, "").toLowerCase();
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 

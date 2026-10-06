@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-	readPlanner, writePlanner, parseEntry, timelineRows, setEntry, addEvents, hourLabel, healthPathFor,
+	readPlanner, writePlanner, parseEntry, timelineRows, setEntry, addEvents, hourLabel, healthPathFor, dailyPathFor, healthDayOf,
 	addUnder, itemsUnder, removeLine, parseNutrition, findFood, searchFoods, waterOz, moodEntry, moodLine,
 	healthDay, syncHealth, toggleMeds, mealAt, MEALS, addFoodRow, foodEntry, setEntryColor, EXERCISE, exerciseEntry, exerciseLine, moodChoice,
 } from "../src/planner.js";
@@ -152,6 +152,10 @@ test("water, mood and meal readings", () => {
 	assert.equal(mealAt(new Date(2026, 8, 30, 18)), MEALS[2]);
 	assert.equal(mealAt(new Date(2026, 8, 30, 15, 30)), MEALS[3]);
 	assert.equal(healthPathFor("content/_daily/2026-09-30.md"), "content/_daily/2026-09-30 Health.md");
+	assert.equal(dailyPathFor("content/_daily/2026-09-30 Health.md"), "content/_daily/2026-09-30.md");
+	assert.equal(healthDayOf("content/_daily/2026-09-30 Health.md"), "2026-09-30");
+	assert.equal(healthDayOf("content/_daily/2026-09-30.md"), null);
+	assert.equal(healthDayOf("content/notes/Health.md"), null);
 });
 
 test("the day's totals go into the health note's properties", () => {
