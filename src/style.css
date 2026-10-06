@@ -308,6 +308,14 @@ body:has(.settings-win:not([hidden])) #notices #status { display: none; }
 #toolbar .tb-highlight { background: var(--hl); color: var(--fg); height: 22px; margin: 0 2px; }
 #toolbar .tb-sep { flex: none; width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
 main:not(.has-note) #toolbar, main.has-folder #toolbar, #app.no-toolbar #toolbar { display: none; }
+/* Font and text size sit on the toolbar; Settings shows them only where the
+   toolbar doesn't (phones, or with the toolbar turned off). */
+#toolbar .tb-font { flex: none; height: 26px; max-width: 132px; padding: 0 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: 13px var(--sans); }
+#toolbar .tb-size { flex: none; display: inline-flex; align-items: center; margin-left: 4px; }
+#toolbar .tb-size button { min-width: 22px; font-size: 16px; }
+#toolbar .tb-size-val { min-width: 22px; text-align: center; color: var(--fg); font: 13px var(--sans); font-variant-numeric: tabular-nums; }
+#toolbar .tb-inline-code svg, #toolbar .tb-insert svg { stroke-width: 2; }
+@media (min-width: 700px) and (pointer: fine), (min-width: 1024px) { #app:not(.no-toolbar) .set-type { display: none; } }
 @media (max-width: 699px), (pointer: coarse) and (max-width: 1023px) { #toolbar { display: none; } }
 /* The reference pane: another note, read-only, beside the one being edited (wide screens). */
 #ref { flex: 0 0 42%; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--bg); }

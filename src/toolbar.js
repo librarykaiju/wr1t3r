@@ -10,6 +10,7 @@ import { COMMANDS } from "./slash.js";
 import { runCommand, headingEdit } from "./kbbar.js";
 import { choosePictures } from "./paste.js";
 import { underline, colorMenu, alignMenu } from "./format.js";
+import { menu } from "./basesui.js";
 
 const cmd = (label) => (view) => runCommand(view, COMMANDS.find((c) => c.label === label));
 const lines = (fn) => (view) => view.dispatch(fn(view.state), { userEvent: "input", scrollIntoView: true });
@@ -52,7 +53,17 @@ const ICON = {
 	book: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v15H6.5a2.5 2.5 0 0 0 0 5H20"/><path d="M9 7h7"/>',
 	align: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',
 	print: '<path d="M6 9V3h12v6"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M6 14h12v7H6z"/>',
+	code: '<path d="m8 8-4 4 4 4M16 8l4 4-4 4"/>',
+	insert: '<path d="M12 5v14M5 12h14"/>',
 };
+
+// The Insert menu: block-level things that don't need a button each.
+const INSERTS = ["Callout", "Code block", "Divider", "Footnote", "Wikilink", "Date"];
+const INSERT_NAMES = { Wikilink: "Note link", Date: "Today's date" };
+function insertMenu(view, anchor) {
+	const b = anchor.getBoundingClientRect();
+	menu(INSERTS.map((label) => [INSERT_NAMES[label] || label, () => { cmd(label)(view); view.focus(); }]), b.left, b.bottom + 4);
+}
 
 // [label, title, text or icon, action]; null draws a divider.
 const BUTTONS = [
@@ -67,6 +78,7 @@ const BUTTONS = [
 	["Underline", "Underline", "U", underline],
 	["Text color", "Text color", "A", colorMenu],
 	["Align", "Align left, center, right or justify", "align", alignMenu],
+	["Inline code", "Inline code", "code", EDIT_ACTIONS["Inline code"]],
 	null,
 	["Link", "Link (Ctrl/Cmd+K)", "link", EDIT_ACTIONS.Link],
 	["Picture", "Add a picture (or paste or drop one)", "image", choosePictures],
@@ -76,14 +88,53 @@ const BUTTONS = [
 	["Numbered list", "Numbered list", "number", lines((s) => listEdit(s, "number"))],
 	["Checklist", "Checklist (Ctrl/Cmd+Enter)", "task", EDIT_ACTIONS.Task],
 	["Quote", "Quote", "quote", lines((s) => listEdit(s, "quote"))],
+	null,
+	["Insert", "Insert a callout, code block, divider, footnote, note link or date", "insert", insertMenu],
 ];
 
+// The font and text size: how notes look on this device (markdown has no
+// fonts of its own), kept by main.js. type: { fonts: [[value, label]], font(),
+// setFont(value), size(), setSize(px) }.
+function typeControls(bar, type) {
+	const font = document.createElement("select");
+	font.className = "tb-font";
+	font.title = "Font (how notes look on this device)";
+	font.setAttribute("aria-label", "Font");
+	for (const [value, label, family] of type.fonts) {
+		const o = new Option(label, value);
+		o.style.fontFamily = family;
+		font.append(o);
+	}
+	font.addEventListener("change", () => type.setFont(font.value));
+	const size = document.createElement("span");
+	size.className = "tb-size";
+	const val = Object.assign(document.createElement("span"), { className: "tb-size-val", title: "Text size" });
+	const step = (label, face, d) => {
+		const b = document.createElement("button");
+		b.type = "button";
+		b.className = "quiet";
+		b.textContent = face;
+		b.title = label;
+		b.setAttribute("aria-label", label);
+		b.addEventListener("mousedown", (e) => e.preventDefault());
+		b.addEventListener("click", () => type.setSize(type.size() + d));
+		return b;
+	};
+	size.append(step("Smaller text", "\u2212", -1), val, step("Larger text", "+", 1));
+	bar.append(font, size, Object.assign(document.createElement("span"), { className: "tb-sep" }));
+	// main.js calls this whenever the font or size changes, from here or Settings.
+	return () => { font.value = type.font(); val.textContent = type.size(); };
+}
+
 // bar: the element to fill. getView: the editor now. print: opens Export.
-export function setupToolbar(bar, getView, { print, lookUp } = {}) {
+export function setupToolbar(bar, getView, { print, lookUp, type } = {}) {
 	bar.setAttribute("role", "toolbar");
 	bar.setAttribute("aria-label", "Formatting");
-	const all = [...BUTTONS, null, ["Look up", "Look up the word in the dictionary and thesaurus", "book", (view) => lookUp?.(view)], ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
+	let refreshType = () => {};
+	const [first, second, sep, ...rest] = BUTTONS; // undo, redo | font, size | the rest
+	const all = [first, second, sep, "type", ...rest, null, ["Look up", "Look up the word in the dictionary and thesaurus", "book", (view) => lookUp?.(view)], ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
 	for (const b of all) {
+		if (b === "type") { if (type) refreshType = typeControls(bar, type); continue; }
 		if (!b) { bar.append(Object.assign(document.createElement("span"), { className: "tb-sep" })); continue; }
 		const [label, title, face, run] = b;
 		const btn = document.createElement("button");
@@ -102,4 +153,6 @@ export function setupToolbar(bar, getView, { print, lookUp } = {}) {
 		});
 		bar.append(btn);
 	}
+	refreshType();
+	return { refreshType };
 }

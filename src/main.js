@@ -3199,10 +3199,14 @@ const FONTS = {
 	humanist: 'Optima, Candara, "Avenir Next", "Noto Sans", sans-serif',
 	typewriter: '"Courier Prime", "American Typewriter", "Courier New", Courier, monospace',
 };
+const FONT_NAMES = { serif: "Serif", sans: "Sans", mono: "Mono", georgia: "Georgia", palatino: "Palatino", garamond: "Garamond", humanist: "Humanist sans", typewriter: "Typewriter" };
+let fontName = "serif", toolbarUi = null;
 function applyFont(name) {
 	const key = FONTS[name] ? name : "serif";
+	fontName = key;
 	document.documentElement.style.setProperty("--editor-font", FONTS[key]);
 	$("fontPick").value = key;
+	toolbarUi?.refreshType();
 	editor?.view.requestMeasure();
 }
 
@@ -3210,8 +3214,13 @@ function applySize(px) {
 	fontSize = clamp(px, 14, 30);
 	document.documentElement.style.setProperty("--editor-size", fontSize + "px");
 	$("sizeVal").textContent = fontSize;
+	toolbarUi?.refreshType();
 	editor?.view.requestMeasure();
 }
+
+// The font and size, from the toolbar or Settings, kept per device.
+function setFont(name) { applyFont(name); storeRaw("wr1t3rFont", fontName === "serif" ? null : fontName); }
+function setSize(px) { applySize(px); storeRaw("wr1t3rFontSize", fontSize); }
 
 // Live Preview hides markdown symbols off the cursor line (off unless chosen).
 function applyMode(mode) {
@@ -3482,9 +3491,9 @@ function setupSettings() {
 	$("homeAdd").addEventListener("click", (e) => { e.stopPropagation(); addTile(); });
 	$("homeEdit").addEventListener("click", editHomeNote);
 	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
-	$("smaller").addEventListener("click", () => { applySize(fontSize - 1); storeRaw("wr1t3rFontSize", fontSize); });
-	$("fontPick").addEventListener("change", (e) => { applyFont(e.target.value); storeRaw("wr1t3rFont", e.target.value === "serif" ? null : e.target.value); });
-	$("larger").addEventListener("click", () => { applySize(fontSize + 1); storeRaw("wr1t3rFontSize", fontSize); });
+	$("smaller").addEventListener("click", () => setSize(fontSize - 1));
+	$("fontPick").addEventListener("change", (e) => setFont(e.target.value));
+	$("larger").addEventListener("click", () => setSize(fontSize + 1));
 	document.addEventListener("click", (e) => {
 		// A menu item removes itself before this runs; menus and the palette
 		// opened from Aa > Home keep the panel open.
@@ -3760,6 +3769,8 @@ function toggleTimer() {
 	else {
 		if (timer.phase === "work" && timer.left === pomo.minutes(lengths, "work")) written = 0;
 		timer = pomo.start(timer, Date.now());
+		// Starting a focus block goes into focus mode; Esc leaves it and the timer keeps going.
+		if (timer.phase === "work" && editor?.path && !$("app").classList.contains("focus-mode")) toggleFocus(true);
 	}
 	saveTimer();
 	runTicker();
@@ -4655,7 +4666,10 @@ async function start() {
 	setupColumns();
 	refreshKeyboardBar = setupKeyboardBar($("app"), activeView);
 	setupGrammar((text) => api.grammar(text), grammarTrouble);
-	setupToolbar($("toolbar"), activeView, { print: () => exportNote(editor.path), lookUp: (view) => lookUpWord(view) });
+	toolbarUi = setupToolbar($("toolbar"), activeView, {
+		print: () => exportNote(editor.path), lookUp: (view) => lookUpWord(view),
+		type: { fonts: Object.keys(FONTS).map((k) => [k, FONT_NAMES[k], FONTS[k]]), font: () => fontName, setFont, size: () => fontSize, setSize },
+	});
 	if (readRaw("wr1t3rFocus") === "on") toggleFocus(true);
 	$("focusExit").addEventListener("click", () => toggleFocus(false));
 	document.addEventListener("keydown", (e) => {
