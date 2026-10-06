@@ -12,7 +12,7 @@ import { snippet } from "@codemirror/autocomplete";
 import { linkOpener } from "./links.js";
 import { notePath, vaultHost, vaultChanged } from "./vault.js";
 import { SITE_KEYS } from "./sitekeys.js";
-import { TYPES, TYPE_LABELS, DATE_KEY, isTagsKey, readRows, itemsOf, setEdit, convertEdit, removeEdit, renameEdit, addEdit, keyProblem } from "./properties.js";
+import { TYPES, TYPE_LABELS, DATE_KEY, isTagsKey, readRows, itemsOf, setEdit, convertEdit, removeEdit, renameEdit, addEdit, keyProblem, suggest } from "./properties.js";
 
 const FENCE = /^---[ \t]*$/;
 const CLOSE = /^(?:---|\.\.\.)[ \t]*$/;
@@ -482,6 +482,84 @@ class BoxWidget extends WidgetType {
 	ignoreEvent() { return true; }
 }
 
+// Suggestions under a box as it's typed in (the vault's property names, or
+// the values a property has in other notes). The first one is picked when it
+// starts with what's typed: Enter or Tab takes it, ↑ ↓ choose another, Escape
+// hides them. With none picked, what's typed stays as typed.
+// options(typed) -> [{ text, prefix }]; empty: show them before anything's
+// typed; take(): what a click does after filling the box in (Enter's job).
+function typeAhead(input, options, { empty = false, take = null } = {}) {
+	let box = null, items = [], active = -1;
+	const close = () => { box?.remove(); box = null; items = []; active = -1; };
+	const draw = () => {
+		box.replaceChildren(...items.map((s, i) => {
+			const b = el("div", "md-suggest-item" + (i === active ? " active" : ""), s.text);
+			b.setAttribute("role", "option");
+			b.setAttribute("aria-selected", String(i === active));
+			b.addEventListener("mousedown", (e) => { e.preventDefault(); fill(s.text); take?.(); });
+			return b;
+		}));
+		const r = input.getBoundingClientRect();
+		box.style.left = r.left + "px";
+		box.style.top = r.bottom + 4 + "px";
+		box.style.minWidth = Math.min(Math.max(r.width, 160), innerWidth - 16) + "px";
+		box.style.left = Math.max(8, Math.min(r.left, innerWidth - box.offsetWidth - 8)) + "px";
+		box.querySelector(".active")?.scrollIntoView({ block: "nearest" });
+	};
+	const open = () => {
+		const typed = input.value.trim();
+		if (!input.isConnected || document.activeElement !== input || (!typed && !empty)) return close();
+		items = options(typed).filter((s) => s.text !== typed);
+		if (!items.length) return close();
+		active = typed && items[0].prefix ? 0 : -1;
+		if (!box) {
+			document.querySelector(".md-suggest")?.remove();
+			box = el("div", "md-suggest");
+			box.setAttribute("role", "listbox");
+			document.body.append(box);
+		}
+		draw();
+	};
+	let filling = false;
+	const fill = (text) => {
+		close();
+		input.value = text;
+		filling = true;
+		input.dispatchEvent(new Event("input", { bubbles: true }));
+		filling = false;
+	};
+	input.setAttribute("autocomplete", "off");
+	input.addEventListener("input", () => { if (!filling) open(); });
+	input.addEventListener("focus", open);
+	input.addEventListener("blur", close);
+	input.addEventListener("keydown", (e) => {
+		if (!box || e.isComposing) return;
+		if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+			e.preventDefault();
+			e.stopImmediatePropagation();
+			const n = items.length;
+			active = e.key === "ArrowDown" ? (active + 1) % n : active <= 0 ? n - 1 : active - 1;
+			draw();
+		} else if (e.key === "Tab" && active >= 0 && !e.shiftKey) {
+			e.preventDefault();
+			e.stopImmediatePropagation();
+			fill(items[active].text);
+		} else if (e.key === "Enter" && active >= 0) {
+			fill(items[active].text); // then the box's own Enter runs with it
+		} else if (e.key === "Escape") {
+			e.preventDefault();
+			e.stopImmediatePropagation();
+			close();
+		}
+	});
+}
+
+// The vault's property names and values ({ names, values }, src/properties.js).
+const usageOf = (state) => state.facet(vaultHost)?.propertyUsage?.() || { names: new Map(), values: new Map() };
+
+// Suggestions for a property's values: the ones it has in other notes.
+const valueOptions = (view, key, skip = () => []) => (typed) => suggest(usageOf(view.state).values.get(key), typed, { skip: skip() });
+
 const fitText = (t) => { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; };
 
 function rowDOM(view, r, readOnly) {
@@ -553,6 +631,7 @@ function valueDOM(view, r, readOnly) {
 			// showing them while it's being typed in.
 			set(input.value.trim());
 		});
+		if (r.type === "text" && !readOnly) typeAhead(input, valueOptions(view, r.key));
 		input.addEventListener("keydown", (e) => {
 			if (e.key === "Enter") { e.preventDefault(); next(input); }
 			else if (e.key === "Escape") { e.preventDefault(); view.focus(); }
@@ -596,11 +675,15 @@ function pillsDOM(view, r, readOnly) {
 	input.placeholder = tags ? "+ tag" : "+ add";
 	input.setAttribute("aria-label", tags ? "Add a tag" : `Add to ${r.key}`);
 	input.size = 6;
+	const add = () => {
+		const name = tags ? tagName(input.value) : input.value.trim();
+		if (name) change((items) => [...items, name]);
+	};
+	typeAhead(input, valueOptions(view, r.key, () => rowNamed(view.state, r.key)?.items || []), { empty: true, take: add });
 	input.addEventListener("keydown", (e) => {
 		if (e.key === "Enter" || e.key === ",") {
 			e.preventDefault();
-			const name = tags ? tagName(input.value) : input.value.trim();
-			if (name) change((items) => [...items, name]);
+			add();
 		} else if (e.key === "Backspace" && !input.value && r.items.length) {
 			e.preventDefault();
 			change((items) => items.slice(0, -1));
@@ -708,14 +791,15 @@ function renameRow(view, key) {
 function newRowDOM(view) {
 	const row = el("div", "md-props-new");
 	const types = typesOf(view.state);
-	const listId = "md-prop-names";
-	let names = document.getElementById(listId);
-	if (!names) { names = el("datalist"); names.id = listId; document.body.append(names); }
-	names.replaceChildren(...[...new Set([...Object.keys(types), ...SITE_KEYS])].sort().map((k) => Object.assign(el("option"), { value: k })));
 	const name = el("input", "md-props-new-name");
 	name.placeholder = "Property name";
-	name.setAttribute("list", listId);
 	name.setAttribute("aria-label", "New property's name");
+	// The vault's names, most used first (named types and the website's keys too).
+	const names = new Map(usageOf(view.state).names);
+	for (const k of [...Object.keys(types), ...SITE_KEYS]) if (!names.has(k)) names.set(k, 0);
+	const fm = frontmatterLines(view.state.doc);
+	const here = fm ? readRows(view.state.doc, fm).map((r) => r.key) : [];
+	typeAhead(name, (typed) => suggest(names, typed, { skip: here }), { empty: true });
 	const pick = el("select", "md-props-new-type");
 	pick.setAttribute("aria-label", "Type");
 	for (const t of TYPES) pick.append(Object.assign(el("option", null, TYPE_LABELS[t]), { value: t }));

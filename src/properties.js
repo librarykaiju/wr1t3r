@@ -269,3 +269,54 @@ export function listKeys(texts) {
 	for (const [key, [lists, scalars]] of count) if (lists > scalars) out[key] = "list";
 	return out;
 }
+
+// Every property name and value in the notes, with how many notes use each,
+// for the box's suggestions: { names: Map(key -> notes), values: Map(key ->
+// Map(value -> notes)) }. A list's items count one by one; values the box
+// can't edit as text (YAML, long text) aren't offered.
+export function propertyUsage(texts) {
+	const names = new Map(), values = new Map();
+	for (const text of texts) {
+		const head = text?.match(/^---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/)?.[0];
+		if (!head) continue;
+		const doc = lineDoc(head);
+		const close = doc.lines - (/\r?\n$/.test(head) ? 1 : 0);
+		for (const row of readRows(doc, { open: 1, close })) {
+			names.set(row.key, (names.get(row.key) || 0) + 1);
+			if (row.kind === "yaml") continue;
+			const seen = new Set(row.kind === "list" ? row.items : row.value ? [row.value] : []);
+			let byValue = values.get(row.key);
+			for (const v of seen) {
+				if (v.length > 80) continue;
+				if (!byValue) values.set(row.key, (byValue = new Map()));
+				byValue.set(v, (byValue.get(v) || 0) + 1);
+			}
+		}
+	}
+	return { names, values };
+}
+
+// Text as a CodeMirror-like doc (1-based line(n) -> { text, from, to }), enough for readRows.
+function lineDoc(text) {
+	const lines = text.split(/\r?\n/), starts = [];
+	let at = 0;
+	for (const l of text.split(/(?<=\n)/)) { starts.push(at); at += l.length; }
+	return { lines: lines.length, line: (n) => ({ text: lines[n - 1].replace(/\r$/, ""), from: starts[n - 1], to: starts[n - 1] + lines[n - 1].replace(/\r$/, "").length }) };
+}
+
+// The suggestions for what's been typed, best first: ones that start with it,
+// then ones with a word that does, then ones that have it anywhere; each
+// group by how many notes use it. counts: Map(text -> notes). skip: texts not
+// to offer (already in the note). With nothing typed, the most used.
+export function suggest(counts, typed, { skip = [], limit = 8 } = {}) {
+	const q = typed.trim().toLowerCase();
+	const no = new Set(skip.map((s) => s.toLowerCase()));
+	const out = [];
+	for (const [text, n] of counts || []) {
+		const t = text.toLowerCase();
+		if (no.has(t)) continue;
+		const rank = !q || t.startsWith(q) ? 0 : t.split(/[\s_\-/]+/).some((w) => w.startsWith(q)) ? 1 : t.includes(q) ? 2 : -1;
+		if (rank >= 0) out.push({ text, n, rank, prefix: !!q && t.startsWith(q) });
+	}
+	return out.sort((a, b) => a.rank - b.rank || b.n - a.n || a.text.localeCompare(b.text)).slice(0, limit);
+}

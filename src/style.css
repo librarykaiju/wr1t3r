@@ -1715,3 +1715,7 @@ main > header { background: var(--panel); }
 .md-grid-sort:hover { background: var(--sel); color: var(--fg); }
 .md-grid-sort.md-grid-sorted { color: var(--accent); }
 @media (hover: none) { .md-grid-sort { opacity: 0.6; } }
+/* Suggestions under a properties box as it's typed in (typeAhead in src/frontmatter.js) */
+.md-suggest { position: fixed; z-index: 70; max-width: min(360px, calc(100vw - 16px)); max-height: 240px; overflow-y: auto; padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgb(0 0 0 / 0.22); font-family: var(--sans); font-size: 14px; }
+.md-suggest-item { padding: 6px 10px; border-radius: 6px; color: var(--fg); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.md-suggest-item:hover, .md-suggest-item.active { background: var(--sel); }
