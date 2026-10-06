@@ -7,6 +7,8 @@ export const NEW_NOTE_KINDS = [
 	{ label: "New journal entry", template: "Journal", folder: "journal/", keywords: "diary entry write" },
 	{ label: "New microblog post", template: "Microblog", folder: "microblog/", keywords: "post status short" },
 	{ label: "New note in Notes", template: "Note", folder: "notes/", keywords: "notes seed" },
+	{ label: "New catalog entry", template: "Catalog Entry", folder: "info/catalog/", keywords: "catalog bookmark link library info" },
+	{ label: "New tools entry", template: "Tools Entry", folder: "info/tools/", keywords: "tool software app link info" },
 	{ label: "New book log", template: "Book", folder: "logs/books/", media: "book", keywords: "reading log books" },
 	{ label: "New movie log", template: "Movie", folder: "logs/movies-tv/", media: "movie", keywords: "film watching log" },
 	{ label: "New TV series log", template: "Series", folder: "logs/movies-tv/", media: "movie", keywords: "show television watching log" },
