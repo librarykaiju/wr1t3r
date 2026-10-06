@@ -308,6 +308,18 @@ body:has(.settings-win:not([hidden])) #notices #status { display: none; }
 #toolbar .tb-highlight { background: var(--hl); color: var(--fg); height: 22px; margin: 0 2px; }
 #toolbar .tb-sep { flex: none; width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
 main:not(.has-note) #toolbar, main.has-folder #toolbar, #app.no-toolbar #toolbar { display: none; }
+/* Page view (src/pageview.js): the note on pages of the Page setup size, on
+   a desk. The text sits inside the margins; a gap ends one page (with its
+   number in the bottom margin) and starts the next. */
+:is(#editor, #refView) .page-view .cm-scroller { background: color-mix(in srgb, var(--fg) 9%, var(--bg)); }
+:is(#editor, #refView) .page-view .cm-content {
+	box-sizing: border-box; width: min(var(--page-w), calc(100% - 24px)); max-width: none; margin: 24px auto;
+	padding: var(--page-m) var(--page-m) 0; background: var(--card); box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
+}
+.page-view .page-gap { display: block; position: relative; margin-left: calc(-1 * var(--page-m)); width: calc(100% + 2 * var(--page-m)); text-indent: 0; background: linear-gradient(var(--card), var(--card)) top / 100% calc(100% - var(--page-gap) - var(--page-m)) no-repeat, linear-gradient(var(--card), var(--card)) bottom / 100% var(--page-m) no-repeat, color-mix(in srgb, var(--fg) 9%, var(--bg)); user-select: none; }
+.page-view .page-gap.last { background: var(--card); }
+.page-view .page-gap .page-foot { position: absolute; left: 0; right: 0; bottom: calc(var(--page-gap) + var(--page-m)); display: flex; align-items: center; justify-content: center; color: var(--muted); font: 12px var(--sans); }
+.page-view .page-gap.last .page-foot { bottom: 0; }
 /* Track changes (src/trackview.js): insertions green and underlined,
    deletions red and struck, comments a bubble. "Show as final" hides it all. */
 :is(#editor, #refView) .tc-ins { color: color-mix(in srgb, #1a7f37 70%, var(--fg)); text-decoration: underline; text-decoration-color: #1a7f37; text-underline-offset: 2px; background: color-mix(in srgb, #1a7f37 8%, transparent); }

@@ -2,6 +2,7 @@
 // page (also what's printed to PDF), and to a Word file. Both come from one
 // markdown-it parse, so they agree on what the text is.
 
+import { pageRule, pageTwips, pageSetup } from "./pagelayout.js";
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
 
@@ -93,7 +94,7 @@ export function toHTML(markdown, { title = "", images = new Map(), layout = "boo
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title || "Compiled")}</title>
-<style>${BOOK_CSS}</style>
+<style>${BOOK_CSS.replace("@page { margin: 1in; }", pageRule(pageSetup()))}</style>
 </head>
 <body><main${layout === "manuscript" ? ' class="manuscript"' : ""}>
 ${body}</main></body>
@@ -102,6 +103,12 @@ ${body}</main></body>
 }
 
 // ---- Word ------------------------------------------------------------------------
+
+// Page setup's paper and margins, as Word's section page.
+function wordPage() {
+	const p = pageTwips(pageSetup());
+	return { size: { width: p.width, height: p.height }, margin: { top: p.margin, right: p.margin, bottom: p.margin, left: p.margin } };
+}
 
 export async function toDocx(markdown, { title = "", author = "", images = new Map(), layout = "book" } = {}) {
 	const ms = layout === "manuscript";
@@ -269,7 +276,7 @@ export async function toDocx(markdown, { title = "", author = "", images = new M
 			}],
 		},
 		footnotes,
-		sections: [{ children: out }],
+		sections: [{ properties: { page: wordPage() }, children: out }],
 	});
 	return Packer.toBlob(doc);
 }

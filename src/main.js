@@ -67,6 +67,8 @@ import { setupGrammar, setGrammar, checkNote, grammarOn, grammarAtCursor } from 
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
 import { setDoneDates, sortChecklists } from "./tasks.js";
 import { menu as dropMenu } from "./basesui.js";
+import { SIZES, MARGINS, readSetup, setPageSetup } from "./pagelayout.js";
+import { setPageView, isPageView } from "./pageview.js";
 import { setTracking, isTracking, setFinalView, isFinalView, acceptChange, rejectChange, resolveEvery, gotoChange, addComment, countChanges } from "./trackview.js";
 import { setPictureHost } from "./paste.js";
 import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
@@ -1651,7 +1653,45 @@ function openNote(path, { replace = false, tab = true } = {}) {
 	refreshCount(true);
 	renderHome();
 	applyTracking();
+	applyPageView();
 	if (has) sortOnOpen(path);
+}
+
+// ---- page layout -----------------------------------------------------------
+// Page view and Page setup (src/pageview.js, src/pagelayout.js), per device.
+// Printing and exports use the same page.
+let pageSetupNow = readSetup(readJSON("wr1t3rPage", null));
+setPageSetup(pageSetupNow);
+const pageViewOn = () => readRaw("wr1t3rPageView") === "on";
+function applyPageView() {
+	const view = editor?.view;
+	if (view && (isPageView(view) !== pageViewOn() || isPageView(view))) setPageView(view, pageViewOn(), pageSetupNow);
+	toolbarUi?.refreshPage(pageViewOn());
+}
+function togglePageView(on = !pageViewOn()) {
+	storeRaw("wr1t3rPageView", on ? "on" : null);
+	applyPageView();
+}
+function changePageSetup(patch) {
+	pageSetupNow = readSetup({ ...pageSetupNow, ...patch });
+	writeJSON("wr1t3rPage", pageSetupNow);
+	setPageSetup(pageSetupNow);
+	applyPageView();
+}
+// The toolbar's Page layout menu.
+function pageMenu(view, btn) {
+	const r = btn.getBoundingClientRect();
+	const tick = (on) => (on ? "✓ " : "\u2003");
+	dropMenu([
+		[tick(pageViewOn()) + "Page view", () => togglePageView()],
+		null,
+		...Object.entries(SIZES).map(([k, v]) => [tick(pageSetupNow.size === k) + v.label, () => changePageSetup({ size: k })]),
+		null,
+		[tick(pageSetupNow.orient === "portrait") + "Portrait", () => changePageSetup({ orient: "portrait" })],
+		[tick(pageSetupNow.orient === "landscape") + "Landscape", () => changePageSetup({ orient: "landscape" })],
+		null,
+		...Object.entries(MARGINS).map(([k, v]) => [tick(pageSetupNow.margin === k) + "Margins: " + v.label, () => changePageSetup({ margin: k })]),
+	], r.left, r.bottom + 4);
 }
 
 // ---- track changes ---------------------------------------------------------
@@ -2430,6 +2470,7 @@ function allCommands() {
 		["Toggle left sidebar", () => showLeft(leftShut()), "notes list panel collapse hide show"],
 		["Toggle right sidebar", () => showRight(rightShut()), "calendar agenda contents panel collapse hide show"],
 		["Toggle focus mode", () => toggleFocus(), "distraction free typewriter zen dim writing mode"],
+		["Toggle page view", () => togglePageView(), "page layout print layout pages paper margins word processor", true],
 		["Track changes", () => toggleTracking(), "track changes revisions review suggest edits criticmarkup", true],
 		["Accept all changes", () => reviewAll(true), "track changes review revisions", true],
 		["Reject all changes", () => reviewAll(false), "track changes review revisions", true],
@@ -4719,8 +4760,10 @@ async function start() {
 		print: () => exportNote(editor.path), lookUp: (view) => lookUpWord(view),
 		type: { fonts: Object.keys(FONTS).map((k) => [k, FONT_NAMES[k], FONTS[k]]), font: () => fontName, setFont, size: () => fontSize, setSize },
 		review: reviewMenu,
+		page: pageMenu,
 	});
 	applyTracking();
+	applyPageView();
 	if (readRaw("wr1t3rFocus") === "on") toggleFocus(true);
 	$("focusExit").addEventListener("click", () => toggleFocus(false));
 	document.addEventListener("keydown", (e) => {

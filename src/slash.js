@@ -25,6 +25,7 @@ export const COMMANDS = [
 	{ label: "Callout", run: pickCallout, keywords: "admonition note warning tip" },
 	{ label: "Code block", template: "```${lang}\n${}\n```", keywords: "fence pre" },
 	{ label: "Table", template: "| ${Column} | Column |\n| --- | --- |\n| ${} |  |", keywords: "grid" },
+	{ label: "Page break", template: "<div class=\"pagebreak\"></div>\n${}", keywords: "new page break print pagination" },
 	{ label: "Divider", template: "---\n${}", keywords: "hr rule line" },
 	{ label: "Link", template: "[${text}](${url})", keywords: "url href" },
 	{ label: "Wikilink", template: "[[${}]]", keywords: "internal note" },
