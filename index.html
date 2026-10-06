@@ -29,9 +29,9 @@
 				<h1 class="app-name">wr1t3r</h1>
 				<input id="filter" type="search" placeholder="Search notes" aria-label="Search notes" title="Words, &quot;a phrase&quot;, path:folder, file:name, tag:x or #x, -word to leave out">
 				<button id="new" type="button" title="New note">New</button>
-				<button id="today" type="button" title="Open today's daily note">Today</button>
+				<button id="today" type="button" data-feature="daily" title="Open today's daily note">Today</button>
 				<button id="upload" type="button" title="Upload files as notes (Word, PDF, HTML, text)">Upload</button>
-				<button id="clip" type="button" title="Clip a web page as a note">Clip</button>
+				<button id="clip" type="button" data-feature="capture" title="Clip a web page as a note">Clip</button>
 				<input id="upload-input" type="file" multiple hidden>
 			</div>
 			<nav id="tree" aria-label="Notes"></nav>
@@ -58,7 +58,7 @@
 					</div>
 				</div>
 				<span class="spacer"></span>
-				<button id="calBtn" type="button" class="quiet" aria-label="Agenda" aria-expanded="false" aria-controls="agenda">
+				<button id="calBtn" type="button" data-feature="calendar" class="quiet" aria-label="Agenda" aria-expanded="false" aria-controls="agenda">
 					<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
 					<span id="calNext"></span>
 				</button>
@@ -148,6 +148,7 @@
 						<button type="button" role="tab" data-tab="tasks">Tasks and daily note</button>
 						<button type="button" role="tab" data-tab="home">Home</button>
 						<button type="button" role="tab" data-tab="templates">Templates</button>
+						<button type="button" role="tab" data-tab="features">Features</button>
 						<button type="button" role="tab" data-tab="hotkeys">Hotkeys</button>
 						<button type="button" role="tab" data-tab="sync">Sync and files</button>
 					</div>
@@ -271,15 +272,15 @@
 							<button type="button" data-on="true">On open</button>
 							<button type="button" data-on="false">Off</button>
 						</div>
-						<h2>Timeline calendar</h2>
-						<div class="seg"><select id="dailyCal" aria-label="Calendar for the daily note's Timeline"><option value="">Off</option></select></div>
-						<p class="hint">Events from this calendar go into the Timeline when Today makes the note, or any time with “Add calendar events to the timeline”.</p>
-						<h2>Reminders</h2>
-						<div class="seg" id="remSeg" title="Notifications for tasks with a ⏰ time, on this device only">
+						<h2 data-feature="calendar">Timeline calendar</h2>
+						<div class="seg" data-feature="calendar"><select id="dailyCal" aria-label="Calendar for the daily note's Timeline"><option value="">Off</option></select></div>
+						<p class="hint" data-feature="calendar">Events from this calendar go into the Timeline when Today makes the note, or any time with “Add calendar events to the timeline”.</p>
+						<h2 data-feature="reminders">Reminders</h2>
+						<div class="seg" id="remSeg" data-feature="reminders" title="Notifications for tasks with a ⏰ time, on this device only">
 							<button type="button" data-on="true">On</button>
 							<button type="button" data-on="false">Off</button>
 						</div>
-						<p class="hint">Tasks with a ⏰ time notify this device, even with wr1t3r closed. Each phone and computer is turned on separately.</p>
+						<p class="hint" data-feature="reminders">Tasks with a ⏰ time notify this device, even with wr1t3r closed. Each phone and computer is turned on separately.</p>
 					</section>
 					<section class="set-pane" data-tab="home" data-title="Home" role="tabpanel" hidden>
 						<h2>Pinned tiles</h2>
@@ -296,6 +297,7 @@
 						<div class="seg"><button id="templateAdd" type="button">New template</button></div>
 						<p class="hint">Templates live in the vault's _templates folder and stay out of the notes list. Each one is also a / command and an “Insert template” command you can give a hotkey.</p>
 					</section>
+					<section class="set-pane" data-tab="features" data-title="Features" role="tabpanel" hidden></section>
 					<section class="set-pane" data-tab="hotkeys" data-title="Hotkeys" role="tabpanel" hidden>
 						<input id="hotkeyFilter" type="search" placeholder="Find a command" aria-label="Find a command" autocomplete="off">
 						<div id="hotkeyList" class="hotkey-list"></div>
@@ -308,13 +310,13 @@
 						<p class="hint" id="folderStatus"></p>
 						<div class="seg"><button id="folderPick" type="button">Choose a folder…</button><button id="folderReconnect" type="button" hidden>Allow again</button><button id="folderStop" type="button" hidden>Stop</button></div>
 						<p class="hint">The whole vault as plain files on this computer, kept in step both ways while wr1t3r is open. Edits made there come in; edits made here go out.</p>
-						<h2>Searchable pictures and PDFs</h2>
-						<div class="seg" id="ocrSeg" title="Claude reads the text in pictures and PDFs so search finds them. Needs ANTHROPIC_API_KEY">
+						<h2 data-feature="ocr">Searchable pictures and PDFs</h2>
+						<div class="seg" id="ocrSeg" data-feature="ocr" title="Claude reads the text in pictures and PDFs so search finds them. Needs ANTHROPIC_API_KEY">
 							<button type="button" data-on="true">On</button>
 							<button type="button" data-on="false">Off</button>
 						</div>
-						<h2>Clip from any page</h2>
-						<p class="hint">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page. On iPhone, see the README for adding it to Safari.</p>
+						<h2 data-feature="capture">Clip from any page</h2>
+						<p class="hint" data-feature="capture">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page. On iPhone, see the README for adding it to Safari.</p>
 						<h2>This device</h2>
 						<div class="seg"><button id="setSignOut" type="button">Sign out</button></div>
 					</section>
@@ -332,7 +334,7 @@
 			<ol id="tocList"></ol>
 			<p id="tocEmpty" class="hint">No headings in this note yet. Lines starting with # show up here.</p>
 		</nav>
-		<div id="agenda" class="pop" hidden>
+		<div id="agenda" class="pop" data-feature="calendar" hidden>
 			<div class="agenda-top">
 				<h2>Agenda</h2>
 				<button id="addEventBtn" type="button">+ Add event</button>

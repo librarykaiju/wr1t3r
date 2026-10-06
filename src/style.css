@@ -1748,3 +1748,13 @@ main > header { background: var(--panel); }
 .md-suggest { position: fixed; z-index: 70; max-width: min(360px, calc(100vw - 16px)); max-height: 240px; overflow-y: auto; padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgb(0 0 0 / 0.22); font-family: var(--sans); font-size: 14px; }
 .md-suggest-item { padding: 6px 10px; border-radius: 6px; color: var(--fg); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .md-suggest-item:hover, .md-suggest-item.active { background: var(--sel); }
+
+/* Areas turned off in Settings > Features (src/features.js). */
+body.no-longform [data-feature~="longform"], body.no-boards [data-feature~="boards"],
+body.no-daily [data-feature~="daily"], body.no-health [data-feature~="health"],
+body.no-media [data-feature~="media"], body.no-calendar [data-feature~="calendar"],
+body.no-audio [data-feature~="audio"], body.no-ocr [data-feature~="ocr"],
+body.no-capture [data-feature~="capture"], body.no-reminders [data-feature~="reminders"],
+body.no-health .planner-buttons { display: none !important; }
+.set-folder label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0; }
+.set-folder input { flex: 0 1 220px; min-width: 0; }

@@ -26,6 +26,7 @@ import { local, meta, persist } from "./store.js";
 import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.js";
 import { api, token, setToken, AuthError } from "./api.js";
 import { openStorage } from "./storage.js";
+import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
@@ -141,6 +142,7 @@ async function runSync() {
 		const r = await sync({ local, api: remote, onNote });
 		refreshAttachments();
 		lastSynced = new Date();
+		applyFeatures();
 		uploadReminders();
 		lastError = null;
 		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
@@ -687,11 +689,13 @@ function itemMenu(item, x, y) {
 	showMenu([
 		...(isFolder ? [
 			["New note here…", () => newNote(item + "Untitled.md")],
-			["Corkboard", () => openFolderView(item, "corkboard")],
-			["Outliner", () => openFolderView(item, "outliner")],
-			["Scrivenings", () => openFolderView(item, "scrivenings")],
-			["Compile…", () => openCompile(item)],
-			["New board…", () => newBase(item)],
+			...(featureOn("longform") ? [
+				["Corkboard", () => openFolderView(item, "corkboard")],
+				["Outliner", () => openFolderView(item, "outliner")],
+				["Scrivenings", () => openFolderView(item, "scrivenings")],
+				["Compile…", () => openCompile(item)],
+			] : []),
+			...(featureOn("boards") ? [["New board…", () => newBase(item)]] : []),
 		] : []),
 		pinEntry(item),
 		isFolder
@@ -897,6 +901,97 @@ function homeText() {
 }
 
 const pins = () => readPins(homeText() || "");
+
+// ---- Notebook settings: which areas are on, and wr1t3r's own folders --------
+//
+// In _wr1t3r/Settings.md beside the Home note (src/features.js), so every
+// device has the same ones. With no Settings note, everything is on.
+
+const settingsFile = () => { const h = homeFile(); return settingsPath(visible().map((n) => n.path), h.slice(0, h.lastIndexOf("/") + 1)); };
+let settingsCache = { text: null, value: readSettings("") };
+function appSettings() {
+	const path = settingsFile(), n = notes.get(path);
+	const text = !n || n.deleted || n.binary ? "" : path === editor?.path ? editor.text() : n.text;
+	if (text !== settingsCache.text) settingsCache = { text, value: readSettings(text) };
+	return settingsCache.value;
+}
+const featureOn = (id) => !id || appSettings().features[id] !== false;
+// One of wr1t3r's own folders (or the Inbox note), under the notes' folder.
+const ownFolder = (id) => commonFolder(visible()) + appSettings().folders[id];
+
+async function saveSettings(next) {
+	const path = settingsFile();
+	if (dataviewVault.text(path) != null) await dataviewVault.write(path, (t) => writeSettings(t, next));
+	else {
+		if (!visible().length) return toast("The vault hasn't loaded yet.");
+		const text = writeSettings("", next);
+		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+		renderStatus();
+		scheduleSync();
+	}
+	applyFeatures();
+}
+
+// Hides what belongs to areas that are off: body.no-<area> (style.css) and
+// anything marked data-feature="<area>".
+let featuresShown = "";
+function applyFeatures() {
+	const s = appSettings();
+	const key = JSON.stringify(s);
+	if (key === featuresShown) return;
+	featuresShown = key;
+	const calendarWasOff = document.body.classList.contains("no-calendar");
+	for (const a of FEATURE_AREAS) document.body.classList.toggle("no-" + a.id, !s.features[a.id]);
+	renderFeatureSettings(); // also what Search settings looks through
+	if (s.features.calendar && calendarWasOff) loadAgenda();
+}
+
+// Settings > Features: a switch per area, and the folders.
+function renderFeatureSettings() {
+	const pane = document.querySelector('.set-pane[data-tab="features"]');
+	const s = appSettings();
+	pane.textContent = "";
+	const h2 = (t) => { const h = document.createElement("h2"); h.textContent = t; return h; };
+	const hint = (t) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = t; return p; };
+	for (const a of FEATURE_AREAS) {
+		const seg = document.createElement("div");
+		seg.className = "seg";
+		seg.title = a.detail;
+		for (const [on, label] of [[true, "On"], [false, "Off"]]) {
+			const b = document.createElement("button");
+			b.type = "button";
+			b.textContent = label;
+			b.setAttribute("aria-pressed", String(s.features[a.id] === on));
+			b.addEventListener("click", () => { if (s.features[a.id] !== on) saveSettings({ ...s, features: { ...s.features, [a.id]: on } }).then(renderFeatureSettings); });
+			seg.append(b);
+		}
+		pane.append(h2(a.label), seg, hint(a.detail + "."));
+	}
+	pane.append(h2("Folders"), hint("wr1t3r's own folders, inside the notes' folder. Notes already there stay where they are."));
+	for (const f of FOLDER_SETTINGS) {
+		const input = document.createElement("input");
+		input.type = "text";
+		input.value = s.folders[f.id];
+		input.placeholder = f.dflt;
+		input.setAttribute("aria-label", f.label);
+		input.title = f.detail;
+		const save = () => {
+			const v = cleanFolder(f.id, input.value);
+			input.value = v;
+			if (v !== appSettings().folders[f.id]) saveSettings({ ...appSettings(), folders: { ...appSettings().folders, [f.id]: v } });
+		};
+		input.addEventListener("change", save);
+		input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); input.blur(); } });
+		const row = document.createElement("div");
+		row.className = "set-folder";
+		const lab = document.createElement("label");
+		lab.textContent = f.label;
+		lab.append(input);
+		row.append(lab);
+		pane.append(row);
+	}
+	pane.append(hint("These sync to every device through _wr1t3r/Settings.md, which stays out of the notes list."));
+}
 
 // Saves the pins to the Home note (made the first time), like any edit.
 async function savePins(list) {
@@ -2128,7 +2223,6 @@ function pickFolder(what) {
 }
 
 // Compile: the folder's notes in order, as one file (src/compileview.js).
-const COMPILED_FOLDER = "_compiled/";
 function openCompile(folder) {
 	if (!folder.endsWith("/")) folder += "/";
 	if (!folderExists(folder)) return toast(`There's no folder “${folderLabel(folder)}”.`);
@@ -2156,10 +2250,10 @@ function openCompile(folder) {
 			return file ? attachmentBlob(file, (p) => remote.attachment(p)) : null;
 		},
 		async saveToVault(nm, text) {
-			const path = commonFolder(visible()) + COMPILED_FOLDER + nm + ".md";
+			const path = ownFolder("compiled") + nm + ".md";
 			if (!isNotePath(path)) return toast("That title can't be a note name.");
 			if (dataviewVault.text(path) != null) {
-				if (!confirm(`Replace “${nm}” in _compiled with this version?`)) return;
+				if (!confirm(`Replace “${nm}” in ${folderLabel(ownFolder("compiled"))} with this version?`)) return;
 				await dataviewVault.write(path, () => text);
 			} else {
 				await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
@@ -2167,7 +2261,7 @@ function openCompile(folder) {
 				renderTree();
 				scheduleSync();
 			}
-			toast(`Saved “${nm}” in _compiled.`);
+			toast(`Saved “${nm}” in ${folderLabel(ownFolder("compiled"))}.`);
 		},
 		toast,
 	});
@@ -2422,7 +2516,9 @@ async function voiceMemo() {
 // and syncs later.
 async function captureToInbox(item) {
 	if (!captureEntry(item, "x")) return toast("Nothing to capture.");
-	if (navigator.onLine) {
+	const inbox = ownFolder("inbox");
+	// The Worker writes to its own CAPTURE_NOTE, so only when that's where the Inbox is.
+	if (navigator.onLine && inbox === INBOX) {
 		try {
 			await api.capture(item);
 			toast("Sent to the Inbox.", 3000);
@@ -2433,7 +2529,7 @@ async function captureToInbox(item) {
 		}
 	}
 	const entry = captureEntry(item, stamp());
-	await change(INBOX, (cur) => ({ base: null, ...cur, path: INBOX, text: appendCapture(cur && !cur.deleted ? cur.text : null, entry), dirty: true, deleted: false }));
+	await change(inbox, (cur) => ({ base: null, ...cur, path: inbox, text: appendCapture(cur && !cur.deleted ? cur.text : null, entry), dirty: true, deleted: false }));
 	renderTree();
 	toast("Added to the Inbox.", 3000);
 	scheduleSync();
@@ -2568,7 +2664,7 @@ function allCommands() {
 		["Find in note", () => { view.focus(); openSearchPanel(view); }, "search replace", true],
 		// One per template, so each can have its own hotkey.
 		...vaultTemplates().map((t) => [`Insert template: ${t.name}`, () => insertTemplateAt(t), "templater " + t.name.toLowerCase(), true]),
-	].map(([label, run, keywords, needsNote]) => ({ label, run, keywords, needsNote: !!needsNote }));
+	].filter(([label]) => featureOn(commandArea(label))).map(([label, run, keywords, needsNote]) => ({ label, run, keywords, needsNote: !!needsNote }));
 	const edits = [
 		...COMMANDS.map((c) => ({ label: c.label, keywords: c.keywords, table: !!c.table, run: EDIT_ACTIONS[c.label] || ((v) => runCommand(v, c)) })),
 		{ label: "Indent", keywords: "tab nest", run: EDIT_ACTIONS.Indent },
@@ -3214,8 +3310,6 @@ async function renameNote(from, input) {
 // ---- uploads -------------------------------------------------------------------
 
 // Uploads and clippings become notes here. content/_* folders stay out of the site build.
-const UPLOAD_FOLDER = "content/_uploads/";
-const CLIP_FOLDER = "content/_clippings/";
 
 // Saves a new note under folder, numbering the name if it's taken.
 async function addNote(folder, noteName, text) {
@@ -3248,18 +3342,18 @@ async function upload(files) {
 	for (const file of files) {
 		try {
 			const { markdown, notes } = await convert.toMarkdown(file);
-			const path = await addNote(UPLOAD_FOLDER, convert.noteName(file.name), convert.withFrontmatter(markdown, file.name));
+			const path = await addNote(ownFolder("uploads"), convert.noteName(file.name), convert.withFrontmatter(markdown, file.name));
 			done.push({ path, notes });
 		} catch (e) {
 			failed.push(`${file.name}: ${e.message}`);
 		}
 	}
 	const parts = [];
-	if (done.length) parts.push(`Added ${done.length} note${done.length === 1 ? "" : "s"} to _uploads.`);
+	if (done.length) parts.push(`Added ${done.length} note${done.length === 1 ? "" : "s"} to ${folderLabel(ownFolder("uploads"))}.`);
 	for (const d of done) if (d.notes.length) parts.push(`${name(d.path)}: ${d.notes.join(", ")}.`);
 	if (failed.length) parts.push(`Couldn't convert ${failed.join("; ")}.`);
 	toast(parts.join(" "), failed.length ? 10000 : 6000);
-	if (done.length) showAdded(UPLOAD_FOLDER, done[done.length - 1].path);
+	if (done.length) showAdded(ownFolder("uploads"), done[done.length - 1].path);
 }
 
 async function clipPage(url) {
@@ -3271,9 +3365,9 @@ async function clipPage(url) {
 	try {
 		const [{ clip }, { noteName }] = await Promise.all([import("./clip.js"), import("./convert-text.js")]);
 		const c = await clip(url);
-		const path = await addNote(CLIP_FOLDER, noteName(c.title), c.text);
-		toast(`Clipped “${name(path)}” to _clippings.`);
-		showAdded(CLIP_FOLDER, path);
+		const path = await addNote(ownFolder("clippings"), noteName(c.title), c.text);
+		toast(`Clipped “${name(path)}” to ${folderLabel(ownFolder("clippings"))}.`);
+		showAdded(ownFolder("clippings"), path);
 	} catch (e) {
 		if (e instanceof AuthError) return signOut("That token no longer works.");
 		toast("Couldn't clip that: " + e.message, 8000);
@@ -3544,6 +3638,7 @@ function showSettingsTab(tab, onPhoneList = false) {
 	$("settings").classList.toggle("pane-open", !onPhoneList);
 	if (tab === "home") renderHomeSettings();
 	if (tab === "templates") renderTemplateSettings();
+	if (tab === "features") renderFeatureSettings();
 	if (tab === "hotkeys") renderHotkeyTab();
 	if (tab === "sync") $("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
 	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
@@ -4225,7 +4320,7 @@ function showMonth(n) {
 }
 
 async function loadAgenda(force = false) {
-	if (calLoading && !force) return;
+	if ((calLoading && !force) || !featureOn("calendar")) return;
 	if (!navigator.onLine) { calState = "offline"; renderAgenda(); return; }
 	calLoading = true;
 	const from = agenda.startOfDay(new Date());
@@ -4822,6 +4917,8 @@ function diffChange(a, b) {
 // What dataviewjs blocks (src/dataview.js) may read: notes on this device, and
 // public web pages through the Worker, as the clipper fetches them.
 const dataviewVault = {
+	// Where new task list notes go (Settings > Features > Folders).
+	listsFolder: () => ownFolder("lists"),
 	paths: () => cachedPaths("notes", (n) => !n.binary && !isBoardPath(n.path)),
 	files: () => cachedPaths("files", (n) => !n.binary),
 	// A base changing a note's property: the open note through the editor (so
@@ -4906,6 +5003,7 @@ async function start() {
 	$("promptNext").addEventListener("click", () => { promptStep++; renderPrompt(); });
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
+	applyFeatures();
 	loadAttachments();
 	loadMediaKinds();
 	persist();
