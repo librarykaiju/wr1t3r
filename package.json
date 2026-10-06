@@ -8,7 +8,8 @@
     "test": "node --test test/*.test.js",
     "deploy": "vite build && wrangler deploy",
     "google-auth": "node scripts/google-auth.js",
-    "vapid": "node scripts/vapid.js"
+    "vapid": "node scripts/vapid.js",
+    "food-data": "node scripts/food-data.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -35,6 +36,7 @@
     "turndown-plugin-gfm": "^1.0.2"
   },
   "devDependencies": {
+    "jszip": "^3.10.2",
     "vite": "^8.3.1",
     "wrangler": "^4.144.0"
   }

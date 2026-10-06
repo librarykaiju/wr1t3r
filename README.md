@@ -282,7 +282,7 @@ The planner's Food button can look foods up in USDA FoodData Central. The Worker
 npx wrangler secret put USDA_API_KEY
 ```
 
-Until it's set, **Search USDA** says the key is missing.
+Until it's set (and always on a Dropbox device), **Search USDA** searches USDA's SR Legacy table instead: about 7,800 common foods (no brands), public domain, shipped with the app as `public/food/usda-sr-legacy.json` and searched on the device. `npm run food-data` makes that file from USDA's download (or `npm run food-data -- path/to/zip` from one you downloaded); SR Legacy is final, so it only needs making once.
 
 ## Media notes
 
