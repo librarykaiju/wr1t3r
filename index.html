@@ -91,7 +91,7 @@
 					<div id="fvModes" class="fv-modes" role="group" aria-label="Show the folder as">
 						<button type="button" data-view="corkboard" title="Index cards you can drag into order">Corkboard</button>
 						<button type="button" data-view="outliner" title="A table of the folder's notes, in order">Outliner</button>
-						<button type="button" data-view="scrivenings" title="Every note in the folder as one long document">Scrivenings</button>
+						<button type="button" data-view="scrivenings" title="Every note in the folder as one long document">Draft</button>
 					</div>
 					<span class="spacer"></span>
 					<span id="fvWords" class="fv-words"></span>
@@ -402,6 +402,17 @@
 			</form>
 			<div id="agendaList"></div>
 			<p id="agendaNote" class="hint"></p>
+		</div>
+		<!-- The first run, for a notebook with nothing in it (src/onboarding.js). -->
+		<div id="welcome" class="settings-win welcome-win" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle" hidden>
+			<form class="welcome-box" id="welcomeForm">
+				<h1 id="welcomeTitle">Welcome to wr1t3r</h1>
+				<p class="hint">This notebook is empty. What will you use it for? Pick any. wr1t3r turns on the parts that fit, and you can change them later in Settings &gt; Features.</p>
+				<div id="welcomeUses" class="welcome-uses"></div>
+				<label class="welcome-check"><input type="checkbox" id="welcomeStarter" checked> Add a welcome note, starter notes and a Home screen</label>
+				<p id="welcomeIos" class="welcome-tip" hidden><b>On iPhone or iPad,</b> tap Share, then Add to Home Screen, and open wr1t3r from there. Safari clears the offline copy of a site that isn't on the Home Screen after about a week without a visit.</p>
+				<div class="welcome-actions"><button id="welcomeSkip" type="button" class="quiet">Skip</button><button id="welcomeGo" type="submit">Start</button></div>
+			</form>
 		</div>
 		<!-- Every notice in one corner: messages stack above the last sync time. -->
 		<div id="notices">

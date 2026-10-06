@@ -120,6 +120,8 @@ test("a folder's corkboard, outliner or scrivenings can be pinned, and follows t
 	assert.ok(pinOpens(pin, { folder: "content/novel/", view: "corkboard" }, [], HOME));
 	assert.ok(!pinOpens(pin, { folder: "content/Novel/", view: "outliner" }, [], HOME));
 	assert.deepEqual(retargetPins([pin], new Map(), [], [], HOME, "content/Novel/", "content/Books/Novel/"), [{ link: "corkboard:content/Books/Novel" }]);
+	// The view is called Draft now; a draft: pin is the same as a scrivenings: one.
+	assert.deepEqual(pinKind("draft:content/Novel"), { kind: "view", view: "scrivenings", folder: "content/Novel/" });
 });
 
 test("a folder: pin counts as the folder's corkboard pin; wr1t3r's own files are app files", () => {

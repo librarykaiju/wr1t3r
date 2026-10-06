@@ -29,6 +29,7 @@ import { openStorage, registerStorage, storageKind, setStorageKind } from "./sto
 import { notebookCalendar, CALENDAR_FOLDER } from "./notecal.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
+import { USES, DEFAULT_USES, featuresFor, starterNotes, needsHomeScreen } from "./onboarding.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
@@ -150,6 +151,7 @@ async function runSync() {
 		applyFeatures();
 		if (r.downloaded || r.deleted) refreshNotebookCalendar();
 		uploadReminders();
+		maybeWelcome();
 		lastError = null;
 		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
 		sortPending = null;
@@ -698,7 +700,7 @@ function itemMenu(item, x, y) {
 			...(featureOn("longform") ? [
 				["Corkboard", () => openFolderView(item, "corkboard")],
 				["Outliner", () => openFolderView(item, "outliner")],
-				["Scrivenings", () => openFolderView(item, "scrivenings")],
+				["Draft", () => openFolderView(item, "scrivenings")],
 				["Compile…", () => openCompile(item)],
 			] : []),
 			...(featureOn("boards") ? [["New board…", () => newBase(item)]] : []),
@@ -936,6 +938,44 @@ async function saveSettings(next) {
 		scheduleSync();
 	}
 	applyFeatures();
+}
+
+// ---- The first run (src/onboarding.js) ---------------------------------------
+//
+// After a sync that finds the notebook empty, ask what it's for once on this
+// device. Start turns those areas on (and the rest off) in the Settings note,
+// and can add starter notes; Skip leaves everything on.
+
+const WELCOMED = "wr1t3r-welcomed";
+function maybeWelcome() {
+	if (visible().length || readRaw(WELCOMED) || !$("welcome").hidden) return;
+	const box = $("welcomeUses");
+	box.textContent = "";
+	for (const u of USES) {
+		const lab = document.createElement("label");
+		const input = Object.assign(document.createElement("input"), { type: "checkbox", value: u.id, checked: DEFAULT_USES.includes(u.id) });
+		lab.append(input, Object.assign(document.createElement("b"), { textContent: u.label }), Object.assign(document.createElement("span"), { textContent: u.detail }));
+		box.append(lab);
+	}
+	$("welcomeIos").hidden = !needsHomeScreen(navigator.userAgent, matchMedia("(display-mode: standalone)").matches || navigator.standalone === true, navigator.maxTouchPoints);
+	$("welcome").hidden = false;
+	$("welcomeGo").focus();
+}
+
+async function finishWelcome(start) {
+	storeRaw(WELCOMED, "1");
+	$("welcome").hidden = true;
+	if (!start || visible().length) return; // something synced in meanwhile: leave it be
+	const uses = [...$("welcomeUses").querySelectorAll("input:checked")].map((i) => i.value);
+	const features = featuresFor(uses);
+	const files = $("welcomeStarter").checked ? starterNotes(uses) : [];
+	if (Object.values(features).includes(false)) files.push({ path: "_wr1t3r/Settings.md", text: writeSettings("", { ...readSettings(""), features }) });
+	for (const f of files) await change(f.path, (cur) => ({ path: f.path, text: f.text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	applyFeatures();
+	renderTree();
+	renderStatus();
+	scheduleSync(0);
+	if (files.some((f) => f.path === "Welcome.md")) openNote("Welcome.md");
 }
 
 // Hides what belongs to areas that are off: body.no-<area> (style.css) and
@@ -1335,7 +1375,7 @@ function renderHomeSettings() {
 		row.className = "home-pin";
 		row.style.setProperty("--tc", pinColor(pin, ordinal[i]));
 		row.title = "Change, move or unpin this tile";
-		const what = { note: isBoardPath(path || k.target || "") ? "board" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "one document" : k.view, command: "command", url: "web page" }[k.kind];
+		const what = { note: isBoardPath(path || k.target || "") ? "board" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "draft" : k.view, command: "command", url: "web page" }[k.kind];
 		const nm = document.createElement("span");
 		nm.textContent = pinTitle(pin, path);
 		const kind = document.createElement("small");
@@ -1441,7 +1481,7 @@ function tileMenu(i, x, y, store = homeStore) {
 	}
 	const k = pinKind(pin.link);
 	const views = k.kind === "folder" || k.kind === "view"
-		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as one document"]]
+		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as draft"]]
 			.filter(([v]) => v !== (k.kind === "view" ? k.view : "corkboard"))
 			.map(([v, label]) => [label, () => set({ link: v === "corkboard" ? folderLink(k.folder) : viewLink(v, k.folder) })])
 		: [];
@@ -2174,7 +2214,7 @@ function cardMenu(item, x, y, index, what) {
 	showMenu([
 		["Open", () => (isFolder ? openFolderView(item, null, { replace: true }) : openNote(item))],
 		...(isFolder ? [] : [
-			["Open in Scrivenings", () => { openFolderView(folder, "scrivenings", { tab: false }); scriv?.show(item); }],
+			["Open in Draft", () => { openFolderView(folder, "scrivenings", { tab: false }); scriv?.show(item); }],
 			["Label color…", () => labelMenu(item, x, y)],
 			["Status…", () => {
 				const v = prompt("Status (empty to clear):", info.status);
@@ -2207,7 +2247,7 @@ function folderMore() {
 		["New note here", () => addCard(folder, orderOf(folder).length)],
 		pinned
 			? ["Unpin from Home", () => savePins(pins().filter((p) => !pinOpens(p, { folder, view }, paths, homeFile())))]
-			: ["Pin to Home", () => addPin({ link: viewLink(view, folder) }, `${itemLabel(folder)} (${view})`)],
+			: ["Pin to Home", () => addPin({ link: viewLink(view, folder) }, `${itemLabel(folder)} (${view === "scrivenings" ? "draft" : view})`)],
 		[dataviewVault.text(bp) != null ? "Open the binder note" : "Save this order as a binder note", async () => {
 			if (dataviewVault.text(bp) == null) await saveOrder(folder, orderOf(folder));
 			openNote(bp);
@@ -2229,7 +2269,7 @@ function pickFolder(what) {
 	const all = [...folders].filter((f) => f.startsWith(home) && f !== home)
 		.sort((a, b) => (b === here) - (a === here) || a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
 	openPalette({
-		placeholder: what === "compile" ? "Compile which folder?" : `Show which folder as ${what === "corkboard" ? "a corkboard" : what === "outliner" ? "an outline" : "one document"}?`,
+		placeholder: what === "compile" ? "Compile which folder?" : `Show which folder as ${what === "corkboard" ? "a corkboard" : what === "outliner" ? "an outline" : "a draft"}?`,
 		items: all.map((f) => ({ label: folderLabel(f), detail: "folder", run: () => (what === "compile" ? openCompile(f) : openFolderView(f, what)) })),
 	});
 }
@@ -2679,7 +2719,7 @@ function allCommands() {
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
 		["Open corkboard", () => pickFolder("corkboard"), "scrivener index cards folder board order"],
 		["Open outliner", () => pickFolder("outliner"), "scrivener outline table folder order"],
-		["Open scrivenings", () => pickFolder("scrivenings"), "scrivener one document whole folder read"],
+		["Open draft", () => pickFolder("scrivenings"), "scrivenings scrivener one document whole folder read draft"],
 		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Transcribe a video or audio file", transcribeIntoNote, "transcript speech text speakers video audio mp4 mov podcast interview", true],
@@ -5178,6 +5218,8 @@ async function start() {
 	$("prevNote").addEventListener("click", () => stepFolder(-1));
 	$("nextNote").addEventListener("click", () => stepFolder(1));
 	$("palette").addEventListener("click", () => commandPalette());
+	$("welcomeForm").addEventListener("submit", (e) => { e.preventDefault(); finishWelcome(true); });
+	$("welcomeSkip").addEventListener("click", () => finishWelcome(false));
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);
 
 	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || tabs.find(tabOpen) || null);
