@@ -1,7 +1,7 @@
 // Look up: the selected word (or the one at the cursor) in a dictionary and
 // thesaurus, in a box under it. Clicking a synonym puts it in place of the
-// word, keeping a capital first letter. The words come from the Worker's
-// /api/define (worker/define.js).
+// word, keeping a capital first letter. The words come from src/define.js,
+// through the Worker's /api/define or, with no Worker, straight from the page.
 
 const cache = new Map();
 
