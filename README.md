@@ -314,6 +314,8 @@ Anything captured lands as an open task at the end of `content/Inbox.md` (change
 
 The palette's "Make pictures and PDFs searchable" sends each picture (JPEG, PNG, GIF, WebP) and PDF in the vault to Claude (Haiku 4.5) once, through the Worker, to read the text in it, or to say in a sentence what a picture shows when it has no text. Sidebar search then finds them; clicking a result opens the file. While it's on, new pictures and PDFs are read after each sync, up to ten at a time. It needs the `ANTHROPIC_API_KEY` secret (the one media notes use). The texts live in the bucket at `.wr1t3r/ocr.json`. Pictures over 5 MB and PDFs over 32 MB or 100 pages are skipped.
 
+With no Worker (Dropbox) or no `ANTHROPIC_API_KEY`, the device reads them itself: Tesseract for pictures (printed English text; no descriptions of pictures without text), and the PDF's own text layer, with the first five pages of a scanned PDF read like pictures. The engine and language data (about 7 MB) are served from this site under `/ocr/` and downloaded the first time. The texts stay on that device.
+
 ## Board column totals
 
 In a board's Grid, click under a column to pick its total: Sum, Average, Median, Smallest, Largest, Range, Standard deviation, Earliest or Latest date, Checked, Unchecked, Filled, Empty, or Unique values. It's saved in the view's `summaries:`.
@@ -336,7 +338,7 @@ A build with a Dropbox app key shows **Use Dropbox** on the sign-in screen. Note
 3. Settings: add the page's address as a Redirect URI (`https://your.host/`, with the slash). Copy the **App key** (the secret isn't used).
 4. Build with it: `VITE_DROPBOX_APP_KEY=<app key> npm run deploy`.
 
-What needs the Worker (transcripts, calendar, reminders, picture search, lookups, server-side capture) shows an error on a Dropbox device for now. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
+What needs the Worker (transcripts, calendar, reminders, lookups, server-side capture) shows an error on a Dropbox device for now. Picture search runs on the device (see Searchable pictures and PDFs). A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
 
 ## Features and folders
 

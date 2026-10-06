@@ -32,7 +32,7 @@ import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
 import { contentHash } from "./localvault.js";
-import { isNotePath, isAttachmentPath, isBoardPath, BOARD_EXT } from "./paths.js";
+import { isNotePath, isAttachmentPath, isBoardPath, BOARD_EXT, attachmentType } from "./paths.js";
 import { counts, countWords, stats, noteGoal } from "./count.js";
 import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
@@ -4795,21 +4795,35 @@ async function refreshAttachments() {
 }
 
 // Searchable pictures and PDFs (src/ocr.js, worker/ocr.js): the Worker has
-// Claude read each one once; search looks through the text.
+// Claude read each one once; search looks through the text. With no Worker,
+// or one without the Anthropic key, this device reads them (src/localocr.js).
 let ocrIndex = {};
 let ocrBusy = false;
+let ocrHere = onDropbox;
+async function readHere(f) {
+	const { readText } = await import("./localocr.js");
+	const text = await readText(await remote.attachment(f.path), attachmentType(f.path));
+	return { path: f.path, version: f.version, text };
+}
 async function readPictures({ quiet = false, max = Infinity } = {}) {
 	if (ocrBusy || !navigator.onLine) return;
 	ocrBusy = true;
 	let note = null, done = 0, failed = 0;
 	try {
-		ocrIndex = { ...ocrIndex, ...(await api.ocrIndex()) };
+		if (!ocrHere) ocrIndex = { ...ocrIndex, ...(await api.ocrIndex()) };
 		const todo = unread(attachments, ocrIndex).slice(0, max);
 		if (!todo.length) { if (!quiet) toast("Every picture and PDF is searchable already."); return; }
 		if (!quiet) note = toast(`Reading ${todo.length} pictures and PDFs…`, 600000);
 		for (const f of todo) {
 			try {
-				const r = await api.ocr(f.path);
+				let r;
+				try {
+					r = ocrHere ? await readHere(f) : await api.ocr(f.path);
+				} catch (e) {
+					if (!(e.status === 501 && e.body?.setup)) throw e;
+					ocrHere = true; // the Worker has no Anthropic key
+					r = await readHere(f);
+				}
 				ocrIndex = { ...ocrIndex, [r.path]: { version: r.version, text: r.text } };
 				done++;
 			} catch (e) {
@@ -4832,7 +4846,9 @@ async function readPictures({ quiet = false, max = Infinity } = {}) {
 function searchablePictures() {
 	if (!navigator.onLine) return toast("Reading pictures needs a connection.");
 	const n = unread(attachments, ocrIndex).length;
-	if (n > 20 && !confirm(`Send ${n} pictures and PDFs to Claude to read their text? Each costs a little on your Anthropic account. New ones are read as they're added.`)) return;
+	if (n > 20 && !confirm(ocrHere
+		? `Read the text in ${n} pictures and PDFs on this device? It can take a while, and the first time downloads about 7 MB. New ones are read as they're added.`
+		: `Send ${n} pictures and PDFs to Claude to read their text? Each costs a little on your Anthropic account. New ones are read as they're added.`)) return;
 	setOcrOn(true);
 	readPictures();
 }
@@ -5015,6 +5031,7 @@ async function start() {
 	setPictureHost({ upload: uploadPicture });
 	setupFolderView();
 	setupLocalFolder();
+	if (onDropbox) $("ocrSeg").title = "Reads the text in pictures and PDFs on this device, so search finds them";
 	renderQuote();
 	$("writingPrompt").addEventListener("click", () => newPromptNote($("writingPrompt").textContent));
 	$("promptNext").addEventListener("click", () => { promptStep++; renderPrompt(); });
