@@ -336,7 +336,7 @@ A build with a Dropbox app key shows **Use Dropbox** on the sign-in screen. Note
 3. Settings: add the page's address as a Redirect URI (`https://your.host/`, with the slash). Copy the **App key** (the secret isn't used).
 4. Build with it: `VITE_DROPBOX_APP_KEY=<app key> npm run deploy`.
 
-What needs the Worker (transcripts, calendar, reminders, picture search, lookups, server-side capture) shows an error on a Dropbox device for now. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
+Task reminders show while wr1t3r is open (any tab) instead of being pushed. What else needs the Worker (transcripts, calendar, picture search, lookups, server-side capture) shows an error on a Dropbox device for now. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
 
 ## Features and folders
 
