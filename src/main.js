@@ -25,7 +25,8 @@ import { openSearchPanel } from "@codemirror/search";
 import { local, meta, persist } from "./store.js";
 import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.js";
 import { api, token, setToken, AuthError } from "./api.js";
-import { openStorage } from "./storage.js";
+import { openStorage, registerStorage, storageKind, setStorageKind } from "./storage.js";
+import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
@@ -103,7 +104,10 @@ class NoteMap extends Map {
 }
 const notes = new NoteMap();
 // Where the notebook lives (src/storage.js); the Worker unless this device picked another.
+if (dropboxAppKey()) registerStorage("dropbox", () => dropboxStorage());
+const onDropbox = storageKind() === "dropbox";
 const remote = openStorage();
+const SIGNED_OUT = onDropbox ? "Dropbox ended wr1t3r's sign-in. Sign in again." : "That token no longer works.";
 let editor;
 
 // ---- storage: one write chain so saves land in order ----------------------
@@ -151,7 +155,7 @@ async function runSync() {
 			toast(`${name(c.path)} was also changed elsewhere. Your version is saved as “${name(c.copy)}”.`, 8000);
 		}
 	} catch (e) {
-		if (e instanceof AuthError) return signOut("That token no longer works.");
+		if (e instanceof AuthError) return signOut(SIGNED_OUT);
 		lastError = e instanceof TypeError ? "offline" : e.message;
 	} finally {
 		syncing = false;
@@ -2518,14 +2522,14 @@ async function captureToInbox(item) {
 	if (!captureEntry(item, "x")) return toast("Nothing to capture.");
 	const inbox = ownFolder("inbox");
 	// The Worker writes to its own CAPTURE_NOTE, so only when that's where the Inbox is.
-	if (navigator.onLine && inbox === INBOX) {
+	if (navigator.onLine && inbox === INBOX && !onDropbox) {
 		try {
 			await api.capture(item);
 			toast("Sent to the Inbox.", 3000);
 			scheduleSync(0);
 			return;
 		} catch (e) {
-			if (e instanceof AuthError) return signOut("That token no longer works.");
+			if (e instanceof AuthError) return signOut(SIGNED_OUT);
 		}
 	}
 	const entry = captureEntry(item, stamp());
@@ -3158,7 +3162,7 @@ async function timelineEvents(date) {
 	try {
 		return eventsOn((await api.events(from, agenda.addDays(from, 1), [id])).events, from);
 	} catch (e) {
-		if (e instanceof AuthError) signOut("That token no longer works.");
+		if (e instanceof AuthError) signOut(SIGNED_OUT);
 		else toast("Couldn't load calendar events" + (e instanceof TypeError ? " while offline." : ": " + e.message));
 		return null;
 	}
@@ -3369,7 +3373,7 @@ async function clipPage(url) {
 		toast(`Clipped “${name(path)}” to ${folderLabel(ownFolder("clippings"))}.`);
 		showAdded(ownFolder("clippings"), path);
 	} catch (e) {
-		if (e instanceof AuthError) return signOut("That token no longer works.");
+		if (e instanceof AuthError) return signOut(SIGNED_OUT);
 		toast("Couldn't clip that: " + e.message, 8000);
 	}
 }
@@ -3403,7 +3407,7 @@ async function newMediaNote(k, kind = null) {
 		toast(`Made “${name(path)}”.`);
 		showAdded(made.folder, path);
 	} catch (e) {
-		if (e instanceof AuthError) return signOut("That token no longer works.");
+		if (e instanceof AuthError) return signOut(SIGNED_OUT);
 		toast("Couldn't make that note: " + e.message, 8000);
 	}
 }
@@ -3458,6 +3462,8 @@ function toast(text, ms = 4000, title = "") {
 async function signOut(message) {
 	if (pending() && !confirm(`${pending()} change(s) haven't reached the vault yet and will be lost. Sign out anyway?`)) return;
 	setToken("");
+	forgetDropbox();
+	setStorageKind("worker");
 	await local.clear();
 	if (message) sessionStorage.setItem("wr1t3r-msg", message);
 	location.replace(location.pathname);
@@ -3640,7 +3646,10 @@ function showSettingsTab(tab, onPhoneList = false) {
 	if (tab === "templates") renderTemplateSettings();
 	if (tab === "features") renderFeatureSettings();
 	if (tab === "hotkeys") renderHotkeyTab();
-	if (tab === "sync") $("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
+	if (tab === "sync") {
+		$("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
+		$("setStorage").textContent = onDropbox ? "Notes are kept in your Dropbox, in Apps › wr1t3r." : "";
+	}
 	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
 	if (tab === "focus") markSeg("focusSeg", $("app").classList.contains("focus-mode"));
 	if (tab === "sync") markSeg("ocrSeg", ocrOn());
@@ -4333,7 +4342,7 @@ async function loadAgenda(force = false) {
 		calState = "ok";
 		if (force || !monthData || Date.now() - monthData.at > 5 * 60000) { monthData = monthData && { ...monthData, at: 0 }; pickData = null; loadMonth(); loadPick(); }
 	} catch (e) {
-		if (e instanceof AuthError) return signOut("That token no longer works.");
+		if (e instanceof AuthError) return signOut(SIGNED_OUT);
 		calState = e.body?.setup ? "setup" : e instanceof TypeError ? "offline" : "error";
 		calError = e.message;
 	} finally {
@@ -4481,7 +4490,7 @@ async function deleteEvent(e, button) {
 		await api.deleteEvent(e.calendar, e.id);
 	} catch (err) {
 		button.disabled = false;
-		if (err instanceof AuthError) return signOut("That token no longer works.");
+		if (err instanceof AuthError) return signOut(SIGNED_OUT);
 		return toast("Couldn't delete it: " + err.message, 8000);
 	}
 	const gone = (list) => list.filter((x) => !(x.calendar === e.calendar && x.id === e.id));
@@ -4668,7 +4677,7 @@ async function addEvent(e) {
 		monthData = null; pickData = null;
 		await loadAgenda();
 	} catch (err) {
-		if (err instanceof AuthError) return signOut("That token no longer works.");
+		if (err instanceof AuthError) return signOut(SIGNED_OUT);
 		$("evError").textContent = "Couldn't add it: " + err.message;
 	} finally {
 		submit.disabled = false;
@@ -4741,6 +4750,14 @@ function showLogin(message = "") {
 	$("login").hidden = false;
 	$("login-error").textContent = message;
 	$("token").focus();
+	$("dropboxLogin").hidden = !dropboxAppKey();
+	$("dropboxStart").onclick = () => {
+		setStorageKind("dropbox");
+		beginDropboxSignIn({ redirectUri: location.origin + location.pathname }).catch((err) => {
+			setStorageKind("worker");
+			$("login-error").textContent = "Couldn't start Dropbox sign-in: " + err.message;
+		});
+	};
 	$("login").onsubmit = async (e) => {
 		e.preventDefault();
 		setToken($("token").value.trim());
@@ -5084,7 +5101,16 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
 	navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
 
-if (token()) start();
+if (isDropboxReturn(location.href)) {
+	finishDropboxSignIn({ url: location.href })
+		.then(() => { history.replaceState(null, "", location.pathname); start(); })
+		.catch((err) => {
+			// Back to the token sign-in, on a fresh page so storage is the Worker again.
+			setStorageKind("worker");
+			sessionStorage.setItem("wr1t3r-msg", err.message);
+			location.replace(location.pathname);
+		});
+} else if (onDropbox ? dropboxSignedIn() : token()) start();
 else {
 	const msg = sessionStorage.getItem("wr1t3r-msg") || "";
 	sessionStorage.removeItem("wr1t3r-msg");

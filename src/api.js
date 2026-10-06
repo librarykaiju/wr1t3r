@@ -18,6 +18,9 @@ export function setToken(t) {
 export class AuthError extends Error {}
 
 async function call(path, init = {}, get = (...a) => fetch(...a), auth = token) {
+	// Signed in another way (Dropbox): the Worker's extras aren't there, and
+	// that's not a reason to sign out.
+	if (!auth()) throw new Error("This needs the wr1t3r server");
 	const res = await get(path, {
 		...init,
 		headers: { Authorization: "Bearer " + auth(), ...init.headers },

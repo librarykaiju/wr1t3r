@@ -20,6 +20,7 @@
 		<p>Paste your wr1t3r token. It stays on this device.</p>
 		<input id="token" type="password" autocomplete="current-password" placeholder="Token" required>
 		<button type="submit">Continue</button>
+		<p id="dropboxLogin" hidden>Or keep your notes in your own Dropbox: <button type="button" id="dropboxStart">Use Dropbox</button></p>
 		<p id="login-error" class="error" role="alert"></p>
 	</form>
 
@@ -306,6 +307,7 @@
 					<section class="set-pane" data-tab="sync" data-title="Sync and files" role="tabpanel" hidden>
 						<h2>Last sync</h2>
 						<p class="hint" id="setSynced"></p>
+						<p class="hint" id="setStorage"></p>
 						<h2>Local folder</h2>
 						<p class="hint" id="folderStatus"></p>
 						<div class="seg"><button id="folderPick" type="button">Choose a folder…</button><button id="folderReconnect" type="button" hidden>Allow again</button><button id="folderStop" type="button" hidden>Stop</button></div>
