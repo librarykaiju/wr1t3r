@@ -1,0 +1,26 @@
+// Media lookups with no Worker: the page runs the Worker's own media code
+// (worker/media.js) itself, with no keys, so books come from Open Library,
+// music from MusicBrainz, podcasts from iTunes, and movies, TV, games and
+// comics from Wikidata and Wikipedia. Same calls and answers as src/api.js's
+// media* methods.
+
+import { mediaApi } from "../worker/media.js";
+
+const ENV = {};
+
+async function run(path, body) {
+	const url = new URL(path, "https://wr1t3r.invalid");
+	const req = new Request(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+	try {
+		return await mediaApi(req, ENV, url);
+	} catch (e) {
+		throw Object.assign(new Error(e.message), { status: e.status });
+	}
+}
+
+export const mediaHere = {
+	async mediaKinds() { return (await run("/api/media/kinds")).kinds; },
+	async mediaSearch(kind, q) { return (await run("/api/media/search?" + new URLSearchParams({ kind, q }))).results; },
+	async mediaCovers(kind, ref) { return (await run("/api/media/covers", { kind, ref })).covers; },
+	async mediaNote(kind, ref, cover, today) { return run("/api/media/note", { kind, ref, cover, today }); },
+};

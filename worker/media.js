@@ -13,7 +13,8 @@
 //
 // ref is whatever search returned for the chosen result, handed back as is.
 //
-// Settings (all optional; a kind whose key is missing is left out of the page):
+// Settings (all optional; a kind whose key is missing looks things up in
+// Wikidata and Wikipedia instead, see worker/wikimedia.js):
 //   OMDB_API_KEY          movies and TV (free at omdbapi.com/apikey.aspx)
 //   RAWG_API_KEY          games (free at rawg.io/apidocs)
 //   IGDB_CLIENT_ID, IGDB_CLIENT_SECRET
@@ -24,8 +25,15 @@
 //   MEDIA_MOVIE_FOLDER, MEDIA_BOOK_FOLDER, MEDIA_MUSIC_FOLDER, MEDIA_GAME_FOLDER,
 //   MEDIA_PODCAST_FOLDER  where new notes go (vault paths; comics go with books)
 // Books (Open Library), music (MusicBrainz) and podcasts (iTunes) need no key.
+//
+// With no Worker (a Dropbox device), the page runs this same code itself
+// (src/mediahere.js) with no keys, so it only calls services that allow it.
 
 import { HttpError } from "./util.js";
+import { wikiSearch, wikiCovers, wikiMovie, wikiGame, wikiComic, isQid } from "./wikimedia.js";
+
+// In a page, a User-Agent header can't be set and would only cost a preflight.
+const inPage = typeof document !== "undefined";
 
 const KINDS = {
 	movie: { label: "Movie or TV", folder: "MEDIA_MOVIE_FOLDER", dflt: "content/logs/movies-tv", needs: ["OMDB_API_KEY"] },
@@ -46,7 +54,8 @@ export async function mediaApi(request, env, url) {
 				folder: String(env[k.folder] || k.dflt).trim().replace(/^\/+|\/+$/g, ""),
 				heading: k.heading || "Notes",
 				covers: !!k.covers,
-				ready: k.needs.every((n) => env[n]),
+				// Every kind works; a missing key means Wikidata instead.
+				ready: true,
 				needs: k.needs.filter((n) => !env[n]),
 			})),
 		};
@@ -55,8 +64,6 @@ export async function mediaApi(request, env, url) {
 	const kind = m === "POST" ? body?.kind : url.searchParams.get("kind");
 	const k = KINDS[kind];
 	if (!k) throw new HttpError(400, "kind: one of " + Object.keys(KINDS).join(", "));
-	const missing = k.needs.filter((n) => !env[n]);
-	if (missing.length) throw new HttpError(404, `${k.label} lookups need ${missing.join(" and ")} set on the Worker`, { setup: true });
 
 	if (p === "/api/media/search" && m === "GET") {
 		const q = (url.searchParams.get("q") || "").trim().slice(0, 200);
@@ -82,7 +89,7 @@ export async function mediaApi(request, env, url) {
 const UA = "wr1t3r-media-notes/1.0 (https://github.com/librarykaiju/wr1t3r)";
 
 async function getJSON(u, init = {}) {
-	const res = await fetch(u, { ...init, headers: { "User-Agent": UA, Accept: "application/json", ...init.headers } });
+	const res = await fetch(u, { ...init, headers: { ...(inPage ? {} : { "User-Agent": UA }), Accept: "application/json", ...init.headers } });
 	if (!res.ok) {
 		await res.body?.cancel();
 		throw Object.assign(new HttpError(502, `${new URL(u).hostname} answered ${res.status}`), { upstream: res.status });
@@ -199,7 +206,7 @@ async function mb(path, params, attempt = 0) {
 	mbNext = at + MB_GAP;
 	if (at > now) await new Promise((r) => setTimeout(r, at - now));
 	const res = await fetch(`https://musicbrainz.org/ws/2/${path}?` + new URLSearchParams({ fmt: "json", ...params }), {
-		headers: { "User-Agent": UA, Accept: "application/json" },
+		headers: inPage ? { Accept: "application/json" } : { "User-Agent": UA, Accept: "application/json" },
 	});
 	if (res.status === 503 && attempt < 2) {
 		await res.body?.cancel();
@@ -236,6 +243,8 @@ function languageName(code) {
 async function albumCover(id) {
 	const u = `https://coverartarchive.org/release-group/${id}/front-500`;
 	return quietly(async () => {
+		// A page can't see a redirect, so it asks for the list of images instead.
+		if (inPage) return ((await getJSON(`https://coverartarchive.org/release-group/${id}`)).images || []).some((i) => i.front) ? u : "";
 		const res = await fetch(u, { method: "HEAD", redirect: "manual", headers: { "User-Agent": UA } });
 		return res.ok || (res.status >= 300 && res.status < 400) ? u : "";
 	}, "");
@@ -344,6 +353,7 @@ function podcastGenres(primary, genres) {
 
 const SEARCH = {
 	async movie(env, q) {
+		if (!env.OMDB_API_KEY) return wikiSearch(getJSON, "movie", q);
 		const data = await omdb(env, { s: q });
 		return (data?.Search || []).filter((r) => r.Type === "movie" || r.Type === "series").map((r) => ({
 			title: r.Title, subtitle: `${r.Year} - ${r.Type}`,
@@ -372,6 +382,7 @@ const SEARCH = {
 		});
 	},
 	async game(env, q) {
+		if (!env.RAWG_API_KEY) return wikiSearch(getJSON, "game", q);
 		const data = await rawg(env, "/games", { search: q, page_size: "10" });
 		return (data.results || []).map((g) => ({
 			title: g.name, subtitle: g.released?.slice(0, 4) || "", thumbnailUrl: g.background_image || undefined,
@@ -379,6 +390,7 @@ const SEARCH = {
 		}));
 	},
 	async comic(env, q) {
+		if (!env.COMICVINE_API_KEY) return wikiSearch(getJSON, "comic", q);
 		const data = await comicVine(env, "/search/", { resources: "issue", query: q, field_list: "id,name,issue_number,cover_date,image,volume", limit: "10" });
 		return (data.results || []).map((i) => ({
 			title: issueTitle(i.volume?.name || "", i.issue_number, i.name),
@@ -416,6 +428,7 @@ const COVERS = {
 	},
 	// IGDB's box art when it's set up, then RAWG's screenshot.
 	async game(env, ref) {
+		if (isQid(ref.qid)) return quietly(() => wikiCovers(getJSON, ref), []);
 		need(Number.isInteger(ref.id), "id");
 		const art = await boxArt(env, str(ref.title), str(ref.year));
 		const shot = httpsUrl(ref.thumbnailUrl);
@@ -425,6 +438,7 @@ const COVERS = {
 
 const NOTE = {
 	async movie(env, ref, { today }) {
+		if (isQid(ref.qid)) return wikiMovie(getJSON, ref, today);
 		need(/^tt\d+$/.test(ref.imdbID || ""), "imdbID");
 		const t = await omdb(env, { i: ref.imdbID, plot: "full" });
 		if (!t) throw new HttpError(404, "OMDb has no such title");
@@ -493,6 +507,7 @@ const NOTE = {
 		};
 	},
 	async game(env, ref, { cover, today }) {
+		if (isQid(ref.qid)) return wikiGame(getJSON, ref, cover, today);
 		need(Number.isInteger(ref.id), "id");
 		const [g, banner] = await Promise.all([rawg(env, `/games/${ref.id}`), steamBanner(str(ref.title))]);
 		return {
@@ -509,6 +524,7 @@ const NOTE = {
 		};
 	},
 	async comic(env, ref, { today }) {
+		if (isQid(ref.qid)) return wikiComic(getJSON, ref, today);
 		need(Number.isInteger(ref.issueId), "issueId");
 		const i = (await comicVine(env, `/issue/4000-${ref.issueId}/`, { field_list: "name,issue_number,cover_date,description,deck,image,volume,person_credits" })).results;
 		const volume = i.volume?.name || "";

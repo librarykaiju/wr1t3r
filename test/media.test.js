@@ -73,20 +73,95 @@ test("kinds say which lookups this Worker can do, and where notes go", async () 
 	const kinds = Object.fromEntries((await r.json()).kinds.map((k) => [k.kind, k]));
 	assert.equal(kinds.movie.ready, true);
 	assert.equal(kinds.movie.folder, "content/logs/movies-tv");
-	assert.equal(kinds.game.ready, false);
+	assert.equal(kinds.game.ready, true, "no key means Wikidata, not no lookups");
 	assert.deepEqual(kinds.game.needs, ["RAWG_API_KEY"]);
 	assert.equal(kinds.book.folder, "Books");
 	assert.equal(kinds.comic.folder, "Books", "comics go with books, as in the plugin");
 	assert.equal(kinds.podcast.heading, "Episode Notes");
 });
 
-test("media routes need the token, a known kind and its key", async () => {
+test("media routes need the token and a known kind", async () => {
 	const e = { WR1T3R_TOKEN: "t" };
 	assert.equal((await worker.fetch(new Request("https://w/api/media/kinds"), e)).status, 401);
 	assert.equal((await call(e, "/api/media/search?kind=nope&q=x")).status, 400);
-	const r = await call(e, "/api/media/search?kind=movie&q=x");
-	assert.equal(r.status, 404);
-	assert.match((await r.json()).error, /OMDB_API_KEY/);
+});
+
+// Wikidata and Wikipedia answers for the keyless lookups.
+const wd = (routes) => fakeWeb([
+	[(u) => u.hostname === "www.wikidata.org" && u.searchParams.get("action") === "wbsearchentities", routes.search],
+	[(u) => u.hostname === "www.wikidata.org" && u.searchParams.get("props") === "labels", routes.labels],
+	[(u) => u.hostname === "www.wikidata.org" && u.searchParams.get("action") === "wbgetentities", routes.entity],
+	[host("en.wikipedia.org", "/api/rest_v1/page/summary/"), routes.summary],
+]);
+const item = (id) => ({ mainsnak: { datavalue: { value: { id } } } });
+
+test("no OMDb key: movies and TV come from Wikidata and Wikipedia", async () => {
+	const web = wd({
+		search: { search: [
+			{ id: "Q25188", label: "Inception", description: "2010 film by Christopher Nolan" },
+			{ id: "Q1", label: "Inception", description: "album by someone" },
+			{ id: "Q2", label: "Inception", description: "American television series" },
+		] },
+		entity: { entities: { Q25188: { labels: { en: { value: "Inception" } }, sitelinks: { enwiki: { title: "Inception" } }, claims: {
+			P57: [item("Q25191")], P58: [item("Q25191")], P161: [item("Q38111")], P136: [item("Q471839")],
+			P577: [{ mainsnak: { datavalue: { value: { time: "+2010-07-16T00:00:00Z" } } } }, { mainsnak: { datavalue: { value: { time: "+2010-07-08T00:00:00Z" } } } }],
+		} } } },
+		labels: { entities: { Q25191: { labels: { en: { value: "Christopher Nolan" } } }, Q38111: { labels: { en: { value: "Leonardo DiCaprio" } } }, Q471839: { labels: { en: { value: "science fiction film" } } } } },
+		summary: { extract: "A 2010 science fiction action film.", originalimage: { source: "https://upload.wikimedia.org/inception.jpg" } },
+	});
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const found = await (await call(e, "/api/media/search?kind=movie&q=inception")).json();
+		assert.deepEqual(found.results.map((r) => [r.ref.qid, r.ref.series]), [["Q25188", false], ["Q2", true]]);
+		const n = await (await post(e, "/api/media/note", { kind: "movie", ref: found.results[0].ref, today: "2026-10-06" })).json();
+		assert.equal(Object.keys(n.fields)[1], "director", "director first, as with OMDb");
+		assert.deepEqual(n.fields.director, ["Christopher Nolan"]);
+		assert.deepEqual(n.fields.performers, ["Leonardo DiCaprio"]);
+		assert.deepEqual(n.fields.genre, ["science fiction"]);
+		assert.equal(n.fields.coverImage, "https://upload.wikimedia.org/inception.jpg");
+		assert.equal(n.fields.summary, "A 2010 science fiction action film.");
+		assert.equal(n.year, "2010");
+		assert.ok(web.seen.every((x) => new URL(x.url).hostname !== "www.omdbapi.com"));
+	} finally { web.restore(); }
+});
+
+test("no RAWG key: games from Wikidata, the article's picture as the cover", async () => {
+	const web = wd({
+		search: { search: [{ id: "Q20101", label: "Hades", description: "2020 video game" }, { id: "Q3", label: "Hades", description: "Greek god" }] },
+		entity: { entities: { Q20101: { labels: { en: { value: "Hades" } }, sitelinks: { enwiki: { title: "Hades (video game)" } }, claims: { P178: [item("Q7")], P400: [item("Q8"), item("Q9")] } } } },
+		labels: { entities: { Q7: { labels: { en: { value: "Supergiant Games" } } }, Q8: { labels: { en: { value: "Nintendo Switch" } } }, Q9: { labels: { en: { value: "Windows" } } } } },
+		summary: { extract: "Roguelike.", thumbnail: { source: "https://upload.wikimedia.org/hades.png" } },
+	});
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const found = await (await call(e, "/api/media/search?kind=game&q=hades")).json();
+		assert.deepEqual(found.results.map((r) => r.title), ["Hades"]);
+		const covers = await (await post(e, "/api/media/covers", { kind: "game", ref: found.results[0].ref })).json();
+		assert.deepEqual(covers.covers, ["https://upload.wikimedia.org/hades.png"]);
+		const n = await (await post(e, "/api/media/note", { kind: "game", ref: found.results[0].ref, cover: covers.covers[0], today: "2026-10-06" })).json();
+		assert.deepEqual(n.fields.developer, ["Supergiant Games"]);
+		assert.deepEqual(n.fields.platform, ["Nintendo Switch", "Windows"]);
+		assert.equal(n.fields.coverImage, "https://upload.wikimedia.org/hades.png");
+		assert.ok(web.seen.some((x) => x.url.includes("Hades_(video_game)")));
+	} finally { web.restore(); }
+});
+
+test("no Comic Vine key: comics from Wikidata", async () => {
+	const web = wd({
+		search: { search: [{ id: "Q11", label: "Saga", description: "comic book series" }, { id: "Q12", label: "Saga", description: "long story" }] },
+		entity: { entities: { Q11: { labels: { en: { value: "Saga" } }, claims: { P50: [item("Q13")], P110: [item("Q14")], P123: [item("Q15")] } } } },
+		labels: { entities: { Q13: { labels: { en: { value: "Brian K. Vaughan" } } }, Q14: { labels: { en: { value: "Fiona Staples" } } }, Q15: { labels: { en: { value: "Image Comics" } } } } },
+		summary: {},
+	});
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const found = await (await call(e, "/api/media/search?kind=comic&q=saga")).json();
+		assert.equal(found.results.length, 1);
+		const n = await (await post(e, "/api/media/note", { kind: "comic", ref: found.results[0].ref, today: "2026-10-06" })).json();
+		assert.deepEqual([n.fields.author, n.fields.artist, n.fields.publisher, n.fields.format], [["Brian K. Vaughan"], ["Fiona Staples"], "Image Comics", "💬 Comic"]);
+		assert.equal(n.fields.summary, "", "no Wikipedia article: no summary, no request");
+		assert.ok(!web.seen.some((x) => x.url.includes("wikipedia")));
+	} finally { web.restore(); }
 });
 
 test("a movie: search, then its note with director first", async () => {
