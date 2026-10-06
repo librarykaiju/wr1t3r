@@ -3,11 +3,12 @@
 // the CriticMarkup around them is hidden (the cursor steps over it). While
 // tracking is on, typing, pasting and deleting are rewritten as tracked
 // changes; formatting commands, ticking boxes and other edits aren't. Right-
-// click a change to accept or reject it.
+// click a change to accept or reject it. Where there's room, comments also
+// show as cards in the right margin, each beside its line, with Resolve.
 
 import { EditorState, StateField, StateEffect, Annotation, Transaction, EditorSelection, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
-import { changesIn, resolveChange, resolveAll, trackEdit, changeAt, commentEdit } from "./trackchanges.js";
+import { changesIn, resolveChange, resolveAll, trackEdit, changeAt, commentEdit, commentsIn, resolveComment } from "./trackchanges.js";
 import { menu } from "./basesui.js";
 
 const setTrackingEffect = StateEffect.define();
@@ -172,11 +173,134 @@ export function countChanges(view) {
 function reviewMenu(view, x, y, pos) {
 	const c = changeAt(view.state.doc.toString(), pos) || changesIn(view.state.doc.toString()).find((k) => pos >= k.from && pos <= k.to);
 	const entries = [];
-	if (c && c.type === "comment") entries.push(["Delete comment", () => view.dispatch({ changes: { from: c.from, to: c.to, insert: "" }, annotations: tracked.of(true), userEvent: "input.review" })], ["Edit comment", () => { view.dispatch({ selection: EditorSelection.cursor(c.from + 3) }); view.focus(); }]);
+	if (c && c.type === "comment") entries.push(["Resolve comment", () => resolveCommentAt(view, c.from)],["Edit comment", () => { view.dispatch({ selection: EditorSelection.cursor(c.from + 3) }); view.focus(); }]);
 	else if (c && c.type === "mark") entries.push(["Remove highlight", () => view.dispatch({ changes: resolveChange(c, true), annotations: tracked.of(true), userEvent: "input.review" })]);
 	else if (c) entries.push(["Accept change", () => resolveAt(view, pos, true)], ["Reject change", () => resolveAt(view, pos, false)]);
 	entries.push(null, ["Accept all changes", () => resolveEvery(view, true)], ["Reject all changes", () => resolveEvery(view, false), "danger"]);
 	menu(entries, x, y);
 }
 
-export const trackChanges = [trackingField, finalField, filter, looks];
+// Resolves the comment at (or highlighted at) pos: the comment goes, the text stays.
+export function resolveCommentAt(view, pos) {
+	const changes = resolveComment(view.state.doc.toString(), pos);
+	if (!changes) return false;
+	view.dispatch({ changes, annotations: tracked.of(true), userEvent: "input.review" });
+	return true;
+}
+
+// ---- Comments in the margin --------------------------------------------------
+// With comments in the note and a wide enough editor, the text makes room on
+// the right (the "tc-margin" class) and each comment is a card there, level
+// with its line, pushed down when cards would overlap. Click a card to edit
+// the comment in place; Resolve removes it and keeps the text.
+
+const MARGIN_MIN = 700; // the editor width that has room for cards, px
+const setMarginEffect = StateEffect.define();
+const marginField = StateField.define({
+	create: () => false,
+	update: (v, tr) => { for (const e of tr.effects) if (e.is(setMarginEffect)) v = e.value; return v; },
+	provide: (f) => EditorView.editorAttributes.from(f, (on) => (on ? { class: "tc-margin" } : {})),
+});
+
+const margin = ViewPlugin.fromClass(class {
+	constructor(view) {
+		this.view = view;
+		this.layer = document.createElement("div");
+		this.layer.className = "tc-margin-layer";
+		this.layer.setAttribute("aria-label", "Comments");
+		this.layer.hidden = true;
+		view.scrollDOM.append(this.layer);
+		this.layer.addEventListener("mousedown", (e) => e.preventDefault()); // keeps the editor's focus
+		this.layer.addEventListener("click", (e) => this.click(e));
+		this.key = "";
+		this.schedule();
+	}
+	update(u) {
+		if (u.docChanged || u.geometryChanged || u.heightChanged || u.viewportChanged || u.selectionSet) this.schedule();
+	}
+	destroy() { this.layer.remove(); }
+	click(e) {
+		const card = e.target.closest(".tc-card");
+		if (!card) return;
+		const at = Number(card.dataset.from);
+		if (e.target.closest(".tc-resolve")) { resolveCommentAt(this.view, at); this.view.focus(); return; }
+		this.view.dispatch({ selection: EditorSelection.cursor(at + 3), scrollIntoView: true });
+		this.view.focus();
+	}
+	schedule() {
+		this.view.requestMeasure({
+			key: this,
+			read: (view) => {
+				const text = view.state.doc.toString();
+				const list = text.includes("{>>") ? commentsIn(text) : [];
+				if (!list.length || view.scrollDOM.clientWidth < MARGIN_MIN) return { on: false };
+				const sc = view.scrollDOM.getBoundingClientRect(), content = view.contentDOM.getBoundingClientRect();
+				const top = view.documentTop - sc.top + view.scrollDOM.scrollTop;
+				const left = content.right - sc.left + view.scrollDOM.scrollLeft + 16;
+				const width = Math.min(260, sc.right - content.right - 32);
+				const head = view.state.selection.main.head;
+				return {
+					on: true, left, width,
+					cards: list.map((c) => ({ ...c, y: top + view.lineBlockAt(c.markFrom ?? c.from).top, active: head > c.from && head < c.to })),
+				};
+			},
+			write: (m, view) => {
+				if (m.on !== view.state.field(marginField)) queueMicrotask(() => view.dispatch({ effects: setMarginEffect.of(m.on) }));
+				this.draw(m);
+			},
+		});
+	}
+	draw(m) {
+		const layer = this.layer;
+		// Until the text has made room, the cards wait (the class change re-measures).
+		if (!m.on || m.width < 120) { layer.replaceChildren(); layer.hidden = true; this.key = ""; return; }
+		layer.hidden = false;
+		const ro = this.view.state.readOnly;
+		const key = JSON.stringify([m.cards.map((c) => [c.from, c.text, c.quote, c.active]), ro]);
+		if (key !== this.key) {
+			this.key = key;
+			layer.replaceChildren(...m.cards.map((c) => {
+				const card = document.createElement("div");
+				card.className = "tc-card" + (c.active ? " active" : "");
+				card.dataset.from = c.from;
+				card.title = "Click to edit";
+				if (c.quote) {
+					const q = document.createElement("div");
+					q.className = "tc-card-quote";
+					q.textContent = c.quote.length > 80 ? c.quote.slice(0, 80) + "…" : c.quote;
+					card.append(q);
+				}
+				const t = document.createElement("div");
+				t.className = "tc-card-text" + (c.text.trim() ? "" : " empty");
+				t.textContent = c.text.trim() || "Empty comment";
+				card.append(t);
+				if (!ro) {
+					const b = document.createElement("button");
+					b.type = "button";
+					b.className = "tc-resolve";
+					b.textContent = "✓ Resolve";
+					b.title = "Remove the comment and keep the text";
+					card.append(b);
+				}
+				return card;
+			}));
+		}
+		layer.style.left = m.left + "px";
+		layer.style.width = m.width + "px";
+		// Each card level with its line, below the one before it.
+		this.view.requestMeasure({
+			key: "tc-margin-stack",
+			read: () => [...layer.children].map((el) => el.offsetHeight),
+			write: (heights) => {
+				let y = 0;
+				[...layer.children].forEach((el, i) => {
+					const want = Math.max(m.cards[i]?.y ?? 0, y);
+					el.style.top = want + "px";
+					y = want + heights[i] + 8;
+				});
+			},
+		});
+	}
+});
+
+export const trackChanges = [trackingField, finalField, filter, looks, marginField, margin];

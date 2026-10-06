@@ -15,7 +15,7 @@ export const MARGINS = {
 	narrow: { label: "Narrow (0.5 in)", in: 0.5 },
 	wide: { label: "Wide (1.5 in)", in: 1.5 },
 };
-export const DEFAULT_SETUP = { size: "letter", orient: "portrait", margin: "normal" };
+export const DEFAULT_SETUP = { size: "letter", orient: "portrait", margin: "normal", header: "", footer: "{page}" };
 
 // A stored setup, with defaults for anything missing or unknown.
 export function readSetup(raw) {
@@ -23,7 +23,44 @@ export function readSetup(raw) {
 	if (!SIZES[s.size]) s.size = DEFAULT_SETUP.size;
 	if (!MARGINS[s.margin]) s.margin = DEFAULT_SETUP.margin;
 	if (s.orient !== "landscape") s.orient = "portrait";
+	for (const k of ["header", "footer"]) s[k] = typeof s[k] === "string" ? s[k].replace(/[\r\n]+/g, " ").slice(0, 200) : DEFAULT_SETUP[k];
 	return s;
+}
+
+// ---- Header and footer ------------------------------------------------------------
+// Each is a line of text in the page's top or bottom margin. {page}, {pages},
+// {title} and {date} fill in; "|" splits it into left | center | right (one
+// "|" gives left | right; none centers it).
+
+// The three slots, each a list of pieces: strings, and { field: "page"|"pages" }
+// for the numbers (which only the printer or the page view knows).
+export function marginParts(text, { title = "", date = new Date() } = {}) {
+	const t = String(text || "").trim();
+	if (!t) return null;
+	const cells = t.split("|").map((x) => x.trim());
+	const [left, center, right] = cells.length === 1 ? ["", cells[0], ""] : cells.length === 2 ? [cells[0], "", cells[1]] : [cells[0], cells[1], cells.slice(2).join(" | ")];
+	const day = date.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+	const pieces = (cell) => {
+		const out = [];
+		for (const bit of cell.split(/(\{(?:page|pages|title|date)\})/i)) {
+			if (!bit) continue;
+			const f = /^\{(page|pages|title|date)\}$/i.exec(bit)?.[1].toLowerCase();
+			const add = (str) => { if (typeof out.at(-1) === "string") out[out.length - 1] += str; else out.push(str); };
+			if (f === "page" || f === "pages") out.push({ field: f });
+			else add(f === "title" ? title : f === "date" ? day : bit);
+		}
+		return out;
+	};
+	return { left: pieces(left), center: pieces(center), right: pieces(right) };
+}
+
+// One slot as text, with the numbers filled in.
+export const marginText = (pieces, page, pages) => pieces.map((x) => (typeof x === "string" ? x : x.field === "page" ? String(page) : String(pages))).join("");
+
+// A slot as a CSS content value for a printed page's margin box.
+function cssContent(pieces) {
+	const q = (s) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+	return pieces.map((x) => (typeof x === "string" ? q(x) : `counter(${x.field})`)).join(" ");
 }
 
 // The page in inches: { w, h, margin }.
@@ -39,10 +76,22 @@ export function pagePixels(setup) {
 	return { w: Math.round(p.w * 96), h: Math.round(p.h * 96), margin: Math.round(p.margin * 96) };
 }
 
-// The @page rule printing uses.
-export function pageRule(setup) {
-	const p = pageInches(setup);
-	return `@page { size: ${p.w}in ${p.h}in; margin: ${p.margin}in; }`;
+// The @page rule printing uses, with the header and footer in the margin
+// boxes. opts: { title, date, titlePage } -- titlePage leaves the first page bare.
+export function pageRule(setup, opts = {}) {
+	const s = readSetup(setup), p = pageInches(s);
+	const boxes = [];
+	for (const [edge, text] of [["top", s.header], ["bottom", s.footer]]) {
+		const parts = marginParts(text, opts);
+		if (!parts) continue;
+		for (const slot of ["left", "center", "right"]) {
+			if (parts[slot].length) boxes.push(`@${edge}-${slot} { content: ${cssContent(parts[slot])}; font: 9pt Georgia, serif; color: #555; }`);
+		}
+	}
+	const rule = `@page { size: ${p.w}in ${p.h}in; margin: ${p.margin}in;${boxes.length ? " " + boxes.join(" ") : ""} }`;
+	if (!boxes.length || !opts.titlePage) return rule;
+	const bare = [...new Set(boxes.map((b) => b.slice(0, b.indexOf(" {"))))].map((b) => `${b} { content: none; }`).join(" ");
+	return `${rule} @page :first { ${bare} }`;
 }
 
 // Word's page: twentieths of a point (1440 to the inch).

@@ -1675,7 +1675,7 @@ const pageViewOn = () => readRaw("wr1t3rPageView") === "on";
 // the page printing and exports use.
 function applyPageView() {
 	const view = editor?.view, on = pageViewOn();
-	if (view && (isPageView(view) !== on || on)) setPageView(view, on, pageSetupNow);
+	if (view && (isPageView(view) !== on || on)) setPageView(view, on, { ...pageSetupNow, title: editor.path ? editor.path.split("/").pop().replace(/\.md$/i, "") : "" });
 	$("app").classList.toggle("no-pages", !on);
 	toolbarUi?.refreshPage(on);
 	if ($("pageSeg")) {
@@ -1683,6 +1683,8 @@ function applyPageView() {
 		$("pageSize").value = pageSetupNow.size;
 		$("pageOrient").value = pageSetupNow.orient;
 		$("pageMargin").value = pageSetupNow.margin;
+		if (document.activeElement !== $("pageHeader")) $("pageHeader").value = pageSetupNow.header;
+		if (document.activeElement !== $("pageFooter")) $("pageFooter").value = pageSetupNow.footer;
 	}
 }
 function togglePageView(on = !pageViewOn()) {
@@ -1706,6 +1708,11 @@ function setupPageSettings() {
 	$("pageSize").addEventListener("change", (e) => changePageSetup({ size: e.target.value }));
 	$("pageOrient").addEventListener("change", (e) => changePageSetup({ orient: e.target.value }));
 	$("pageMargin").addEventListener("change", (e) => changePageSetup({ margin: e.target.value }));
+	let typing;
+	for (const [id, key] of [["pageHeader", "header"], ["pageFooter", "footer"]]) {
+		$(id).addEventListener("input", (e) => { clearTimeout(typing); typing = setTimeout(() => changePageSetup({ [key]: e.target.value }), 300); });
+		$(id).addEventListener("change", (e) => { clearTimeout(typing); changePageSetup({ [key]: e.target.value }); });
+	}
 	applyPageView();
 }
 // The toolbar's Page layout menu.
@@ -1721,6 +1728,8 @@ function pageMenu(view, btn) {
 		[tick(pageSetupNow.orient === "landscape") + "Landscape", () => changePageSetup({ orient: "landscape" })],
 		null,
 		...Object.entries(MARGINS).map(([k, v]) => [tick(pageSetupNow.margin === k) + "Margins: " + v.label, () => changePageSetup({ margin: k })]),
+		null,
+		["\u2003Header and footer…", () => { openSettings(true, "writing"); $("pageHeader").focus(); }],
 	], r.left, r.bottom + 4);
 }
 

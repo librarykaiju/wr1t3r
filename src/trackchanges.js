@@ -179,6 +179,28 @@ export function commentEdit(text, from, to) {
 	return { from, to, insert, cursor: from + insert.length - 3 };
 }
 
+// Every comment, with the highlighted text it's about (the {==...==} right
+// before it, if any): { from, to, text, quote, markFrom? }.
+export function commentsIn(text) {
+	const all = changesIn(text), out = [];
+	for (let i = 0; i < all.length; i++) {
+		const c = all[i];
+		if (c.type !== "comment") continue;
+		const m = all[i - 1]?.type === "mark" && all[i - 1].to === c.from ? all[i - 1] : null;
+		out.push({ from: c.from, to: c.to, text: c.text, quote: m ? m.text : "", ...(m ? { markFrom: m.from } : {}) });
+	}
+	return out;
+}
+
+// Resolving a comment: it goes, and the text it was about stays, unhighlighted.
+// -> the changes to make.
+export function resolveComment(text, pos) {
+	const c = commentsIn(text).find((k) => pos >= (k.markFrom ?? k.from) && pos <= k.to);
+	if (!c) return null;
+	if (c.markFrom == null) return [{ from: c.from, to: c.to, insert: "" }];
+	return [{ from: c.markFrom, to: c.to, insert: c.quote }];
+}
+
 // The text as it reads with every change accepted and comments taken out:
 // what exports and compiles use.
 export function finalText(text) {
