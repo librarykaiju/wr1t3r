@@ -6,7 +6,7 @@ A markdown editor for an Obsidian vault, in the browser. Live at https://wr1t3r.
 
 - **One Cloudflare Worker** (`worker/`) serves the page (built into `dist/` by Vite) and a small file API. Every `/api/` request needs `WR1T3R_TOKEN`, sent as a Bearer token, the same way Reader does it.
 - **The vault** is the `w3bz1n3-vault` R2 bucket, the one Remotely Save syncs Obsidian with. An edit in wr1t3r reaches every device on its next Remotely Save sync, and the vault-sync workflow in `librarykaiju/w3bz1n3` carries it into git like any other edit.
-- **Storage is pluggable** (`src/storage.js`). The page reads and writes notes through one small interface (list, read, conditional write, remove, pictures). The Worker is the only kind today and the default; other kinds, like a cloud drive, register there without the rest of the page changing. `test/storage.test.js` checks every kind against the same rules.
+- **Storage is pluggable** (`src/storage.js`). The page reads and writes notes through one small interface (list, read, conditional write, remove, pictures). The Worker is the default; Dropbox is the second kind (see below), and others register there without the rest of the page changing. `test/storage.test.js` checks every kind against the same rules.
 - **The browser keeps its own copy** of every note in IndexedDB (`src/store.js`). Typing saves there first; syncing runs in the background, when the connection comes back, when the tab comes back into view, every minute, and on Ctrl/Cmd-S. The last sync time sits in the bottom-right corner (tap it to sync now), under any messages and reminders, which stack there too, each with an × to dismiss it. The page itself is cached by a service worker (`public/sw.js`), so it opens with no connection.
 - **Conflicts keep both.** Every write names the version it started from. If a note changed in the vault and in wr1t3r since the last sync, the vault's version stays at the note's name and wr1t3r's goes next to it as `Name (conflict YYYY-MM-DD).md`. An edit beats a delete from the other side. The rules are at the top of `src/sync.js`.
 - **Byte-faithful.** Frontmatter, spacing, BOMs and CRLF line endings are kept exactly; a note is only written when you change it. A note with mixed line endings has them all turned into LF once you edit it. A note that isn't valid UTF-8 opens read-only.
@@ -326,6 +326,17 @@ In a board's Grid, click under a column to pick its total: Sum, Average, Median,
 - **Focus mode:** palette "Toggle focus mode" (per device). The side columns, header and toolbar fold away, the line you're typing stays in the middle of the screen, and other paragraphs dim. Esc or "Leave focus" turns it off.
 - **Look up:** the book button on the toolbar, or palette "Look up word", shows the selected word (or the one at the cursor) in a dictionary and thesaurus: definitions from dictionaryapi.dev and synonyms from Datamuse, both free with no key, fetched by the Worker (`GET /api/define?word=`). Clicking a synonym swaps it in.
 - **Grammar check** (Settings > Writing, off by default because it sends text out): once you pause typing, the paragraph you edited goes to [LanguageTool](https://languagetool.org) through the Worker (`POST /api/grammar`), and problems get a wavy blue underline. Click one for the explanation and fixes, or Ignore for the session. Palette "Check grammar in this note" checks every paragraph. Only prose is sent: code, properties, tables and Markdown marks are left out, and spelling stays with the browser's spellcheck. The public server is free with no key and allows about 20 checks a minute, so checks are spaced out. To use your own LanguageTool server, set the `LANGUAGETOOL_URL` variable in wrangler.jsonc (or the Cloudflare dashboard) to its address.
+
+## Dropbox instead of the Worker
+
+A build with a Dropbox app key shows **Use Dropbox** on the sign-in screen. Notes then live in the person's own Dropbox, in `Apps/<app name>/`, and the page talks to Dropbox directly: no Worker token, no R2.
+
+1. At https://www.dropbox.com/developers/apps, create an app: Scoped access, **App folder**.
+2. Permissions: `files.metadata.read`, `files.content.read`, `files.content.write`. Submit.
+3. Settings: add the page's address as a Redirect URI (`https://your.host/`, with the slash). Copy the **App key** (the secret isn't used).
+4. Build with it: `VITE_DROPBOX_APP_KEY=<app key> npm run deploy`.
+
+What needs the Worker (transcripts, calendar, reminders, picture search, lookups, server-side capture) shows an error on a Dropbox device for now. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
 
 ## Features and folders
 
