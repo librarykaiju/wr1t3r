@@ -8,6 +8,7 @@
 // The same markdown feeds every format: as is for .md, through markdown-it
 // for HTML and PDF, and through the same parse for Word (src/exporter.js).
 
+import { finalText } from "./trackchanges.js";
 import { stripFrontmatter } from "./count.js";
 import { frontmatterOf, cardInfo } from "./binder.js";
 import { paragraphLines } from "./manuscript.js";
@@ -95,9 +96,10 @@ export function flatten(text, { render = false, embed = null } = {}) {
 	}).join("\n");
 }
 
-// One note's text, ready to join: without its vault-only parts.
+// One note's text, ready to join: without its vault-only parts, and with
+// tracked changes accepted and their comments left out.
 export function cleanNote(text) {
-	return stripFrontmatter(text)
+	return finalText(stripFrontmatter(text))
 		.replace(/%%[\s\S]*?%%/g, "")
 		.replace(/<!--[\s\S]*?-->/g, "")
 		.replace(/[ \t]+\^[A-Za-z0-9-]+[ \t]*$/gm, "")

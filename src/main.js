@@ -66,6 +66,8 @@ import { lookUp } from "./lookup.js";
 import { setupGrammar, setGrammar, checkNote, grammarOn, grammarAtCursor } from "./grammar.js";
 import { setSpellcheck, setSmartPunctuation } from "./writing.js";
 import { setDoneDates, sortChecklists } from "./tasks.js";
+import { menu as dropMenu } from "./basesui.js";
+import { setTracking, isTracking, setFinalView, isFinalView, acceptChange, rejectChange, resolveEvery, gotoChange, addComment, countChanges } from "./trackview.js";
 import { setPictureHost } from "./paste.js";
 import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
 import { setupToolbar } from "./toolbar.js";
@@ -320,7 +322,7 @@ function onNote(path, note) {
 	if (!note || note.deleted) {
 		toast(`${name(path)} was deleted elsewhere.`);
 		closeTab(path);
-	} else if (!note.dirty) { editor.replace(note); refreshCount(true); sortPending = path; }
+	} else if (!note.dirty) { editor.replace(note); refreshCount(true); sortPending = path; applyTracking(); }
 }
 
 // Checklists sort (done tasks to the bottom, src/tasks.js) when a note opens
@@ -1648,7 +1650,49 @@ function openNote(path, { replace = false, tab = true } = {}) {
 	renderFolderNav();
 	refreshCount(true);
 	renderHome();
+	applyTracking();
 	if (has) sortOnOpen(path);
+}
+
+// ---- track changes ---------------------------------------------------------
+// Which notes are tracking their changes (src/trackview.js), per device.
+const TRACK_KEY = "wr1t3r-tracking";
+let trackedNotes = new Set(readJSON(TRACK_KEY, []));
+function applyTracking() {
+	const on = !!editor?.path && trackedNotes.has(editor.path);
+	if (editor?.view && isTracking(editor.view) !== on) setTracking(editor.view, on);
+	toolbarUi?.refreshReview(on);
+}
+function toggleTracking(on = !trackedNotes.has(editor.path)) {
+	if (!editor.path) return;
+	on ? trackedNotes.add(editor.path) : trackedNotes.delete(editor.path);
+	writeJSON(TRACK_KEY, [...trackedNotes]);
+	applyTracking();
+	toast(on ? "Tracking changes: new text is underlined, deleted text struck through." : "Stopped tracking changes. The changes already marked stay until you accept or reject them.", 3500);
+}
+function reviewAll(accept) {
+	const view = activeView();
+	const n = resolveEvery(view, accept);
+	toast(n ? `${accept ? "Accepted" : "Rejected"} ${n} change${n === 1 ? "" : "s"}.` : "No changes to review.", 2500);
+}
+// The toolbar's Review menu.
+function reviewMenu(view, btn) {
+	const r = btn.getBoundingClientRect();
+	const n = countChanges(view);
+	dropMenu([
+		[(isTracking(view) ? "✓ " : "\u2003") + "Track changes", () => toggleTracking()],
+		[(isFinalView(view) ? "✓ " : "\u2003") + "Show as final (hide changes)", () => setFinalView(view, !isFinalView(view))],
+		null,
+		["Next change", () => gotoChange(view, 1) || toast("No changes in this note.")],
+		["Previous change", () => gotoChange(view, -1) || toast("No changes in this note.")],
+		["Accept change at cursor", () => acceptChange(view) || toast("Put the cursor in a change first.")],
+		["Reject change at cursor", () => rejectChange(view) || toast("Put the cursor in a change first.")],
+		null,
+		["New comment", () => addComment(view)],
+		null,
+		[`Accept all changes${n ? ` (${n})` : ""}`, () => reviewAll(true)],
+		[`Reject all changes${n ? ` (${n})` : ""}`, () => reviewAll(false), "danger"],
+	], r.left, r.bottom + 4);
 }
 
 // ---- a folder as a manuscript: corkboard, outliner, scrivenings -----------------
@@ -2386,6 +2430,11 @@ function allCommands() {
 		["Toggle left sidebar", () => showLeft(leftShut()), "notes list panel collapse hide show"],
 		["Toggle right sidebar", () => showRight(rightShut()), "calendar agenda contents panel collapse hide show"],
 		["Toggle focus mode", () => toggleFocus(), "distraction free typewriter zen dim writing mode"],
+		["Track changes", () => toggleTracking(), "track changes revisions review suggest edits criticmarkup", true],
+		["Accept all changes", () => reviewAll(true), "track changes review revisions", true],
+		["Reject all changes", () => reviewAll(false), "track changes review revisions", true],
+		["Next change", () => gotoChange(activeView(), 1), "track changes review", true],
+		["New comment", () => addComment(activeView()), "track changes review comment note annotation", true],
 		["Look up word", () => lookUpWord(activeView()), "dictionary define definition thesaurus synonym meaning", true],
 		["Toggle Live Preview", toggleLivePreview, "markdown symbols hide"],
 		["Toggle readable line length", toggleLineLength, "width wide full center column"],
@@ -4669,7 +4718,9 @@ async function start() {
 	toolbarUi = setupToolbar($("toolbar"), activeView, {
 		print: () => exportNote(editor.path), lookUp: (view) => lookUpWord(view),
 		type: { fonts: Object.keys(FONTS).map((k) => [k, FONT_NAMES[k], FONTS[k]]), font: () => fontName, setFont, size: () => fontSize, setSize },
+		review: reviewMenu,
 	});
+	applyTracking();
 	if (readRaw("wr1t3rFocus") === "on") toggleFocus(true);
 	$("focusExit").addEventListener("click", () => toggleFocus(false));
 	document.addEventListener("keydown", (e) => {

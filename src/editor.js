@@ -44,6 +44,7 @@ import { pasteAndDrop } from "./paste.js";
 import { manuscriptLayout } from "./manuscriptview.js";
 import { formatLook } from "./format.js";
 import { focusMode } from "./focus.js";
+import { trackChanges } from "./trackview.js";
 import { grammar } from "./grammar.js";
 
 const fromSync = Annotation.define();
@@ -172,6 +173,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		dataviewJs,
 		cardsBlocks,
 		taskLists,
+		trackChanges,
 		plannerBlocks,
 		drawnBlocks,
 		spellcheck,

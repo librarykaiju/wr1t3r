@@ -55,6 +55,7 @@ const ICON = {
 	print: '<path d="M6 9V3h12v6"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M6 14h12v7H6z"/>',
 	code: '<path d="m8 8-4 4 4 4M16 8l4 4-4 4"/>',
 	insert: '<path d="M12 5v14M5 12h14"/>',
+	review: '<path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l3 3"/><path d="M14 20h6"/>',
 };
 
 // The Insert menu: block-level things that don't need a button each.
@@ -127,12 +128,12 @@ function typeControls(bar, type) {
 }
 
 // bar: the element to fill. getView: the editor now. print: opens Export.
-export function setupToolbar(bar, getView, { print, lookUp, type } = {}) {
+export function setupToolbar(bar, getView, { print, lookUp, type, review } = {}) {
 	bar.setAttribute("role", "toolbar");
 	bar.setAttribute("aria-label", "Formatting");
 	let refreshType = () => {};
 	const [first, second, sep, ...rest] = BUTTONS; // undo, redo | font, size | the rest
-	const all = [first, second, sep, "type", ...rest, null, ["Look up", "Look up the word in the dictionary and thesaurus", "book", (view) => lookUp?.(view)], ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
+	const all = [first, second, sep, "type", ...rest, null, ["Review", "Track changes, and accept or reject them", "review", (view, btn) => review?.(view, btn)], ["Look up", "Look up the word in the dictionary and thesaurus", "book", (view) => lookUp?.(view)], ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
 	for (const b of all) {
 		if (b === "type") { if (type) refreshType = typeControls(bar, type); continue; }
 		if (!b) { bar.append(Object.assign(document.createElement("span"), { className: "tb-sep" })); continue; }
@@ -154,5 +155,7 @@ export function setupToolbar(bar, getView, { print, lookUp, type } = {}) {
 		bar.append(btn);
 	}
 	refreshType();
-	return { refreshType };
+	// Pressed while the note's changes are being tracked.
+	const refreshReview = (on) => bar.querySelector(".tb-review")?.setAttribute("aria-pressed", String(!!on));
+	return { refreshType, refreshReview };
 }
