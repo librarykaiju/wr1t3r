@@ -85,7 +85,7 @@ test("a menu of top folders, each with its list, and previous/next within a fold
 	];
 	const site = buildSite(notes, []);
 	const one = site.files.get("essays/one.html");
-	assert.ok(one.includes('<nav class="menu" aria-label="Sections"><a href="index.html" aria-current="page">Essays</a><a href="../recipes/index.html">Recipes</a></nav>'));
+	assert.ok(one.includes('<nav class="menu" aria-label="Sections"><a href="index.html" style="--fc: var(--f1)" aria-current="page">Essays</a><a href="../recipes/index.html" style="--fc: var(--f2)">Recipes</a></nav>'));
 	assert.ok(one.includes('class="prev" href="two.html"><span>Previous</span>Two</a>') && one.includes('<span class="next"></span>') === false);
 	assert.ok(site.files.get("essays/two.html").includes('<span class="prev"></span>'));
 	const list = site.files.get("essays/index.html");
@@ -114,8 +114,8 @@ test("the notebook layout: folders down the left, open on the way to the page", 
 	const site = buildSite(notes, [], { layout: "notebook", sidebar: false, support: { kofi: "me" } });
 	const two = site.files.get("essays/old/two.html");
 	assert.ok(two.includes('<body class="layout-notebook">') && !two.includes('class="menu"') && !two.includes("ko-fi"), "no top menu, and no sidebar when it's off");
-	assert.ok(two.includes('<li><details open><summary>Essays</summary><ul><li><details open><summary>Old</summary><ul><li><a href="two.html" aria-current="page">Two</a></li></ul></details></li><li><a href="../one.html">One</a></li></ul></details></li>'));
-	assert.ok(two.includes("<li><details><summary>Recipes</summary>") && two.includes('<a href="../../loose.html">Loose</a>') && two.includes('<a href="../../index.html">Home</a>'));
+	assert.ok(two.includes('<li class="top" style="--fc: var(--f1)"><details open><summary>Essays</summary><ul><li><details open><summary>Old</summary><ul><li><a href="two.html" aria-current="page">Two</a></li></ul></details></li><li><a href="../one.html">One</a></li></ul></details></li>'));
+	assert.ok(two.includes('<li class="top" style="--fc: var(--f2)"><details><summary>Recipes</summary>') && two.includes('<a href="../../loose.html">Loose</a>') && two.includes('<a href="../../index.html">Home</a>'));
 });
 
 test("social links are named for their site", () => {
@@ -168,4 +168,32 @@ test("the toolbar's published check matches the site's, and says why not", async
 	assert.match(notPublishedWhy("_docs/A.md", ""), /folders starting with _/);
 	assert.match(notPublishedWhy("A.md", "---\ndraft: yes\n---\n"), /draft/);
 	assert.equal(notPublishedWhy("A.md", "---\npublish: true\n---\n"), "");
+});
+
+test("pages show their other properties, tags in the theme's colors, folders in theirs", async () => {
+	const { tagHue: appHue } = await import("../src/frontmatter.js");
+	const { tagHue } = await import("../src/website.js");
+	for (const t of ["essays", "outdoors", "Craft", "a-b"]) assert.equal(tagHue(t), appHue(t));
+	const notes = [
+		{ path: "Essays/On Walking.md", text: "---\npublish: true\ntitle: On Walking\ndate: 2026-09-14\ntags: [essays]\nstatus: finished\nrating: 4\nread: true\nsource: https://example.com/walk\nwith:\n  - \"[[People/Sam|Sam]]\"\n  - Ana\ncssclasses: [wide]\nempty:\n---\n\nText.\n" },
+		{ path: "Recipes/Soup.md", text: "---\npublish: true\n---\n\nSoup.\n" },
+		{ path: "Archive/Old.md", text: "---\npublish: false\n---\n" },
+	];
+	const { files } = buildSite(notes, [], { title: "S", layout: "notebook" });
+	const page = files.get("essays/on-walking.html");
+	assert.match(page, /<details class="props" open>/);
+	assert.match(page, /<dt>status<\/dt><dd>finished<\/dd>/);
+	assert.match(page, /<dt>rating<\/dt><dd>4<\/dd>/);
+	assert.match(page, /<dt>read<\/dt><dd><input type="checkbox" disabled checked/);
+	assert.match(page, /<a href="https:\/\/example.com\/walk" rel="noopener">example.com\/walk<\/a>/);
+	assert.match(page, /<span class="pill">Sam<\/span> <span class="pill">Ana<\/span>/);
+	for (const k of ["publish", "title", "tags", "cssclasses", "empty", "date"]) assert.doesNotMatch(page, new RegExp(`<dt>${k}</dt>`));
+	assert.match(page, new RegExp(`class="tag tag-${tagHue("essays")}">#essays`));
+	// Archive/ is unpublished but still counts, as in the app: Archive 1, Essays 2, Recipes 3.
+	assert.match(page, /<li class="top" style="--fc: var\(--f2\)"><details open><summary>Essays/);
+	assert.match(page, /<li class="top" style="--fc: var\(--f3\)"><details><summary>Recipes/);
+	assert.doesNotMatch(files.get("recipes/soup.html"), /class="props"/);
+	const top = buildSite(notes, [], { title: "S" }).files.get("essays/on-walking.html");
+	assert.match(top, /<a href="index.html" style="--fc: var\(--f2\)" aria-current="page">Essays<\/a>/);
+	assert.doesNotMatch(buildSite(notes, [], { title: "S", properties: false }).files.get("essays/on-walking.html"), /class="props"/);
 });
