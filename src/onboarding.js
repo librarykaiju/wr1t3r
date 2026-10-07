@@ -10,7 +10,7 @@ import { HOME_BODY } from "./home.js";
 // area is in at least one, so picking them all leaves everything on. here:
 // [label, detail] for a build with no Worker (no clipping or recordings).
 export const USES = [
-	{ id: "writing", label: "Writing", detail: "Stories, books, essays: chapters on a corkboard, compiled into one file", areas: ["longform", "boards"] },
+	{ id: "writing", label: "Writing", detail: "Stories, books, essays: chapters on a storyboard, compiled into one file", areas: ["longform", "boards"] },
 	{ id: "planner", label: "Journal and day planner", detail: "A note for each day, tasks, reminders and a calendar", areas: ["daily", "calendar", "reminders"] },
 	{ id: "health", label: "Health and food", detail: "Log meals, recipes and nutrition from the day planner", areas: ["health", "daily"] },
 	{ id: "media", label: "Books, films and other media", detail: "Notes for what you read, watch, play and listen to", areas: ["media", "boards"] },
@@ -62,14 +62,14 @@ export function guideText(features, { worker = true, story = false } = {}) {
 		"",
 		"## Long-form writing",
 		"",
-		"Keep a book or story in a folder, one note per scene or chapter. **Right-click the folder in the sidebar** (press and hold on a phone or tablet) to open it as:",
+		"Keep a book or story in a folder, one note per scene or chapter. The **Project** button in the sidebar starts one for you: a short story, novel, essay or research paper, or a script (screenplay, TV episode or comic), with starter notes from the writing templates. **Right-click the folder in the sidebar** (press and hold on a phone or tablet) to open it as:",
 		"",
-		"- **Corkboard:** a card for each note, showing its `synopsis` property. Drag the cards to change the order.",
+		"- **Storyboard:** a card for each note, showing its `synopsis` property. Drag the cards to change the order.",
 		"- **Outliner:** the same notes as a table, with their synopsis, status and word count.",
 		"- **Draft:** every note in the folder as one long document, to read and edit straight through.",
 		"- **Compile…:** joins the folder into one file, as Markdown, HTML, PDF or Word, with a title page if you like.",
 		"",
-		"Once a folder is open, the buttons along its top switch between Corkboard, Outliner and Draft. A note with `status: cut` or `compile: false` is left out of Compile.",
+		"Once a folder is open, the buttons along its top switch between Storyboard, Outliner and Draft. A note with `status: cut` or `compile: false` is left out of Compile.",
 	);
 	if (on("longform") && story) lines.push("", "Try it on [[My Story/01 Opening|My Story]], a sample manuscript with three scenes.");
 	if (on("boards")) lines.push(
@@ -146,8 +146,8 @@ export function starterNotes(uses, root = "", { worker = true } = {}) {
 	const pins = [{ link: "[[Welcome]]", color: 4 }];
 	if (has(uses, "writing")) {
 		out.push(
-			{ path: root + "My Story/01 Opening.md", text: scene("Opening", "Where the story starts, and who we meet first.", "draft", "Write your first scene here. Each scene is its own note, so they're easy to move around on the corkboard.") },
-			{ path: root + "My Story/02 Trouble.md", text: scene("Trouble", "Something goes wrong.", "idea", "The synopsis property above is what the corkboard card shows.") },
+			{ path: root + "My Story/01 Opening.md", text: scene("Opening", "Where the story starts, and who we meet first.", "draft", "Write your first scene here. Each scene is its own note, so they're easy to move around on the storyboard.") },
+			{ path: root + "My Story/02 Trouble.md", text: scene("Trouble", "Something goes wrong.", "idea", "The synopsis property above is what the storyboard card shows.") },
 			{ path: root + "My Story/03 Turn.md", text: scene("Turn", "Nothing is the same after this.", "idea", "") },
 		);
 		pins.push({ link: "corkboard:" + root + "My Story", title: "My Story", color: 2 });

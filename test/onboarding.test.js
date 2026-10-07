@@ -38,7 +38,7 @@ test("starter notes follow the uses, and Home pins them", () => {
 	assert.deepEqual(pins.map((p) => p.link), ["[[Welcome]]", "corkboard:My Story"]);
 	assert.equal(pins[1].title, "My Story");
 	assert.equal(cardInfo("My Story/01 Opening.md", writing[1].text).synopsis, "Where the story starts, and who we meet first.");
-	assert.match(writing[0].text, /Corkboard/);
+	assert.match(writing[0].text, /Storyboard/);
 
 	const other = starterNotes(["planner", "research"], "content/");
 	const op = other.map((n) => n.path);
@@ -46,13 +46,13 @@ test("starter notes follow the uses, and Home pins them", () => {
 	assert.ok(!op.some((p) => p.includes("My Story/")));
 	const pins2 = readPins(other.find((n) => n.path === "content/_wr1t3r/Home.md").text).map((p) => p.link);
 	assert.deepEqual(pins2, ["[[Welcome]]", "command:Open today's daily note", "[[Inbox]]"]);
-	assert.doesNotMatch(other[0].text, /corkboard/i);
+	assert.doesNotMatch(other[0].text, /storyboard/i);
 });
 
 test("the guide covers what's on, and only what this build can do", () => {
 	const writing = guideText(featuresFor(["writing"]), { story: true });
 	assert.match(writing, /Right-click the folder in the sidebar/);
-	assert.match(writing, /\*\*Corkboard:\*\*[\s\S]*\*\*Outliner:\*\*[\s\S]*\*\*Draft:\*\*/);
+	assert.match(writing, /\*\*Storyboard:\*\*[\s\S]*\*\*Outliner:\*\*[\s\S]*\*\*Draft:\*\*/);
 	assert.match(writing, /\[\[My Story\/01 Opening\|My Story\]\]/);
 	assert.match(writing, /the gear button/);
 	assert.doesNotMatch(writing, /## Your day|## Capture|## Recordings/);

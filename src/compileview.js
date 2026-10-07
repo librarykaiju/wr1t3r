@@ -19,14 +19,16 @@
 
 import { compileMarkdown, compileSettings, HEADINGS, SEPARATORS, LAYOUTS } from "./compile.js";
 import { isManuscript } from "./manuscript.js";
+import { isScript } from "./script.js";
 
 let open = null;
 
 export function openCompile(host) {
 	open?.close();
-	// With no layout saved, notes marked cssclasses: manuscript pick it.
+	// With no layout saved, notes marked cssclasses: script or manuscript pick it.
 	const raw = host.settings() || {};
-	const auto = raw.layout ? {} : { layout: host.parts().some((p) => p.kind === "note" && isManuscript(host.text(p.path))) ? "manuscript" : "book" };
+	const notesThat = (is) => host.parts().some((p) => p.kind === "note" && is(host.text(p.path)));
+	const auto = raw.layout ? {} : { layout: notesThat(isScript) ? "script" : notesThat(isManuscript) ? "manuscript" : "book" };
 	const settings = compileSettings({ ...raw, ...auto });
 	const back = document.activeElement;
 	const wrap = document.createElement("div");

@@ -42,6 +42,7 @@ import { bases } from "./basesview.js";
 import { spellcheck, smartPunctuation } from "./writing.js";
 import { pasteAndDrop } from "./paste.js";
 import { manuscriptLayout } from "./manuscriptview.js";
+import { scriptLayout } from "./scriptview.js";
 import { formatLook } from "./format.js";
 import { focusMode } from "./focus.js";
 import { trackChanges } from "./trackview.js";
@@ -185,6 +186,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		grammar,
 		pasteAndDrop,
 		manuscriptLayout,
+		scriptLayout,
 		autocompletion({ override: [slashSource(), linkSource], icons: false, activateOnTyping: true }),
 		keymap.of([...completionKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
 	];

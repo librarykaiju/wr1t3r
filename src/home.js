@@ -129,15 +129,16 @@ export function writePins(text, pins) {
 
 // What a pin points at: { kind: "note", target } | { kind: "folder", folder }
 // (with its trailing /) | { kind: "view", view, folder } (a folder's
-// corkboard, outliner or draft; view "scrivenings" is the draft) | { kind: "command", command } |
+// storyboard, outliner or draft; view "corkboard" is the storyboard (its name
+// before it was renamed, kept in saved pins) and "scrivenings" the draft) | { kind: "command", command } |
 // { kind: "url", url }.
 export function pinKind(link) {
 	const l = String(link || "").trim();
 	if (/^https?:\/\//i.test(l)) return { kind: "url", url: l };
 	let m = l.match(/^command:\s*(.+)$/i);
 	if (m) return { kind: "command", command: m[1].trim() };
-	m = l.match(/^(corkboard|outliner|scrivenings|draft|stats):\s*(.*)$/i);
-	if (m) return { kind: "view", view: m[1].toLowerCase() === "draft" ? "scrivenings" : m[1].toLowerCase(), folder: m[2].trim().replace(/^\/+|\/+$/g, "") + "/" };
+	m = l.match(/^(corkboard|storyboard|outliner|scrivenings|draft|stats):\s*(.*)$/i);
+	if (m) return { kind: "view", view: { draft: "scrivenings", storyboard: "corkboard" }[m[1].toLowerCase()] || m[1].toLowerCase(), folder: m[2].trim().replace(/^\/+|\/+$/g, "") + "/" };
 	m = l.match(/^folder:\s*(.*)$/i);
 	if (m) return { kind: "folder", folder: m[1].trim().replace(/^\/+|\/+$/g, "") + "/" };
 	m = l.match(/^!?\[\[(.+)\]\]$/);

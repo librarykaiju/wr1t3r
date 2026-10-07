@@ -7,7 +7,8 @@ import { setupKeyboardBar } from "./kbbar.js";
 import { readLog, looksLikeLogs, stampFinished } from "./mediastats.js";
 import { drawStats as drawLogStats } from "./mediastatsview.js";
 import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js";
-import { builtinTemplate } from "./builtintemplates.js";
+import { builtinTemplate, writingTemplates } from "./builtintemplates.js";
+import { PROJECT_KINDS, projectFiles } from "./projects.js";
 import { promptFor } from "./prompts.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags, tagHue } from "./frontmatter.js";
@@ -712,7 +713,7 @@ function itemMenu(item, x, y) {
 		...(isFolder ? [
 			["New note here…", () => newNote(item + "Untitled.md")],
 			...(featureOn("longform") ? [
-				["Corkboard", () => openFolderView(item, "corkboard")],
+				["Storyboard", () => openFolderView(item, "corkboard")],
 				["Outliner", () => openFolderView(item, "outliner")],
 				["Draft", () => openFolderView(item, "scrivenings")],
 				["Compile…", () => openCompile(item)],
@@ -1538,7 +1539,7 @@ function renderHomeSettings() {
 		row.className = "home-pin";
 		row.style.setProperty("--tc", pinColor(pin, ordinal[i]));
 		row.title = "Change, move or unpin this tile";
-		const what = { note: isBoardPath(path || k.target || "") ? "board" : "note", folder: "corkboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "draft" : k.view, command: "command", url: "web page" }[k.kind];
+		const what = { note: isBoardPath(path || k.target || "") ? "board" : "note", folder: "storyboard", view: k.view === "outliner" ? "outline" : k.view === "scrivenings" ? "draft" : k.view === "corkboard" ? "storyboard" : k.view, command: "command", url: "web page" }[k.kind];
 		const nm = document.createElement("span");
 		nm.textContent = pinTitle(pin, path);
 		const kind = document.createElement("small");
@@ -1565,7 +1566,13 @@ function renderTemplateSettings() {
 		const nm = document.createElement("span");
 		nm.textContent = t.name;
 		row.append(nm);
-		const menu = (x, y) => showMenu([
+		if (t.builtin) {
+			row.title = "Built into wr1t3r. Make your own copy to change it";
+			row.append(Object.assign(document.createElement("small"), { className: "template-tag", textContent: "built in" }));
+		}
+		const menu = (x, y) => showMenu(t.builtin ? [
+			["Make my own copy", () => copyTemplate(t)],
+		] : [
 			["Open", () => { openSettings(false); openNote(t.path); }],
 			["Rename…", () => renameItem(t.path)],
 			["Delete", () => removeNote(t.path), "danger"],
@@ -1575,6 +1582,17 @@ function renderTemplateSettings() {
 		box.append(row);
 	}
 	if (!box.childElementCount) box.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "No templates yet." }));
+}
+
+// A built-in template copied into the notebook's _templates folder, where it
+// can be changed; the copy takes the built-in one's place everywhere.
+async function copyTemplate(t) {
+	const list = visible();
+	const path = templatesFolder(list.map((n) => n.path), commonFolder(list)) + t.name + ".md";
+	if (!taken(path)) await change(path, (cur) => ({ path, text: t.text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	openSettings(false);
+	openNote(path);
+	scheduleSync();
 }
 
 // A new, empty template in the folder the others are in.
@@ -1596,7 +1614,8 @@ function openPin(pin, path) {
 	if (k.kind === "note") return path ? openNote(path) : toast(`There's no note at “${k.target}” any more.`);
 	// A pinned folder opens as a corkboard; an outliner: or scrivenings: pin as that.
 	if (k.kind === "folder" || k.kind === "view") return openFolderView(k.folder, k.kind === "view" ? k.view : "corkboard");
-	const c = allCommands().find((x) => x.label.toLowerCase() === k.command.toLowerCase());
+	const want = k.command.toLowerCase() === "open corkboard" ? "open storyboard" : k.command.toLowerCase(); // its old name
+	const c = allCommands().find((x) => x.label.toLowerCase() === want);
 	if (!c) return toast(`There's no command called “${k.command}”.`);
 	if (c.needsNote) return toast(`“${c.label}” needs a note open.`);
 	c.run();
@@ -1644,7 +1663,7 @@ function tileMenu(i, x, y, store = homeStore) {
 	}
 	const k = pinKind(pin.link);
 	const views = k.kind === "folder" || k.kind === "view"
-		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as draft"], ...(isLogFolder(k.folder) ? [["stats", "Open as stats"]] : [])]
+		? [["corkboard", "Open as storyboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as draft"], ...(isLogFolder(k.folder) ? [["stats", "Open as stats"]] : [])]
 			.filter(([v]) => v !== (k.kind === "view" ? k.view : "corkboard"))
 			.map(([v, label]) => [label, () => set({ link: v === "corkboard" ? folderLink(k.folder) : viewLink(v, k.folder) })])
 		: [];
@@ -2472,7 +2491,7 @@ function pickFolder(what) {
 	const all = [...folders].filter((f) => f.startsWith(home) && f !== home && (what !== "stats" || isLogFolder(f)))
 		.sort((a, b) => (b === here) - (a === here) || a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
 	openPalette({
-		placeholder: what === "compile" ? "Compile which folder?" : what === "stats" ? "Show stats for which folder of logs?" : `Show which folder as ${what === "corkboard" ? "a corkboard" : what === "outliner" ? "an outline" : "a draft"}?`,
+		placeholder: what === "compile" ? "Compile which folder?" : what === "stats" ? "Show stats for which folder of logs?" : `Show which folder as ${what === "corkboard" ? "a storyboard" : what === "outliner" ? "an outline" : "a draft"}?`,
 		items: all.map((f) => ({ label: folderLabel(f), detail: "folder", run: () => (what === "compile" ? openCompile(f) : openFolderView(f, what)) })),
 	});
 }
@@ -2552,24 +2571,31 @@ function quickSwitcher() {
 	});
 }
 
-// Rendering a template for a note called title.
-function renderFor(tmplPath, title) {
-	return renderTemplate(notes.get(tmplPath)?.text || "", { title, date: new Date() }).text;
+// Rendering a template (a path, or one from vaultTemplates) for a note called title.
+function renderFor(tmpl, title) {
+	const text = typeof tmpl === "string" ? notes.get(tmpl)?.text : tmpl.builtin ? tmpl.text : notes.get(tmpl.path)?.text;
+	return renderTemplate(text || "", { title, date: new Date() }).text;
 }
 
-const vaultTemplates = () => templatesIn(visible().map((n) => n.path));
+// The notebook's templates, then wr1t3r's writing templates it has no
+// template of the same name for (those have builtin: true and no path).
+function vaultTemplates() {
+	const own = templatesIn(visible().map((n) => n.path));
+	const names = new Set(own.map((t) => t.name.toLowerCase()));
+	return [...own, ...writingTemplates().filter((t) => !names.has(t.name.toLowerCase())).map((t) => ({ ...t, path: null, builtin: true }))];
+}
 
 function templateItems(run) {
-	return vaultTemplates().map((t) => ({ label: t.name, detail: "template", run: () => run(t) }));
+	return vaultTemplates().map((t) => ({ label: t.name, detail: t.builtin ? "built-in template" : "template", run: () => run(t) }));
 }
 
 // A new note from any template, named first: in its kind's folder for the
 // templates src/newnotes.js knows (Journal, the logs...), else the current note's.
 function newFromTemplate() {
 	const items = templateItems((t) => {
-		const kind = kindForTemplate(t.path);
+		const kind = t.path && kindForTemplate(t.path);
 		if (kind) return newKindNote(kind, { blank: true }); // a template was picked: no lookup
-		newNote(currentFolder() + "Untitled.md", (path) => renderFor(t.path, name(path)));
+		newNote(currentFolder() + "Untitled.md", (path) => renderFor(t, name(path)));
 	});
 	if (!items.length) return toast("There's no _templates folder in the vault.");
 	openPalette({ placeholder: "New note from template…", items });
@@ -2580,7 +2606,7 @@ function insertTemplateAt(t) {
 	const view = editor.view;
 	if (!editor.path || view.state.readOnly) return toast("Open a note first.");
 	const text = view.state.sliceDoc();
-	const changes = insertTemplate(text, renderFor(t.path, name(editor.path)), view.state.selection.main.head);
+	const changes = insertTemplate(text, renderFor(t, name(editor.path)), view.state.selection.main.head);
 	const body = changes[changes.length - 1];
 	view.dispatch({ changes, selection: body ? { anchor: view.state.changes(changes).mapPos(body.from, 1) } : undefined, scrollIntoView: true, userEvent: "input.template" });
 	view.focus();
@@ -2610,6 +2636,8 @@ setSlashExtras(() => [
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const HOTKEYS_KEY = "wr1t3r-hotkeys";
 let keyChanges = readJSON(HOTKEYS_KEY, {});
+// "Open corkboard" was renamed "Open storyboard": its hotkey moves with it.
+if ("Open corkboard" in keyChanges) { keyChanges["Open storyboard"] ??= keyChanges["Open corkboard"]; delete keyChanges["Open corkboard"]; }
 let keys = bindings(keyChanges);
 let capturing = false; // while a new hotkey is being pressed
 
@@ -2951,7 +2979,8 @@ function allCommands() {
 		["Getting started", openGuide, "help guide welcome tips how to tutorial manual"],
 		...[...document.querySelectorAll("#setTabs [data-tab]")].map((b) => ["Settings: " + b.textContent, () => openSettings(true, b.dataset.tab), "preferences options"]),
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
-		["Open corkboard", () => pickFolder("corkboard"), "scrivener index cards folder board order"],
+		["New project", newProject, "longform writing short story novel book essay research paper mla apa chicago script screenplay tv television comic folder start"],
+		["Open storyboard", () => pickFolder("corkboard"), "corkboard scrivener index cards folder board order"],
 		["Open outliner", () => pickFolder("outliner"), "scrivener outline table folder order"],
 		["Open draft", () => pickFolder("scrivenings"), "scrivenings scrivener one document whole folder read draft"],
 		["Import StoryGraph library", importStoryGraph, "storygraph csv export books reading goodreads import"],
@@ -3445,6 +3474,44 @@ async function nameBase(folder) {
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	scheduleSync();
+}
+
+// New project (src/projects.js): pick what it is, name it, and its folder
+// opens on the storyboard with starter notes from the writing templates.
+function newProject() {
+	const pick = (kind) => {
+		if (!kind.variants) return nameProject(kind, null);
+		openPalette({
+			placeholder: kind.label + ": which kind?",
+			items: kind.variants.map((v) => ({ label: v.label, detail: v.detail, run: () => nameProject(kind, v) })),
+		});
+	};
+	openPalette({
+		placeholder: "New project: what are you writing?",
+		items: PROJECT_KINDS.map((k) => ({ label: k.label, detail: k.detail, keywords: (k.variants || []).map((v) => v.label).join(" "), run: () => pick(k) })),
+	});
+}
+
+async function nameProject(kind, variant) {
+	const input = prompt(`Title of the ${(variant || kind).noun}:`, "Untitled");
+	if (input == null) return;
+	const title = input.trim().replace(/[\\/:*?"<>|#^[\]]+/g, " ").replace(/\s+/g, " ").replace(/^\.+/, "").trim();
+	if (!title) return toast("That isn't a usable title.");
+	const list = visible();
+	const folder = commonFolder(list) + title + "/";
+	if (list.some((n) => n.path.toLowerCase().startsWith(folder.toLowerCase()))) return toast(`There's already a folder called “${title}”.`);
+	const template = (tmpl, noteTitle) => {
+		const t = templateFor("_templates/" + tmpl + ".md");
+		return t ? renderTemplate(t.text, { title: noteTitle, date: new Date() }).text : null;
+	};
+	const files = projectFiles({ kind: kind.id, variant: variant?.id, title, folder, template, paths: list.map((n) => n.path) });
+	for (const f of files) await change(f.path, (cur) => ({ path: f.path, text: f.text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	for (let i = folder.indexOf("/"); i >= 0; i = folder.indexOf("/", i + 1)) openFolders.add(folder.slice(0, i + 1));
+	writeJSON(OPEN_KEY, [...openFolders]);
+	renderTree();
+	openFolderView(folder, "corkboard");
+	scheduleSync();
+	toast(`Made “${title}”: ${files.length - 1} notes. Notes in its Notes folder stay out of Compile.`);
 }
 
 // Today's note in _daily, from _templates/Daily.md (and its companion notes,
@@ -5734,6 +5801,7 @@ async function start() {
 
 	$("filter").addEventListener("input", renderTree);
 	$("new").addEventListener("click", () => newNote());
+	$("project").addEventListener("click", newProject);
 	$("today").addEventListener("click", () => openDaily());
 	// Keep this in step with ACCEPT in src/convert.js. It's set here, not
 	// imported, because Safari only opens the picker straight from the tap.

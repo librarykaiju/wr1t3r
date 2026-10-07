@@ -15,7 +15,7 @@ import { paragraphLines } from "./manuscript.js";
 
 export const HEADINGS = { title: "Note titles as headings", none: "Text only" };
 export const SEPARATORS = { scene: "Scene break (* * *)", blank: "Blank line", page: "New page" };
-export const LAYOUTS = { book: "Book", manuscript: "Manuscript (double-spaced, indented)" };
+export const LAYOUTS = { book: "Book", manuscript: "Manuscript (double-spaced, indented)", script: "Script (screenplay format)" };
 export const PAGE_BREAK = '<div class="pagebreak"></div>';
 
 // The settings as saved in the binder's `compile:` property, with defaults.
@@ -124,9 +124,19 @@ export function compileMarkdown(parts, settings, text, { render = false, titlePa
 		out.push(PAGE_BREAK);
 	}
 	const top = s.title && titlePage ? 1 : 0; // below the title page's own heading
-	for (const p of parts) {
+	// A folder whose notes are all left out (a project's Notes, say) gets no heading.
+	const empty = (i) => {
+		for (let j = i + 1; j < parts.length && parts[j].depth > parts[i].depth; j++) {
+			const q = parts[j];
+			if (q.kind !== "note") continue;
+			const raw = text(q.path);
+			if (raw != null && (keepAll || !leftOut(raw))) return false;
+		}
+		return true;
+	};
+	for (const [i, p] of parts.entries()) {
 		if (p.kind === "folder") {
-			if (s.headings !== "title") continue;
+			if (s.headings !== "title" || empty(i)) continue;
 			if (lastWasNote && s.separator === "page") out.push(PAGE_BREAK);
 			out.push("#".repeat(Math.min(6, top + p.depth + 1)) + " " + p.path.replace(/\/+$/, "").split("/").pop());
 			lastWasNote = false;

@@ -684,7 +684,7 @@ function sortPanel(box, ctx) {
 	})));
 	box.append(top);
 	if (binder) {
-		box.append(el("p", "base-panel-hint", "Notes follow each folder's corkboard order (its _Binder.md)."));
+		box.append(el("p", "base-panel-hint", "Notes follow each folder's storyboard order (its _Binder.md)."));
 		return;
 	}
 	const sorts = (Array.isArray(r.view.sort) ? r.view.sort : []).filter((s) => s && s.property);

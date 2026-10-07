@@ -19,7 +19,7 @@ export const SETTINGS_NAME = "Settings.md";
 // with no Worker, where the part that needs one isn't offered. What isn't listed (the editor,
 // sync, search, links, properties, tags, templates, themes...) is always on.
 export const FEATURE_AREAS = [
-	{ id: "longform", label: "Long-form writing", detail: "Corkboard, outliner, draft and compile. Right-click a folder in the sidebar to open it in one" },
+	{ id: "longform", label: "Long-form writing", detail: "New projects, storyboard, outliner, draft and compile. Right-click a folder in the sidebar to open it in one" },
 	{ id: "boards", label: "Boards", detail: "Board files and board blocks in notes" },
 	{ id: "daily", label: "Daily notes and planner", detail: "The Today button, the planner page and its timeline" },
 	{ id: "health", label: "Health and food", detail: "Food logging, recipes and nutrition, and the planner's health buttons" },
@@ -44,7 +44,7 @@ export const FOLDER_SETTINGS = [
 // Palette commands that belong to an area (by label, or a label's start).
 // Anything else stays whatever the areas say.
 const COMMAND_AREAS = [
-	["longform", ["Open corkboard", "Open outliner", "Open draft", "Compile a folder"]],
+	["longform", ["New project", "Open storyboard", "Open outliner", "Open draft", "Compile a folder"]],
 	["boards", ["New board file", "Rename .base files to .board", "Insert board"]],
 	["daily", ["Open today's daily note"]],
 	["health", ["Log food"]],
