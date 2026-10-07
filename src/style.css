@@ -377,6 +377,7 @@ main:not(.has-note) #toolbar, main.has-folder #toolbar, #app.no-toolbar #toolbar
 .tc-card .tc-resolve { margin-top: 6px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px var(--sans); cursor: pointer; }
 .tc-card .tc-resolve:hover { color: var(--fg); border-color: var(--accent); }
 #toolbar .tb-review[aria-pressed="true"] { color: #1a7f37; background: color-mix(in srgb, #1a7f37 14%, var(--bg)); }
+#toolbar .tb-publish[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
 /* Font and text size sit on the toolbar; Settings shows them only where the
    toolbar doesn't (phones, or with the toolbar turned off). */
 #toolbar .tb-font { flex: none; height: 26px; max-width: 132px; padding: 0 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: 13px var(--sans); }
@@ -1113,6 +1114,7 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 .base-grip { color: var(--muted); cursor: grab; touch-action: none; }
 .base-prop.sort-before, .base-sort-row.sort-before { box-shadow: inset 0 3px 0 var(--accent); }
 .base-prop.sort-after, .base-sort-row.sort-after { box-shadow: inset 0 -3px 0 var(--accent); }
+.item-menu .menu-note { margin: 0; padding: 6px 10px 4px; font-size: 12.5px; color: var(--muted); }
 .item-menu .menu-rule { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
 /* Grid: sizing and moving columns. */
 .md-base-table th { position: relative; }
