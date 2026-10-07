@@ -262,3 +262,172 @@ test("a podcast needs nothing past the search", async () => {
 		assert.equal(web.seen.length, 1);
 	} finally { web.restore(); }
 });
+
+test("searches forgive punctuation and case", async () => {
+	const { queryVariants, forgiving } = await import("../worker/media.js");
+	assert.deepEqual(queryVariants("Spider-man: Brand New Day"), ["Spider-man: Brand New Day", "Spider man Brand New Day", "spider man brand new day"]);
+	const tried = [];
+	const found = await forgiving("Spider-man Brand New Day", async (v) => {
+		tried.push(v);
+		return v === "Spider man Brand New Day" ? [{ title: "Spider-Man 3" }, { title: "Spider-Man: Brand New Day" }] : [];
+	});
+	assert.deepEqual(tried, ["Spider-man Brand New Day", "Spider man Brand New Day"]);
+	assert.equal(found[0].title, "Spider-Man: Brand New Day", "the exact title first");
+});
+
+test("OMDb finding nothing falls back to Wikidata's full-text search", async () => {
+	const web = fakeWeb([
+		[host("www.omdbapi.com"), { Response: "False", Error: "Movie not found!" }],
+		[(u) => u.hostname === "www.wikidata.org" && u.searchParams.get("action") === "wbsearchentities", { search: [] }],
+		[(u) => u.hostname === "www.wikidata.org" && u.searchParams.get("list") === "search", { query: { search: [{ title: "Q120" }, { title: "Q121" }] } }],
+		[(u) => u.hostname === "www.wikidata.org" && u.searchParams.get("action") === "wbgetentities", { entities: {
+			Q120: { labels: { en: { value: "Spider-Man: Brand New Day" } }, descriptions: { en: { value: "2026 film directed by Destin Daniel Cretton" } } },
+			Q121: { labels: { en: { value: "Brand New Day" } }, descriptions: { en: { value: "song" } } },
+		} }],
+	]);
+	try {
+		const s = await (await call({ WR1T3R_TOKEN: "t", OMDB_API_KEY: "k" }, "/api/media/search?kind=movie&q=" + encodeURIComponent("Spider-man Brand New Day"))).json();
+		assert.deepEqual(s.results.map((r) => [r.title, r.ref.qid, r.ref.year]), [["Spider-Man: Brand New Day", "Q120", "2026"]]);
+		assert.ok(web.seen.some((x) => new URL(x.url).searchParams.get("srsearch") === "spider man brand new day"));
+	} finally { web.restore(); }
+});
+
+test("MusicBrainz searches have Lucene's syntax characters escaped", async () => {
+	const web = fakeWeb([[host("musicbrainz.org"), { "release-groups": [{ id: "x", title: "AC/DC: Live", "artist-credit": [] }] }]]);
+	try {
+		await call({ WR1T3R_TOKEN: "t" }, "/api/media/search?kind=music&q=" + encodeURIComponent("AC/DC: Live"));
+		assert.equal(new URL(web.seen[0].url).searchParams.get("query"), "AC\\/DC\\: Live");
+	} finally { web.restore(); }
+});
+
+test("a Wikidata game with no English name or article never gets its id as a title", async () => {
+	const web = wd({
+		search: { search: [{ id: "Q555", match: { text: "Resident Evil 4" }, description: "2023 video game" }] },
+		entity: { entities: { Q555: { labels: {}, claims: {} } } },
+		labels: { entities: {} },
+		summary: {},
+	});
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const found = await (await call(e, "/api/media/search?kind=game&q=resident%20evil%204")).json();
+		assert.equal(found.results[0].title, "Resident Evil 4");
+		const n = await (await post(e, "/api/media/note", { kind: "game", ref: found.results[0].ref, today: "2026-10-07" })).json();
+		assert.equal(n.fields.title, "Resident Evil 4");
+	} finally { web.restore(); }
+});
+
+test("a remake whose article is a redirect to the original's doesn't take the original's picture", async () => {
+	const web = wd({
+		search: { search: [{ id: "Q600", label: "Link's Awakening", description: "2019 video game" }] },
+		entity: { entities: { Q600: { labels: { en: { value: "Link's Awakening" } }, sitelinks: { enwiki: { title: "The Legend of Zelda: Link's Awakening (2019 video game)" } }, claims: {} } } },
+		labels: { entities: {} },
+		summary: { titles: { canonical: "The_Legend_of_Zelda:_Link's_Awakening" }, extract: "A 1993 game.", originalimage: { source: "https://upload.wikimedia.org/1993.png" } },
+	});
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const ref = (await (await call(e, "/api/media/search?kind=game&q=links%20awakening")).json()).results[0].ref;
+		assert.deepEqual((await (await post(e, "/api/media/covers", { kind: "game", ref })).json()).covers, []);
+		const n = await (await post(e, "/api/media/note", { kind: "game", ref, today: "2026-10-07" })).json();
+		assert.equal(n.fields.coverImage, "");
+		assert.equal(n.fields.description, "");
+		assert.equal(n.year, "");
+	} finally { web.restore(); }
+});
+
+test("a RAWG game: the chosen entry's own data, and box art for its own year", async () => {
+	const web = fakeWeb([
+		[host("api.rawg.io", "/api/games/2"), { name: "Resident Evil 4", released: "2023-03-24", background_image: "https://media.rawg.io/re4-2023.jpg", developers: [{ name: "Capcom" }] }],
+		[host("id.twitch.tv"), { access_token: "a", expires_in: 3600 }],
+		[host("api.igdb.com"), [
+			{ name: "Resident Evil 4", first_release_date: Date.UTC(2005, 0, 11) / 1000, cover: { image_id: "old" } },
+			{ name: "Resident Evil 4", first_release_date: Date.UTC(2023, 2, 24) / 1000, cover: { image_id: "new" } },
+		]],
+		[host("store.steampowered.com", "/api/storesearch/"), { items: [{ id: 1, name: "Resident Evil 4" }] }],
+		[host("store.steampowered.com", "/api/appdetails"), { 1: { data: { header_image: "https://steam/re4-2005.jpg", release_date: { date: "28 Feb, 2014" } } } }],
+	]);
+	try {
+		const e = { WR1T3R_TOKEN: "t", RAWG_API_KEY: "k", IGDB_CLIENT_ID: "i", IGDB_CLIENT_SECRET: "s" };
+		const ref = { id: 2, title: "Resident Evil 4", year: "2023", thumbnailUrl: "https://media.rawg.io/re4-2023.jpg" };
+		const c = (await (await post(e, "/api/media/covers", { kind: "game", ref })).json()).covers;
+		assert.equal(c[0], "https://images.igdb.com/igdb/image/upload/t_cover_big/new.jpg");
+		const n = await (await post(e, "/api/media/note", { kind: "game", ref, cover: c[0], today: "2026-10-07" })).json();
+		assert.equal(n.fields.banner, "https://media.rawg.io/re4-2023.jpg", "Steam's is a different year's");
+		assert.equal(n.year, "2023");
+	} finally { web.restore(); }
+});
+
+test("an anime: AniList's details, its cover and MyAnimeList's to choose from", async () => {
+	const media = {
+		id: 21, idMal: 5114, title: { romaji: "Hagane no Renkinjutsushi: Fullmetal Alchemist", english: "Fullmetal Alchemist: Brotherhood" },
+		startDate: { year: 2009 }, format: "TV", episodes: 64, genres: ["Action", "Adventure"], description: "Two brothers.<br>Alchemy.",
+		bannerImage: "https://s4.anilist.co/banner.jpg", siteUrl: "https://anilist.co/anime/5114",
+		coverImage: { extraLarge: "https://s4.anilist.co/xl.jpg", large: "https://s4.anilist.co/l.jpg", medium: "https://s4.anilist.co/m.jpg" },
+		studios: { nodes: [{ name: "Bones" }] }, externalLinks: [{ site: "Crunchyroll", type: "STREAMING" }, { site: "Twitter", type: "SOCIAL" }],
+		staff: { edges: [{ role: "Director", node: { name: { full: "Yasuhiro Irie" } } }, { role: "Music", node: { name: { full: "Akira Senju" } } }] },
+	};
+	const web = fakeWeb([
+		[(u, init) => u.hostname === "graphql.anilist.co" && init.body.includes("Page("), { data: { Page: { media: [media] } } }],
+		[host("graphql.anilist.co"), { data: { Media: media } }],
+		[host("api.jikan.moe", "/v4/anime/5114"), { data: { images: { jpg: { large_image_url: "https://cdn.myanimelist.net/l.jpg" } } } }],
+	]);
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const kinds = (await (await call(e, "/api/media/kinds")).json()).kinds;
+		assert.ok(kinds.every((k) => k.covers), "every kind offers covers");
+		assert.equal(kinds.find((k) => k.kind === "anime").folder, "content/logs/movies-tv");
+		const s = await (await call(e, "/api/media/search?kind=anime&q=fullmetal")).json();
+		assert.equal(s.results[0].title, "Fullmetal Alchemist: Brotherhood");
+		assert.match(s.results[0].subtitle, /TV series - 2009/);
+		const c = (await (await post(e, "/api/media/covers", { kind: "anime", ref: s.results[0].ref })).json()).covers;
+		assert.deepEqual(c, ["https://s4.anilist.co/xl.jpg", "https://cdn.myanimelist.net/l.jpg"]);
+		const n = await (await post(e, "/api/media/note", { kind: "anime", ref: s.results[0].ref, cover: c[1], today: "2026-10-07" })).json();
+		assert.deepEqual([n.fields.director, n.fields.studio, n.fields.episodes, n.fields.format], [["Yasuhiro Irie"], ["Bones"], 64, "TV series"]);
+		assert.deepEqual(n.fields.streamingServices, ["Crunchyroll"]);
+		assert.equal(n.fields.summary, "Two brothers. Alchemy.");
+		assert.equal(n.fields.coverImage, "https://cdn.myanimelist.net/l.jpg");
+		assert.equal(n.fields.banner, "https://s4.anilist.co/banner.jpg");
+		assert.equal(n.year, "2009");
+	} finally { web.restore(); }
+});
+
+test("album covers: the group's, its releases', then iTunes'", async () => {
+	const id = "9c3e150e-1bf4-47bb-8526-84f84562763e", rel = "11111111-2222-3333-4444-555555555555";
+	const web = fakeWeb([
+		[host("musicbrainz.org", "/ws/2/release"), { releases: [{ id: rel, date: "2011", "cover-art-archive": { front: true } }, { id: "22222222-2222-3333-4444-555555555555", "cover-art-archive": { front: false } }] }],
+		[host("coverartarchive.org"), new Response(null, { status: 404 })],
+		[host("itunes.apple.com"), { results: [
+			{ collectionName: "A New Dope (Deluxe Edition)", artistName: "Death*Star", artworkUrl100: "https://is1.mzstatic.com/a/100x100bb.jpg" },
+			{ collectionName: "Another Album", artistName: "Death*Star", artworkUrl100: "https://is1.mzstatic.com/b/100x100bb.jpg" },
+		] }],
+	]);
+	try {
+		const c = (await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/covers", { kind: "music", ref: { releaseGroupId: id, title: "A New Dope", artist: "Death*Star" } })).json()).covers;
+		assert.deepEqual(c, [`https://coverartarchive.org/release/${rel}/front-500`, "https://is1.mzstatic.com/a/600x600bb.jpg"]);
+	} finally { web.restore(); }
+});
+
+test("covers for an existing log: search its title, take the matching result's", async () => {
+	const web = fakeWeb([
+		[host("musicbrainz.org", "/ws/2/release-group"), { "release-groups": [] }],
+		[host("itunes.apple.com"), { results: [{ collectionName: "Kid A", artistName: "Radiohead", artworkUrl100: "https://is1.mzstatic.com/k/100x100bb.jpg" }] }],
+	]);
+	try {
+		const r = await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/findcovers", { kind: "music", title: "Kid A", creator: "Radiohead" })).json();
+		assert.deepEqual(r.covers, ["https://is1.mzstatic.com/k/600x600bb.jpg"], "iTunes when MusicBrainz has no match");
+		assert.equal((await post({ WR1T3R_TOKEN: "t" }, "/api/media/findcovers", { kind: "music", title: "" })).status, 400);
+	} finally { web.restore(); }
+});
+
+test("a movie's covers: OMDb's poster, then iTunes' for the same title and year", async () => {
+	const web = fakeWeb([
+		[(u) => u.hostname === "www.omdbapi.com" && u.searchParams.get("i"), { Title: "The Matrix", Type: "movie", Poster: "https://p/m.jpg" }],
+		[host("itunes.apple.com"), { results: [
+			{ trackName: "The Matrix", releaseDate: "1999-03-31T08:00:00Z", artworkUrl100: "https://is1.mzstatic.com/m/100x100bb.jpg" },
+			{ trackName: "The Matrix Resurrections", releaseDate: "2021-12-22T08:00:00Z", artworkUrl100: "https://is1.mzstatic.com/r/100x100bb.jpg" },
+		] }],
+	]);
+	try {
+		const c = (await (await post({ WR1T3R_TOKEN: "t", OMDB_API_KEY: "k" }, "/api/media/covers", { kind: "movie", ref: { imdbID: "tt0133093", title: "The Matrix", year: "1999" } })).json()).covers;
+		assert.deepEqual(c, ["https://p/m.jpg", "https://is1.mzstatic.com/m/600x600bb.jpg"]);
+	} finally { web.restore(); }
+});

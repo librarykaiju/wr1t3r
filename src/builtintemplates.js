@@ -16,6 +16,7 @@ const TEMPLATES = {
 	book: log("book", ["author:", "format: []"]),
 	movie: log("movie", ["director:", "year:"]),
 	series: log("series", ["year:"]),
+	anime: log("anime", ["studio:", "year:"]),
 	music: log("music", ["artist:", "year:"]),
 	game: log("game", ["platform:", "year:"]),
 	podcast: log("podcast", ["host:"]),

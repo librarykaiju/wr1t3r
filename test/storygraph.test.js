@@ -53,7 +53,7 @@ test("a new log reads back as a finished, rated book", () => {
 });
 
 test("matching titles, and filling in only what a log lacks", () => {
-	assert.equal(titleKey("Onyx Storm: Empyrean 3"), "onyx storm");
+	assert.equal(titleKey("Onyx Storm: Empyrean 3"), "onyx storm empyrean 3");
 	assert.equal(titleKey("Onyx Storm (2025)"), "onyx storm");
 	const books = readExport(CSV);
 	const logs = [{ path: "logs/books/Onyx Storm (2025).md", text: "---\ntitle: Onyx Storm\nshelf:\n  - Finished\nrating:\nvibesAndThemes:\n  - Epic\n---\n\nMine.\n" }];
@@ -98,4 +98,38 @@ test("covers and summaries from Open Library fill only empty properties", async 
 	assert.equal(genresFromLog("---\nsubjects:\n  - Tea\ngenre: []\n---\n"), null, "nothing to fill");
 	assert.equal(genresFromLog("---\ntitle: Not a book\nsubjects:\n  - Fantasy fiction\n---\n"), null, "only notes with a genre property");
 	assert.equal(needsLookup(fillBook(bookNote(a, "2026-10-07"), { ...found, coverImage: "x" })), false);
+});
+
+test("books sharing a title before the colon stay separate", () => {
+	const csv = [
+		"Title,Authors,ISBN/UID,Format,Read Status",
+		"Batman: Year One,Frank Miller,9781401207526,paperback,read",
+		"Batman: The Long Halloween,Jeph Loeb,978-1-4012-3259-7,paperback,to-read",
+		"Batman: Year One,Frank Miller,9781401207526,paperback,read",
+		"Dune,Frank Herbert,a1b2c3d4-e5f6,paperback,read",
+	].join("\n");
+	const books = readExport(csv);
+	assert.equal(books[1].isbn, "9781401232597");
+	assert.equal(books[3].isbn, null, "StoryGraph's own ids aren't ISBNs");
+	assert.deepEqual(planImport(books, []).add.map((b) => b.title), ["Batman: Year One", "Batman: The Long Halloween", "Dune"]);
+	const plan = planImport(books, [{ path: "logs/books/Batman.md", text: "---\ntitle: Batman\n---\n" }, { path: "logs/books/Batman Year One.md", text: "---\ntitle: \"Batman: Year One\"\n---\n" }]);
+	assert.deepEqual(plan.update.map((u) => [u.book.title, u.path]), [["Batman: Year One", "logs/books/Batman Year One.md"]]);
+	assert.equal(plan.add.length, 2, "a log titled just Batman could be either, so it isn't guessed");
+});
+
+test("the lookup goes by ISBN first, then title and author", async () => {
+	const { lookUpBook } = await import("../src/storygraph.js");
+	const calls = [];
+	const fake = (hits) => async (url) => {
+		calls.push(url);
+		return { ok: true, json: async () => ({ docs: url.includes("isbn=") && !hits ? [] : [{ cover_i: 7 }] }) };
+	};
+	const b = { title: "Batman: The Long Halloween", authors: ["Jeph Loeb"], isbn: "9781401232597" };
+	assert.equal((await lookUpBook(b, fake(true))).coverImage, "https://covers.openlibrary.org/b/id/7-M.jpg");
+	assert.equal(calls.length, 1);
+	assert.match(calls[0], /isbn=9781401232597/);
+	calls.length = 0;
+	await lookUpBook(b, fake(false));
+	assert.equal(calls.length, 2, "an unknown ISBN falls back to the title");
+	assert.match(calls[1], /title=Batman&author=Jeph\+Loeb/);
 });

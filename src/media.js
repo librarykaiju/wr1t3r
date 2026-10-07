@@ -161,14 +161,19 @@ export async function makeMediaNote(k, api, status, { blank = null } = {}) {
 	let cover = "";
 	if (k.covers) {
 		status("Finding covers…");
-		const covers = await api.mediaCovers(k.kind, hit.ref);
-		status("");
+		let covers;
+		try { covers = await api.mediaCovers(k.kind, hit.ref); } finally { status(""); }
 		const picked = await coverDialog(covers);
 		if (picked == null) return null;
 		cover = picked;
 	}
+	// The progress notice goes when the lookup ends, whether or not it worked.
 	status(`Looking up “${hit.title}”…`);
-	const today = new Date().toLocaleDateString("en-CA");
-	const { fields, year } = await api.mediaNote(k.kind, hit.ref, cover, today);
-	return { folder: k.folder + "/", name: mediaNoteName(fields.title, year), text: mediaNote(fields, k.heading) };
+	try {
+		const today = new Date().toLocaleDateString("en-CA");
+		const { fields, year } = await api.mediaNote(k.kind, hit.ref, cover, today);
+		return { folder: k.folder + "/", name: mediaNoteName(fields.title, year), text: mediaNote(fields, k.heading) };
+	} finally {
+		status("");
+	}
 }

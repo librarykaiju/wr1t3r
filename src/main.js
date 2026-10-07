@@ -53,7 +53,9 @@ import { readTypes, writeTypes, listKeys, propertyUsage, CHOICE_TYPES, toChoices
 import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
-import { makeMediaNote } from "./media.js";
+import { makeMediaNote, coverDialog } from "./media.js";
+import { coverQuery } from "./medianote.js";
+import { parseFrontmatter } from "./dvpage.js";
 import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
 import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
 import { reorder } from "./drag.js";
@@ -2937,6 +2939,8 @@ function allCommands() {
 		["Fill book genres from subjects", fillBookGenres, "genre genres subjects books open library tags book logs"],
 		["Update log ratings and formats", updateRatingsAndFormats, "rating ratings stars star format audiobook comic book logs convert numbers"],
 		["Open stats", () => pickFolder("stats"), "charts graphs reading year review books read storygraph goodreads ratings genres"],
+		["Choose a cover for this log", chooseLogCover, "cover image poster album art change picture log book movie music game anime podcast"],
+		["Fill missing music covers", fillMusicCovers, "album art cover music logs musicbrainz itunes backfill"],
 		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Transcribe a video or audio file", transcribeIntoNote, "transcript speech text speakers video audio mp4 mov podcast interview", true],
@@ -3792,14 +3796,74 @@ async function loadMediaKinds() {
 	} catch {}
 }
 
-const MEDIA_COMMANDS = { movie: "movie/TV", book: "book", music: "music", game: "game", comic: "comic", podcast: "podcast" };
+const MEDIA_COMMANDS = { movie: "movie/TV", anime: "anime", book: "book", music: "music", game: "game", comic: "comic", podcast: "podcast" };
+
+// The cover picker for the open log: covers found by its title (and artist,
+// author or year), the same choices a new log gets.
+async function chooseLogCover() {
+	const path = editor.path, n = path && notes.get(path);
+	if (!n || n.binary || n.deleted) return toast("Open a log to choose its cover.");
+	const q = coverQuery(path, parseFrontmatter(n.text || ""), mediaKinds);
+	if (!q) return toast("Covers can be chosen for notes in the log folders (books, movies and TV, music, games, podcasts).");
+	if (!navigator.onLine) return toast("Finding covers needs a connection.");
+	const note = toast(`Finding covers for “${q.title}”…`, 60000);
+	let covers;
+	try {
+		covers = await (await mediaSource()).mediaFindCovers(q.kind, q.title, q.creator, q.year);
+	} catch (e) {
+		if (e instanceof AuthError) return signOut(SIGNED_OUT);
+		return toast("Couldn't look for covers: " + e.message, 8000);
+	} finally {
+		note.close();
+	}
+	const picked = await coverDialog(covers);
+	if (picked == null) return;
+	await dataviewVault.write(path, (t) => setProperty(t, "coverImage", picked));
+	scheduleSync();
+}
+
+// Music logs with no cover get the first one found for their album and artist.
+async function fillMusicCovers() {
+	const folder = mediaKinds.find((k) => k.kind === "music")?.folder;
+	if (!folder) return toast("Music lookups aren't loaded yet; try again in a moment.");
+	const empty = (v) => !String((Array.isArray(v) ? v[0] : v) ?? "").trim();
+	const todo = visible().filter((n) => !n.binary && /\.md$/i.test(n.path) && n.path.toLowerCase().startsWith(folder.toLowerCase().replace(/\/*$/, "/")))
+		.map((n) => ({ path: n.path, q: coverQuery(n.path, parseFrontmatter(n.text || ""), mediaKinds), props: parseFrontmatter(n.text || "") }))
+		.filter((x) => x.q && empty(x.props.coverImage) && empty(x.props.cover));
+	if (!todo.length) return toast("Every music log has a cover.");
+	if (!navigator.onLine) return toast("Finding covers needs a connection.");
+	if (!confirm(`Look up covers for ${todo.length} music log${todo.length === 1 ? "" : "s"} with none?\n\nEach gets the first cover found for its album and artist (MusicBrainz, Cover Art Archive, then iTunes). Choose a cover for this log changes one you don't like.`)) return;
+	const source = await mediaSource();
+	const note = toast(`Finding covers: 0 of ${todo.length}…`, 10 * 60000);
+	const missed = [];
+	try {
+		for (let i = 0; i < todo.length; i++) {
+			note.set(`Finding covers: ${i + 1} of ${todo.length}…`);
+			const { path, q } = todo[i];
+			try {
+				const [cover] = await source.mediaFindCovers("music", q.title, q.creator, q.year);
+				if (cover) await dataviewVault.write(path, (t) => setProperty(t, "coverImage", cover));
+				else missed.push(q.title);
+			} catch (e) {
+				if (e instanceof AuthError) return signOut(SIGNED_OUT);
+				missed.push(q.title);
+			}
+		}
+	} finally {
+		note.close();
+	}
+	scheduleSync();
+	const found = todo.length - missed.length;
+	toast(`Found covers for ${found} of ${todo.length} music log${todo.length === 1 ? "" : "s"}.` + (missed.length ? ` None found for: ${missed.slice(0, 6).join(", ")}${missed.length > 6 ? "…" : ""}` : ""), 10000);
+	folderTouched();
+}
 
 // kind: the new-note kind this was started from, so "Start blank" can make
 // that kind's note from its template instead.
 async function newMediaNote(k, kind = null) {
 	if (!navigator.onLine) return toast("Media lookups need a connection.");
+	let progress = null;
 	try {
-		let progress = null;
 		const made = await makeMediaNote(k, await mediaSource(), (text) => {
 			if (text) progress ? progress.set(text) : (progress = toast(text, 60000));
 			else { progress?.close(); progress = null; }
@@ -3812,6 +3876,8 @@ async function newMediaNote(k, kind = null) {
 	} catch (e) {
 		if (e instanceof AuthError) return signOut(SIGNED_OUT);
 		toast("Couldn't make that note: " + e.message, 8000);
+	} finally {
+		progress?.close();
 	}
 }
 
