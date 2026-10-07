@@ -33,6 +33,7 @@
 				<h1 class="app-name">wr1t3r</h1>
 				<input id="filter" type="search" placeholder="Search notes" aria-label="Search notes" title="Words, &quot;a phrase&quot;, path:folder, file:name, tag:x or #x, -word to leave out">
 				<button id="new" type="button" title="New note">New</button>
+				<button id="project" type="button" data-feature="longform" title="Start a short story, novel, essay or script">Project</button>
 				<button id="today" type="button" data-feature="daily" title="Open today's daily note">Today</button>
 				<button id="upload" type="button" title="Upload files as notes (Word, PDF, HTML, text)">Upload</button>
 				<button id="clip" type="button" data-feature="capture" title="Clip a web page as a note">Clip</button>
@@ -94,7 +95,7 @@
 				<div class="fv-bar">
 					<nav id="fvCrumbs" class="fv-crumbs" aria-label="Folder"></nav>
 					<div id="fvModes" class="fv-modes" role="group" aria-label="Show the folder as">
-						<button type="button" data-view="corkboard" title="Index cards you can drag into order">Corkboard</button>
+						<button type="button" data-view="corkboard" title="Index cards you can drag into order">Storyboard</button>
 						<button type="button" data-view="outliner" title="A table of the folder's notes, in order">Outliner</button>
 						<button type="button" data-view="scrivenings" title="Every note in the folder as one long document">Draft</button>
 						<button type="button" data-view="stats" id="fvStats" data-feature="media" title="Charts of what's finished, ratings, genres and more" hidden>Stats</button>
@@ -298,13 +299,13 @@
 							<button id="homeAdd" type="button">Add a tile</button>
 							<button id="homeEdit" type="button">Edit as text</button>
 						</div>
-						<p class="hint">Tiles and their order sync through _wr1t3r/Home.md, which stays out of the notes list. Pinned folders open as a corkboard.</p>
+						<p class="hint">Tiles and their order sync through _wr1t3r/Home.md, which stays out of the notes list. Pinned folders open as a storyboard.</p>
 					</section>
 					<section class="set-pane" data-tab="templates" data-title="Templates" role="tabpanel" hidden>
 						<h2>Templates</h2>
 						<div id="templateList" class="home-pins"></div>
 						<div class="seg"><button id="templateAdd" type="button">New template</button></div>
-						<p class="hint">Templates live in the vault's _templates folder and stay out of the notes list. Each one is also a / command and an “Insert template” command you can give a hotkey.</p>
+						<p class="hint">Templates live in the vault's _templates folder and stay out of the notes list. Each one is also a / command and an “Insert template” command you can give a hotkey. Built-in ones are wr1t3r's writing templates; Make my own copy puts one in _templates to change.</p>
 					</section>
 					<section class="set-pane" data-tab="features" data-title="Features" role="tabpanel" hidden></section>
 					<section class="set-pane" data-tab="license" data-title="License" role="tabpanel" hidden></section>

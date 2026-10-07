@@ -65,3 +65,11 @@ test("settings are saved in the binder and read back", () => {
 	assert.deepEqual(compileSettings(readBinder(t).compile), { title: "New: Book", author: "Me", headings: "none", separator: "blank", layout: "book" });
 	assert.equal(writeCompileSettings("1. [[One]]\n", { layout: "manuscript" }), "---\ncompile:\n  headings: title\n  separator: scene\n  layout: manuscript\n---\n1. [[One]]\n");
 });
+
+test("a folder whose notes are all left out gets no heading", () => {
+	const text = { "B/a.md": "Story.", "B/Notes/n.md": "---\ncompile: false\n---\nPlan." };
+	const parts = [{ kind: "note", path: "B/a.md", depth: 0 }, { kind: "folder", path: "B/Notes/", depth: 0 }, { kind: "note", path: "B/Notes/n.md", depth: 1 }];
+	const md = compileMarkdown(parts, { headings: "title" }, (p) => text[p], { titlePage: false }).markdown;
+	assert.doesNotMatch(md, /Notes|Plan/);
+	assert.match(compileMarkdown(parts, { headings: "title" }, (p) => text[p], { titlePage: false, keepAll: true }).markdown, /# Notes[\s\S]*Plan/);
+});

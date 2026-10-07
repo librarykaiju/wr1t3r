@@ -11,7 +11,7 @@ import { linkFor } from "./home.js";
 import { stripFrontmatter, countWords } from "./count.js";
 
 export const BINDER = "_Binder.md";
-export const BINDER_INTRO = "%% The order of this folder in wr1t3r (corkboard, outliner, compile). Reorder the list to reorder the folder. %%";
+export const BINDER_INTRO = "%% The order of this folder in wr1t3r (storyboard, outliner, compile). Reorder the list to reorder the folder. %%";
 
 export const binderPath = (folder) => folder + BINDER;
 export const isBinder = (path) => /(^|\/)_binder\.md$/i.test(path);

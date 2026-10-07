@@ -1411,6 +1411,7 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 }
 .home-pin span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .home-pin small { flex: none; color: var(--muted); font-size: 12px; }
+.template-row .template-tag { margin-left: auto; font-style: italic; }
 .template-row { --tc: var(--mark); }
 .home-pin-section { --tc: var(--mark); margin-top: 6px; background: none; border-style: dashed; color: var(--muted); font-weight: 600; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; }
 @media (hover: hover) { .home-pin:hover { background: color-mix(in srgb, var(--tc) 32%, var(--bg)); } }
@@ -1459,7 +1460,13 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .sort-ghost { opacity: 0.92; box-shadow: 0 14px 34px rgb(0 0 0 / 0.28) !important; rotate: -1.5deg; }
 .sort-dragging { opacity: 0.3; }
 
-/* Corkboard: index cards, in the theme's rainbow when labeled. */
+/* Storyboard (named corkboard in the code): index cards, in the theme's
+   rainbow when labeled, on a bullet-journal dot grid that scrolls with them. */
+#fvBody:has(> .board) {
+	--dot: color-mix(in srgb, var(--fg) 20%, transparent);
+	background-image: radial-gradient(circle at center, var(--dot) 1.2px, transparent 1.6px);
+	background-size: 22px 22px; background-position: 11px 11px; background-attachment: local;
+}
 .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; padding: 18px 18px 80px; max-width: 1400px; margin: 0 auto; }
 @media (max-width: 480px) { .board { grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 10px 80px; } }
 .card {
@@ -1580,6 +1587,16 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
    double-spaced prose, first line of each paragraph indented. Only paragraph
    lines change; headings, lists, quotes and code keep their look. */
 .cm-editor.ms-layout .cm-line.ms-para { line-height: 2; text-indent: 2.5em; }
+/* Script layout (cssclasses: script, src/scriptview.js): a screenplay page in
+   Courier, measured in characters as the page is (60 to a line). Character
+   names 22 in, dialogue 10 in and 35 wide, parentheticals 16 in, transitions
+   right. Markdown lines (headings, lists) keep their look. */
+.cm-editor.sp-layout .cm-content { font-family: "Courier Prime", "Courier New", Courier, monospace; }
+.cm-editor.sp-layout .cm-line.sp-scene { font-weight: 700; text-transform: uppercase; padding-top: 0.6em; }
+.cm-editor.sp-layout .cm-line.sp-character { padding-left: min(22ch, 37%); text-transform: uppercase; }
+.cm-editor.sp-layout .cm-line.sp-dialogue { padding-left: min(10ch, 17%); padding-right: max(4px, calc(100% - min(10ch, 17%) - 35ch)); }
+.cm-editor.sp-layout .cm-line.sp-paren { padding-left: min(16ch, 27%); padding-right: max(4px, calc(100% - min(16ch, 27%) - 25ch)); }
+.cm-editor.sp-layout .cm-line.sp-transition { text-align: right; text-transform: uppercase; }
 /* The Properties cleanup panel (propcleanview.js). */
 .props-box { width: min(900px, 100%); }
 .props-body { flex: 1; overflow: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }

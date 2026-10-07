@@ -154,3 +154,7 @@ test("a cards block is a bare list of the same entries", () => {
 	assert.deepEqual(readCards("not: [a list"), []);
 	assert.equal(writeCards([]), "");
 });
+
+test("a storyboard: pin is the folder's storyboard, kept as corkboard inside", () => {
+	assert.deepEqual(pinKind("storyboard:content/Novel"), { kind: "view", view: "corkboard", folder: "content/Novel/" });
+});

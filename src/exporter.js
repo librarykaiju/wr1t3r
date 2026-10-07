@@ -5,6 +5,7 @@
 import { pageRule, pageTwips, pageSetup, marginParts } from "./pagelayout.js";
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
+import { scriptKinds } from "./script.js";
 
 const IMG = "wr1t3r-image:";
 
@@ -46,6 +47,16 @@ main.manuscript p { margin: 0; text-indent: 0.5in; }
 main.manuscript :is(blockquote, li, .footnotes, .title-page) p { text-indent: 0; }
 main.manuscript :is(blockquote, li, .footnotes) { line-height: 1.65; }
 main.manuscript hr { margin: 1em 0; }
+main.script { max-width: 6in; font: 12pt/1.2 "Courier Prime", "Courier New", Courier, monospace; }
+main.script :is(h1, h2, h3, h4, h5, h6) { font: inherit; font-weight: 700; text-transform: uppercase; text-decoration: underline; margin: 2em 0 1em; }
+main.script .title-page h1 { text-decoration: none; }
+main.script .sp { margin: 0 0 1.2em; }
+main.script .sp p { margin: 0; }
+main.script .sp-scene { font-weight: 700; text-transform: uppercase; margin-top: 2.4em !important; break-after: avoid; }
+main.script .sp-character { margin-left: 2.2in !important; text-transform: uppercase; break-after: avoid; }
+main.script .sp-paren { margin: 0 2in 0 1.5in !important; }
+main.script .sp-dialogue { margin: 0 1.5in 0 1in !important; }
+main.script .sp-transition { text-align: right; text-transform: uppercase; }
 @page { margin: 1in; }
 @media print { main { margin: 0 auto; max-width: none; padding: 0; } .title-page { padding-top: 35%; } }
 `;
@@ -73,6 +84,43 @@ export async function prepareImages(markdown, resolve) {
 	return out;
 }
 
+// A paragraph's lines, split at its line breaks: [[inline tokens], ...].
+function lineGroups(children) {
+	const out = [[]];
+	for (const c of children) {
+		if (c.type === "softbreak" || c.type === "hardbreak") out.push([]);
+		else out[out.length - 1].push(c);
+	}
+	return out;
+}
+
+// In the script layout each line of a paragraph is its own part of the
+// script (src/script.js), found from the lines of the compiled text.
+function scriptParagraphs(tokens, markdown) {
+	const kinds = scriptKinds(markdown.split("\n"));
+	return (i) => {
+		const t = tokens[i];
+		if (t.type !== "paragraph_open" || t.level !== 0 || !t.map) return null;
+		return lineGroups(tokens[i + 1].children || []).map((children, n) => ({ children, kind: kinds[t.map[0] + n] || "action" }));
+	};
+}
+
+function renderScript(md, markdown) {
+	const env = {};
+	const tokens = md.parse(markdown, env);
+	const lines = scriptParagraphs(tokens, markdown);
+	const out = [];
+	for (let i = 0; i < tokens.length; i++) {
+		const parts = lines(i);
+		if (!parts) { out.push(tokens[i]); continue; }
+		const html = parts.map((p) => `<p class="sp-${p.kind}">${md.renderer.renderInline(p.children, md.options, env)}</p>`).join("\n");
+		const block = Object.assign(Object.create(Object.getPrototypeOf(tokens[i])), tokens[i], { type: "html_block", tag: "", nesting: 0, content: `<div class="sp">\n${html}\n</div>\n` });
+		out.push(block);
+		i += 2;
+	}
+	return md.renderer.render(out, md.options, env);
+}
+
 // A whole HTML page, styled like a printed book.
 export function toHTML(markdown, { title = "", images = new Map(), layout = "book" } = {}) {
 	const md = parser();
@@ -87,7 +135,7 @@ export function toHTML(markdown, { title = "", images = new Map(), layout = "boo
 		}
 		return img(tokens, i, options, env, self);
 	};
-	const body = md.render(markdown);
+	const body = layout === "script" ? renderScript(md, markdown) : md.render(markdown);
 	return `<!doctype html>
 <html lang="en">
 <head>
@@ -96,7 +144,7 @@ export function toHTML(markdown, { title = "", images = new Map(), layout = "boo
 <title>${esc(title || "Compiled")}</title>
 <style>${BOOK_CSS.replace("@page { margin: 1in; }", pageRule(pageSetup(), { title, titlePage: body.includes('class="title-page"') }))}</style>
 </head>
-<body><main${layout === "manuscript" ? ' class="manuscript"' : ""}>
+<body><main${layout === "manuscript" || layout === "script" ? ` class="${layout}"` : ""}>
 ${body}</main></body>
 </html>
 `;
@@ -136,11 +184,22 @@ function wordMargins(d, title, titlePage) {
 }
 
 export async function toDocx(markdown, { title = "", author = "", images = new Map(), layout = "book" } = {}) {
-	const ms = layout === "manuscript";
+	const ms = layout === "manuscript", sp = layout === "script";
 	const d = await import("docx");
 	const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink, FootnoteReferenceRun, PageBreak, ImageRun, Table, TableRow, TableCell, WidthType, BorderStyle, LevelFormat } = d;
 	const env = {};
 	const tokens = parser().parse(markdown, env);
+	const scriptLines = sp ? scriptParagraphs(tokens, markdown) : () => null;
+	// A screenplay page's indents, in twips (1440 to the inch) from the text's left.
+	const SP = {
+		scene: { keepNext: true, spacing: { before: 480, after: 240 } },
+		action: { spacing: { after: 240 } },
+		character: { keepNext: true, indent: { left: 3168 } },
+		paren: { keepNext: true, indent: { left: 2160, right: 2880 } },
+		dialogue: { indent: { left: 1440, right: 2160 } },
+		transition: { alignment: AlignmentType.RIGHT, spacing: { before: 240, after: 240 } },
+	};
+	const CAPS = new Set(["scene", "character", "transition"]);
 
 	// Footnotes first: markdown-it puts their text in a block at the end.
 	const footnotes = {};
@@ -190,6 +249,17 @@ export async function toDocx(markdown, { title = "", author = "", images = new M
 				break;
 			}
 			case "paragraph_open": {
+				const parts = scriptLines(i);
+				if (parts) {
+					parts.forEach((p, n) => {
+						const last = n === parts.length - 1;
+						const opts = { ...SP[p.kind], children: runs(p.children, { bold: p.kind === "scene", caps: CAPS.has(p.kind) }) };
+						if (last && (p.kind === "dialogue" || p.kind === "paren" || p.kind === "character")) opts.spacing = { after: 240 };
+						para(opts);
+					});
+					i += 2;
+					break;
+				}
 				const inline = tokens[i + 1];
 				const opts = { children: runs(inline.children) };
 				const l = lists[lists.length - 1];
@@ -285,14 +355,14 @@ export async function toDocx(markdown, { title = "", author = "", images = new M
 		return res;
 	}
 	function style(st) {
-		return { bold: st.bold || undefined, italics: st.italics || undefined, strike: st.strike || undefined, highlight: st.highlight, style: undefined };
+		return { bold: st.bold || undefined, italics: st.italics || undefined, strike: st.strike || undefined, highlight: st.highlight, allCaps: st.caps || undefined, font: sp ? "Courier New" : undefined, style: undefined };
 	}
 
 	const doc = new Document({
 		creator: author || "wr1t3r",
 		title: title || undefined,
 		styles: {
-			default: { document: { run: { font: "Times New Roman", size: 24 }, paragraph: { spacing: ms ? { after: 0, line: 480 } : { after: 160, line: 360 } } } },
+			default: { document: { run: { font: "Times New Roman", size: 24 }, paragraph: { spacing: ms ? { after: 0, line: 480 } : sp ? { after: 0, line: 240 } : { after: 160, line: 360 } } } },
 		},
 		numbering: {
 			config: [{

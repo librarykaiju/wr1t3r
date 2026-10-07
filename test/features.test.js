@@ -48,7 +48,8 @@ test("cleanFolder", () => {
 });
 
 test("commands map to their areas; core commands to none", () => {
-	assert.equal(commandArea("Open corkboard"), "longform");
+	assert.equal(commandArea("Open storyboard"), "longform");
+	assert.equal(commandArea("New project"), "longform");
 	assert.equal(commandArea("Log food"), "health");
 	assert.equal(commandArea("New comic log"), "media");
 	assert.equal(commandArea("New note"), null);
