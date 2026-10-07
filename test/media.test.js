@@ -381,7 +381,8 @@ test("an anime: AniList's details, its cover and MyAnimeList's to choose from", 
 		const c = (await (await post(e, "/api/media/covers", { kind: "anime", ref: s.results[0].ref })).json()).covers;
 		assert.deepEqual(c, ["https://s4.anilist.co/xl.jpg", "https://cdn.myanimelist.net/l.jpg"]);
 		const n = await (await post(e, "/api/media/note", { kind: "anime", ref: s.results[0].ref, cover: c[1], today: "2026-10-07" })).json();
-		assert.deepEqual([n.fields.director, n.fields.studio, n.fields.episodes, n.fields.format], [["Yasuhiro Irie"], ["Bones"], 64, "TV series"]);
+		assert.deepEqual([n.fields.director, n.fields.studio, n.fields.episodes], [["Yasuhiro Irie"], ["Bones"], 64]);
+		assert.ok(!("format" in n.fields), "format is for book logs only");
 		assert.deepEqual(n.fields.streamingServices, ["Crunchyroll"]);
 		assert.equal(n.fields.summary, "Two brothers. Alchemy.");
 		assert.equal(n.fields.coverImage, "https://cdn.myanimelist.net/l.jpg");
@@ -402,7 +403,9 @@ test("album covers: the group's, its releases', then iTunes'", async () => {
 	]);
 	try {
 		const c = (await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/covers", { kind: "music", ref: { releaseGroupId: id, title: "A New Dope", artist: "Death*Star" } })).json()).covers;
-		assert.deepEqual(c, [`https://coverartarchive.org/release/${rel}/front-500`, "https://is1.mzstatic.com/a/600x600bb.jpg"]);
+		assert.deepEqual(c, [`https://coverartarchive.org/release-group/${id}/front-500`, `https://coverartarchive.org/release/${rel}/front-500`, "https://is1.mzstatic.com/a/600x600bb.jpg"],
+			"the group's cover isn't checked first (slow); the picker drops pictures that don't load");
+		assert.ok(!web.seen.some((x) => x.url.startsWith("https://coverartarchive.org/")), "no call to Cover Art Archive");
 	} finally { web.restore(); }
 });
 
@@ -464,4 +467,19 @@ test("the page's security policy lets it reach every keyless lookup service", as
 	const workerOnly = /omdbapi|rawg|igdb|twitch|comicvine|steampowered|anthropic/;
 	const hosts = [...new Set([...code.matchAll(/https:\/\/([a-z0-9.-]+\.[a-z]+)/g)].map((m) => m[1]))].filter((h) => !workerOnly.test(h) && !/^(images|media|covers|s4|cdn|is1)\./.test(h) && h !== "wr1t3r.invalid" && h !== "github.com");
 	for (const h of hosts) assert.ok(csp.includes("https://" + h), `connect-src is missing https://${h}`);
+});
+
+test("a slow cover source doesn't hold up the others", async () => {
+	const real = globalThis.setTimeout;
+	const web = fakeWeb([
+		[host("graphql.anilist.co"), { data: { Media: { coverImage: { extraLarge: "https://s4.anilist.co/xl.jpg" } } } }],
+	]);
+	const fetchNow = globalThis.fetch;
+	globalThis.fetch = (url, init) => (new URL(url).hostname === "api.jikan.moe" ? new Promise(() => {}) : fetchNow(url, init));
+	// Time runs fast for the give-up timer.
+	globalThis.setTimeout = (fn, ms, ...a) => real(fn, ms >= 1000 ? 5 : ms, ...a);
+	try {
+		const c = (await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/covers", { kind: "anime", ref: { anilistId: 1, idMal: 2 } })).json()).covers;
+		assert.deepEqual(c, ["https://s4.anilist.co/xl.jpg"]);
+	} finally { globalThis.setTimeout = real; globalThis.fetch = fetchNow; web.restore(); }
 });

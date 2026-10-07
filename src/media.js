@@ -109,6 +109,12 @@ export function coverDialog(covers) {
 			img.src = u;
 			img.alt = "";
 			img.referrerPolicy = "no-referrer";
+			// A choice whose picture doesn't load (Cover Art Archive has none
+			// for that album) is left out.
+			img.addEventListener("error", () => {
+				b.remove();
+				if (!grid.children.length) grid.replaceWith(Object.assign(document.createElement("p"), { className: "hotkey-now", textContent: "No cover art found. Paste an address below, or skip." }));
+			});
 			b.append(img);
 			b.addEventListener("click", () => done(u));
 			grid.append(b);

@@ -111,6 +111,12 @@ async function getJSON(u, init = {}) {
 // Swallows a lookup's failure, for the optional extras (covers, summaries).
 const quietly = async (fn, fallback) => { try { return await fn(); } catch { return fallback; } };
 
+// The same, giving up after ms: cover choices come from several services at
+// once, and one slow one (Cover Art Archive and Jikan can take many seconds)
+// shouldn't hold up the rest.
+const COVER_WAIT = 6000;
+const soon = (fn, fallback, ms = COVER_WAIT) => Promise.race([quietly(fn, fallback), new Promise((r) => setTimeout(() => r(fallback), ms))]);
+
 function httpsUrl(v) {
 	if (typeof v !== "string" || !v) return "";
 	try { const u = new URL(v); return u.protocol === "https:" ? u.href : ""; } catch { return ""; }
@@ -163,7 +169,7 @@ async function omdb(env, params) {
 // A film's or show's poster from iTunes, matched by title (and year when
 // it's known).
 async function itunesPoster(title, year = "", series = false) {
-	return quietly(async () => {
+	return soon(async () => {
 		const data = await getJSON("https://itunes.apple.com/search?" + new URLSearchParams(series
 			? { term: title, media: "tvShow", entity: "tvSeason", limit: "15" }
 			: { term: title, media: "movie", entity: "movie", limit: "15" }));
@@ -195,7 +201,7 @@ const ANIME_FIELDS = "id idMal title { romaji english } startDate { year } forma
 
 async function malCover(idMal) {
 	if (!Number.isInteger(idMal)) return [];
-	return quietly(async () => {
+	return soon(async () => {
 		const img = (await getJSON(`https://api.jikan.moe/v4/anime/${idMal}`)).data?.images;
 		return [img?.webp?.large_image_url, img?.jpg?.large_image_url].map(httpsUrl).filter(Boolean).slice(0, 1);
 	}, []);
@@ -320,10 +326,12 @@ function languageName(code) {
 }
 
 // The release group's front cover from Cover Art Archive, if it has one
-// (it redirects to it).
-async function groupCover(id) {
+// (it redirects to it). For the cover picker it isn't checked first: asking
+// Cover Art Archive is slow, and the picker leaves out pictures that don't load.
+async function groupCover(id, { check = true } = {}) {
 	const u = `https://coverartarchive.org/release-group/${id}/front-500`;
-	return quietly(async () => {
+	if (!check) return u;
+	return soon(async () => {
 		// A page can't see a redirect, so it asks for the list of images instead.
 		if (inPage) return ((await getJSON(`https://coverartarchive.org/release-group/${id}`)).images || []).some((i) => i.front) ? u : "";
 		const res = await fetch(u, { method: "HEAD", redirect: "manual", headers: { "User-Agent": UA } });
@@ -335,7 +343,7 @@ async function groupCover(id) {
 // An album's artwork from iTunes: the album whose name starts with the title
 // (iTunes adds " - Single", "(Deluxe Edition)"), by that artist if one's given.
 async function itunesAlbum(title, artist = "") {
-	return quietly(async () => {
+	return soon(async () => {
 		const data = await getJSON("https://itunes.apple.com/search?" + new URLSearchParams({ term: [artist, title].filter(Boolean).join(" "), media: "music", entity: "album", limit: "15" }));
 		const want = looseTitle(title), who = looseTitle(artist);
 		return (data.results || [])
@@ -347,10 +355,10 @@ async function itunesAlbum(title, artist = "") {
 // An album's cover choices: the release group's own front cover, then the
 // fronts of its releases (many groups have art only on one release, which is
 // why some notes came out with none), then iTunes'.
-async function albumCovers(id, releases, title, artist) {
-	const fronts = releases.filter((r) => r["cover-art-archive"]?.front && UUID.test(r.id || "")).slice(0, 4)
+async function albumCovers(id, releases, title, artist, { check = true } = {}) {
+	const [list, group, itunes] = await Promise.all([releases, groupCover(id, { check }), itunesAlbum(title, artist)]);
+	const fronts = (list || []).filter((r) => r["cover-art-archive"]?.front && UUID.test(r.id || "")).slice(0, 4)
 		.map((r) => `https://coverartarchive.org/release/${r.id}/front-500`);
-	const [group, itunes] = await Promise.all([groupCover(id), itunesAlbum(title, artist)]);
 	return [...new Set([group, ...fronts, ...itunes].filter(Boolean))].slice(0, 8);
 }
 
@@ -489,7 +497,7 @@ const SEARCH = {
 				title: animeTitle(a.title),
 				subtitle: [a.title?.english && a.title.romaji !== a.title.english ? a.title.romaji : "", FORMAT_NAMES[a.format] || "", a.startDate?.year].filter(Boolean).join(" - "),
 				thumbnailUrl: a.coverImage?.medium || undefined,
-				ref: { anilistId: a.id, title: animeTitle(a.title), year: a.startDate?.year ? String(a.startDate.year) : "" },
+				ref: { anilistId: a.id, idMal: Number.isInteger(a.idMal) ? a.idMal : null, title: animeTitle(a.title), year: a.startDate?.year ? String(a.startDate.year) : "" },
 			}));
 		}).catch((e) => { failed = e; return []; });
 		if (found.length) return found;
@@ -560,31 +568,34 @@ const COVERS = {
 	// The poster OMDb or Wikipedia has, then iTunes' for the same title.
 	async movie(env, ref) {
 		const title = str(ref.title), year = str(ref.year, 10);
-		let own = [], series = !!ref.series;
-		if (isQid(ref.qid)) own = await quietly(() => wikiCovers(getJSON, ref), []);
-		else if (/^tt\d+$/.test(ref.imdbID || "") && env.OMDB_API_KEY) {
-			const t = await quietly(() => omdb(env, { i: ref.imdbID }), null);
-			if (t?.Poster && t.Poster !== "N/A") own = [t.Poster];
-			if (t?.Type) series = t.Type === "series";
-		}
-		const more = title ? await itunesPoster(title, year, series) : [];
+		const imdb = /^tt\d+$/.test(ref.imdbID || "") && env.OMDB_API_KEY;
+		const [own, more] = await Promise.all([
+			isQid(ref.qid) ? soon(() => wikiCovers(getJSON, ref), [])
+				: imdb ? soon(async () => { const t = await omdb(env, { i: ref.imdbID }); return t?.Poster && t.Poster !== "N/A" ? [t.Poster] : []; }, [])
+				: [],
+			title ? itunesPoster(title, year, !!ref.series) : [],
+		]);
 		return [...new Set([...own.map(httpsUrl), ...more].filter(Boolean))];
 	},
 	// AniList's cover, then MyAnimeList's.
 	async anime(env, ref) {
 		if (isQid(ref.qid)) return COVERS.movie(env, { ...ref, series: true });
 		need(Number.isInteger(ref.anilistId), "anilistId");
-		const a = (await anilist(`query ($id: Int) { Media(id: $id, type: ANIME) { ${ANIME_FIELDS} } }`, { id: ref.anilistId })).data?.Media;
-		const own = [a?.coverImage?.extraLarge, a?.coverImage?.large].map(httpsUrl).filter(Boolean).slice(0, 1);
-		return [...new Set([...own, ...(await malCover(a?.idMal))])];
+		const [own, mal] = await Promise.all([
+			soon(async () => {
+				const a = (await anilist(`query ($id: Int) { Media(id: $id, type: ANIME) { ${ANIME_FIELDS} } }`, { id: ref.anilistId })).data?.Media;
+				return [a?.coverImage?.extraLarge, a?.coverImage?.large].map(httpsUrl).filter(Boolean).slice(0, 1);
+			}, []),
+			malCover(ref.idMal),
+		]);
+		return [...new Set([...own, ...mal])];
 	},
 	async music(env, ref) {
 		need(UUID.test(ref.releaseGroupId || ""), "releaseGroupId");
-		const releases = await quietly(() => releasesOf(ref.releaseGroupId), []);
-		return albumCovers(ref.releaseGroupId, releases, str(ref.title), str(ref.artist));
+		return albumCovers(ref.releaseGroupId, soon(() => releasesOf(ref.releaseGroupId), []), str(ref.title), str(ref.artist), { check: false });
 	},
 	async comic(env, ref) {
-		if (isQid(ref.qid)) return quietly(() => wikiCovers(getJSON, ref), []);
+		if (isQid(ref.qid)) return soon(() => wikiCovers(getJSON, ref), []);
 		need(Number.isInteger(ref.issueId), "issueId");
 		const i = (await comicVine(env, `/issue/4000-${ref.issueId}/`, { field_list: "image" })).results;
 		return [...new Set([i?.image?.original_url, i?.image?.medium_url].map(httpsUrl).filter(Boolean))].slice(0, 1);
@@ -599,9 +610,9 @@ const COVERS = {
 	async book(env, ref) {
 		const b = bookRef(ref);
 		const [google, others] = await Promise.all([
-			quietly(async () => ((await googleBooks(b.title, b.authors[0], 5)).items || [])
+			soon(async () => ((await googleBooks(b.title, b.authors[0], 5)).items || [])
 				.map((i) => i.volumeInfo?.imageLinks?.thumbnail || i.volumeInfo?.imageLinks?.smallThumbnail).filter(Boolean).map(bigGoogleCover), []),
-			quietly(async () => [...new Set(((await editions(b.workKey)).entries || []).map((e) => e.covers?.[0]).filter((c) => typeof c === "number" && c > 0))]
+			soon(async () => [...new Set(((await editions(b.workKey)).entries || []).map((e) => e.covers?.[0]).filter((c) => typeof c === "number" && c > 0))]
 				.map((c) => `https://covers.openlibrary.org/b/id/${c}-M.jpg`), []),
 		]);
 		const own = b.coverId ? [`https://covers.openlibrary.org/b/id/${b.coverId}-M.jpg`] : [];
@@ -612,11 +623,11 @@ const COVERS = {
 	async game(env, ref) {
 		const title = str(ref.title), year = str(ref.year, 10);
 		if (isQid(ref.qid)) {
-			const [art, wiki] = await Promise.all([boxArt(env, title, year), quietly(() => wikiCovers(getJSON, ref), [])]);
+			const [art, wiki] = await Promise.all([soon(() => boxArt(env, title, year), []), soon(() => wikiCovers(getJSON, ref), [])]);
 			return [...new Set([...art, ...wiki])];
 		}
 		need(Number.isInteger(ref.id), "id");
-		const art = await boxArt(env, title, year);
+		const art = await soon(() => boxArt(env, title, year), []);
 		return [...new Set([...art, httpsUrl(ref.thumbnailUrl)].filter(Boolean))];
 	},
 };
@@ -641,7 +652,7 @@ const NOTE = {
 		if (isQid(ref.qid)) return wikiMovie(getJSON, ref, cover, today);
 		need(Number.isInteger(ref.anilistId), "anilistId");
 		const a = (await anilist(`query ($id: Int) { Media(id: $id, type: ANIME) {
-			title { romaji english } startDate { year } format episodes genres description(asHtml: false) bannerImage siteUrl
+			title { romaji english } startDate { year } episodes genres description(asHtml: false) bannerImage siteUrl
 			studios(isMain: true) { nodes { name } } externalLinks { site type }
 			staff(perPage: 25) { edges { role node { name { full } } } }
 		} }`, { id: ref.anilistId })).data?.Media;
@@ -652,7 +663,7 @@ const NOTE = {
 				title: animeTitle(a.title) || str(ref.title),
 				originalTitle: a.title?.english && a.title.romaji !== a.title.english ? a.title.romaji : null,
 				director: staff("Director"), studio: (a.studios?.nodes || []).map((n) => n.name).filter(Boolean),
-				genre: a.genres || [], format: FORMAT_NAMES[a.format] || "", episodes: Number.isInteger(a.episodes) ? a.episodes : null,
+				genre: a.genres || [], episodes: Number.isInteger(a.episodes) ? a.episodes : null,
 				streamingServices: [...new Set((a.externalLinks || []).filter((l) => l.type === "STREAMING").map((l) => l.site))],
 				shelf: [], rating: [], coverImage: cover ?? "", banner: httpsUrl(a.bannerImage),
 				summary: plainText(a.description), externalUrl: httpsUrl(a.siteUrl),
@@ -786,7 +797,11 @@ export async function findCovers(env, kind, title, creator = "", year = "") {
 	const want = looseTitle(title);
 	const same = results.filter((r) => looseTitle(r.title) === want);
 	const best = same.find((r) => year && (r.ref?.year === year || r.subtitle?.includes(year))) || same[0];
-	const covers = best ? await quietly(() => COVERS[kind](env, best.ref), []) : [];
+	// Music's first choice may be used without anyone looking (Fill missing
+	// music covers), so the release group's cover is checked here.
+	const covers = !best ? []
+		: kind === "music" ? await quietly(() => albumCovers(best.ref.releaseGroupId, soon(() => releasesOf(best.ref.releaseGroupId), []), str(best.ref.title), str(best.ref.artist)), [])
+		: await quietly(() => COVERS[kind](env, best.ref), []);
 	if (!covers.length && kind === "music") return itunesAlbum(title, creator);
 	return covers;
 }
