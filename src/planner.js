@@ -12,6 +12,12 @@
 //   colors: {timeline: 3, crit: 5} card colors, 1-7 from the theme's rainbow
 //                                (the cards' color dots set them in
 //                                _templates/Daily.md, so every day shares them)
+//   buttons: [meds, water, food]  the health buttons shown, in order (BUTTONS)
+//   calories_target: 2050 ...     the day's targets (src/targets.js works them
+//   goal: {units: lb, ...}        out from the goal); macros: true shows
+//   macros: true                  protein, fat and carbs targets too
+//   medications: "[[My meds]]"    the medicine list (Medications.md otherwise)
+//   setup: done                   the setup card has been through
 //   timeline:                    the Timeline card's entries
 //     - 09:00 - 10:00 | Standup
 //     - All day | Trip
@@ -24,12 +30,21 @@
 //   ### 💧 Water           - 8               (fl oz)
 //   ## Mood Log            - 14:32 | 🙂 Good
 //   ### 🏃 Exercise        - 07:30 | 🚶 Walk | 3200 steps | 150 cal | note
+//   ## 😴 Sleep            - 23:10 - 06:40 | 7.5 h | note
+//   ## ⚖️ Weight           - 07:05 | 208.4 lb
+//   ## 💊 Medications      - 08:12 | Lisinopril | 10 mg | for 08:00 (src/meds.js)
 // and after each one the day's totals are copied into the health note's
 // properties (calories, fat_g, carbs_g, protein_g, fiber_g, hydration_oz,
-// meds, mood, steps, activity_kcal) so Bases and Dataview can chart them across days.
+// meds, meds_taken, meds_due, mood, steps, activity_kcal, sleep_h, weight) so
+// Bases and Dataview can chart them across days.
+//
+// The settings every day shares (SHARED: buttons, targets, goal, macros, ...)
+// come from the Daily template's planner block; a day's own block can still
+// set any of them for that day.
 
 import { parseYaml, setProperty } from "./bases.js";
 import { parseFrontmatter } from "./dvpage.js";
+import { MEDS, medEntry, doseStatus } from "./meds.js";
 
 export const PLANNER = "wr1t3r-planner";
 
@@ -38,17 +53,38 @@ const DEFAULT_MOODS = MOODS.map((m) => m.join(" "));
 
 const DEFAULT_EXERCISES = ["🚶 Walk", "🏃 Run", "🥾 Hike"];
 
-const DEFAULTS = { tasks: ["crit", "todo"], moods: DEFAULT_MOODS, exercises: DEFAULT_EXERCISES, calories_target: 2417, water_target: 128, water_step: 8, steps_target: 7000, activity_target: 400, start: 9, end: 21 };
-const NUMBERS = ["calories_target", "water_target", "water_step", "steps_target", "activity_target", "start", "end"];
-const ORDER = ["banner", "title", "tasks", "moods", "exercises", "nutrition", ...NUMBERS, "colors", "timeline"];
+// The health buttons: [id, emoji, label]. The first five show unless the
+// block's buttons: says otherwise.
+export const BUTTONS = [["food", "🍎", "Food"], ["water", "💧", "Water"], ["meds", "💊", "Meds"], ["exercise", "👟", "Exercise"], ["mood", "🙂", "Mood"], ["sleep", "😴", "Sleep"], ["weight", "⚖️", "Weight"]];
+const DEFAULT_BUTTONS = BUTTONS.slice(0, 5).map(([id]) => id);
+
+const DEFAULTS = {
+	tasks: ["crit", "todo"], moods: DEFAULT_MOODS, exercises: DEFAULT_EXERCISES, buttons: DEFAULT_BUTTONS,
+	calories_target: 2417, water_target: 128, water_step: 8, steps_target: 7000, activity_target: 400, sleep_target: 8,
+	protein_target: null, fat_target: null, carbs_target: null, start: 9, end: 21, macros: false, med_reminders: true, units: "lb",
+};
+const NUMBERS = ["calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "start", "end"];
+const ORDER = ["setup", "banner", "title", "buttons", "tasks", "moods", "exercises", "nutrition", "medications", "units", "goal", ...NUMBERS, "macros", "med_reminders", "colors", "timeline"];
+// What a day takes from the Daily template's block when its own doesn't set it.
+export const SHARED = ["setup", "buttons", "moods", "exercises", "nutrition", "medications", "units", "goal", "calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "macros", "med_reminders"];
+const BOOLS = ["macros", "med_reminders"];
+const yes = (v) => v === true || /^(true|yes|on)$/i.test(String(v ?? ""));
 export const CARD_COLORS = 7;
 
 // ---- The block ---------------------------------------------------------------
 
-export function readPlanner(code) {
+const parse = (code) => {
 	let y = null;
 	try { y = parseYaml(String(code || "")); } catch {}
-	const raw = y && typeof y === "object" && !Array.isArray(y) ? y : {};
+	return y && typeof y === "object" && !Array.isArray(y) ? y : {};
+};
+
+// shared: the Daily template's block's text, whose SHARED settings this
+// block takes when it doesn't set them itself.
+export function readPlanner(code, shared = null) {
+	const own = parse(code);
+	const from = shared == null ? {} : parse(shared);
+	const raw = { ...Object.fromEntries(SHARED.filter((k) => from[k] !== undefined).map((k) => [k, from[k]])), ...own };
 	const cfg = { ...DEFAULTS, ...raw };
 	const list = (v) => (Array.isArray(v) ? v : v == null || v === "" ? [] : String(v).split(",")).map((s) => String(s).replace(/^#/, "").trim()).filter(Boolean);
 	cfg.tasks = raw.tasks === undefined ? DEFAULTS.tasks : list(raw.tasks);
@@ -56,6 +92,12 @@ export function readPlanner(code) {
 	if (!cfg.moods.length) cfg.moods = DEFAULT_MOODS;
 	cfg.exercises = raw.exercises === undefined ? DEFAULT_EXERCISES : list(raw.exercises);
 	if (!cfg.exercises.length) cfg.exercises = DEFAULT_EXERCISES;
+	const ids = BUTTONS.map(([id]) => id);
+	cfg.buttons = raw.buttons === undefined ? DEFAULT_BUTTONS : [...new Set(list(raw.buttons).map((s) => s.toLowerCase()).filter((s) => ids.includes(s)))];
+	for (const k of BOOLS) cfg[k] = raw[k] === undefined ? DEFAULTS[k] : yes(raw[k]);
+	cfg.units = String(raw.units || "").toLowerCase() === "kg" ? "kg" : "lb";
+	cfg.goal = raw.goal && typeof raw.goal === "object" && !Array.isArray(raw.goal) ? raw.goal : null;
+	cfg.setup = raw.setup == null || String(raw.setup).trim() === "" ? null : String(raw.setup).trim();
 	cfg.timeline = (Array.isArray(raw.timeline) ? raw.timeline : []).map((s) => String(s ?? "").trim()).filter(Boolean);
 	for (const k of NUMBERS) {
 		const n = Number(cfg[k]);
@@ -63,7 +105,7 @@ export function readPlanner(code) {
 	}
 	cfg.start = Math.min(23, Math.floor(cfg.start));
 	cfg.end = Math.max(cfg.start + 1, Math.min(24, Math.floor(cfg.end)));
-	for (const k of ["banner", "title", "nutrition"]) cfg[k] = raw[k] == null || String(raw[k]).trim() === "" ? null : String(raw[k]).trim();
+	for (const k of ["banner", "title", "nutrition", "medications"]) cfg[k] = raw[k] == null || String(raw[k]).trim() === "" ? null : String(raw[k]).trim();
 	cfg.colors = {};
 	if (raw.colors && typeof raw.colors === "object" && !Array.isArray(raw.colors)) {
 		for (const [k, v] of Object.entries(raw.colors)) {
@@ -93,6 +135,8 @@ export function writePlanner(cfg) {
 		if (k === "timeline") {
 			if (v.length) out.push("timeline:", ...v.map((s) => `  - ${scalar(s)}`));
 		} else if (Array.isArray(v)) out.push(`${k}: [${v.map(scalar).join(", ")}]`);
+		else if (typeof v === "boolean") out.push(`${k}: ${v}`);
+		else if (k === "goal") out.push(`goal: {${Object.entries(v).filter(([, x]) => x != null && x !== "").map(([g, x]) => `${scalar(g)}: ${scalar(x)}`).join(", ")}}`);
 		else if (k === "colors") out.push(`colors: {${Object.entries(v).map(([c, n]) => `${scalar(c)}: ${n}`).join(", ")}}`);
 		else if (typeof v === "object") out.push(`${k}: ${JSON.stringify(v)}`);
 		else out.push(`${k}: ${scalar(v)}`);
@@ -250,6 +294,9 @@ export const MEALS = ["🍳Breakfast", "🥗Lunch", "🍝Dinner", "🍇Snacks"];
 export const WATER = { heading: "💧 Water", parent: "Hydration Log" };
 export const MOOD = { heading: "Mood Log" };
 export const EXERCISE = { heading: "🏃 Exercise", parent: "Activity Log" };
+export const SLEEP = { heading: "😴 Sleep" };
+export const WEIGHT = { heading: "⚖️ Weight" };
+export { MEDS };
 // The Activity Log's older hand-kept lists: one number per line.
 const STEPS_LOG = "👟 Steps", ACTIVITY_LOG = "🔥Activity";
 // "🙂 Good" -> ["🙂", "Good"]; a mood without an emoji gets none.
@@ -509,6 +556,63 @@ export function exerciseLine(kind, { steps, kcal, note } = {}, date = new Date()
 	return parts.join(" | ");
 }
 
+// ---- Sleep and weight ----------------------------------------------------------------
+
+const toMin = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+const hhmm = (s) => { const m = String(s).trim().match(/^(\d{1,2}):(\d{2})$/); return m && +m[1] < 24 && +m[2] < 60 ? `${pad(+m[1])}:${m[2]}` : null; };
+
+// Hours from bed to wake, across midnight: ("23:10", "06:40") -> 7.5.
+export function sleepHours(bed, wake) {
+	const a = hhmm(bed), b = hhmm(wake);
+	if (!a || !b) return null;
+	const mins = (toMin(b) - toMin(a) + 1440) % 1440;
+	return round1(mins / 60);
+}
+
+// "23:10 - 06:40 | 7.5 h | note" -> { bed, wake, hours, note }. A line with
+// only hours ("7.5 h", "7h 30m") works too.
+export function sleepEntry(text) {
+	const parts = String(text).split("|").map((s) => s.trim());
+	const out = { bed: null, wake: null, hours: null, note: "" };
+	const notes = [];
+	for (const p of parts) {
+		let m;
+		if (!out.bed && (m = p.match(/^(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})$/))) { out.bed = hhmm(m[1]); out.wake = hhmm(m[2]); }
+		else if (out.hours == null && (m = p.match(/^(\d+(?:\.\d+)?)\s*(?:h|hrs?|hours?)(?:\s*(\d+)\s*m(?:in)?)?$/i))) out.hours = Number(m[1]) + (m[2] ? Number(m[2]) / 60 : 0);
+		else if (p) notes.push(p);
+	}
+	if (out.hours == null && out.bed && out.wake) out.hours = sleepHours(out.bed, out.wake);
+	out.note = notes.join(" | ");
+	return out;
+}
+
+export function sleepLine(bed, wake, note = "") {
+	const h = sleepHours(bed, wake);
+	return `${hhmm(bed)} - ${hhmm(wake)} | ${h} h${note && note.trim() ? ` | ${note.trim().replace(/\s*[\n|]\s*/g, " ")}` : ""}`;
+}
+
+// "7.5" -> "7h 30m".
+export function hoursText(h) {
+	const mins = Math.round((Number(h) || 0) * 60);
+	return `${Math.floor(mins / 60)}h${mins % 60 ? ` ${mins % 60}m` : ""}`;
+}
+
+// "07:05 | 208.4 lb" -> { time, value, unit }.
+export function weightEntry(text) {
+	const parts = String(text).split("|").map((s) => s.trim());
+	const out = { time: null, value: null, unit: null };
+	if (/^\d{1,2}:\d{2}$/.test(parts[0] || "")) out.time = parts.shift();
+	for (const p of parts) {
+		const m = p.match(/^(\d+(?:[.,]\d+)?)\s*(lbs?|pounds?|kgs?|kilos?)?$/i);
+		if (m && out.value == null) { out.value = Number(m[1].replace(",", ".")); out.unit = m[2] ? (/^k/i.test(m[2]) ? "kg" : "lb") : null; }
+	}
+	return out;
+}
+
+export function weightLine(value, unit = "lb", date = new Date()) {
+	return `${pad(date.getHours())}:${pad(date.getMinutes())} | ${round1(Number(value))} ${unit}`;
+}
+
 // ---- The day's numbers ---------------------------------------------------------------
 
 const round1 = (n) => Math.round(n * 10) / 10;
@@ -517,7 +621,7 @@ const round1 = (n) => Math.round(n * 10) / 10;
 // servings, food }] }], totals, unmatched, water: [{ line, text, oz }],
 // waterOz, meds, moods: [{ line, text, time, mood, note }], exists }.
 export function healthDay(text, foods) {
-	if (text == null) return { exists: false, meals: MEALS.map((meal) => ({ meal, items: [] })), totals: { calories: 0, fat: 0, carbs: 0, protein: 0, fiber: 0 }, unmatched: [], water: [], waterOz: 0, meds: false, moods: [], exercise: [], logged: { steps: 0, kcal: 0, any: false }, steps: 0, kcal: 0 };
+	if (text == null) return { exists: false, meals: MEALS.map((meal) => ({ meal, items: [] })), totals: { calories: 0, fat: 0, carbs: 0, protein: 0, fiber: 0 }, unmatched: [], water: [], waterOz: 0, meds: false, medsTaken: [], moods: [], exercise: [], logged: { steps: 0, kcal: 0, any: false }, steps: 0, kcal: 0, sleep: [], sleepHours: 0, weights: [], weight: null };
 	const totals = { calories: 0, fat: 0, carbs: 0, protein: 0, fiber: 0 };
 	const unmatched = [];
 	const meals = MEALS.map((meal) => ({
@@ -535,6 +639,8 @@ export function healthDay(text, foods) {
 	const exercise = itemsUnder(text, EXERCISE.heading).map((it) => ({ ...it, ...exerciseEntry(it.text) }));
 	const manual = (h) => itemsUnder(text, h).map((it) => count(it.text)).filter((n) => n != null);
 	const stepsLog = manual(STEPS_LOG), kcalLog = manual(ACTIVITY_LOG);
+	const sleep = itemsUnder(text, SLEEP.heading).map((it) => ({ ...it, ...sleepEntry(it.text) }));
+	const weights = itemsUnder(text, WEIGHT.heading).map((it) => ({ ...it, ...weightEntry(it.text) })).filter((w) => w.value != null);
 	const logged = {
 		steps: exercise.reduce((s, e) => s + (e.steps || 0), 0) + stepsLog.reduce((s, n) => s + n, 0),
 		kcal: exercise.reduce((s, e) => s + (e.kcal || 0), 0) + kcalLog.reduce((s, n) => s + n, 0),
@@ -545,13 +651,18 @@ export function healthDay(text, foods) {
 		waterOz: round1(water.reduce((s, w) => s + (w.oz || 0), 0)),
 		meds: fm.meds === true || /^(true|yes)$/i.test(String(fm.meds ?? "")),
 		moods: itemsUnder(text, MOOD.heading).map((it) => ({ ...it, ...moodEntry(it.text) })),
+		medsTaken: itemsUnder(text, MEDS.heading).map((it) => ({ ...it, ...medEntry(it.text) })),
+		sleep, sleepHours: round1(sleep.reduce((s, x) => s + (x.hours || 0), 0)),
+		weights, weight: weights.at(-1)?.value ?? null,
 	};
 }
 
 // The health note with its properties set from what's logged in it: the
 // food totals (once there's food, or once they've been written before),
-// hydration, the latest mood, and the targets. Only changed lines move.
-export function syncHealth(text, foods, { calories_target, water_target, steps_target, activity_target } = DEFAULTS) {
+// hydration, the latest mood, sleep, weight, the day's doses (doses: the
+// scheduled ones, src/meds.js dosesOn) and the targets. Only changed lines move.
+export function syncHealth(text, foods, cfg = DEFAULTS, doses = null) {
+	const { calories_target, water_target, steps_target, activity_target, sleep_target, macros, protein_target, fat_target, carbs_target, units } = { ...DEFAULTS, ...cfg };
 	const d = healthDay(text, foods);
 	const fm = parseFrontmatter(text) || {};
 	const want = {};
@@ -560,6 +671,16 @@ export function syncHealth(text, foods, { calories_target, water_target, steps_t
 		calories: Math.round(d.totals.calories), calories_target, fat_g: round1(d.totals.fat),
 		carbs_g: round1(d.totals.carbs), protein_g: round1(d.totals.protein), fiber_g: round1(d.totals.fiber),
 	});
+	if (hasFood && macros) Object.assign(want, { protein_target_g: protein_target ?? "", fat_target_g: fat_target ?? "", carbs_target_g: carbs_target ?? "" });
+	if (d.sleep.length || fm.sleep_h != null && fm.sleep_h !== "") Object.assign(want, { sleep_h: d.sleepHours, sleep_target_h: sleep_target });
+	if (d.weights.length || fm.weight != null && fm.weight !== "") {
+		const w = d.weights.at(-1);
+		Object.assign(want, { weight: w ? w.value : "", weight_unit: w ? w.unit || units || "lb" : "" });
+	}
+	if (doses && doses.length) {
+		const st = doseStatus(doses, d.medsTaken);
+		Object.assign(want, { meds: st.done === st.due, meds_taken: st.done, meds_due: st.due });
+	}
 	if (d.water.length || fm.hydration_oz != null && fm.hydration_oz !== "") Object.assign(want, { hydration_oz: d.waterOz, hydration_target_oz: water_target });
 	if (d.logged.any || fm.steps != null && fm.steps !== "") Object.assign(want, {
 		steps: Math.round(d.steps), steps_target: steps_target ?? DEFAULTS.steps_target,

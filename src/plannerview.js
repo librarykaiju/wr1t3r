@@ -1,9 +1,13 @@
 // Draws ```wr1t3r-planner blocks (src/planner.js works out what's in them):
-// a banner and the day's title, four health buttons (Food, Water, Meds,
-// Mood) that write to the day's health note, then two columns, the timeline
+// a banner and the day's title, the health buttons (Food, Water, Meds,
+// Exercise, Mood, Sleep, Weight: the ones the block's buttons: picks) that
+// write to the day's health note, then two columns, the timeline
 // from 9 AM to 9 PM beside the day's task lists. Everything under the block
 // (the note's "# Notes") is the note as usual. The health note gets the same
 // title row, with a pill back to the daily note (healthHeader below).
+// A planner not set up yet shows a card that walks through the buttons,
+// targets (src/targets.js), medications (src/meds.js) and task lists; the
+// "Planner" pill opens each of those on its own later.
 
 import { StateField, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType } from "@codemirror/view";
@@ -13,8 +17,10 @@ import {
 	PLANNER, readPlanner, writePlanner, setEntryColor, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
 	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
 	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine, cardColor, editPlannerBlock,
-	dailyPathFor, healthDayOf,
+	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine,
 } from "./planner.js";
+import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText } from "./meds.js";
+import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES } from "./targets.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
 import { isoDay } from "./tasks.js";
@@ -22,7 +28,7 @@ import { imageRef } from "./pretty.js";
 import { resolveNote } from "./links.js";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { propertiesFolded, setPropertiesHidden, frontmatterLines } from "./frontmatter.js";
-import { openPanel, redrawPanel } from "./basesui.js";
+import { openPanel, redrawPanel, closePanel } from "./basesui.js";
 import { onMenu } from "./homeview.js";
 import { EVENT_COLORS } from "./agenda.js";
 import { menu, cardColorPicker } from "./basesui.js";
@@ -31,8 +37,11 @@ import { isOpen, openAsText } from "./drawnblocks.js";
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 
 // Set by main.js: { healthNote(dailyPath) -> Promise<path> (made from the
-// template if needed), events(day) -> Promise<events|null>, image(ref, from),
-// open(path), toast(text), usda(query) -> Promise<foods> (worker/usda.js) }.
+// template if needed), medsNote() -> Promise<path> (made if needed),
+// dailyTemplate() -> Promise<path|null> (the built-in one saved to the vault
+// if it isn't there), settings(tab), events(day) -> Promise<events|null>,
+// image(ref, from), open(path), toast(text), usda(query) -> Promise<foods>
+// (worker/usda.js) }.
 let host = null;
 export const setPlannerHost = (h) => { host = h; };
 
@@ -51,22 +60,37 @@ function nutrition(state, cfg) {
 	return foodCache;
 }
 
-// Rewrites the nth planner block's settings (the timeline lives there too).
-// The card colors every day shares: the Daily template's planner block's,
-// read again only when the template changes. -> { colors, path } (path null
-// when there's no template).
-let sharedCache = { text: undefined, colors: {}, path: null };
+// What every day shares: the Daily template's planner block (its card colors,
+// and the SHARED settings readPlanner takes from it), read again only when
+// the template changes. -> { colors, code, path } (code null when the
+// template has no planner block, path null when there's no template).
+let sharedCache = { text: undefined, colors: {}, code: null, path: null };
 const TEMPLATE = /(^|\/)_templates\/Daily\.md$/i;
 function sharedColors(vault) {
 	const path = vault.paths().filter((p) => TEMPLATE.test(p)).sort((a, b) => a.length - b.length)[0] || null;
 	const text = path ? vault.text(path) : null;
 	if (text !== sharedCache.text || path !== sharedCache.path) {
 		const code = text && String(text).match(/```wr1t3r-planner[ \t]*\r?\n([\s\S]*?)\r?\n?```/)?.[1];
-		sharedCache = { text, path, colors: code != null ? readPlanner(code).colors : {} };
+		sharedCache = { text, path, code: code ?? null, colors: code != null ? readPlanner(code).colors : {} };
 	}
 	return sharedCache;
 }
 
+// The medicine list: the note the block names, else the vault's
+// Medications.md. -> { path (null when there's none), meds }.
+let medsCache = { text: undefined, path: undefined, meds: [] };
+const MEDS_PATH = /(^|\/)Medications\.md$/i;
+function medsList(state, cfg) {
+	const vault = state.facet(vaultHost), paths = vault.paths();
+	const path = (cfg.medications
+		? resolveNote({ note: cfg.medications.replace(/^\[\[|\]\]$/g, "").split("|")[0], heading: "", wiki: true }, state.facet(notePath), paths)
+		: paths.filter((p) => MEDS_PATH.test(p) && !/(^|\/)_templates\//i.test(p)).sort((a, b) => a.length - b.length)[0]) || null;
+	const text = path ? vault.text(path) : null;
+	if (text !== medsCache.text || path !== medsCache.path) medsCache = { text, path, meds: parseMeds(text) };
+	return medsCache;
+}
+
+// Rewrites the nth planner block's settings (the timeline lives there too).
 function saveBlock(view, n, cfg) {
 	const b = dataviewBlocks(view.state, PLANNER)[n];
 	if (!b || view.state.readOnly) return;
@@ -121,14 +145,17 @@ class PlannerWidget extends WidgetType {
 		super();
 		Object.assign(this, p);
 		const h = p.health;
-		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
+		this.meds ??= { path: null, meds: [] };
+		this.doses ??= [];
+		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, this.meds.path, this.meds.meds, this.doses, p.day && p.day === isoDay(new Date()) ? new Date().getHours() : 0, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
 	}
 	eq(o) { return o.key === this.key; }
 
 	toDOM(view) {
 		const wrap = el("div", "planner");
 		const ro = view.state.readOnly;
-		wrap.append(...this.top(view), this.buttons(view, ro), this.columns(view, ro));
+		const card = !ro && host && this.day && this.cfg.setup !== "done" ? this.setupCard(view) : null;
+		wrap.append(...this.top(view), ...(card ? [card] : []), this.buttons(view, ro), this.columns(view, ro));
 		const edit = el("button", "md-dv-edit planner-edit", "</>");
 		edit.type = "button";
 		edit.title = "Edit the planner's settings";
@@ -157,6 +184,17 @@ class PlannerWidget extends WidgetType {
 		}
 		const links = [];
 		if (this.day && host) links.push(["Health note", "Open this day's health note", async () => { const p = await host.healthNote(this.path); if (p) host.open(p); }]);
+		if (this.day && host && !view.state.readOnly) links.push(["Planner", "Choose the buttons, set targets and medications", (e) => {
+			const r = e.currentTarget.getBoundingClientRect();
+			const anchor = e.currentTarget;
+			menu([
+				["Choose buttons…", () => this.buttonsPanel(view, anchor)],
+				["Set my targets…", () => this.targetsPanel(view, anchor)],
+				["Medications…", () => this.medsPanel(view, anchor, { edit: !medsList(view.state, this.cfg).meds.length })],
+				null,
+				["Set up the planner…", () => this.setupPanel(view, anchor)],
+			], r.left, r.bottom + 6);
+		}]);
 		links.push(propertiesLink(view));
 		const title = this.cfg.title || (this.day ? dayTitle(this.day) : this.path.split("/").pop().replace(/\.md$/i, ""));
 		out.push(titleRow(title, this.day, links));
@@ -187,28 +225,81 @@ class PlannerWidget extends WidgetType {
 			grid.append(b);
 			return b;
 		};
-		const cal = h.totals.calories;
-		tile("food", "🍎", "Food", `${fmt(cal)} cal`, (b) => this.foodPanel(view, b), { pct: (cal / cfg.calories_target) * 100 }).title = `${fmt(cal)} of ${fmt(cfg.calories_target)} calories`;
-		const water = tile("water", "💧", "Water", `${fmt(h.waterOz)} / ${fmt(cfg.water_target)} oz`, (b) => {
-			b.classList.remove("planner-pop");
-			void b.offsetWidth;
-			b.classList.add("planner-pop");
-			this.health$(view, (t) => addUnder(t, WATER.heading, String(cfg.water_step), { parent: WATER.parent }));
-		}, { pct: (h.waterOz / cfg.water_target) * 100 });
-		if (!off) onMenu(water, (x, y) => menu([
-			[`Add ${cfg.water_step} oz`, () => this.health$(view, (t) => addUnder(t, WATER.heading, String(cfg.water_step), { parent: WATER.parent }))],
-			...(h.water.length ? [["Remove the last one", () => this.health$(view, (t) => { const w = healthDay(t, []).water.at(-1); return w ? removeLine(t, w.line, w.text) : t; })]] : []),
-			null,
-			["Open the health note", () => host.open(healthPathFor(this.path))],
-		], x, y));
-		tile("meds", "💊", "Meds", h.meds ? "Taken ✓" : "Not yet", () => this.health$(view, toggleMeds), { pressed: h.meds });
-		const last = h.moods.at(-1);
-		const ex = [h.steps ? `${fmt(h.steps)} steps` : "", h.kcal ? `${fmt(h.kcal)} cal` : ""].filter(Boolean).join(" · ");
-		tile("exercise", "👟", "Exercise", ex || "Get moving", (b) => this.exercisePanel(view, b), { pct: (h.steps / cfg.steps_target) * 100 }).title = `${fmt(h.steps)} of ${fmt(cfg.steps_target)} steps, ${fmt(h.kcal)} of ${fmt(cfg.activity_target)} cal burned`;
-		const lastMood = last && moodChoice(last.mood);
-		tile("mood", lastMood?.[0] || "🙂", "Mood", last ? `${lastMood[1]}${last.time ? " · " + timeText(last.time) : ""}` : "How are you?", (b) => this.moodPanel(view, b));
+		const healthMenu = (b, extra = []) => {
+			if (!off) onMenu(b, (x, y) => menu([...extra, ...(extra.length ? [null] : []), ["Open the health note", () => host.open(healthPathFor(this.path))]], x, y));
+		};
+		const draw = {
+			food: () => {
+				const cal = h.totals.calories;
+				const b = tile("food", "🍎", "Food", `${fmt(cal)} cal`, (b) => this.foodPanel(view, b), { pct: (cal / cfg.calories_target) * 100 });
+				b.title = `${fmt(cal)} of ${fmt(cfg.calories_target)} calories` + (cfg.macros ? macroText(h.totals, cfg, ", ") : "");
+				healthMenu(b);
+			},
+			water: () => {
+				const water = tile("water", "💧", "Water", `${fmt(h.waterOz)} / ${fmt(cfg.water_target)} oz`, (b) => {
+					b.classList.remove("planner-pop");
+					void b.offsetWidth;
+					b.classList.add("planner-pop");
+					this.health$(view, (t) => addUnder(t, WATER.heading, String(cfg.water_step), { parent: WATER.parent }));
+				}, { pct: (h.waterOz / cfg.water_target) * 100 });
+				healthMenu(water, [
+					[`Add ${cfg.water_step} oz`, () => this.health$(view, (t) => addUnder(t, WATER.heading, String(cfg.water_step), { parent: WATER.parent }))],
+					...(h.water.length ? [["Remove the last one", () => this.health$(view, (t) => { const w = healthDay(t, []).water.at(-1); return w ? removeLine(t, w.line, w.text) : t; })]] : []),
+				]);
+			},
+			meds: () => {
+				const { meds, path } = this.meds;
+				const st = this.doses.length ? doseStatus(this.doses, h.medsTaken) : null;
+				let b;
+				if (st) {
+					const late = overdue(st, this.day);
+					b = tile("meds", "💊", "Meds", st.done === st.due ? "All taken ✓" : `${st.done} of ${st.due}`, (b) => this.medsPanel(view, b), { pressed: st.done === st.due, pct: (st.done / st.due) * 100 });
+					if (late.length) { b.classList.add("planner-late"); b.title = `Not taken yet: ${late.map((d) => `${d.name} (${timeText(d.time)})`).join(", ")}`; }
+				} else if (meds.length) {
+					b = tile("meds", "💊", "Meds", h.medsTaken.length ? `${h.medsTaken.length} taken` : "As needed", (b) => this.medsPanel(view, b));
+				} else {
+					b = tile("meds", "💊", "Meds", h.meds ? "Taken ✓" : "Not yet", () => this.health$(view, toggleMeds), { pressed: h.meds });
+				}
+				healthMenu(b, [
+					[meds.length ? "Medications…" : "Set up medications…", () => this.medsPanel(view, b, { edit: !meds.length })],
+					...(path ? [["Open the medications list", () => host.open(path)]] : []),
+				]);
+			},
+			exercise: () => {
+				const ex = [h.steps ? `${fmt(h.steps)} steps` : "", h.kcal ? `${fmt(h.kcal)} cal` : ""].filter(Boolean).join(" · ");
+				const b = tile("exercise", "👟", "Exercise", ex || "Get moving", (b) => this.exercisePanel(view, b), { pct: (h.steps / cfg.steps_target) * 100 });
+				b.title = `${fmt(h.steps)} of ${fmt(cfg.steps_target)} steps, ${fmt(h.kcal)} of ${fmt(cfg.activity_target)} cal burned`;
+				healthMenu(b);
+			},
+			mood: () => {
+				const last = h.moods.at(-1);
+				const lastMood = last && moodChoice(last.mood);
+				healthMenu(tile("mood", lastMood?.[0] || "🙂", "Mood", last ? `${lastMood[1]}${last.time ? " · " + timeText(last.time) : ""}` : "How are you?", (b) => this.moodPanel(view, b)));
+			},
+			sleep: () => {
+				const b = tile("sleep", "😴", "Sleep", h.sleepHours ? hoursText(h.sleepHours) : "Log sleep", (b) => this.sleepPanel(view, b), { pct: (h.sleepHours / cfg.sleep_target) * 100 });
+				b.title = `${hoursText(h.sleepHours)} of ${hoursText(cfg.sleep_target)} sleep`;
+				healthMenu(b);
+			},
+			weight: () => {
+				const unit = h.weights.at(-1)?.unit || cfg.units;
+				const b = tile("weight", "⚖️", "Weight", h.weight != null ? `${h.weight} ${unit}` : "Log weight", (b) => this.weightPanel(view, b));
+				if (h.weight != null && needsRecalc(cfg.goal, h.weight)) { b.classList.add("planner-nudge"); b.title = "Your weight has moved since your targets were set. Open to update them."; }
+				healthMenu(b);
+			},
+		};
+		for (const id of cfg.buttons) draw[id]?.();
+		grid.style.setProperty("--n", Math.max(1, grid.children.length));
+		const n = grid.children.length;
+		grid.style.setProperty("--n-phone", n <= 3 ? Math.max(1, n) : n === 4 ? 2 : n <= 6 ? 3 : 4);
 		if (!this.day) grid.title = "The health buttons work in a daily note (named YYYY-MM-DD).";
 		return grid;
+	}
+
+	// The day's scheduled doses from the list as it is now (the widget may be
+	// a moment behind).
+	dosesNow(view) {
+		return this.day ? dosesOn(medsList(view.state, this.cfg).meds, this.day) : [];
 	}
 
 	// Writes to the day's health note (made first if needed), then copies its
@@ -222,7 +313,8 @@ class PlannerWidget extends WidgetType {
 				const path = await host.healthNote(this.path);
 				if (!path) return;
 				const { foods } = nutrition(view.state, this.cfg);
-				await vault.write(path, (t) => syncHealth(fn(t), foods, this.cfg));
+				const doses = this.dosesNow(view);
+				await vault.write(path, (t) => syncHealth(fn(t), foods, this.cfg, doses));
 				redrawPanel(this.panelKey);
 			} catch (e) {
 				host.toast?.("Couldn't write to the health note: " + (e?.message || e));
@@ -339,7 +431,7 @@ class PlannerWidget extends WidgetType {
 			const day = this.now(view);
 			const logged = day.meals.filter((m) => m.items.length);
 			if (logged.length) {
-				box.append(el("div", "planner-panel-sub", `Today · ${fmt(day.totals.calories)} cal · ${fmt(day.totals.protein)} g protein · ${fmt(day.totals.carbs)} g carbs · ${fmt(day.totals.fat)} g fat · ${fmt(day.totals.fiber)} g fiber`));
+				box.append(el("div", "planner-panel-sub", `Today · ${fmt(day.totals.calories)} of ${fmt(this.cfg.calories_target)} cal` + (this.cfg.macros ? macroText(day.totals, this.cfg) : ` · ${fmt(day.totals.protein)} g protein · ${fmt(day.totals.carbs)} g carbs · ${fmt(day.totals.fat)} g fat`) + ` · ${fmt(day.totals.fiber)} g fiber`));
 				for (const m of logged) {
 					box.append(el("div", "planner-log-head", m.meal));
 					for (const it of m.items) box.append(this.logRow(view, `${it.name}${it.servings === 1 ? "" : ` ×${it.servings}`}`, it.food ? `${fmt(it.food.calories * it.servings)} cal` : "not in the database", it));
@@ -427,6 +519,462 @@ class PlannerWidget extends WidgetType {
 					box.append(this.logRow(view, `${it.time ? timeText(it.time) + " · " : ""}${it.kind}`, meta, it));
 				}
 			}
+		});
+	}
+
+	// ---- Medications --------------------------------------------------------
+
+	// Today's doses with a Take button each, then the as-needed ones; or,
+	// with edit (or no list yet), the list itself to add to and change.
+	medsPanel(view, anchor, { edit = false } = {}) {
+		const st = { edit, form: null };
+		openPanel(this.panelKey, "meds", anchor, (box) => {
+			box.classList.add("planner-panel");
+			const { meds, path } = medsList(view.state, this.cfg);
+			if (st.form || st.edit || !meds.length) {
+				box.append(el("div", "planner-panel-title", "Your medications"));
+				this.medsEditor(view, box, st);
+				if (!st.form && meds.length) box.append(panelButton("planner-log-btn", "Done", () => { st.edit = false; redrawPanel(this.panelKey); }));
+				return;
+			}
+			box.append(el("div", "planner-panel-title", "Medications"));
+			const day = this.now(view);
+			const status = doseStatus(this.dosesNow(view), day.medsTaken);
+			const take = (dose, forTime) => this.health$(view, (t) => addUnder(t, MEDS.heading, medTakenLine(dose, forTime)));
+			if (status.doses.length) {
+				const late = new Set(overdue(status, this.day));
+				const mins = new Date().getHours() * 60 + new Date().getMinutes();
+				const dueNow = status.doses.filter((d) => !d.taken && this.day === isoDay(new Date()) && Number(d.time.slice(0, 2)) * 60 + Number(d.time.slice(3)) <= mins + 30);
+				box.append(el("div", "planner-panel-sub", `Today · ${status.done} of ${status.due} taken`));
+				for (const d of status.doses) {
+					const row = el("div", "planner-dose" + (d.taken ? " taken" : late.has(d) ? " late" : ""));
+					row.append(el("span", "planner-dose-time", timeText(d.time)), el("span", "planner-log-text", d.name + (d.dose ? ` · ${d.dose}` : "")));
+					if (d.taken) {
+						row.append(el("span", "planner-log-meta", `✓ ${d.taken.time ? timeText(d.taken.time) : "taken"}`));
+						const x = panelButton("planner-log-x", "×", () => this.health$(view, (t) => removeLine(t, d.taken.line, d.taken.text)));
+						x.title = "Not taken after all";
+						row.append(x);
+					} else row.append(panelButton("planner-take", "Take", () => take(d, d.time)));
+					box.append(row);
+				}
+				if (dueNow.length > 1) box.append(panelButton("planner-log-btn", `Take all due now (${dueNow.length})`, async () => {
+					for (const d of dueNow) await take(d, d.time);
+				}));
+			}
+			const prn = meds.filter((m) => m.asNeeded);
+			if (prn.length) {
+				box.append(el("div", "planner-panel-sub", "As needed"));
+				for (const m of prn) {
+					const row = el("div", "planner-dose");
+					row.append(el("span", "planner-log-text", m.name + (m.dose ? ` · ${m.dose}` : "")), panelButton("planner-take", "Take", () => take(m, null)));
+					box.append(row);
+				}
+			}
+			if (status.extra.length) {
+				box.append(el("div", "planner-panel-sub", "Also taken today"));
+				for (const it of status.extra) box.append(this.logRow(view, `${it.time ? timeText(it.time) + " · " : ""}${it.name}`, it.dose, it));
+			}
+			const foot = el("div", "planner-panel-foot");
+			foot.append(panelButton("planner-link", "Edit the list", () => { st.edit = true; redrawPanel(this.panelKey); }));
+			if (path) foot.append(panelButton("planner-link", "Open the list note", () => { closePanel(); host.open(path); }));
+			box.append(foot);
+		});
+	}
+
+	// The medicine list with Edit and × on each, an Add button, and the form
+	// (st.form) for one. Writes straight to the list note.
+	medsEditor(view, box, st) {
+		const vault = view.state.facet(vaultHost);
+		const { meds, path } = medsList(view.state, this.cfg);
+		const redraw = () => redrawPanel(this.panelKey);
+		const write = async (fn) => {
+			try {
+				const p = path || await host.medsNote();
+				if (p) await vault.write(p, fn);
+			} catch (e) {
+				host.toast?.("Couldn't save the medications list: " + (e?.message || e));
+			}
+		};
+		if (st.form) {
+			const f = st.form;
+			const field = (key, label, placeholder) => {
+				const wrap = el("label", "planner-field");
+				const input = el("input");
+				Object.assign(input, { type: "text", placeholder, value: f[key] });
+				input.dataset.focus = "med-" + key;
+				input.addEventListener("input", () => { f[key] = input.value; });
+				wrap.append(el("span", null, label), input);
+				return wrap;
+			};
+			const row = el("div", "planner-food-opts");
+			row.append(field("name", "Medicine", "Lisinopril"), field("dose", "Dose", "10 mg"));
+			box.append(row);
+			const prn = el("label", "planner-check");
+			const cb = el("input");
+			cb.type = "checkbox";
+			cb.checked = f.asNeeded;
+			cb.addEventListener("change", () => { f.asNeeded = cb.checked; redraw(); });
+			prn.append(cb, " Only as needed (no set times)");
+			box.append(prn);
+			if (!f.asNeeded) {
+				box.append(field("times", "Times (comma between them)", "8am, 8pm"));
+				const days = el("div", "planner-days");
+				for (const d of [1, 2, 3, 4, 5, 6, 0]) {
+					const b = panelButton("planner-day", ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d], () => { f.days.has(d) ? f.days.delete(d) : f.days.add(d); redraw(); });
+					b.setAttribute("aria-pressed", String(f.days.has(d)));
+					days.append(b);
+				}
+				box.append(days);
+			}
+			if (f.error) box.append(el("p", "planner-panel-error", f.error));
+			const foot = el("div", "planner-panel-foot");
+			foot.append(panelButton("planner-link", "Cancel", () => { st.form = null; redraw(); }), panelButton("planner-log-btn", f.line == null ? "Add" : "Save", async () => {
+				const name = f.name.trim();
+				const parts = f.times.split(/\s*,\s*/).filter(Boolean);
+				const times = f.asNeeded ? [] : parts.map(parseTime);
+				if (!name) f.error = "Give it a name.";
+				else if (!f.asNeeded && (!times.length || times.some((t) => !t))) f.error = "Times look like 8am, 8:30pm or 20:00.";
+				else if (!f.asNeeded && !f.days.size) f.error = "Pick at least one day.";
+				else {
+					st.form = null;
+					await write((t) => putMed(t, { name, dose: f.dose.trim(), times: [...new Set(times)].sort(), days: f.days.size === 7 ? null : [...f.days].sort() }, f.line));
+				}
+				redraw();
+			}));
+			box.append(foot);
+			setTimeout(() => { if (!box.contains(document.activeElement)) box.querySelector("input")?.focus(); });
+			return;
+		}
+		const open = (m) => {
+			st.form = m
+				? { line: m.line, name: m.name, dose: m.dose, times: m.times.map(timeText).join(", "), asNeeded: m.asNeeded, days: new Set(m.days || [0, 1, 2, 3, 4, 5, 6]), error: "" }
+				: { line: null, name: "", dose: "", times: "", asNeeded: false, days: new Set([0, 1, 2, 3, 4, 5, 6]), error: "" };
+			redraw();
+		};
+		if (!meds.length) box.append(el("p", "planner-panel-empty", "Nothing listed yet. Add each medicine with its dose and when you take it, and the Meds button counts the day's doses."));
+		for (const m of meds) {
+			const row = el("div", "planner-log");
+			const when = m.asNeeded ? "as needed" : m.times.map(timeText).join(", ") + (m.days ? ` · ${daysText(m.days)}` : "");
+			row.append(el("span", "planner-log-text", m.name + (m.dose ? ` · ${m.dose}` : "")), el("span", "planner-log-meta", when));
+			row.append(panelButton("planner-link", "Edit", () => open(m)));
+			const x = panelButton("planner-log-x", "×", () => { if (confirm(`Take ${m.name} off the list?`)) write((t) => removeMed(t, m.line)); });
+			x.title = "Take it off the list";
+			row.append(x);
+			box.append(row);
+		}
+		box.append(panelButton("planner-log-btn", "Add a medicine", () => open(null)));
+		const rem = el("label", "planner-check");
+		const cb = el("input");
+		cb.type = "checkbox";
+		cb.checked = this.cfg.med_reminders;
+		cb.addEventListener("change", () => { this.cfg = { ...this.cfg, med_reminders: cb.checked }; this.saveShared(view, { med_reminders: cb.checked }); });
+		rem.append(cb, " Remind me at each dose's time");
+		box.append(rem, el("p", "planner-panel-hint", "Reminders need reminders turned on under Settings (on the paid app they show while wr1t3r is open)."));
+	}
+
+	// ---- Sleep and weight -----------------------------------------------------
+
+	sleepPanel(view, anchor) {
+		const last = this.health.sleep.at(-1);
+		const st = { bed: last?.bed || "23:00", wake: last?.wake || "07:00", note: "" };
+		openPanel(this.panelKey, "sleep", anchor, (box) => {
+			box.classList.add("planner-panel");
+			box.append(el("div", "planner-panel-title", "How did you sleep?"));
+			const row = el("div", "planner-food-opts");
+			const time = (key, label) => {
+				const wrap = el("label", "planner-field");
+				const input = el("input");
+				Object.assign(input, { type: "time", value: st[key] });
+				input.dataset.focus = key;
+				input.addEventListener("input", () => { st[key] = input.value; hours.textContent = preview(); });
+				wrap.append(el("span", null, label), input);
+				return wrap;
+			};
+			const preview = () => { const h = sleepHoursOf(st.bed, st.wake); return h == null ? "" : `${hoursText(h)} of ${hoursText(this.cfg.sleep_target)}`; };
+			const hours = el("div", "planner-panel-sub", preview());
+			row.append(time("bed", "Went to bed"), time("wake", "Woke up"));
+			const note = el("label", "planner-field planner-field-wide");
+			const ni = el("input");
+			Object.assign(ni, { type: "text", placeholder: "Optional", value: st.note });
+			ni.dataset.focus = "note";
+			ni.addEventListener("input", () => { st.note = ni.value; });
+			note.append(el("span", null, "Note"), ni);
+			const go = panelButton("planner-log-btn", "Log sleep", async () => {
+				if (sleepHoursOf(st.bed, st.wake) == null) return;
+				await this.health$(view, (t) => addUnder(t, SLEEP.heading, sleepLine(st.bed, st.wake, st.note)));
+				st.note = "";
+			});
+			box.append(row, hours, note, go);
+			const day = this.now(view);
+			if (day.sleep.length) {
+				box.append(el("div", "planner-panel-sub", `Today · ${hoursText(day.sleepHours)}`));
+				for (const it of day.sleep) box.append(this.logRow(view, it.bed ? `${timeText(it.bed)}–${timeText(it.wake)}` : "Sleep", [hoursText(it.hours), it.note].filter(Boolean).join(" · "), it));
+			}
+		});
+	}
+
+	weightPanel(view, anchor) {
+		const vault = view.state.facet(vaultHost);
+		const before = this.day ? lastWeight(vault, this.day) : null;
+		const st = { value: String(this.health.weight ?? before?.value ?? "") };
+		openPanel(this.panelKey, "weight", anchor, (box) => {
+			box.classList.add("planner-panel");
+			box.append(el("div", "planner-panel-title", "Log weight"));
+			const unit = this.cfg.units;
+			const row = el("div", "planner-food-opts");
+			const wrap = el("label", "planner-servings");
+			const input = el("input");
+			Object.assign(input, { type: "number", min: "0", step: "0.1", inputMode: "decimal", value: st.value });
+			input.dataset.focus = "weight";
+			input.addEventListener("input", () => { st.value = input.value; });
+			input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go.click(); } });
+			wrap.append(input, ` ${unit}`);
+			const go = panelButton("planner-log-btn", "Log", async () => {
+				const v = Number(st.value);
+				if (!(v > 0)) return;
+				await this.health$(view, (t) => addUnder(t, WEIGHT.heading, weightLine(v, unit)));
+			});
+			row.append(wrap, go);
+			box.append(row);
+			const day = this.now(view);
+			const now = day.weight ?? null;
+			if (before && now != null && (before.unit || unit) === (day.weights.at(-1)?.unit || unit)) {
+				const diff = Math.round((now - before.value) * 10) / 10;
+				box.append(el("div", "planner-panel-sub", `${diff > 0 ? "+" : diff < 0 ? "−" : "±"}${Math.abs(diff)} ${unit} since ${new Date(before.day + "T12:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`));
+			}
+			if (now != null && needsRecalc(this.cfg.goal, now)) {
+				box.append(el("p", "planner-panel-hint", `Your targets were worked out at ${readGoal(this.cfg.goal).weight} ${unit}. Update them for ${now} ${unit}?`));
+				box.append(panelButton("planner-link", "Update my targets", () => this.targetsPanel(view, anchor, { weight: now })));
+			}
+			if (day.weights.length) {
+				box.append(el("div", "planner-panel-sub", "Today"));
+				for (const it of [...day.weights].reverse()) box.append(this.logRow(view, `${it.time ? timeText(it.time) + " · " : ""}${it.value} ${it.unit || unit}`, "", it));
+			}
+			setTimeout(() => { if (!box.contains(document.activeElement)) input.focus(); });
+		});
+	}
+
+	// ---- Settings every day shares ------------------------------------------
+
+	// Saves settings to the Daily template's planner block (made from the
+	// built-in one if the vault has none), so every day has them, and takes
+	// them out of this note's own block so they don't hide the template's.
+	// tasks is saved to both (each day keeps its own copy). With no template
+	// to write to (or on the template itself), this note's block gets them.
+	async saveShared(view, values) {
+		const vault = view.state.facet(vaultHost);
+		const own = () => readPlanner(dataviewBlocks(view.state, PLANNER)[this.n]?.code);
+		try {
+			let path = sharedColors(vault).path;
+			if (!path && host?.dailyTemplate) path = await host.dailyTemplate();
+			const text = path && path !== this.path ? vault.text(path) : null;
+			if (text == null || editPlannerBlock(text, (c) => c) == null) return saveBlock(view, this.n, { ...own(), ...values });
+			await vault.write(path, (t) => editPlannerBlock(t, (c) => ({ ...c, ...values })) ?? t);
+			const cur = own(), next = { ...cur };
+			for (const k of Object.keys(values)) next[k] = k === "tasks" ? values.tasks : undefined;
+			if (writePlanner(next) !== writePlanner(cur)) saveBlock(view, this.n, next);
+		} catch (e) {
+			host?.toast?.("Couldn't save the planner settings: " + (e?.message || e));
+		}
+	}
+
+	// Ticks for which buttons show, with arrows to move them.
+	// list: [{ id, on }] in order; change(list) after each change.
+	buttonsPicker(box, list, change) {
+		list.forEach((b, i) => {
+			const [, emoji, label] = BUTTONS.find(([id]) => id === b.id);
+			const row = el("div", "planner-pick");
+			const lab = el("label", "planner-check");
+			const cb = el("input");
+			cb.type = "checkbox";
+			cb.checked = b.on;
+			cb.addEventListener("change", () => { list[i] = { ...b, on: cb.checked }; change(list); });
+			lab.append(cb, ` ${emoji} ${label}`);
+			const move = (d) => { const j = i + d; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; change(list); };
+			const up = panelButton("planner-arrow", "↑", () => move(-1));
+			const down = panelButton("planner-arrow", "↓", () => move(1));
+			up.title = "Move left";
+			down.title = "Move right";
+			up.disabled = i === 0;
+			down.disabled = i === list.length - 1;
+			row.append(lab, up, down);
+			box.append(row);
+		});
+	}
+
+	buttonList() {
+		return [...this.cfg.buttons.map((id) => ({ id, on: true })), ...BUTTONS.filter(([id]) => !this.cfg.buttons.includes(id)).map(([id]) => ({ id, on: false }))];
+	}
+
+	buttonsPanel(view, anchor) {
+		const st = { list: this.buttonList() };
+		openPanel(this.panelKey, "buttons", anchor, (box) => {
+			box.classList.add("planner-panel");
+			box.append(el("div", "planner-panel-title", "Buttons on the daily note"));
+			this.buttonsPicker(box, st.list, (list) => {
+				st.list = list;
+				this.saveShared(view, { buttons: list.filter((b) => b.on).map((b) => b.id) });
+				redrawPanel(this.panelKey);
+			});
+			box.append(el("p", "planner-panel-hint", "Every daily note uses these."));
+		});
+	}
+
+	// The goal form and the targets, editable. -> st as targetsForm keeps it.
+	targetsState({ weight } = {}) {
+		const c = this.cfg, g = readGoal(c.goal);
+		const units = g?.units || c.units;
+		const height = g?.height ?? "";
+		return {
+			units, sex: g?.sex || "female", age: g?.age ?? "", weight: weight ?? g?.weight ?? "",
+			ft: units === "lb" && height ? Math.floor(height / 12) : "", inch: units === "lb" && height ? Math.round(height % 12) : "", cm: units === "kg" ? height : "",
+			activity: g?.activity || "light", plan: g?.plan || "maintain",
+			calories_target: c.calories_target, water_target: c.water_target, steps_target: c.steps_target, sleep_target: c.sleep_target,
+			macros: c.macros, protein_target: c.protein_target ?? "", fat_target: c.fat_target ?? "", carbs_target: c.carbs_target ?? "",
+			note: weight != null && g ? "Weight updated. Press Work out my targets for the new numbers." : "", worked: false,
+		};
+	}
+
+	goalOf(st) {
+		const height = st.units === "lb" ? (Number(st.ft) || 0) * 12 + (Number(st.inch) || 0) : Number(st.cm);
+		return readGoal({ units: st.units, sex: st.sex, age: st.age, height, weight: st.weight, activity: st.activity, plan: st.plan });
+	}
+
+	// The values targetsForm's state saves as.
+	targetValues(st) {
+		const n = (v) => { const x = Number(v); return Number.isFinite(x) && x > 0 ? x : null; };
+		const goal = this.goalOf(st);
+		const out = { units: st.units, macros: !!st.macros };
+		if (goal) out.goal = goal;
+		for (const k of ["calories_target", "water_target", "steps_target", "sleep_target"]) if (n(st[k])) out[k] = n(st[k]);
+		for (const k of ["protein_target", "fat_target", "carbs_target"]) out[k] = st.macros ? n(st[k]) : this.cfg[k] ?? null;
+		return out;
+	}
+
+	targetsForm(box, st, redraw) {
+		const sel = (key, label, options) => {
+			const wrap = el("label", "planner-field");
+			const s = el("select");
+			for (const [v, text] of options) s.append(new Option(text, v));
+			s.value = st[key];
+			s.addEventListener("change", () => { st[key] = s.value; redraw(); });
+			wrap.append(el("span", null, label), s);
+			return wrap;
+		};
+		const num = (key, label, step = "1") => {
+			const wrap = el("label", "planner-field");
+			const input = el("input");
+			Object.assign(input, { type: "number", min: "0", step, inputMode: "decimal", value: st[key] });
+			input.dataset.focus = "t-" + key;
+			input.addEventListener("input", () => { st[key] = input.value; });
+			wrap.append(el("span", null, label), input);
+			return wrap;
+		};
+		const row = (...kids) => { const r = el("div", "planner-food-opts"); r.append(...kids); return r; };
+		box.append(el("div", "planner-panel-sub", "About you"));
+		box.append(row(sel("units", "Units", [["lb", "lb, ft/in"], ["kg", "kg, cm"]]), sel("sex", "Sex", SEXES), num("age", "Age")));
+		box.append(st.units === "lb" ? row(num("ft", "Height ft"), num("inch", "in"), num("weight", "Weight lb", "0.1")) : row(num("cm", "Height cm"), num("weight", "Weight kg", "0.1")));
+		box.append(row(sel("activity", "Activity", ACTIVITY.map(([k, label]) => [k, label]))), row(sel("plan", "Goal", PLANS.map(([k, lb, kg]) => [k, st.units === "kg" ? kg : lb]))));
+		box.append(panelButton("planner-link", "Work out my targets", () => {
+			const r = workOut(this.goalOf(st), { water_step: this.cfg.water_step });
+			if (!r) st.note = "Fill in age, height and weight first.";
+			else {
+				Object.assign(st, { calories_target: r.calories_target, water_target: r.water_target, protein_target: r.protein_target, fat_target: r.fat_target, carbs_target: r.carbs_target, worked: true });
+				st.note = r.floored ? `That goal would go under ${fmt(r.calories_target)} calories a day, so it stops there. A slower goal is safer.` : `About ${fmt(r.rest)} calories at rest; the targets below are worked out from that. Change any of them.`;
+			}
+			redraw();
+		}));
+		if (st.note) box.append(el("p", "planner-panel-hint", st.note));
+		box.append(el("div", "planner-panel-sub", "Daily targets"));
+		box.append(row(num("calories_target", "Calories"), num("water_target", "Water oz")), row(num("steps_target", "Steps"), num("sleep_target", "Sleep hours", "0.25")));
+		const mac = el("label", "planner-check");
+		const cb = el("input");
+		cb.type = "checkbox";
+		cb.checked = !!st.macros;
+		cb.addEventListener("change", () => {
+			st.macros = cb.checked;
+			const r = st.macros && !st.protein_target && workOut(this.goalOf(st), { water_step: this.cfg.water_step });
+			if (r) Object.assign(st, { protein_target: r.protein_target, fat_target: r.fat_target, carbs_target: r.carbs_target });
+			redraw();
+		});
+		mac.append(cb, " Protein, fat and carbs targets too");
+		box.append(mac);
+		if (st.macros) box.append(row(num("protein_target", "Protein g"), num("fat_target", "Fat g"), num("carbs_target", "Carbs g")));
+	}
+
+	targetsPanel(view, anchor, opts = {}) {
+		const st = this.targetsState(opts);
+		openPanel(this.panelKey, "targets", anchor, (box) => {
+			box.classList.add("planner-panel");
+			box.append(el("div", "planner-panel-title", "Your targets"));
+			this.targetsForm(box, st, () => redrawPanel(this.panelKey));
+			box.append(panelButton("planner-log-btn", "Save targets", async () => {
+				closePanel();
+				await this.saveShared(view, this.targetValues(st));
+				host.toast?.("Targets saved for every day.");
+			}));
+		});
+	}
+
+	// ---- Setup ---------------------------------------------------------------
+
+	setupCard(view) {
+		const card = el("div", "planner-setup");
+		card.append(el("div", "planner-setup-text", "Set up your planner: pick your buttons, targets and medications."));
+		const start = panelButton("planner-log-btn", "Start", () => this.setupPanel(view, start));
+		card.append(start, panelButton("planner-link", "Not now", () => this.saveShared(view, { setup: "done" })));
+		return card;
+	}
+
+	setupPanel(view, anchor) {
+		const st = { step: 0, buttons: this.buttonList(), targets: this.targetsState(), meds: { edit: true, form: null }, tasks: this.cfg.tasks.join(", ") };
+		const steps = () => ["buttons", "targets", ...(st.buttons.some((b) => b.id === "meds" && b.on) ? ["meds"] : []), "tasks"];
+		const redraw = () => redrawPanel(this.panelKey);
+		const save = {
+			buttons: () => this.saveShared(view, { buttons: st.buttons.filter((b) => b.on).map((b) => b.id) }),
+			targets: () => this.saveShared(view, this.targetValues(st.targets)),
+			meds: () => {},
+			tasks: () => this.saveShared(view, { tasks: st.tasks.split(/[\s,]+/).map((t) => t.replace(/^#/, "").trim()).filter(Boolean) }),
+		};
+		openPanel(this.panelKey, "setup", anchor, (box) => {
+			box.classList.add("planner-panel");
+			const list = steps();
+			const i = Math.min(st.step, list.length - 1), step = list[i];
+			box.append(el("div", "planner-panel-title", ["Your buttons", "Your targets", "Your medications", "Task lists and calendar"][["buttons", "targets", "meds", "tasks"].indexOf(step)]));
+			box.append(el("div", "planner-panel-sub", `Step ${i + 1} of ${list.length}`));
+			if (step === "buttons") {
+				box.append(el("p", "planner-panel-hint", "Tick the buttons you want on every daily note."));
+				this.buttonsPicker(box, st.buttons, (l) => { st.buttons = l; redraw(); });
+			} else if (step === "targets") {
+				this.targetsForm(box, st.targets, redraw);
+			} else if (step === "meds") {
+				this.medsEditor(view, box, st.meds);
+			} else {
+				const wrap = el("label", "planner-field planner-field-wide");
+				const input = el("input");
+				Object.assign(input, { type: "text", value: st.tasks, placeholder: "todo, crit" });
+				input.dataset.focus = "tasks";
+				input.addEventListener("input", () => { st.tasks = input.value; });
+				wrap.append(el("span", null, "Task lists: the tags whose tasks show beside the timeline"), input);
+				box.append(wrap, el("p", "planner-panel-hint", "To fill the timeline from a calendar, pick one under Settings > Tasks and daily note."));
+				box.append(panelButton("planner-link", "Open that setting", () => { closePanel(); host.settings?.("tasks"); }));
+			}
+			if (st.meds.form && step === "meds") return;
+			const foot = el("div", "planner-panel-foot");
+			if (i > 0) foot.append(panelButton("planner-link", "Back", () => { st.step = i - 1; redraw(); }));
+			foot.append(panelButton("planner-link", "Skip", () => {
+				if (i === list.length - 1) { closePanel(); this.saveShared(view, { setup: "done" }); }
+				else { st.step = i + 1; redraw(); }
+			}));
+			foot.append(panelButton("planner-log-btn", i === list.length - 1 ? "Finish" : "Next", async () => {
+				await save[step]();
+				if (i === list.length - 1) {
+					closePanel();
+					await this.saveShared(view, { setup: "done" });
+					host.toast?.("Your planner is set up. Planner (top right) changes any of it later.");
+				} else { st.step = i + 1; redraw(); }
+			}));
+			box.append(foot);
 		});
 	}
 
@@ -627,6 +1175,37 @@ function colorPicker(current, x, y, pick) {
 	box.querySelector("[aria-pressed=true]")?.focus();
 }
 
+// A panel button that doesn't take the editor's focus.
+function panelButton(cls, text, run) {
+	const b = el("button", cls, text);
+	b.type = "button";
+	b.addEventListener("mousedown", (e) => e.preventDefault());
+	b.addEventListener("click", run);
+	return b;
+}
+
+function sleepHoursOf(bed, wake) {
+	return /^\d{2}:\d{2}$/.test(bed || "") && /^\d{2}:\d{2}$/.test(wake || "") ? ((Number(wake.slice(0, 2)) * 60 + Number(wake.slice(3)) - Number(bed.slice(0, 2)) * 60 - Number(bed.slice(3)) + 1440) % 1440) / 60 : null;
+}
+
+// The last weight logged before `day` in any health note (the 90 before it
+// at most): { value, unit, day } or null.
+function lastWeight(vault, day) {
+	const days = vault.paths().map((p) => [p, healthDayOf(p)]).filter(([, d]) => d && d < day).sort((a, b) => (a[1] < b[1] ? 1 : -1)).slice(0, 90);
+	for (const [p, d] of days) {
+		const w = healthDay(vault.text(p), []).weights.at(-1);
+		if (w) return { value: w.value, unit: w.unit, day: d };
+	}
+	return null;
+}
+
+// " · 80 / 150 g protein · ..." for the macros switch (targets left unset
+// show the amount alone).
+function macroText(totals, cfg, sep = " · ") {
+	const one = (k, label) => `${sep}${fmt(totals[k])}${cfg[k + "_target"] ? ` / ${fmt(cfg[k + "_target"])}` : ""} g ${label}`;
+	return one("protein", "protein") + one("carbs", "carbs") + one("fat", "fat");
+}
+
 function timeText(hhmm) {
 	if (!hhmm) return "";
 	const [h, m] = hhmm.split(":").map(Number);
@@ -650,15 +1229,18 @@ function build(state) {
 	blocks.forEach((blk, n) => {
 		// Opened as text with its </> button (src/drawnblocks.js).
 		if (isOpen(state, blk)) return;
-		const cfg = readPlanner(blk.code);
+		const shared = sharedColors(vault);
+		const cfg = readPlanner(blk.code, shared.path === path ? null : shared.code);
 		const { foods } = nutrition(state, cfg);
 		const health = healthDay(day ? vault.text(healthPathFor(path)) : null, foods);
+		const meds = medsList(state, cfg);
+		const doses = day ? dosesOn(meds.meds, day) : [];
 		if (cfg.tasks.length && !notes) notes = allNotes(state);
 		const tasks = cfg.tasks.map((tag) => {
 			const tcfg = readConfig(`list: ${tag}`);
 			return { cfg: tcfg, result: taskList(notes, tcfg, { path, today }) };
 		});
-		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: sharedColors(vault).colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks }), block: true }));
+		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: shared.colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks, meds: { path: meds.path, meds: meds.meds }, doses }), block: true }));
 	});
 	return b.finish();
 }
@@ -668,7 +1250,8 @@ function build(state) {
 // defaults. anchor: anything with getBoundingClientRect(), under which it opens.
 export function openFoodPanel(view, dailyPath, dailyText, anchor) {
 	const code = String(dailyText || "").match(/```wr1t3r-planner[ \t]*\r?\n([\s\S]*?)\r?\n```/)?.[1] ?? "";
-	const w = new PlannerWidget({ cfg: readPlanner(code), n: 0, path: dailyPath, day: noteDay(dailyPath), health: null, tasks: [] });
+	const vault = view.state.facet(vaultHost);
+	const w = new PlannerWidget({ cfg: readPlanner(code, vault ? sharedColors(vault).code : null), n: 0, path: dailyPath, day: noteDay(dailyPath), health: null, tasks: [] });
 	w.foodPanel(view, anchor);
 }
 

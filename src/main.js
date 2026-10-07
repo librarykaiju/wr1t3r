@@ -74,7 +74,8 @@ import { setCardsHost } from "./cardsblock.js";
 import { setPlannerHost, importEvents } from "./plannerview.js";
 import { openPropertyCleanup } from "./propcleanview.js";
 import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
-import { healthPathFor, MEALS, WATER, MOOD, removeEvent, editPlannerBlock } from "./planner.js";
+import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder } from "./planner.js";
+import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE } from "./meds.js";
 import { openFoodPanel } from "./plannerview.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
 import { attachmentKind } from "./attachments.js";
@@ -1790,6 +1791,30 @@ setPlannerHost({
 		scheduleSync();
 		return path;
 	},
+	// The medicine list (src/meds.js): Medications.md beside the Nutrition
+	// Database, or in the notes' folder, made when it isn't there.
+	async medsNote() {
+		const have = medsNotePath();
+		if (have) return have;
+		const db = visible().map((n) => n.path).filter((p) => /(^|\/)Nutrition Database\.md$/i.test(p)).sort((a, b) => a.length - b.length)[0];
+		const path = (db ? db.slice(0, db.lastIndexOf("/") + 1) : commonFolder(visible())) + MEDS_NOTE;
+		await change(path, (cur) => ({ path, text: newMedsNote(), base: cur?.base ?? null, dirty: true, deleted: false }));
+		renderTree();
+		scheduleSync();
+		return path;
+	},
+	// The Daily template, saved from the built-in one when the vault has none,
+	// so the planner's shared settings have somewhere to live.
+	async dailyTemplate() {
+		const t = templateFor();
+		if (!t) return null;
+		if (t.path) return t.path;
+		const path = t.root + "_templates/Daily.md";
+		await change(path, (cur) => ({ path, text: t.text, base: cur?.base ?? null, dirty: true, deleted: false }));
+		scheduleSync();
+		return path;
+	},
+	settings: (tab) => openSettings(true, tab),
 	async events(date) {
 		if (!readRaw(DAILY_CAL_KEY)) {
 			openSettings(true, "tasks");
@@ -2788,15 +2813,52 @@ async function insertTranscript(path, at, md, what) {
 // pushes each one, when it's due, to every device that turned reminders on.
 // Only a changed list is sent.
 let remindersOff = false; // the Worker hasn't been given its keys yet
-// Every open task's reminder from six hours ago on, soonest first.
+// Every open task's reminder from six hours ago on, and the next week's
+// medicine doses not yet taken (src/meds.js), soonest first.
 function upcomingReminders() {
 	const now = Date.now(), list = [];
+	const textOf = (n) => (n.path === editor.path ? editor.view.state.doc.toString() : n.text) || "";
 	for (const n of notes.values()) {
 		if (!n || n.deleted || n.binary || !/\.md$/i.test(n.path) || /(^|\/)_templates\//i.test(n.path)) continue;
-		const text = n.path === editor.path ? editor.view.state.doc.toString() : n.text;
-		for (const r of remindersIn(n.path, text || "")) if (r.at > now - 6 * 3600000) list.push(r);
+		for (const r of remindersIn(n.path, textOf(n))) if (r.at > now - 6 * 3600000) list.push(r);
 	}
+	list.push(...upcomingDoses(now - 6 * 3600000));
 	return list.sort((a, b) => a.at - b.at);
+}
+
+// The planner's shared settings: the Daily template's planner block.
+function dailyPlanner() {
+	const t = findTemplate(visible().map((n) => n.path));
+	const code = t && String(notes.get(t.path)?.text || "").match(/```wr1t3r-planner[ \t]*\r?\n([\s\S]*?)\r?\n?```/)?.[1];
+	return readPlanner(code || "");
+}
+
+// The medicine list's path: the one the Daily template's planner names, else
+// the vault's Medications.md.
+function medsNotePath() {
+	const paths = visible().map((n) => n.path).filter((p) => /\.md$/i.test(p) && !/(^|\/)_templates\//i.test(p));
+	const named = dailyPlanner().medications?.replace(/^\[\[|\]\]$/g, "").split("|")[0].replace(/\.md$/i, "").toLowerCase();
+	const want = named ? (p) => p.toLowerCase() === named + ".md" || p.toLowerCase().endsWith("/" + named.split("/").pop() + ".md") : (p) => /(^|\/)Medications\.md$/i.test(p);
+	return paths.filter(want).sort((a, b) => a.length - b.length)[0] || null;
+}
+
+// Reminders for doses from `from` on, unless the planner's turned them off.
+function upcomingDoses(from) {
+	const path = medsNotePath();
+	if (!path || !dailyPlanner().med_reminders) return [];
+	const meds = parseMeds(notes.get(path)?.text || "");
+	if (!meds.some((m) => !m.asNeeded)) return [];
+	const health = new Map();
+	for (const n of notes.values()) {
+		const m = n && !n.deleted && n.path.match(/(?:^|\/)(\d{4}-\d{2}-\d{2}) Health\.md$/i);
+		if (m) health.set(m[1], n);
+	}
+	const textOf = (n) => (n.path === editor.path ? editor.view.state.doc.toString() : n.text) || "";
+	return medReminders(meds, {
+		from, days: 7,
+		takenOn: (day) => { const n = health.get(day); return n ? itemsUnder(textOf(n), MEDS.heading).map((it) => medEntry(it.text)) : []; },
+		pathOn: (day) => health.get(day)?.path || path,
+	});
 }
 
 async function uploadReminders() {
