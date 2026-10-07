@@ -1131,6 +1131,10 @@ function applyFeatures() {
 	if (s.features.calendar && calendarWasOff) loadAgenda();
 }
 
+// Settings > Help's guide button, and the same one in Features.
+const helpGuide = () => { openSettings(false); openGuide(); };
+$("helpGuide").addEventListener("click", helpGuide);
+
 // Settings > Features: a switch per area, and the folders.
 function renderFeatureSettings() {
 	const pane = document.querySelector('.set-pane[data-tab="features"]');
@@ -1139,7 +1143,7 @@ function renderFeatureSettings() {
 	const h2 = (t) => { const h = document.createElement("h2"); h.textContent = t; return h; };
 	const hint = (t) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = t; return p; };
 	const guide = Object.assign(document.createElement("button"), { type: "button", textContent: "Getting started guide" });
-	guide.addEventListener("click", () => { openSettings(false); openGuide(); });
+	guide.addEventListener("click", helpGuide);
 	pane.append(hint("How to use each part that's on: the Welcome note, or a new one if it's gone."), guide);
 	for (const a of FEATURE_AREAS) {
 		if (onDropbox && a.id === "audio") continue; // transcripts and voice memos go through the Worker

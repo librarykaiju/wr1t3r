@@ -4,6 +4,8 @@
 // settings are kept on this device. After a download it says how to put the
 // site online, and lists pages the last download had that this one doesn't,
 // since re-uploading a folder doesn't delete what's already on the host.
+// Or it publishes the site to a GitHub repo (src/githubpublish.js); the token
+// stays on this device, and only if the person asks.
 //
 // host: {
 //   notes()        [{ path, text }] for every note
@@ -17,6 +19,7 @@
 import appCss from "./style.css?raw";
 import { buildSite, themeCss, SITE_FILES } from "./website.js";
 import { FAMILIES, themeVariants } from "./theme.js";
+import { publishToGitHub } from "./githubpublish.js";
 
 const FAMILY_NAMES = { default: "Default", sepia: "Sepia", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", synthwave: "SynthWave '84" };
 
@@ -25,6 +28,9 @@ let open = null;
 
 const readSaved = () => { try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch { return {}; } };
 const save = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} };
+const TOKEN = "wr1t3r-github-token";
+const readToken = () => { try { return localStorage.getItem(TOKEN) || ""; } catch { return ""; } };
+const keepToken = (t) => { try { t ? localStorage.setItem(TOKEN, t) : localStorage.removeItem(TOKEN); } catch {} };
 
 export function openWebsite(host) {
 	open?.close();
@@ -99,14 +105,25 @@ export function openWebsite(host) {
 	sub("Files");
 	const media = check("Include audio and video (a free Neocities site won't take them)", saved.media);
 	const footer = check("Say “Made with wr1t3r” at the bottom", saved.footer);
+	sub("Publish to GitHub (optional)");
+	const ghHelp = document.createElement("p");
+	ghHelp.className = "hint";
+	const tokenLink = Object.assign(document.createElement("a"), { href: "https://github.com/settings/personal-access-tokens/new", target: "_blank", rel: "noopener", textContent: "Make a token on GitHub" });
+	ghHelp.append("Puts the site in a GitHub repo and turns on GitHub Pages, so it's online at you.github.io. Make an empty repo first. ", tokenLink, " for just that repo, with Contents and Pages set to Read and write. Want Cloudflare? Connect a Cloudflare Pages project to the same repo and it updates every time you publish here. ", helpLink("github", "Step-by-step help"), ".");
+	form.append(ghHelp);
+	const ghRepo = field("Repo", text(saved.ghRepo, "you/my-site"));
+	const ghBranch = field("Branch", text(saved.ghBranch, "main"));
+	const ghToken = field("Token", Object.assign(text(readToken(), "github_pat_…"), { type: "password", autocomplete: "off" }));
+	const ghKeep = check("Remember the token on this device", !!readToken());
 	const actions = document.createElement("div");
 	actions.className = "compile-actions";
 	const go = Object.assign(document.createElement("button"), { type: "button", textContent: "Download website (.zip)" });
-	actions.append(go);
+	const ghGo = Object.assign(document.createElement("button"), { type: "button", textContent: "Publish to GitHub" });
+	actions.append(go, ghGo);
 	form.append(actions);
 	const after = Object.assign(document.createElement("div"), { className: "website-after hint" });
 	form.append(after);
-	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "Notes with publish: true go on the site. Links to other notes stay links only when those notes are published too; properties and %% comments %% never go in." }));
+	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "Notes with publish: true go on the site. Links to other notes stay links only when those notes are published too; %% comments %% never go in." }));
 	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "Shared a post on Bluesky? Add a bluesky property with the Bluesky post's address, and the page shows its likes and replies." }));
 
 	const side = document.createElement("div");
@@ -124,7 +141,7 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ title: title.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value });
+	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), title: title.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
 	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font() }) + (family.value === "synthwave" ? GLOW : "");
@@ -196,11 +213,38 @@ export function openWebsite(host) {
 		}
 	});
 
+	ghGo.addEventListener("click", async () => {
+		const was = ghGo.textContent;
+		ghGo.disabled = go.disabled = true;
+		try {
+			site = build();
+			if (!site.pages.length) return host.toast("Publish a note first: set its publish property to true.");
+			const s = settings();
+			keepToken(ghKeep.checked ? ghToken.value.trim() : "");
+			const lasts = saved.ghLast || {};
+			const key = s.ghRepo.toLowerCase();
+			const r = await publishToGitHub({ token: ghToken.value, repo: s.ghRepo, branch: s.ghBranch, files: site.files, read: host.blob, last: lasts[key] || [], progress: (t) => (ghGo.textContent = t) });
+			Object.assign(saved, s, { ghLast: { ...lasts, [key]: r.paths } });
+			save(saved);
+			const a = Object.assign(document.createElement("a"), { href: r.url, target: "_blank", rel: "noopener", textContent: r.url });
+			const first = p("");
+			first.append(r.changed || r.deleted ? `Published to GitHub (${r.changed} file${r.changed === 1 ? "" : "s"} changed${r.deleted ? `, ${r.deleted} removed` : ""}). Your site: ` : "Nothing had changed since the last publish. Your site: ", a, r.changed || r.deleted ? ". GitHub takes a minute or two to update it." : "");
+			after.replaceChildren(first, ...(r.pagesNote ? [p(r.pagesNote)] : []), ...(r.missing.length ? [p("These files couldn't be read on this device, so they weren't sent:"), list(r.missing)] : []));
+		} catch (e) {
+			after.replaceChildren(p("Couldn't publish to GitHub: " + e.message));
+		} finally {
+			ghGo.disabled = go.disabled = false;
+			ghGo.textContent = was;
+		}
+	});
+
+	const p = (words) => Object.assign(document.createElement("p"), { textContent: words });
+	const list = (items) => { const ul = document.createElement("ul"); for (const i of items) ul.append(Object.assign(document.createElement("li"), { textContent: i })); return ul; };
 	function told(gone, missing) {
-		const p = (words) => Object.assign(document.createElement("p"), { textContent: words });
-		const list = (items) => { const ul = document.createElement("ul"); for (const i of items) ul.append(Object.assign(document.createElement("li"), { textContent: i })); return ul; };
+		const first = p("Downloaded. To put it online with Neocities: unzip it, open your site's dashboard on neocities.org, and drag the files and folders in. It works the same with Netlify Drop or Cloudflare Pages, or anywhere that takes a folder of web pages. ");
+		first.append(helpLink("neocities", "Step-by-step help"), ".");
 		after.replaceChildren(
-			p("Downloaded. To put it online with Neocities: unzip it, open your site's dashboard on neocities.org, and drag the files and folders in. It works the same with Netlify Drop or Cloudflare Pages, or anywhere that takes a folder of web pages."),
+			first,
 			...(gone.length ? [p("These pages were on the site last time and aren't now. Delete them from your host so they're not still online:"), list(gone)] : []),
 			...(missing.length ? [p("These files couldn't be read on this device, so they're not in the zip:"), list(missing)] : []),
 		);
@@ -223,6 +267,9 @@ export function openWebsite(host) {
 	title.focus();
 	refresh();
 }
+
+// The guides on the product site (site/public/help.html).
+const helpLink = (part, words) => Object.assign(document.createElement("a"), { href: `https://wr1t3r.app/help.html#${part}`, target: "_blank", rel: "noopener", textContent: words });
 
 const dataURL = (blob) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = bad; r.readAsDataURL(blob); });
 

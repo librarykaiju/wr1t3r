@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>wr1t3r help: setting up and publishing</title>
+	<meta name="description" content="Step by step: set up wr1t3r with your Dropbox, then publish your notes as a website on Neocities or GitHub Pages.">
+	<link rel="icon" href="/icon.svg">
+	<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+	<header class="top">
+		<a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"> wr1t3r</a>
+		<nav><a href="https://my.wr1t3r.app/">Open the app</a></nav>
+	</header>
+	<main class="help">
+		<section>
+			<h1>Help</h1>
+			<p>Step by step, from first sign-in to a website with your notes on it. In the app, Settings &gt; Help links back here.</p>
+			<ul class="toc">
+				<li><a href="#setup">Setting up wr1t3r</a></li>
+				<li><a href="#publishing">Publishing your notes as a website</a></li>
+				<li><a href="#neocities">Putting the site on Neocities</a></li>
+				<li><a href="#github">Putting the site on GitHub Pages</a></li>
+				<li><a href="#cloudflare">Cloudflare Pages, from the same GitHub repo</a></li>
+			</ul>
+		</section>
+
+		<section id="setup">
+			<h2>Setting up wr1t3r</h2>
+			<ol>
+				<li>
+					<p><strong>Open <a href="https://my.wr1t3r.app/">my.wr1t3r.app</a></strong> in any browser. On an iPhone or iPad, tap Share, then <em>Add to Home Screen</em>, and open wr1t3r from there. Safari clears a website's saved data after a few weeks unless it's on the Home Screen.</p>
+				</li>
+				<li>
+					<p><strong>Sign in with Dropbox.</strong> wr1t3r gets one folder of its own, <em>Apps › wr1t3r</em>, and can't see anything else in your Dropbox. Your notes go straight between your browser and Dropbox; they never pass through our server.</p>
+					<img class="shot" src="/shots/help-connect.webp" width="680" height="350" alt="The first screen: Your notes live in your own Dropbox, in Apps › wr1t3r, and a Sign in with Dropbox button" loading="lazy">
+				</li>
+				<li>
+					<p><strong>Pick what you'll use it for.</strong> wr1t3r turns on the parts that fit. Leave <em>Add starter notes and a Home screen</em> ticked if you'd like a few notes to start from. You can change all of this later in Settings &gt; Features.</p>
+					<img class="shot" src="/shots/help-features.webp" width="779" height="911" alt="Welcome to wr1t3r: checkboxes for Writing, Journal and day planner, Health and food, Books, films and other media, and Research and capture, with Start and Skip buttons" loading="lazy">
+				</li>
+				<li>
+					<p><strong>Read the Welcome note.</strong> It explains each part you turned on. Delete it when you're done; Commands &gt; <em>Getting started</em> writes a fresh one.</p>
+				</li>
+				<li>
+					<p><strong>Already have notes?</strong> Put your Markdown files (and their pictures) in <em>Dropbox › Apps › wr1t3r</em>. They show up when you switch back to wr1t3r.</p>
+				</li>
+				<li>
+					<p><strong>Enter your license key</strong> in Settings &gt; License after you buy. Everything works during the 14-day trial.</p>
+				</li>
+			</ol>
+			<img class="shot" src="/shots/help-settings.webp" width="1170" height="870" alt="Settings › Help in the app: a Getting started guide button and links to these guides" loading="lazy">
+		</section>
+
+		<section id="publishing">
+			<h2>Publishing your notes as a website</h2>
+			<p>wr1t3r builds a website from the notes you choose, as plain web pages you can put on any host. Nothing is published until you say so.</p>
+			<ol>
+				<li>
+					<p><strong>Choose the notes.</strong> Open a note, click the globe in the toolbar, and choose <em>Publish this note</em>. That adds <code>publish: true</code> to the note's properties. The globe is highlighted on notes that are on the site; the same menu unpublishes them.</p>
+					<img class="shot" src="/shots/help-globe.webp" width="1140" height="560" alt="The globe button in the toolbar, open: This note isn't on your website, Publish this note, Export as website" loading="lazy">
+				</li>
+				<li>
+					<p><strong>Set up the site.</strong> In the globe menu, choose <em>Export as website…</em>. Give the site a title, pick a theme, light or dark, and a layout (a menu across the top, or folders down the left as in the app). Add Ko-fi, Patreon or your own link, and where else to find you. The preview on the right shows any page as visitors will see it.</p>
+					<img class="shot" src="/shots/help-export.webp" width="1400" height="910" alt="The Export as website window: site title, logo, theme, light or dark, layout and other settings on the left, and a preview of the front page on the right" loading="lazy">
+				</li>
+				<li>
+					<p><strong>Put it online.</strong> Download it as a .zip for <a href="#neocities">Neocities</a> (or any host that takes a folder of web pages), or send it straight to <a href="#github">GitHub Pages</a>. Both are free.</p>
+				</li>
+			</ol>
+			<p class="small">Links to other notes stay links when those notes are published too. <code>%% comments %%</code> never go on the site. To show a note's likes and replies from Bluesky, add a <code>bluesky</code> property with the Bluesky post's address.</p>
+		</section>
+
+		<section id="neocities">
+			<h2>Putting the site on Neocities</h2>
+			<ol>
+				<li>
+					<p><strong>Make a site</strong> at <a href="https://neocities.org/" rel="noopener">neocities.org</a>. The free plan is plenty. The name you pick becomes the address: <em>yourname.neocities.org</em>.</p>
+				</li>
+				<li>
+					<p><strong>Download the site from wr1t3r.</strong> In Export as website, click <em>Download website (.zip)</em>. Leave <em>Include audio and video</em> off; Neocities' free plan won't take those files.</p>
+					<img class="shot" src="/shots/help-download.webp" width="925" height="1140" alt="Export as website after a download, with directions for putting the site on Neocities" loading="lazy">
+				</li>
+				<li>
+					<p><strong>Unzip it.</strong> On a Mac, double-click the .zip. On Windows, right-click it and choose <em>Extract All</em>. You get a folder with <code>index.html</code> and the rest of the site inside.</p>
+				</li>
+				<li>
+					<p><strong>Upload the files.</strong> On Neocities, open your site's dashboard (<em>Edit Site</em>). Open the unzipped folder, select everything inside it, and drag it all onto the Neocities page. Folders go up with their contents. Your <code>index.html</code> replaces the one Neocities started you with.</p>
+				</li>
+				<li>
+					<p><strong>Visit <em>yourname.neocities.org</em>.</strong> That's your site.</p>
+				</li>
+			</ol>
+			<h3>Updating it</h3>
+			<p>Download again and drag the new files in; they replace the old ones. Uploading doesn't delete anything, so when you unpublish a note, wr1t3r lists the pages to delete from your Neocities dashboard.</p>
+		</section>
+
+		<section id="github">
+			<h2>Putting the site on GitHub Pages</h2>
+			<p>wr1t3r can send the site to GitHub itself, so there's nothing to unzip or drag. You do the setup once.</p>
+			<ol>
+				<li>
+					<p><strong>Make a free account</strong> at <a href="https://github.com/" rel="noopener">github.com</a> if you don't have one.</p>
+				</li>
+				<li>
+					<p><strong>Make a repository</strong> for the site: the <em>+</em> at the top right of GitHub, then <em>New repository</em>.</p>
+					<ul>
+						<li>Name it what you like, say <code>my-site</code>. The site will be at <em>yourname.github.io/my-site</em>. Name it <code>yourname.github.io</code> instead and the site is at <em>yourname.github.io</em> itself.</li>
+						<li>Choose <em>Public</em>. GitHub Pages only works on public repositories on the free plan.</li>
+						<li>Nothing else needs ticking. Click <em>Create repository</em>.</li>
+					</ul>
+				</li>
+				<li>
+					<p><strong>Make a token</strong> so wr1t3r can write to that one repository. Go to <a href="https://github.com/settings/personal-access-tokens/new" rel="noopener">github.com/settings/personal-access-tokens/new</a> (or your picture, <em>Settings</em>, <em>Developer settings</em>, <em>Personal access tokens</em>, <em>Fine-grained tokens</em>, <em>Generate new token</em>).</p>
+					<ul>
+						<li>Name it <code>wr1t3r</code> and pick how long it lasts.</li>
+						<li>Under <em>Repository access</em>, choose <em>Only select repositories</em> and pick your site's repository.</li>
+						<li>Under <em>Permissions</em>, add <em>Contents</em> and <em>Pages</em>, and set both to <em>Read and write</em>.</li>
+						<li>Click <em>Generate token</em> and copy it. GitHub only shows it once.</li>
+					</ul>
+				</li>
+				<li>
+					<p><strong>Publish from wr1t3r.</strong> In Export as website, scroll to <em>Publish to GitHub</em>. Type the repository as <code>yourname/my-site</code>, leave the branch as <code>main</code>, paste the token, and click <em>Publish to GitHub</em>. Tick <em>Remember the token on this device</em> if you don't want to paste it each time.</p>
+					<img class="shot" src="/shots/help-github.webp" width="925" height="1140" alt="The Publish to GitHub part of Export as website: repo, branch and token filled in, and a message saying the site was published, with its address" loading="lazy">
+				</li>
+				<li>
+					<p><strong>Wait a minute or two</strong>, then open the address wr1t3r shows. The first publish turns GitHub Pages on for you.</p>
+				</li>
+			</ol>
+			<h3>Updating it</h3>
+			<p>Click <em>Publish to GitHub</em> again. Only files that changed are sent, and pages you've unpublished are removed. Anything else in the repository, like a README, is left alone.</p>
+			<h3>If something goes wrong</h3>
+			<ul>
+				<li><strong>"GitHub didn't accept the token":</strong> it was copied short, or it has expired. Make a new one the same way.</li>
+				<li><strong>"The token can't see a repo called…":</strong> check the spelling, and that the token was made for that repository.</li>
+				<li><strong>"The token can't write to that repo":</strong> edit the token on GitHub and set Contents to Read and write.</li>
+				<li><strong>wr1t3r couldn't turn Pages on:</strong> in the repository on GitHub, open <em>Settings</em>, then <em>Pages</em>. Under <em>Source</em> choose <em>Deploy from a branch</em>, pick <em>main</em> and <em>/ (root)</em>, and save.</li>
+			</ul>
+			<p class="small">The token goes from your browser straight to GitHub. wr1t3r never sees it or your site. If you tick Remember, it's kept in this browser only; you can delete the token on GitHub at any time.</p>
+		</section>
+
+		<section id="cloudflare">
+			<h2>Cloudflare Pages, from the same GitHub repo</h2>
+			<p>Prefer Cloudflare? Publish to GitHub as above, then let Cloudflare watch the repository. In the Cloudflare dashboard, create a Pages project, connect it to GitHub, and pick your site's repository. There's no build step: leave the build command empty and the output folder as the top of the repository. Every time you click <em>Publish to GitHub</em>, Cloudflare picks up the change.</p>
+			<p>You can also upload the unzipped folder to a Cloudflare Pages project by hand, the same way as Neocities.</p>
+		</section>
+	</main>
+	<footer><p><a href="/">wr1t3r</a> · <a href="/legal.html">Terms, privacy and refunds</a> · <a href="mailto:hello@wr1t3r.app">hello@wr1t3r.app</a></p></footer>
+</body>
+</html>
