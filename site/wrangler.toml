@@ -1,0 +1,14 @@
+# The page at https://wr1t3r.app that says what wr1t3r is and sells it. Static
+# files only. Deploy with `npm run deploy:site`.
+name = "wr1t3r-site"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+routes = [
+	{ pattern = "wr1t3r.app", custom_domain = true },
+	{ pattern = "www.wr1t3r.app", custom_domain = true },
+]
+
+[assets]
+directory = "./public"
+not_found_handling = "404-page"

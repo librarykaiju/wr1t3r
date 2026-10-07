@@ -17,10 +17,12 @@
 <body>
 	<form id="login" hidden>
 		<h1>wr1t3r</h1>
-		<p>Paste your wr1t3r token. It stays on this device.</p>
-		<input id="token" type="password" autocomplete="current-password" placeholder="Token" required>
-		<button type="submit">Continue</button>
-		<p id="dropboxLogin" hidden>Or keep your notes in your own Dropbox: <button type="button" id="dropboxStart">Use Dropbox</button></p>
+		<div id="tokenLogin">
+			<p>Paste your wr1t3r token. It stays on this device.</p>
+			<input id="token" type="password" autocomplete="current-password" placeholder="Token" required>
+			<button type="submit">Continue</button>
+		</div>
+		<p id="dropboxLogin" hidden><span id="dropboxLead">Or keep your notes in your own Dropbox:</span> <button type="button" id="dropboxStart">Use Dropbox</button></p>
 		<p id="login-error" class="error" role="alert"></p>
 	</form>
 

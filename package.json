@@ -9,7 +9,10 @@
     "deploy": "vite build && wrangler deploy",
     "google-auth": "node scripts/google-auth.js",
     "vapid": "node scripts/vapid.js",
-    "food-data": "node scripts/food-data.js"
+    "food-data": "node scripts/food-data.js",
+    "build:product": "vite build --mode product --outDir dist-product",
+    "deploy:product": "npm run build:product && wrangler deploy -c wrangler.product.toml",
+    "deploy:site": "wrangler deploy -c site/wrangler.toml"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
