@@ -47,7 +47,7 @@ const COMMAND_AREAS = [
 	["boards", ["New board file", "Rename .base files to .board", "Insert board"]],
 	["daily", ["Open today's daily note"]],
 	["health", ["Log food"]],
-	["media", ["New book log", "New movie log", "New TV series log", "New music log", "New game log", "New podcast log", "New comic log"]],
+	["media", ["Open stats", "Import StoryGraph library", "New book log", "New movie log", "New TV series log", "New music log", "New game log", "New podcast log", "New comic log"]],
 	["calendar", ["Add calendar events to the timeline"]],
 	["audio", ["Transcribe a video or audio file", "Record a voice memo"]],
 	["ocr", ["Make pictures and PDFs searchable", "Stop reading new pictures and PDFs"]],

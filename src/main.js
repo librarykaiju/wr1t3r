@@ -4,6 +4,8 @@
 
 import { createEditor } from "./editor.js";
 import { setupKeyboardBar } from "./kbbar.js";
+import { readLog, looksLikeLogs, stampFinished } from "./mediastats.js";
+import { drawStats as drawLogStats } from "./mediastatsview.js";
 import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js";
 import { builtinTemplate } from "./builtintemplates.js";
 import { promptFor } from "./prompts.js";
@@ -1601,7 +1603,7 @@ function tileMenu(i, x, y, store = homeStore) {
 	}
 	const k = pinKind(pin.link);
 	const views = k.kind === "folder" || k.kind === "view"
-		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as draft"]]
+		? [["corkboard", "Open as corkboard"], ["outliner", "Open as outline"], ["scrivenings", "Open as draft"], ...(isLogFolder(k.folder) ? [["stats", "Open as stats"]] : [])]
 			.filter(([v]) => v !== (k.kind === "view" ? k.view : "corkboard"))
 			.map(([v, label]) => [label, () => set({ link: v === "corkboard" ? folderLink(k.folder) : viewLink(v, k.folder) })])
 		: [];
@@ -2052,13 +2054,42 @@ function reviewMenu(view, btn) {
 // device). Its order is the folder's _Binder.md (src/binder.js); dragging a
 // card or a row rewrites that list, and nothing else.
 
-const VIEWS = ["corkboard", "outliner", "scrivenings"];
+const VIEWS = ["corkboard", "outliner", "scrivenings", "stats"];
 const VIEWS_KEY = "wr1t3r-folder-views";
 let folderViews = readJSON(VIEWS_KEY, {});
 let scriv = null; // Scrivenings, while it shows
 let focusedSection = null; // { view, path }: the Scrivenings section last typed in
 
-const viewOf = (folder) => (VIEWS.includes(folderViews[folder]) ? folderViews[folder] : "corkboard");
+const viewOf = (folder) => {
+	const v = VIEWS.includes(folderViews[folder]) ? folderViews[folder] : "corkboard";
+	return v === "stats" && !isLogFolder(folder) ? "corkboard" : v;
+};
+
+// ---- stats: a folder of logs as charts (src/mediastats.js) --------------------
+
+const STATS_YEAR_KEY = "wr1t3r-stats-year";
+// Each note read once per version of its text.
+const logCache = new Map();
+const logOf = (n) => {
+	const hit = logCache.get(n.path);
+	if (hit && hit.text === n.text) return hit.log;
+	const log = readLog(n.path, n.text || "");
+	logCache.set(n.path, { text: n.text, log });
+	return log;
+};
+const folderLogs = (folder) => visible()
+	.filter((n) => !n.binary && /\.md$/i.test(n.path) && n.path.toLowerCase().startsWith(folder.toLowerCase()) && !isAppFile(n.path) && !isTemplatePath(n.path))
+	.map(logOf);
+const isLogFolder = (folder) => featureOn("media") && looksLikeLogs(folderLogs(folder));
+function statsHost(folder) {
+	return {
+		folder,
+		logs: () => folderLogs(folder),
+		year: () => readJSON(STATS_YEAR_KEY, {})[folder] || "all",
+		setYear: (y) => writeJSON(STATS_YEAR_KEY, { ...readJSON(STATS_YEAR_KEY, {}), [folder]: y }),
+		open: (p) => openNote(p),
+	};
+}
 const shownFolder = () => (folderTab ? folderTab.slice(FOLDER_TAB.length) : null);
 // A folder's notes and subfolders in order, for the corkboard, outliner,
 // Scrivenings and Compile. Archived notes aren't shown (only a search that
@@ -2195,6 +2226,14 @@ function renderFolderView(force) {
 		return;
 	}
 	if (scriv) { scriv.destroy(); scriv = null; focusedSection = null; }
+	if (view === "stats") {
+		stopViews();
+		const top = body.dataset.shown === folder + view ? body.scrollTop : 0;
+		drawLogStats(body, statsHost(folder));
+		body.dataset.shown = folder + view;
+		body.scrollTop = top;
+		return;
+	}
 	if (!force && (document.documentElement.classList.contains("sorting") || body.contains(document.activeElement) && document.activeElement.matches("input, textarea"))) return folderTouched();
 	const top = body.dataset.shown === folder + view ? body.scrollTop : 0;
 	(view === "outliner" ? drawOutline : drawBoard)(body, host);
@@ -2224,6 +2263,7 @@ function renderFolderBar(folder, view, host) {
 		b.title = i < parts.length - 1 ? `Show ${part}` : "Show in the notes list";
 		crumbs.append(b);
 	});
+	$("fvStats").hidden = !isLogFolder(folder);
 	for (const b of $("fvModes").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.view === view));
 	const n = folderWords(folder, host);
 	$("fvWords").textContent = `${fmt(n)} word${n === 1 ? "" : "s"}`;
@@ -2386,10 +2426,10 @@ function pickFolder(what) {
 		for (let i = 1; i <= parts.length; i++) folders.add(parts.slice(0, i).join("/") + "/");
 	}
 	const here = shownFolder() || currentFolder();
-	const all = [...folders].filter((f) => f.startsWith(home) && f !== home)
+	const all = [...folders].filter((f) => f.startsWith(home) && f !== home && (what !== "stats" || isLogFolder(f)))
 		.sort((a, b) => (b === here) - (a === here) || a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
 	openPalette({
-		placeholder: what === "compile" ? "Compile which folder?" : `Show which folder as ${what === "corkboard" ? "a corkboard" : what === "outliner" ? "an outline" : "a draft"}?`,
+		placeholder: what === "compile" ? "Compile which folder?" : what === "stats" ? "Show stats for which folder of logs?" : `Show which folder as ${what === "corkboard" ? "a corkboard" : what === "outliner" ? "an outline" : "a draft"}?`,
 		items: all.map((f) => ({ label: folderLabel(f), detail: "folder", run: () => (what === "compile" ? openCompile(f) : openFolderView(f, what)) })),
 	});
 }
@@ -2840,6 +2880,8 @@ function allCommands() {
 		["Open corkboard", () => pickFolder("corkboard"), "scrivener index cards folder board order"],
 		["Open outliner", () => pickFolder("outliner"), "scrivener outline table folder order"],
 		["Open draft", () => pickFolder("scrivenings"), "scrivenings scrivener one document whole folder read draft"],
+		["Import StoryGraph library", importStoryGraph, "storygraph csv export books reading goodreads import"],
+		["Open stats", () => pickFolder("stats"), "charts graphs reading year review books read storygraph goodreads ratings genres"],
 		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
 		["Transcribe a video or audio file", transcribeIntoNote, "transcript speech text speakers video audio mp4 mov podcast interview", true],
@@ -3109,6 +3151,22 @@ function renderTitle() {
 	document.title = timer.running ? `${pomo.format(pomo.remaining(timer, Date.now()))} · ${base}` : base;
 }
 
+// Setting a log's shelf to "Finished" in the editor dates it (finished:),
+// once the typing stops, so "Read" on the way to "Reading" doesn't.
+const finishWatch = new Map(); // path -> { before, timer }
+function watchFinished(path, before) {
+	const w = finishWatch.get(path) || { before };
+	clearTimeout(w.timer);
+	w.timer = setTimeout(() => {
+		finishWatch.delete(path);
+		if (path !== editor.path || editor.view.state.readOnly) return;
+		const now = editor.view.state.doc.toString();
+		const out = stampFinished(w.before, now, isoDate(new Date()));
+		if (out != null && out !== now) editor.view.dispatch({ changes: diffChange(now, out), userEvent: "input.finished" });
+	}, 1500);
+	finishWatch.set(path, w);
+}
+
 function onEdit(path, text) {
 	const note = notes.get(path);
 	if (!note || note.binary) return;
@@ -3116,6 +3174,7 @@ function onEdit(path, text) {
 	typed = true;
 	notes.set(path, { ...note, text, dirty: true });
 	change(path, (cur) => (cur ? { ...cur, text, dirty: true, deleted: false } : { path, text, base: null, dirty: true, deleted: false }));
+	if (/^---/.test(text)) watchFinished(path, note.text);
 	if (!wasDirty) { renderStatus(); renderTree(); }
 	if (path === ref.path) refTouched();
 	scheduleSync();
@@ -3509,6 +3568,57 @@ async function renameNote(from, input) {
 	await followPins(new Map([[from, to]]), paths);
 	openNote(to);
 	scheduleSync(0);
+}
+
+// ---- StoryGraph import (src/storygraph.js) -----------------------------------------
+
+function chooseFile(accept) {
+	return new Promise((resolve) => {
+		const input = Object.assign(document.createElement("input"), { type: "file", accept });
+		input.addEventListener("change", () => resolve(input.files[0] || null), { once: true });
+		input.addEventListener("cancel", () => resolve(null), { once: true });
+		input.click();
+	});
+}
+
+async function importStoryGraph() {
+	const file = await chooseFile(".csv,text/csv");
+	if (!file) return;
+	const sg = await import("./storygraph.js");
+	let books;
+	try { books = sg.readExport(await file.text()); } catch (e) { return toast(e.message, 8000); }
+	if (!books.length) return toast("That export has no books in it.");
+	const kind = NEW_NOTE_KINDS.find((k) => k.media === "book");
+	const folder = kindFolder(kind, commonFolder(visible()), mediaKinds);
+	const logs = visible().filter((n) => !n.binary && n.path.toLowerCase().startsWith(folder.toLowerCase()) && /\.md$/i.test(n.path)).map((n) => ({ path: n.path, text: n.text || "" }));
+	const plan = sg.planImport(books, logs);
+	const look = navigator.onLine && plan.add.length > 0;
+	if (!confirm(`Import ${books.length} book${books.length === 1 ? "" : "s"} from StoryGraph into ${folderLabel(folder)}?\n\n` +
+		`${plan.add.length} new log${plan.add.length === 1 ? "" : "s"}, and ${plan.update.length} existing log${plan.update.length === 1 ? "" : "s"} filled in where empty (nothing already written is changed).` +
+		(look ? "\n\nCovers, page counts and summaries for the new ones are then looked up on Open Library." : ""))) return;
+	const today = isoDate(new Date());
+	const added = [];
+	for (const b of plan.add) added.push({ b, path: await addNote(folder, noteFileName(b.title), sg.bookNote(b, today)) });
+	for (const { path, book } of plan.update) await dataviewVault.write(path, (t) => sg.mergeBook(t, book));
+	renderTree();
+	scheduleSync();
+	toast(`Imported ${plan.add.length} new and updated ${plan.update.length} book log${plan.update.length === 1 ? "" : "s"}.`, 6000);
+	if (folderTab && shownFolder() === folder) renderFolderView(true);
+	if (!look) return;
+	// Covers and the rest, one book at a time, in the background.
+	const note = toast(`Looking up covers: 0 of ${added.length}…`, 10 * 60000);
+	let found = 0;
+	for (let i = 0; i < added.length; i++) {
+		note.set(`Looking up covers: ${i + 1} of ${added.length}…`);
+		try {
+			const info = await sg.lookUpBook(added[i].b);
+			if (info) { found++; await dataviewVault.write(added[i].path, (t) => sg.fillBook(t, info)); }
+		} catch { /* one miss doesn't stop the rest */ }
+		await new Promise((r) => setTimeout(r, 350));
+	}
+	note.close();
+	toast(`Found covers and details for ${found} of ${added.length} new book${added.length === 1 ? "" : "s"}.`, 6000);
+	folderTouched();
 }
 
 // ---- uploads -------------------------------------------------------------------
@@ -5209,9 +5319,11 @@ const dataviewVault = {
 	files: () => cachedPaths("files", (n) => !n.binary),
 	// A base changing a note's property: the open note through the editor (so
 	// it can be undone there), others saved and synced like any edit.
-	async write(path, fn) {
+	async write(path, change1) {
 		const note = notes.get(path);
 		if (!note || note.deleted || note.binary) return;
+		// Moving a log to a done shelf (a board lane, say) dates it.
+		const fn = (t) => { const a = change1(t); return stampFinished(t, a, isoDate(new Date())) ?? a; };
 		if (path === editor.path) {
 			const before = editor.view.state.doc.toString(), after = fn(before); // "\n" breaks, as CodeMirror counts them
 			if (after !== before) editor.view.dispatch({ changes: diffChange(before, after), userEvent: "input.base" });

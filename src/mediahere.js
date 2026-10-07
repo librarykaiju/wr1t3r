@@ -19,7 +19,9 @@ async function run(path, body) {
 }
 
 export const mediaHere = {
-	async mediaKinds() { return (await run("/api/media/kinds")).kinds; },
+	// The Worker's default folders are under content/ (a site's notes folder);
+	// a notebook without a Worker keeps its logs at the top.
+	async mediaKinds() { return (await run("/api/media/kinds")).kinds.map((k) => ({ ...k, folder: k.folder.replace(/^content\//, "") })); },
 	async mediaSearch(kind, q) { return (await run("/api/media/search?" + new URLSearchParams({ kind, q }))).results; },
 	async mediaCovers(kind, ref) { return (await run("/api/media/covers", { kind, ref })).covers; },
 	async mediaNote(kind, ref, cover, today) { return run("/api/media/note", { kind, ref, cover, today }); },
