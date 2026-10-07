@@ -3778,8 +3778,8 @@ const MEDIA_COMMANDS = { movie: "movie/TV", book: "book", music: "music", game: 
 // that kind's note from its template instead.
 async function newMediaNote(k, kind = null) {
 	if (!navigator.onLine) return toast("Media lookups need a connection.");
+	let progress = null;
 	try {
-		let progress = null;
 		const made = await makeMediaNote(k, await mediaSource(), (text) => {
 			if (text) progress ? progress.set(text) : (progress = toast(text, 60000));
 			else { progress?.close(); progress = null; }
@@ -3792,6 +3792,8 @@ async function newMediaNote(k, kind = null) {
 	} catch (e) {
 		if (e instanceof AuthError) return signOut(SIGNED_OUT);
 		toast("Couldn't make that note: " + e.message, 8000);
+	} finally {
+		progress?.close();
 	}
 }
 
