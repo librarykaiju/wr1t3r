@@ -30,6 +30,8 @@ import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.
 import { api, token, setToken, AuthError } from "./api.js";
 import { openStorage, registerStorage, storageKind, setStorageKind } from "./storage.js";
 import { notebookCalendar, eventName, CALENDAR_FOLDER } from "./notecal.js";
+import { googleClientId, googleTokens, googleHas, beginGoogleSignIn, finishGoogleSignIn, isGoogleReturn, forgetGoogle, googleClient, GoogleSignInEnded, CALENDAR_SCOPES } from "./google.js";
+import { googleCalendar } from "./gcal.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { isPublished, notPublishedWhy } from "./published.js";
@@ -1160,6 +1162,13 @@ function renderFeatureSettings() {
 			seg.append(b);
 		}
 		pane.append(h2(label), seg, hint(detail + "."));
+	}
+	if (onDropbox && googleClientId()) {
+		const t = googleTokens();
+		const btn = (words, fn) => { const b = Object.assign(document.createElement("button"), { type: "button", textContent: words }); b.addEventListener("click", fn); return b; };
+		pane.append(h2("Google Calendar"), ...(pageGoogle
+			? [hint(`Connected${t?.email ? " as " + t.email : ""}. The agenda, month view and Timeline show your Google calendars, and new events go there.`), btn("Disconnect Google Calendar", disconnectGoogle)]
+			: [hint("Show your Google calendars in the agenda, and add events to them, instead of wr1t3r's own calendar. Events already in wr1t3r's calendar stay in its Calendar folder. Your calendar goes straight between this browser and Google."), btn("Connect Google Calendar", connectGoogleCalendar)]));
 	}
 	pane.append(h2("Folders"), hint("wr1t3r's own folders, inside the notes' folder. Notes already there stay where they are."));
 	for (const f of FOLDER_SETTINGS) {
@@ -4553,8 +4562,11 @@ function setupFocusTools() {
 
 // Google Calendar goes through the Worker. With no Worker (Dropbox), or a
 // Worker without Google set up, events are notes in _wr1t3r/Calendar/
-// (src/notecal.js), which answer the same calls.
-let calNotebook = onDropbox;
+// (src/notecal.js), which answer the same calls -- unless this device has
+// connected Google Calendar itself (src/google.js, src/gcal.js).
+const pageGoogleOn = () => onDropbox && !!googleClientId() && googleHas(CALENDAR_SCOPES);
+let pageGoogle = pageGoogleOn() ? googleCalendar(googleClient()) : null;
+let calNotebook = onDropbox && !pageGoogle;
 const calFolder = () => { const h = homeFile(); return h.slice(0, h.lastIndexOf("/") + 1) + CALENDAR_FOLDER; };
 const noteCal = notebookCalendar({
 	folder: calFolder,
@@ -4569,11 +4581,39 @@ const noteCal = notebookCalendar({
 	},
 });
 async function calendarDo(fn) {
+	if (pageGoogle) {
+		try { return await fn(pageGoogle); } catch (e) { if (e instanceof GoogleSignInEnded) googleEnded(); throw e; }
+	}
 	if (!calNotebook) {
 		try { return await fn(api); } catch (e) { if (!e.body?.setup) throw e; calNotebook = true; }
 	}
 	return fn(noteCal);
 }
+// Google turned down the sign-in (revoked, or 7 days old while wr1t3r's Google
+// app is in testing): back to the built-in calendar until it's connected again.
+function googleEnded() {
+	pageGoogle = null;
+	calNotebook = true;
+	cal = null; monthData = null; pickData = null;
+	toast("Google Calendar needs connecting again: Settings > Features.", 10000);
+	loadAgenda(true);
+}
+
+function connectGoogleCalendar() {
+	beginGoogleSignIn({ scopes: CALENDAR_SCOPES, redirectUri: location.origin + "/" }).catch((e) => toast("Couldn't start Google sign-in: " + e.message, 8000));
+}
+
+async function disconnectGoogle() {
+	if (!confirm("Disconnect Google Calendar on this device? The agenda goes back to wr1t3r's own calendar. Nothing in Google Calendar changes.")) return;
+	await forgetGoogle();
+	pageGoogle = null;
+	calNotebook = true;
+	cal = null; monthData = null; pickData = null;
+	writeJSON(FILTER_KEY, null);
+	renderFeatureSettings();
+	loadAgenda(true);
+}
+
 // After a sync brings in event notes from another device.
 function refreshNotebookCalendar() {
 	if (!calNotebook || !featureOn("calendar")) return;
@@ -5036,7 +5076,7 @@ async function importIcs() {
 	const failed = [];
 	try {
 		for (let i = 0; i < plan.add.length; i += 40) {
-			const r = await api.importEvents(calendarId, plan.add.slice(i, i + 40));
+			const r = await calendarDo((c) => c.importEvents(calendarId, plan.add.slice(i, i + 40)));
 			imported += r.imported;
 			failed.push(...r.failed);
 			note.set(`Importing: ${Math.min(i + 40, plan.add.length)} of ${plan.add.length}…`);
@@ -5549,6 +5589,8 @@ async function start() {
 	document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && renderQuote());
 	for (const n of await local.all()) notes.set(n.path, n);
 	applyFeatures();
+	const googleMsg = sessionStorage.getItem("wr1t3r-google-msg");
+	if (googleMsg) { sessionStorage.removeItem("wr1t3r-google-msg"); toast(googleMsg, 8000); }
 	loadAttachments();
 	loadMediaKinds();
 	persist();
@@ -5641,7 +5683,13 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
 	navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
 
-if (isDropboxReturn(location.href)) {
+if (isGoogleReturn(location.href)) {
+	// Back from connecting Google: keep the tokens, then load the page fresh.
+	finishGoogleSignIn({ url: location.href })
+		.then(() => sessionStorage.setItem("wr1t3r-google-msg", "Google Calendar is connected."))
+		.catch((err) => sessionStorage.setItem("wr1t3r-google-msg", "Couldn't connect Google: " + err.message))
+		.finally(() => location.replace(location.pathname));
+} else if (isDropboxReturn(location.href)) {
 	finishDropboxSignIn({ url: location.href })
 		.then(() => { history.replaceState(null, "", location.pathname); start(); })
 		.catch((err) => {

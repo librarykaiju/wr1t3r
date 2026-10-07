@@ -243,6 +243,12 @@ If the agenda ever says the Google sign-in has expired, run `npm run google-auth
 
 The first sync downloads every note (a few MB for this vault).
 
+### Google Calendar on the paid build
+
+With no Worker of ours holding a Google account, each person connects their own: Settings > Features > **Connect Google Calendar** (shown when the build has `VITE_GOOGLE_CLIENT_ID`). The page signs in with Google itself (src/google.js, OAuth code flow with PKCE) and calls Google Calendar from the browser (src/gcal.js, sharing `listEvents`, `eventBody`, `slimEvent` and `importEvents` with worker/calendar.js). Google only gives a lasting sign-in to an app that sends its client secret, so the product Worker (worker/product.js, worker/googleauth.js) swaps the sign-in code and refresh token for access tokens with the secret added. It stores nothing; the refresh token stays in the browser, and calendar data never passes through it. When Google ends the sign-in (revoked, or after 7 days while the Google app is in Testing), the agenda falls back to the built-in calendar and asks to connect again.
+
+Setup, once: a Google Cloud project with the Google Calendar API on, a Web OAuth client whose redirect URI is `https://my.wr1t3r.app/`, scopes `calendar.events` and `calendar.calendarlist.readonly`; then `VITE_GOOGLE_CLIENT_ID` in .env.product.local and `npx wrangler secret put GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET -c wrangler.product.toml`.
+
 ## Google Drive backup
 
 Every hour, at 17 minutes past, the Worker copies the vault bucket into a folder at the top of your Google Drive (`DRIVE_BACKUP` in `wrangler.toml`, `wr1t3r-vault-backup`), with the bucket's folders inside it (`worker/backup.js`). Only files that changed since the last copy are sent. It only adds and updates: a file deleted from the bucket keeps its last copy in Drive. A run copies a batch (up to `BACKUP_CALLS` Google and R2 calls, default 400) and the next run carries on, so the first full copy can take a few hours. Its progress is kept in the bucket at `.wr1t3r/backup.json`.
