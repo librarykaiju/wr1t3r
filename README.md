@@ -362,6 +362,21 @@ With no Worker (Dropbox) or no `ANTHROPIC_API_KEY`, the device reads them itself
 
 In a board's Grid, click under a column to pick its total: Sum, Average, Median, Smallest, Largest, Range, Standard deviation, Earliest or Latest date, Checked, Unchecked, Filled, Empty, or Unique values. It's saved in the view's `summaries:`.
 
+## Export as website
+
+Commands, then "Export as website", turns every note with `publish: true` into a static website and downloads it as a .zip (src/website.js plans the files; src/websiteview.js is the dialog). "Publish this note" and "Unpublish this note" set the property. Everything runs in the page, so it's the same in both builds.
+
+- One .html page per note with relative links, a front page listing them by folder (a published `Home.md` or `Index.md` at the top becomes its text), `not_found.html` for Neocities, and `style.css` built from a theme picked in the dialog (any of the notebook's, starting with the one in use) and the notebook's font. With Auto the site follows each visitor's light or dark setting.
+- `[[Links]]` to published notes become links; links to anything else become plain words. Properties, `%% comments %%`, block ids and dataview/base blocks never go in. Notes in `_` folders and `draft: true` notes are left out even when marked.
+- Pictures and PDFs a published note uses are copied into `files/`. Audio and video only when "Include audio and video" is on, since a free Neocities site won't take them.
+- Layout: "Top menu" (a link per top-level folder across the top) or "Notebook" (the folders down the left as in the app, folding open; plain `<details>`, no scripts). On phones the left column goes above the text.
+- Navigation: the site title (and an optional logo, a picture from the notebook that's also the tab icon) goes to the front page; a menu links each top-level folder's own list (`folder/index.html`); each page ends with Previous and Next in its folder, newest first.
+- The sidebar, beside the text or under it on phones, can hold a calendar of what was posted when (from each note's `date`), with a page per month under `archive/` and an Archive menu item, and support buttons (Ko-fi, Patreon, one link of your own). They're plain links, no third-party scripts. The right sidebar can be turned off, and can also hold "Find me on" links: one address per line (Bluesky, Mastodon `@name@server`, Instagram and so on are named for their site; an email address becomes an Email link written as character codes).
+- Posts get Share buttons (system share sheet on phones, Copy link, Bluesky, Mastodon, Email), filled in by a few lines of script since a page only knows its address once it's online.
+- The dialog remembers its settings and the pages of the last download on this device, and lists pages that have dropped off since, so they can be deleted from the host.
+
+To put it online: unzip, then drag the files and folders into the Neocities dashboard, Netlify Drop or Cloudflare Pages.
+
 ## Writing stats, goals and fonts
 
 - **Stats and goals:** click the word count for words, characters, sentences, words per sentence, paragraphs and reading time (238 words a minute). "Words for this note" saves `goal:` in the note, and the count then reads `1,240 / 2,000 words` with a progress fill. "Words today" is a goal per device, counting words you add while typing (deletions count against it), with a notice when you reach it.

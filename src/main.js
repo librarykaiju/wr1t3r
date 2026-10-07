@@ -2874,6 +2874,9 @@ function allCommands() {
 		...(ocrOn() ? [["Stop reading new pictures and PDFs", () => { setOcrOn(false); toast("New pictures and PDFs won't be read. Ones already read stay searchable."); }, "ocr off"]] : []),
 		["Version history", showHistory, "versions snapshots restore undo earlier backup recover diff compare", true],
 		["Export or print this note", () => exportNote(editor.path), "print pdf word docx html download save", true],
+		["Export as website", exportWebsite, "publish site web neocities html zip blog garden static share"],
+		["Publish this note", () => setPublished(editor.path, true), "website site web share public", true],
+		["Unpublish this note", () => setPublished(editor.path, false), "website site web private hide", true],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
 		...[...document.querySelectorAll("#setTabs [data-tab]")].map((b) => ["Settings: " + b.textContent, () => openSettings(true, b.dataset.tab), "preferences options"]),
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
@@ -5252,6 +5255,31 @@ async function uploadPicture(file, notePath) {
 }
 
 // Export or print one note: the Compile dialog with just that note.
+// Export as website (src/website.js): every note marked publish: true, as a
+// zip of web pages. Runs in the page, so it's the same on every build.
+async function exportWebsite() {
+	if (!attachmentsLoaded) await refreshAttachments();
+	const { openWebsite } = await import("./websiteview.js");
+	openWebsite({
+		notes: () => visible().filter((n) => !n.binary).map((n) => ({ path: n.path, text: dataviewVault.text(n.path) ?? n.text ?? "" })),
+		attachments: () => attachments.map((f) => f.path),
+		blob(path) {
+			const file = attachments.find((f) => f.path === path);
+			if (!file) throw new Error("not found");
+			return attachmentBlob(file, (p) => remote.attachment(p));
+		},
+		theme: () => readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme")),
+		font: () => FONTS[fontName] && fontName !== "serif" ? FONTS[fontName] : "",
+		toast,
+	});
+}
+
+function setPublished(path, on) {
+	if (!path) return;
+	dataviewVault.write(path, (t) => setProperty(t, "publish", on));
+	toast(on ? "This note will be on the website next time you export it." : "This note won't be on the website. If it's online now, delete its page from your host after the next export.");
+}
+
 function exportNote(path) {
 	const note = path && notes.get(path);
 	if (!note || note.deleted || note.binary) return;
