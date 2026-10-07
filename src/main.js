@@ -551,7 +551,7 @@ function renderTree() {
 		return;
 	}
 	if (!list.length) {
-		tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: lastSynced ? "The vault is empty." : "Loading the vault…" }));
+		tree.append(Object.assign(document.createElement("div"), { className: "hint", textContent: lastSynced ? "No notes yet." : "Loading your notes…" }));
 		return;
 	}
 	// Folders first, then notes, like Obsidian. Archived notes aren't listed.
