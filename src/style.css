@@ -1553,6 +1553,17 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .compile-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .compile-actions button:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .compile-preview { width: 100%; height: 100%; border: 0; background: #fff; }
+.website .compile-form h3 { margin: 6px 0 -4px; font-size: 13px; font-weight: 600; color: var(--fg); }
+.website .compile-form label.check { flex-direction: row; align-items: flex-start; gap: 6px; color: var(--fg); }
+.website .compile-form label.check input { margin-top: 2px; }
+.website .compile-actions { grid-template-columns: 1fr; }
+.website-after:empty { display: none; }
+.website-after { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.website-after p { margin: 0 0 6px; }
+.website-after ul { margin: 0 0 6px; padding-left: 1.2em; }
+.website-side { display: flex; flex-direction: column; min-height: 0; }
+.website-side select { margin: 8px; font-size: 14px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+.website-side .compile-preview { flex: 1; min-height: 0; }
 @media (max-width: 720px) {
 	.compile-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
 	.compile-form { border-right: 0; border-bottom: 1px solid var(--line); max-height: 52vh; }

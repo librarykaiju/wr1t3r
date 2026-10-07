@@ -34,3 +34,15 @@ export function themeAttr(family, mode, systemDark) {
 	const dark = mode === "dark" || (mode === "auto" && systemDark);
 	return dark ? v.dark : v.light;
 }
+
+// The variants a page outside the app (the exported website) uses for a
+// family and mode: { light, dark } as data-theme values, null for Default's
+// light colors (the stylesheet's plain :root). dark is null when the site
+// shouldn't switch with the visitor's system.
+export function themeVariants(family, mode) {
+	const v = VARIANTS[family] || VARIANTS.default;
+	const light = family === "default" ? null : v.light;
+	if (mode === "light") return { light, dark: null };
+	if (mode === "dark") return { light: v.dark, dark: null };
+	return { light, dark: v.dark === v.light ? null : v.dark };
+}

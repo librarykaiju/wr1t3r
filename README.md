@@ -353,6 +353,18 @@ With no Worker (Dropbox) or no `ANTHROPIC_API_KEY`, the device reads them itself
 
 In a board's Grid, click under a column to pick its total: Sum, Average, Median, Smallest, Largest, Range, Standard deviation, Earliest or Latest date, Checked, Unchecked, Filled, Empty, or Unique values. It's saved in the view's `summaries:`.
 
+## Export as website
+
+Commands, then "Export as website", turns every note with `publish: true` into a static website and downloads it as a .zip (src/website.js plans the files; src/websiteview.js is the dialog). "Publish this note" and "Unpublish this note" set the property. Everything runs in the page, so it's the same in both builds.
+
+- One .html page per note with relative links, a front page listing them by folder (a published `Home.md` or `Index.md` at the top becomes its text), `not_found.html` for Neocities, and `style.css` built from the notebook's theme and font. With the Auto theme the site follows the visitor's light or dark setting.
+- `[[Links]]` to published notes become links; links to anything else become plain words. Properties, `%% comments %%`, block ids and dataview/base blocks never go in. Notes in `_` folders and `draft: true` notes are left out even when marked.
+- Pictures and PDFs a published note uses are copied into `files/`. Audio and video only when "Include audio and video" is on, since a free Neocities site won't take them.
+- Support buttons (Ko-fi, Patreon, one link of your own) are plain links in a box beside the text, or under it on phones. No third-party scripts.
+- The dialog remembers its settings and the pages of the last download on this device, and lists pages that have dropped off since, so they can be deleted from the host.
+
+To put it online: unzip, then drag the files and folders into the Neocities dashboard, Netlify Drop or Cloudflare Pages.
+
 ## Writing stats, goals and fonts
 
 - **Stats and goals:** click the word count for words, characters, sentences, words per sentence, paragraphs and reading time (238 words a minute). "Words for this note" saves `goal:` in the note, and the count then reads `1,240 / 2,000 words` with a progress fill. "Words today" is a goal per device, counting words you add while typing (deletions count against it), with a notice when you reach it.
