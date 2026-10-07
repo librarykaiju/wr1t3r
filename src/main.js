@@ -2746,14 +2746,33 @@ async function turnOnReminders() {
 	markReminders();
 }
 
+// Asks for batch after batch (each its own Worker run, so each gets the full
+// subrequest allowance) until the backup is up to date or a batch stops
+// making progress. Whatever is left, the Worker's cron carries on with.
 async function backupNow() {
-	const note = toast("Backing up to Google Drive…", 120000);
+	const note = toast("Backing up to Google Drive…", 600000);
+	let total = 0, waits = 0;
 	try {
-		const { files, last, folder } = await api.backupNow().finally(note.close);
-		if (last?.error) return toast(`Backup stopped after ${last.copied} files: ${last.error}`, 15000);
-		toast(last.remaining ? `Copied ${last.copied} files to "${folder}" in Google Drive; ${last.remaining} more go in the next hourly runs.` : `Backup is up to date: ${files} files in "${folder}" in Google Drive.`, 10000);
+		for (let round = 0; round < 500; round++) {
+			const { files, last, folder, busy } = await api.backupNow();
+			// The Worker's own batch (every minute while behind) is running: wait for it.
+			if (busy) {
+				if (++waits > 8) return toast("A backup batch is already running. The Worker carries on every minute until it's done.", 10000);
+				note.set(`Backing up to Google Drive… ${total} files copied; waiting for a batch the Worker is running.`);
+				await new Promise((r) => setTimeout(r, 15000));
+				continue;
+			}
+			total += last?.copied || 0;
+			if (last?.error) return toast(`Backup stopped after ${total} files: ${last.error}`, 15000);
+			if (!last?.remaining) return toast(`Backup is up to date: ${files} files in "${folder}" in Google Drive.`, 10000);
+			if (!last.copied) return toast(`Copied ${total} files to "${folder}" in Google Drive; the other ${last.remaining} go in the next runs.`, 10000);
+			note.set(`Backing up to Google Drive… ${total} files copied, ${last.remaining} to go.`);
+		}
+		toast(`Copied ${total} files; the Worker carries on with the rest every minute.`, 10000);
 	} catch (e) {
 		toast(e.status === 404 ? "The Drive backup isn't set up on the Worker yet (see README, Google Drive backup)." : "Couldn't back up: " + e.message, 12000);
+	} finally {
+		note.close();
 	}
 }
 

@@ -255,16 +255,16 @@ On the paid build with `VITE_GOOGLE_CLIENT_ID` set, the sign-in screen also offe
 
 ## Google Drive backup
 
-Every hour, at 17 minutes past, the Worker copies the vault bucket into a folder at the top of your Google Drive (`DRIVE_BACKUP` in `wrangler.toml`, `wr1t3r-vault-backup`), with the bucket's folders inside it (`worker/backup.js`). Only files that changed since the last copy are sent. It only adds and updates: a file deleted from the bucket keeps its last copy in Drive. A run copies a batch (up to `BACKUP_CALLS` Google and R2 calls, default 400) and the next run carries on, so the first full copy can take a few hours. Its progress is kept in the bucket at `.wr1t3r/backup.json`.
+Every hour, at 17 minutes past, the Worker copies the vault bucket into a folder at the top of your Google Drive (`DRIVE_BACKUP` in `wrangler.toml`, `wr1t3r-vault-backup`), with the bucket's folders inside it (`worker/backup.js`). Only files that changed since the last copy are sent. It only adds and updates: a file deleted from the bucket keeps its last copy in Drive. A run copies a batch (up to `BACKUP_CALLS` calls to Google, default 45, which fits the 50 subrequests a Worker run gets on Cloudflare's free plan) and the next run carries on. While files are left over, the every-minute cron runs another batch, so the first full copy finishes on its own; one batch runs at a time. Its progress is kept in the bucket at `.wr1t3r/backup.json`.
 
 It uses the Google sign-in from [Google Calendar](#google-calendar), with Drive access added:
 
 1. In the same Google Cloud project: **APIs & Services** → **Library** → **Google Drive API** → **Enable**.
 2. Run `npm run google-auth` again, with the same client ID and secret, and allow both calendar and Drive access. wr1t3r asks only for the Drive files it makes itself, so it can't see or change anything else in your Drive.
 3. `npm run deploy`.
-4. Command palette → **Back up to Google Drive now** runs a batch straight away and says how it went (also `GET` / `POST /api/backup`). Later runs happen on their own.
+4. Command palette → **Back up to Google Drive now** runs batches straight away until the backup is up to date (keep the tab open; it shows the count as it goes) and says how it went (also `GET` / `POST /api/backup`, one batch each). Later runs happen on their own.
 
-Remove the `DRIVE_BACKUP` line to turn backups off. On Cloudflare's free plan a Worker gets only 50 calls per run, so set `BACKUP_CALLS = "45"` there.
+Remove the `DRIVE_BACKUP` line to turn backups off. On a paid Workers plan you can raise `BACKUP_CALLS` (say to `"900"`) for bigger batches.
 
 ## Local folder
 

@@ -125,7 +125,7 @@ test("a batch stops at the call budget and the next run carries on", async () =>
 	const g = fakeDrive();
 	try {
 		const files = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`n${String(i).padStart(2, "0")}.md`, "x" + i]));
-		const e = { ...env(fakeBucket(files)), BACKUP_CALLS: "30" };
+		const e = { ...env(fakeBucket(files)), BACKUP_CALLS: "10" };
 		const first = await runBackup(e, 1);
 		assert.ok(first.last.copied > 0 && first.last.remaining > 0, JSON.stringify(first.last));
 		assert.equal(first.upToDate, null);
@@ -133,6 +133,52 @@ test("a batch stops at the call budget and the next run carries on", async () =>
 		for (let i = 0; i < 10 && s.last.remaining; i++) s = await runBackup(e, 2 + i);
 		assert.equal(s.last.remaining, 0);
 		assert.equal(Object.keys(g.tree()).length, 12);
+	} finally {
+		g.restore();
+	}
+});
+
+test("by default a batch stays under the free plan's 50 subrequests, in nested folders too", async () => {
+	const g = fakeDrive();
+	try {
+		const files = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`content/f${i % 7}/sub${i % 3}/n${i}.md`, "x" + i]));
+		const e = env(fakeBucket(files));
+		let s, runs = 0;
+		do {
+			g.seen.length = 0;
+			s = await runBackup(e, ++runs);
+			assert.equal(s.last.error, undefined);
+			assert.ok(g.seen.length <= 45, `run ${runs} made ${g.seen.length} calls`);
+		} while (s.last.remaining && runs < 20);
+		assert.equal(s.last.remaining, 0);
+		assert.equal(Object.keys(g.tree()).length, 60);
+	} finally {
+		g.restore();
+	}
+});
+
+test("one batch at a time; Cloudflare's subrequest limit isn't an error", async () => {
+	const g = fakeDrive();
+	try {
+		const vault = fakeBucket({ "a.md": "A", "b.md": "B" });
+		const e = env(vault);
+		await vault.put(".wr1t3r/backup.json", JSON.stringify({ running: 1000 }));
+		const busy = await runBackup(e, 2000);
+		assert.equal(busy.busy, true);
+		assert.equal(Object.keys(g.tree()).length, 0, "nothing copied while another batch runs");
+		const stale = await runBackup(e, 1000 + 4 * 60 * 1000);
+		assert.equal(stale.last.copied, 2, "a batch that died is taken over");
+		assert.equal(stale.running, null);
+
+		vault.set("a.md", "A2");
+		const real = globalThis.fetch;
+		globalThis.fetch = async (url, init) => (/\/upload\//.test(url) ? Promise.reject(new Error("Too many subrequests by single Worker invocation.")) : real(url, init));
+		try {
+			const s = await runBackup(e, 10 ** 7);
+			assert.deepEqual(s.last, { at: 10 ** 7, copied: 0, remaining: 1 });
+		} finally {
+			globalThis.fetch = real;
+		}
 	} finally {
 		g.restore();
 	}
@@ -182,7 +228,7 @@ test("errors are kept with the progress; the API runs a batch and reports", asyn
 	}
 });
 
-test("the hourly cron runs the backup, the every-minute one doesn't", async () => {
+test("the hourly cron runs the backup; the every-minute one only while it's behind", async () => {
 	const g = fakeDrive();
 	try {
 		const vault = fakeBucket({ "a.md": "A" });
@@ -194,6 +240,18 @@ test("the hourly cron runs the backup, the every-minute one doesn't", async () =
 		await worker.scheduled({ cron: "17 * * * *" }, env(vault), ctx);
 		await Promise.all(waits);
 		assert.deepEqual(g.tree(), { "Vault backup/a.md": "A" });
+
+		for (let i = 0; i < 20; i++) vault.set(`n${i}.md`, "x");
+		const e = { ...env(vault), BACKUP_CALLS: "10" };
+		await worker.scheduled({ cron: "17 * * * *" }, e, ctx);
+		await Promise.all(waits);
+		const left = Object.keys(g.tree()).length;
+		assert.ok(left < 21, "the hourly batch didn't finish");
+		for (let i = 0; i < 10; i++) {
+			await worker.scheduled({ cron: "* * * * *" }, e, ctx);
+			await Promise.all(waits);
+		}
+		assert.equal(Object.keys(g.tree()).length, 21, "the every-minute cron finished it");
 	} finally {
 		g.restore();
 	}

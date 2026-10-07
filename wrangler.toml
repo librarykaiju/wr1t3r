@@ -54,6 +54,7 @@ binding = "AI"
 
 # Task reminders (worker/push.js): checked every minute. Needs the secrets
 # VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY; `npm run vapid` makes them.
-# The vault's backup to Google Drive (worker/backup.js): a batch every hour.
+# The vault's backup to Google Drive (worker/backup.js): a batch every hour,
+# and every minute while files are left over.
 [triggers]
 crons = ["* * * * *", "17 * * * *"]
