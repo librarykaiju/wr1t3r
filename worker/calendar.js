@@ -76,28 +76,8 @@ export async function calendarApi(request, env, url) {
 		if (isNaN(from) || isNaN(to) || to <= from || to - from > MAX_RANGE_DAYS * 864e5) {
 			throw new HttpError(400, `from and to: a range of up to ${MAX_RANGE_DAYS} days`);
 		}
-		const list = await google(env, "/users/me/calendarList?minAccessRole=reader&maxResults=250");
-		const all = list.items || [];
 		const asked = url.searchParams.get("calendars");
-		const wanted = asked == null ? null : new Set(asked.split(",").filter(Boolean));
-		const calendars = all.filter((c) => (wanted ? wanted.has(c.id) : c.selected || c.primary));
-		const perCalendar = await Promise.all(calendars.map(async (c) => {
-			const q = new URLSearchParams({
-				timeMin: from.toISOString(), timeMax: to.toISOString(),
-				singleEvents: "true", orderBy: "startTime", maxResults: "250",
-			});
-			const r = await google(env, `/calendars/${encodeURIComponent(c.id)}/events?${q}`);
-			return (r.items || []).filter((e) => e.status !== "cancelled").map((e) => slimEvent(e, c));
-		}));
-		const events = perCalendar.flat().sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-		return {
-			// Every calendar, so events can be added to one that's hidden in the agenda.
-			calendars: all.map((c) => ({
-				id: c.id, name: c.summaryOverride || c.summary, color: c.backgroundColor, primary: !!c.primary,
-				shown: !!(c.selected || c.primary), writable: c.accessRole === "owner" || c.accessRole === "writer",
-			})),
-			events,
-		};
+		return listEvents((path) => google(env, path), from, to, asked == null ? null : asked.split(",").filter(Boolean));
 	}
 
 	if (url.pathname === "/api/calendar/events" && request.method === "POST") {
@@ -115,17 +95,7 @@ export async function calendarApi(request, env, url) {
 		if (!Array.isArray(body?.events) || body.events.length > IMPORT_BATCH) throw new HttpError(400, `events: up to ${IMPORT_BATCH} at a time`);
 		const id = body.calendarId == null || body.calendarId === "" ? "primary" : body.calendarId;
 		if (typeof id !== "string" || id.length > 300) throw new HttpError(400, "Bad calendarId");
-		let imported = 0;
-		const failed = [];
-		for (const e of body.events) {
-			try {
-				await google(env, `/calendars/${encodeURIComponent(id)}/events/import`, { method: "POST", body: JSON.stringify(importBody(e)) });
-				imported++;
-			} catch (err) {
-				failed.push({ title: String(e?.title || "").slice(0, 200), error: err.message });
-			}
-		}
-		return { imported, failed };
+		return importEvents((path, init) => google(env, path, init), id, body.events);
 	}
 
 	if (url.pathname === "/api/calendar/events" && request.method === "DELETE") {
@@ -136,6 +106,50 @@ export async function calendarApi(request, env, url) {
 		return { deleted: true };
 	}
 	return null;
+}
+
+// The shared parts, also used by the page's own Google client (src/gcal.js).
+// google(path, init) -> Google Calendar API JSON, throwing on errors.
+
+// Events in [from, to) from the named calendars (ids), or from every
+// calendar shown in Google Calendar -> {calendars, events}.
+export async function listEvents(google, from, to, ids = null) {
+	const list = await google("/users/me/calendarList?minAccessRole=reader&maxResults=250");
+	const all = list.items || [];
+	const wanted = ids == null ? null : new Set(ids);
+	const calendars = all.filter((c) => (wanted ? wanted.has(c.id) : c.selected || c.primary));
+	const perCalendar = await Promise.all(calendars.map(async (c) => {
+		const q = new URLSearchParams({
+			timeMin: from.toISOString(), timeMax: to.toISOString(),
+			singleEvents: "true", orderBy: "startTime", maxResults: "250",
+		});
+		const r = await google(`/calendars/${encodeURIComponent(c.id)}/events?${q}`);
+		return (r.items || []).filter((e) => e.status !== "cancelled").map((e) => slimEvent(e, c));
+	}));
+	const events = perCalendar.flat().sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+	return {
+		// Every calendar, so events can be added to one that's hidden in the agenda.
+		calendars: all.map((c) => ({
+			id: c.id, name: c.summaryOverride || c.summary, color: c.backgroundColor, primary: !!c.primary,
+			shown: !!(c.selected || c.primary), writable: c.accessRole === "owner" || c.accessRole === "writer",
+		})),
+		events,
+	};
+}
+
+// Imported events (src/ics.js googleEvent) one by one -> {imported, failed}.
+export async function importEvents(google, calendarId, events) {
+	let imported = 0;
+	const failed = [];
+	for (const e of events) {
+		try {
+			await google(`/calendars/${encodeURIComponent(calendarId)}/events/import`, { method: "POST", body: JSON.stringify(importBody(e)) });
+			imported++;
+		} catch (err) {
+			failed.push({ title: String(e?.title || "").slice(0, 200), error: err.message });
+		}
+	}
+	return { imported, failed };
 }
 
 // Only what the agenda shows, plus when to alert: the event's own reminders,
