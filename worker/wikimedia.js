@@ -114,7 +114,7 @@ export async function wikiComic(get, ref, today) {
 	return {
 		fields: {
 			title: e.title, author: named(writers), artist: named(ids(c, "P110")),
-			series, volume: null, format: "💬 Comic", publisher: named(ids(c, "P123"))[0] || "",
+			series, volume: null, format: ["💬Comic"], publisher: named(ids(c, "P123"))[0] || "",
 			subjects: ["Comics & Graphic Novels"], genre: ["comics"], vibesAndThemes: [], shelf: [], rating: [],
 			coverImage: e.image, summary: e.summary, sticky: false, publish: false, date: today, eyebrow: null,
 		},

@@ -13,7 +13,7 @@ import { linkOpener } from "./links.js";
 import { notePath, vaultHost, vaultChanged } from "./vault.js";
 import { SITE_KEYS } from "./sitekeys.js";
 import { healthDayOf } from "./planner.js";
-import { TYPES, TYPE_LABELS, DATE_KEY, isTagsKey, readRows, itemsOf, setEdit, convertEdit, removeEdit, renameEdit, addEdit, keyProblem, suggest } from "./properties.js";
+import { TYPES, TYPE_LABELS, DATE_KEY, isTagsKey, readRows, itemsOf, setEdit, convertEdit, removeEdit, renameEdit, addEdit, keyProblem, suggest, CHOICES, choiceFor, choiceOptions } from "./properties.js";
 
 const FENCE = /^---[ \t]*$/;
 const CLOSE = /^(?:---|\.\.\.)[ \t]*$/;
@@ -678,11 +678,18 @@ function pillsDOM(view, r, readOnly) {
 	input.placeholder = tags ? "+ tag" : "+ add";
 	input.setAttribute("aria-label", tags ? "Add a tag" : `Add to ${r.key}`);
 	input.size = 6;
+	// rating and format offer their set choices; a rating holds just one, so
+	// picking another replaces it, and typing "4" means four stars.
+	const choices = CHOICES[r.key];
 	const add = () => {
-		const name = tags ? tagName(input.value) : input.value.trim();
-		if (name) change((items) => [...items, name]);
+		const typed = tags ? tagName(input.value) : input.value.trim();
+		const name = choices ? choiceFor(r.key, typed) || typed : typed;
+		if (!name) return;
+		change((items) => (choices?.single ? [name] : items.includes(name) && choices ? items : [...items, name]));
 	};
-	typeAhead(input, valueOptions(view, r.key, () => rowNamed(view.state, r.key)?.items || []), { empty: true, take: add });
+	const have = () => rowNamed(view.state, r.key)?.items || [];
+	typeAhead(input, choices ? (typed) => choiceOptions(r.key, typed, have()) : valueOptions(view, r.key, have), { empty: true, take: add });
+	if (choices) input.placeholder = choices.single ? "+ choose" : "+ add";
 	input.addEventListener("keydown", (e) => {
 		if (e.key === "Enter" || e.key === ",") {
 			e.preventDefault();

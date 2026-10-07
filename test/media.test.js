@@ -158,7 +158,7 @@ test("no Comic Vine key: comics from Wikidata", async () => {
 		const found = await (await call(e, "/api/media/search?kind=comic&q=saga")).json();
 		assert.equal(found.results.length, 1);
 		const n = await (await post(e, "/api/media/note", { kind: "comic", ref: found.results[0].ref, today: "2026-10-06" })).json();
-		assert.deepEqual([n.fields.author, n.fields.artist, n.fields.publisher, n.fields.format], [["Brian K. Vaughan"], ["Fiona Staples"], "Image Comics", "💬 Comic"]);
+		assert.deepEqual([n.fields.author, n.fields.artist, n.fields.publisher, n.fields.format], [["Brian K. Vaughan"], ["Fiona Staples"], "Image Comics", ["💬Comic"]]);
 		assert.equal(n.fields.summary, "", "no Wikipedia article: no summary, no request");
 		assert.ok(!web.seen.some((x) => x.url.includes("wikipedia")));
 	} finally { web.restore(); }

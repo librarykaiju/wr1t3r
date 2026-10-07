@@ -10,6 +10,7 @@
 
 import { parseFrontmatter } from "./dvpage.js";
 import { setProperty } from "./bases.js";
+import { formatFor } from "./properties.js";
 import { genresFromSubjects, JUNK_SUBJECT } from "../worker/genres.js";
 
 // RFC 4180 CSV: quoted fields may hold commas, quotes ("") and line breaks.
@@ -38,7 +39,7 @@ export function parseCsv(text) {
 }
 
 const SHELVES = { "read": "Finished", "currently-reading": "Currently Reading", "to-read": "TBR", "did-not-finish": "DNF", "paused": "Paused" };
-const FORMATS = [[/audio/i, "🔉 Audio"], [/digital|ebook|kindle/i, "📱 Ebook"], [/paperback|hardcover|print|book/i, "📘 Book"]];
+
 const cap = (s) => s.replace(/(^|[\s-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
 const list = (s) => String(s || "").split(",").map((x) => x.trim()).filter(Boolean);
 // "2024/03/15" or "2024-03-15" -> "2024-03-15"
@@ -63,7 +64,7 @@ export function readExport(text) {
 		return {
 			title: get(r, "title"),
 			authors: list(get(r, "authors")),
-			format: FORMATS.find(([re]) => re.test(get(r, "format")))?.[1] || null,
+			format: formatFor(get(r, "format")),
 			shelf: SHELVES[get(r, "status").toLowerCase()] || (get(r, "status") ? cap(get(r, "status").replace(/-/g, " ")) : null),
 			added: day(get(r, "added")),
 			finished,

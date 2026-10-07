@@ -49,7 +49,7 @@ import * as agenda from "./agenda.js";
 import * as toc from "./toc.js";
 import { timelineChanges, eventsOn } from "./timeline.js";
 import { newNoteFrontmatter, withTitleHeading } from "./frontmatter.js";
-import { readTypes, writeTypes, listKeys, propertyUsage } from "./properties.js";
+import { readTypes, writeTypes, listKeys, propertyUsage, CHOICE_TYPES, toChoices } from "./properties.js";
 import { quoteFor } from "./quotes.js";
 import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
@@ -1926,7 +1926,8 @@ function propertyTypes() {
 	const text = notes.get(typesFile())?.deleted ? null : notes.get(typesFile())?.text ?? null;
 	if (text !== typesCache.text) typesCache = { text, types: readTypes(text) };
 	if (listCache.at !== vaultStamp) listCache = { at: vaultStamp, types: listKeys([...notes.values()].filter((n) => !n.deleted && !n.binary).map((n) => n.text)) };
-	return { ...listCache.types, ...typesCache.types };
+	// rating and format are lists of set choices unless a type was chosen.
+	return { ...listCache.types, ...CHOICE_TYPES, ...typesCache.types };
 }
 // Every property name and value in the vault with how many notes use it,
 // for the properties box's suggestions (propertyUsage in src/properties.js).
@@ -2934,6 +2935,7 @@ function allCommands() {
 		["Open draft", () => pickFolder("scrivenings"), "scrivenings scrivener one document whole folder read draft"],
 		["Import StoryGraph library", importStoryGraph, "storygraph csv export books reading goodreads import"],
 		["Fill book genres from subjects", fillBookGenres, "genre genres subjects books open library tags book logs"],
+		["Update log ratings and formats", updateRatingsAndFormats, "rating ratings stars star format audiobook comic book logs convert numbers"],
 		["Open stats", () => pickFolder("stats"), "charts graphs reading year review books read storygraph goodreads ratings genres"],
 		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
@@ -3676,6 +3678,24 @@ async function importStoryGraph() {
 	}
 	note.close();
 	toast(`Found covers and details for ${found} of ${added.length} book${added.length === 1 ? "" : "s"}.`, 6000);
+	folderTouched();
+}
+
+// Logs' ratings as stars ("rating: 4" -> ⭐⭐⭐⭐) and book formats as the
+// three choices (📖Book, 🎧Audiobook, 💬Comic), in every log folder. Values
+// that aren't a whole star rating or a known format are left as they are.
+async function updateRatingsAndFormats() {
+	const root = commonFolder(visible());
+	const folders = [...new Set(NEW_NOTE_KINDS.filter((k) => k.media).map((k) => kindFolder(k, root, mediaKinds).toLowerCase()))];
+	const todo = visible().filter((n) => !n.binary && /\.md$/i.test(n.path) && folders.some((f) => n.path.toLowerCase().startsWith(f)) && toChoices(n.text || ""));
+	const types = propertyTypes();
+	const retype = Object.keys(CHOICE_TYPES).filter((k) => types[k] !== "list");
+	if (!todo.length && !retype.length) return toast("Every log's rating and format already use the choices.");
+	if (todo.length && !confirm(`Update ${todo.length} log${todo.length === 1 ? "" : "s"}?\n\nRatings from 1 to 5 become stars (4 -> ⭐⭐⭐⭐) and book formats become 📖Book, 🎧Audiobook or 💬Comic. Anything else (half stars, other formats) stays as it is.`)) return;
+	for (const k of retype) await setPropertyType(k, "list");
+	for (const n of todo) await dataviewVault.write(n.path, (t) => toChoices(t) ?? t);
+	scheduleSync();
+	toast(todo.length ? `Updated ${todo.length} log${todo.length === 1 ? "" : "s"}.` : "Rating and format are lists of choices now.", 6000);
 	folderTouched();
 }
 

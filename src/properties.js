@@ -320,3 +320,94 @@ export function suggest(counts, typed, { skip = [], limit = 8 } = {}) {
 	}
 	return out.sort((a, b) => a.rank - b.rank || b.n - a.n || a.text.localeCompare(b.text)).slice(0, limit);
 }
+
+// ---- properties with set choices ------------------------------------------------
+//
+// rating (a log's personal rating, one to five stars) and format (a book
+// log's: book, audiobook or comic) are lists whose values come from a set of
+// choices. The properties box offers just these, and a rating holds one.
+
+export const STARS = ["⭐", "⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐"];
+export const BOOK_FORMATS = ["📖Book", "🎧Audiobook", "💬Comic"];
+export const CHOICES = {
+	rating: { options: STARS, single: true },
+	format: { options: BOOK_FORMATS, single: false },
+};
+// The types these properties have unless Property Types says otherwise.
+export const CHOICE_TYPES = Object.fromEntries(Object.keys(CHOICES).map((k) => [k, "list"]));
+
+// A rating as stars: "4", 4, "4/5", "★★★★" or "⭐⭐⭐⭐" -> "⭐⭐⭐⭐"; null for
+// anything that isn't a whole number of stars from 1 to 5 (3.5, "8/10" is 4).
+export function starsFor(v) {
+	const s = String(v ?? "").trim();
+	if (!s) return null;
+	const stars = (s.match(/⭐|★/g) || []).length;
+	if (stars) return /½|\d/.test(s) || stars > 5 ? null : STARS[stars - 1];
+	const m = /^(\d+(?:\.\d+)?)\s*(?:\/\s*(\d+))?$/.exec(s);
+	if (!m) return null;
+	const out = m[2] ? Number(m[2]) : 5;
+	const n = (Number(m[1]) / out) * 5;
+	return Number.isInteger(n) && n >= 1 && n <= 5 ? STARS[n - 1] : null;
+}
+
+// A book format as one of the choices: "📘 Book", "Paperback", "📱 Ebook" ->
+// "📖Book"; "🔉 Audio", "audiobook" -> "🎧Audiobook"; "💬 Comic", "Graphic
+// novel", "Manga" -> "💬Comic"; null when it's none of them.
+export function formatFor(v) {
+	const s = String(v ?? "").trim();
+	if (!s) return null;
+	if (/audio/i.test(s)) return "🎧Audiobook";
+	if (/comic|graphic|manga|manhwa/i.test(s)) return "💬Comic";
+	if (/book|paper|hard|print|kindle|digital|e-?reader|novel/i.test(s)) return "📖Book";
+	return null;
+}
+
+// What typing in a choice property's box means: "4" in a rating is four stars.
+export function choiceFor(key, typed) {
+	const t = String(typed ?? "").trim();
+	if (!t) return null;
+	const exact = CHOICES[key]?.options.find((o) => o === t);
+	if (exact) return exact;
+	if (key === "rating") return starsFor(t);
+	if (key === "format") return formatFor(t);
+	return null;
+}
+
+// Suggestions for a choice property: its choices not already there, the one
+// matching what's typed first. [{ text, prefix }]
+export function choiceOptions(key, typed, have = []) {
+	const c = CHOICES[key];
+	if (!c) return [];
+	const match = choiceFor(key, typed);
+	const left = c.single ? c.options : c.options.filter((o) => !have.includes(o));
+	return [...left].sort((a, b) => (b === match) - (a === match)).map((text) => ({ text, prefix: text === match }));
+}
+
+// A note's rating and format turned into the choices: "rating: 4" becomes
+// "rating:\n  - ⭐⭐⭐⭐", "format: 📘 Book" becomes "format:\n  - 📖Book". Values
+// that aren't one of the choices (3.5 stars, "Zine") stay as they are.
+// Returns the new text, or null when nothing changed.
+export function toChoices(text) {
+	const nl = text.includes("\r\n") ? "\r\n" : "\n";
+	const lines = text.split(/\r?\n/);
+	if (lines[0].replace(/^﻿/, "") !== "---") return null;
+	const close = lines.indexOf("---", 1);
+	if (close < 0) return null;
+	const doc = { line: (n) => ({ text: lines[n - 1] }) };
+	const rows = readRows(doc, { open: 1, close: close + 1 });
+	let changed = false;
+	// Bottom up, so earlier line numbers stay right.
+	for (const row of rows.filter((r) => CHOICES[r.key] && r.kind !== "yaml").reverse()) {
+		const map = row.key === "rating" ? starsFor : formatFor;
+		const items = row.kind === "list" ? row.items : row.value ? [row.value] : [];
+		if (!items.length) continue;
+		const mapped = items.map((x) => map(x) ?? x);
+		const unique = [...new Set(mapped)];
+		if (row.kind === "list" && row.form === "block" && unique.length === items.length && unique.every((x, i) => x === items[i])) continue;
+		if (row.kind === "scalar" && !map(row.value)) continue;
+		const indent = row.form === "block" ? row.indent : "  ";
+		lines.splice(row.first - 1, row.last - row.first + 1, row.key + ":", ...unique.map((x) => `${indent}- ${itemText(x)}`));
+		changed = true;
+	}
+	return changed ? lines.join(nl) : null;
+}

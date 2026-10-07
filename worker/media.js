@@ -540,7 +540,7 @@ const NOTE = {
 				author: creditsFor(i.person_credits, "writer"),
 				artist: [...new Set(["penciler", "artist"].flatMap((r) => creditsFor(i.person_credits, r)))],
 				series: volume ? [volume] : [], volume: i.issue_number || null,
-				format: "💬 Comic", publisher, subjects: ["Comics & Graphic Novels"], genre: ["comics"],
+				format: ["💬Comic"], publisher, subjects: ["Comics & Graphic Novels"], genre: ["comics"],
 				vibesAndThemes: [], shelf: [], rating: [],
 				coverImage: i.image?.original_url || i.image?.medium_url || "",
 				summary: plainText(i.description), sticky: false, publish: false, date: today, eyebrow: plainText(i.deck) || null,
