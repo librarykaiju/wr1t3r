@@ -68,7 +68,7 @@ import { pushApi, sendDue } from "./push.js";
 import { ocrApi } from "./ocr.js";
 import { defineApi } from "./define.js";
 import { grammarApi } from "./grammar.js";
-import { backupApi, backupConfigured, runBackup } from "./backup.js";
+import { backupApi, backupBehind, backupConfigured, runBackup } from "./backup.js";
 import { HttpError, toBase64 } from "./util.js";
 import { isNotePath, isAttachmentPath, attachmentType } from "../src/paths.js";
 import { INBOX, captureEntry, appendCapture, stamp } from "../src/capture.js";
@@ -112,11 +112,15 @@ export default {
 			return json({ error: String(err?.message || err) }, 500);
 		}
 	},
-	// [triggers] in wrangler.toml: every minute, task reminders that are due;
-	// the hourly one, a batch of the Google Drive backup.
+	// [triggers] in wrangler.toml: every minute, task reminders that are due,
+	// plus another batch of the Google Drive backup while it's behind; the
+	// hourly one, a batch of the backup.
 	async scheduled(event, env, ctx) {
-		if (event.cron === EVERY_MINUTE) ctx.waitUntil(sendDue(env));
-		else if (backupConfigured(env)) ctx.waitUntil(runBackup(env));
+		if (event.cron === EVERY_MINUTE) {
+			ctx.waitUntil(sendDue(env));
+			// Leaves room in the run's subrequests for the reminders.
+			ctx.waitUntil(backupBehind(env).then((behind) => behind && runBackup(env, Date.now(), Math.min(Number(env.BACKUP_CALLS) || 45, 30))));
+		} else if (backupConfigured(env)) ctx.waitUntil(runBackup(env));
 	},
 };
 
