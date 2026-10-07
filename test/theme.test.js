@@ -24,4 +24,8 @@ test("families pick their light or dark variant, Auto follows the system", () =>
 	assert.equal(themeAttr("nord", "auto", true), "nord");
 	assert.equal(themeAttr("monokai", "light", false), "monokai");
 	assert.equal(themeAttr("synthwave", "light", false), "synthwave");
+	assert.equal(themeAttr("bubblegum", "light", true), "bubblegum");
+	assert.equal(themeAttr("bubblegum", "auto", true), "bubblegum-night");
+	assert.equal(themeAttr("sakura", "auto", false), "sakura");
+	assert.equal(themeAttr("sakura", "dark", false), "sakura-night");
 });
