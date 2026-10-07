@@ -5520,9 +5520,16 @@ async function start() {
 	});
 	window.addEventListener("online", () => runSync());
 	window.addEventListener("offline", () => { lastError = "offline"; renderStatus(); });
-	document.addEventListener("visibilitychange", () => {
-		if (document.visibilityState === "visible") runSync();
-	});
+	// Back to the tab, or to the window from another app (say, after dropping
+	// files into Dropbox): check for changes, at most every 10 seconds.
+	let lastLook = 0;
+	const lookAgain = () => {
+		if (document.visibilityState !== "visible" || Date.now() - lastLook < 10000) return;
+		lastLook = Date.now();
+		runSync();
+	};
+	document.addEventListener("visibilitychange", lookAgain);
+	window.addEventListener("focus", lookAgain);
 	document.addEventListener("keydown", onHotkey, true); // ahead of the editor's own keys
 	$("bookmark").addEventListener("click", () => toggleBookmark());
 	$("homeBtn").addEventListener("click", goHome);
