@@ -243,7 +243,46 @@ export function pageInfo(path, text) {
 		banner: s(p.banner),
 		description: s(p.description) || s(p.summary),
 		bluesky: blueskyPost(s(p.bluesky)),
+		props: propRows(p),
 	};
+}
+
+// Properties the page already shows elsewhere, or that only steer wr1t3r or
+// the site: left out of the page's Properties box.
+const OWN_KEYS = new Set(["title", "publish", "draft", "tags", "tag", "date", "created", "cover", "coverimage", "image", "thumbnail", "banner", "banner_position", "banner_y", "cover_shape", "cover_position", "description", "summary", "bluesky", "cssclasses", "cssclass", "aliases", "alias", "compile", "sticky", "eyebrow", "permalink", "layout", "eleventyexcludefromcollections", "position"]);
+
+// The note's other properties, in their order: [[key, value]], empty values
+// left out.
+function propRows(p) {
+	const empty = (v) => v == null || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && !v.some((x) => !empty(x)));
+	return Object.entries(p).filter(([k, v]) => !OWN_KEYS.has(k.toLowerCase()) && !empty(v));
+}
+
+// The same color as a tag's pill in the app (tagHue in src/frontmatter.js): 0-6.
+export function tagHue(tag) {
+	let h = 0;
+	for (const c of String(tag).toLowerCase()) h = (h * 31 + c.codePointAt(0)) >>> 0;
+	return h % 7;
+}
+
+// One property value as HTML: lists as pills, yes/no as a checkbox, dates
+// written out, web addresses as links, [[links]] as their words.
+function propValue(v) {
+	const words = (x) => String(x).replace(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/, (_, a, b) => b || a.split("/").pop());
+	const one = (x) => {
+		if (typeof x === "boolean") return `<input type="checkbox" disabled${x ? " checked" : ""} aria-label="${x ? "Yes" : "No"}">`;
+		const t = words(x ?? "").trim();
+		if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return `<time datetime="${t}">${esc(longDate(t))}</time>`;
+		if (/^https?:\/\/\S+$/i.test(t)) return `<a href="${esc(t)}" rel="noopener">${esc(t.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, ""))}</a>`;
+		return esc(t);
+	};
+	if (Array.isArray(v)) return v.filter((x) => x != null && String(x).trim() !== "").map((x) => `<span class="pill">${one(x)}</span>`).join(" ");
+	return one(v);
+}
+
+function propsBox(rows) {
+	if (!rows?.length) return "";
+	return `<details class="props" open>\n<summary>Properties</summary>\n<dl>\n${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${propValue(v)}</dd></div>`).join("\n")}\n</dl>\n</details>\n`;
 }
 
 const IMG_REF = /^!?\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]$|^!?\[[^\]]*\]\(<?([^)>]+)>?\)$/;
@@ -362,6 +401,10 @@ export function buildSite(notes, attachments, opts = {}) {
 	// Each top-level folder's list of pages.
 	const tops = [...new Set(pages.map((p) => p.folder.split("/")[0]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 	// (archive/ and files/ are the site's own, so folders by those names list elsewhere)
+	// Top-level folders take the theme's rainbow in turn, counting the
+	// notebook's folders as the app's sidebar does, so each keeps its color.
+	const allTops = [...new Set(notes.map((n) => sitePath(n.path).split("/")).filter((p) => p.length > 1 && !/^[_.]/.test(p[0])).map((p) => p[0]))].sort((a, b) => a.localeCompare(b));
+	const hueOf = (f) => { const i = allTops.indexOf(f); return `var(--f${((i < 0 ? tops.indexOf(f) : i) % 7) + 1})`; };
 	const topFile = (f) => { const d = slug(f, "folder"); return `${/^(archive|files)$/.test(d) ? d + "-2" : d}/index.html`; };
 	for (const f of tops) page(topFile(f), "", { title: f, tags: [], date: "" }, `<nav class="contents">\n${listOf(topFile(f), pages.filter((p) => p.folder === f || p.folder.startsWith(f + "/")), f)}\n</nav>`);
 	// Previous and next within a folder, in the lists' order.
@@ -410,8 +453,8 @@ export function buildSite(notes, attachments, opts = {}) {
 	};
 	// The logo: a picture from the notebook, beside (or instead of) the title.
 	const logo = opts.logo && attachments.includes(opts.logo) && attachmentKind(opts.logo) === "image" ? fileOf(opts.logo) : null;
-	const menuItems = [...tops.map((f) => ({ file: topFile(f), label: f })), ...(months.length ? [{ file: SITE_FILES.archive, label: "Archive" }] : [])];
-	const menuFor = (site) => (menuItems.length < 1 ? "" : `<nav class="menu" aria-label="Sections">${menuItems.map((m) => `<a href="${esc(relativeURL(site, m.file))}"${site === m.file || (m.file !== SITE_FILES.archive && site.startsWith(m.file.slice(0, -"index.html".length))) || (m.file === SITE_FILES.archive && site.startsWith("archive/")) ? ' aria-current="page"' : ""}>${esc(m.label)}</a>`).join("")}</nav>`);
+	const menuItems = [...tops.map((f) => ({ file: topFile(f), label: f, hue: hueOf(f) })), ...(months.length ? [{ file: SITE_FILES.archive, label: "Archive" }] : [])];
+	const menuFor = (site) => (menuItems.length < 1 ? "" : `<nav class="menu" aria-label="Sections">${menuItems.map((m) => `<a href="${esc(relativeURL(site, m.file))}"${m.hue ? ` style="--fc: ${m.hue}"` : ""}${site === m.file || (m.file !== SITE_FILES.archive && site.startsWith(m.file.slice(0, -"index.html".length))) || (m.file === SITE_FILES.archive && site.startsWith("archive/")) ? ' aria-current="page"' : ""}>${esc(m.label)}</a>`).join("")}</nav>`);
 	// The notebook layout's folders: each a <details>, open on the way to this page.
 	const treeFor = (site) => {
 		const root = { folders: new Map(), pages: [] };
@@ -429,7 +472,7 @@ export function buildSite(notes, attachments, opts = {}) {
 			for (const [name, sub] of [...node.folders].sort(([a], [b]) => a.localeCompare(b))) {
 				const here = path ? `${path}/${name}` : name;
 				const open = pages.some((p) => p.file === site && (p.folder === here || p.folder.startsWith(here + "/"))) || (!path && site === topFile(name));
-				items.push(`<li><details${open ? " open" : ""}><summary>${esc(name)}</summary>${draw(sub, here)}</details></li>`);
+				items.push(`<li${path ? "" : ` class="top" style="--fc: ${hueOf(name)}"`}><details${open ? " open" : ""}><summary>${esc(name)}</summary>${draw(sub, here)}</details></li>`);
 			}
 			for (const p of [...node.pages].sort((a, b) => a.title.localeCompare(b.title))) items.push(`<li><a href="${esc(relativeURL(site, p.file))}"${p.file === site ? ' aria-current="page"' : ""}>${esc(p.title)}</a></li>`);
 			return `<ul>${items.join("")}</ul>`;
@@ -447,7 +490,7 @@ export function buildSite(notes, attachments, opts = {}) {
 		const side = opts.sidebar === false ? "" : calendarFor(site, info) + support + social;
 		const tree = notebook ? treeFor(site) : "";
 		const post = pages.some((p) => p.file === site && site !== SITE_FILES.index);
-		out.set(site, html({ ...info, body: body + (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+		out.set(site, html({ ...info, props: opts.properties === false ? null : info.props, body: body + (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
 	out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
@@ -631,7 +674,7 @@ function supportBox(s) {
 	return `<section class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</section>\n`;
 }
 
-function html({ title, date, tags, cover, banner, description, body, siteTitle, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
+function html({ title, date, tags, props, cover, banner, description, body, siteTitle, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
 	return `<!doctype html>
 <html lang="en">
@@ -648,7 +691,7 @@ ${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 ${banner ? `<div class="banner"><img src="${esc(banner)}" alt=""></div>\n` : ""}<main>
 ${tree || ""}<article>
 <h1>${esc(title)}</h1>
-${date || tags.length ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag">#${esc(t)}</span>`).join("")}</p>\n` : ""}${cover ? `<img class="cover" src="${esc(cover)}" alt="">\n` : ""}${body}
+${date || tags.length ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`).join("")}</p>\n` : ""}${props ? propsBox(props) : ""}${cover ? `<img class="cover" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
 ${side ? `<aside class="side">\n${side}</aside>\n` : ""}</main>
 ${footer ? `<footer class="site">Made with <a href="https://wr1t3r.app">wr1t3r</a></footer>\n` : ""}</body>
@@ -682,7 +725,17 @@ main { margin: 0 auto; padding: 0 20px 4em; }
 h1, h2, h3, h4, h5, h6 { color: var(--heading, var(--fg)); line-height: 1.25; margin: 1.6em 0 0.6em; }
 h1 { font-size: 2em; margin-top: 0.6em; }
 .meta { color: var(--muted); font: 14px/1.5 var(--sans); display: flex; flex-wrap: wrap; gap: 6px 12px; margin: -0.4em 0 1.4em; }
-.tag { color: var(--muted); }
+.tag { --t: var(--f6, var(--accent)); display: inline-block; padding: 0 0.6em; border-radius: 999px; font-size: 0.95em; background: color-mix(in srgb, var(--t) 16%, var(--bg)); color: color-mix(in srgb, var(--t) 75%, var(--fg)); }
+/* Tag colors are the theme's rainbow, as in the app. */
+.tag-0 { --t: var(--f1); } .tag-1 { --t: var(--f2); } .tag-2 { --t: var(--f3); } .tag-3 { --t: var(--f4); } .tag-4 { --t: var(--f5); } .tag-5 { --t: var(--f6); } .tag-6 { --t: var(--f7); }
+.props { margin: 0 0 1.4em; border: 1px solid var(--line); border-radius: 12px; background: var(--panel, var(--card)); font: 15px/1.45 var(--sans); }
+.props summary { cursor: pointer; padding: 8px 14px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.props dl { margin: 0; padding: 0 14px 10px; }
+.props dl > div { display: grid; grid-template-columns: minmax(7rem, 30%) 1fr; gap: 12px; padding: 5px 0; border-top: 1px solid var(--line); }
+.props dt { color: var(--muted); overflow-wrap: anywhere; }
+.props dd { margin: 0; overflow-wrap: anywhere; }
+.props .pill { display: inline-block; margin: 1px 0; padding: 0 0.6em; border-radius: 999px; background: color-mix(in srgb, var(--f6, var(--accent)) 14%, var(--bg)); }
+.props input { margin: 0; vertical-align: -2px; }
 img { max-width: 100%; height: auto; }
 img.cover { display: block; max-width: min(240px, 60%); border-radius: 6px; margin: 0 0 1.4em; }
 audio, video { display: block; width: 100%; margin: 1em 0; }
@@ -761,8 +814,15 @@ li > input[type=checkbox] { margin: 0 0.5em 0 0; }
 .tree summary::-webkit-details-marker { display: none; }
 .tree summary::before { content: "›"; display: inline-block; width: 1em; color: var(--muted); transition: transform 0.15s; }
 .tree details[open] > summary::before { transform: rotate(90deg); }
-.tree a:hover, .tree summary:hover { background: var(--sel); }
-.tree a[aria-current] { background: var(--sel); font-weight: 600; }
+/* Folders take their top-level folder's rainbow color (--fc), tinted as in the app's sidebar. */
+.tree a, .tree summary { --tint: 10%; margin: 2px 0; background: color-mix(in srgb, var(--fc, transparent) var(--tint), var(--bg)); }
+.tree .tree-top a { background: none; }
+.tree summary { --tint: 18%; }
+.tree li.top > details > summary { --tint: 30%; }
+.tree a:hover, .tree summary:hover { background: color-mix(in srgb, var(--fc, var(--mark, var(--muted))) calc(var(--tint) + 8%), var(--bg)); }
+.tree a[aria-current] { --tint: 30%; font-weight: 600; background: color-mix(in srgb, var(--fc, var(--mark, var(--muted))) var(--tint), var(--bg)); }
+.menu a[style] { border-bottom: 3px solid color-mix(in srgb, var(--fc) 70%, transparent); text-decoration: none; padding-bottom: 1px; }
+.menu a[style][aria-current] { border-bottom-color: var(--fc); }
 /* Widths: the header, footer and columns line up. */
 body { --page: calc(42rem + 40px); }
 header.site, footer.site, main { max-width: var(--page); }
