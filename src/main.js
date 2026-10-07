@@ -2933,6 +2933,7 @@ function allCommands() {
 		["Open outliner", () => pickFolder("outliner"), "scrivener outline table folder order"],
 		["Open draft", () => pickFolder("scrivenings"), "scrivenings scrivener one document whole folder read draft"],
 		["Import StoryGraph library", importStoryGraph, "storygraph csv export books reading goodreads import"],
+		["Fill book genres from subjects", fillBookGenres, "genre genres subjects books open library tags book logs"],
 		["Open stats", () => pickFolder("stats"), "charts graphs reading year review books read storygraph goodreads ratings genres"],
 		["Compile a folder", () => pickFolder("compile"), "scrivener export pdf word docx html markdown book manuscript print"],
 		["Upload files", () => $("upload-input").click(), "import docx pdf"],
@@ -3675,6 +3676,18 @@ async function importStoryGraph() {
 	}
 	note.close();
 	toast(`Found covers and details for ${found} of ${added.length} book${added.length === 1 ? "" : "s"}.`, 6000);
+	folderTouched();
+}
+
+// Every book log with subjects and no genres gets genres from those subjects.
+async function fillBookGenres() {
+	const sg = await import("./storygraph.js");
+	const todo = visible().filter((n) => !n.binary && /\.md$/i.test(n.path) && sg.genresFromLog(n.text || ""));
+	if (!todo.length) return toast("No book logs with subjects and an empty genre.");
+	if (!confirm(`Fill in genres for ${todo.length} book log${todo.length === 1 ? "" : "s"} from their subjects?\n\nOnly logs with no genres yet are changed; subjects stay as they are.`)) return;
+	for (const n of todo) await dataviewVault.write(n.path, (t) => sg.genresFromLog(t) ?? t);
+	scheduleSync();
+	toast(`Filled in genres for ${todo.length} book log${todo.length === 1 ? "" : "s"}.`, 6000);
 	folderTouched();
 }
 

@@ -192,6 +192,16 @@ export const needsLookup = (text) => {
 	return ["coverImage", "pages", "subjects", "genre", "summary"].some((k) => empty(p[k]));
 };
 
+// A book log's text with genres from its own subjects, when it has subjects
+// and an empty genre; null when there's nothing to do. No lookups, so it
+// works offline and on logs made by the book lookup before genres were.
+export function genresFromLog(text) {
+	const p = parseFrontmatter(text);
+	if (!("genre" in p) || !empty(p.genre) || empty(p.subjects)) return null;
+	const genre = genresFromSubjects(Array.isArray(p.subjects) ? p.subjects.map(String) : [String(p.subjects)]);
+	return genre.length ? setProperty(text, "genre", genre) : null;
+}
+
 // A log's text with what lookUpBook found, where the log has nothing.
 export function fillBook(text, found) {
 	const p = parseFrontmatter(text);

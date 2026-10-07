@@ -70,7 +70,7 @@ test("matching titles, and filling in only what a log lacks", () => {
 });
 
 test("covers and summaries from Open Library fill only empty properties", async () => {
-	const { lookUpBook, fillBook, needsLookup } = await import("../src/storygraph.js");
+	const { lookUpBook, fillBook, needsLookup, genresFromLog } = await import("../src/storygraph.js");
 	const calls = [];
 	const fake = async (url) => {
 		calls.push(url);
@@ -90,5 +90,12 @@ test("covers and summaries from Open Library fill only empty properties", async 
 	assert.equal(parseFrontmatter(fillBook("---\npages: 99\n---\n", found)).pages, 99);
 	assert.equal(parseFrontmatter(fillBook("---\ngenre:\n  - Horror\n---\n", found)).genre[0], "Horror", "genres already written are kept");
 	assert.equal(needsLookup(bookNote(a, "2026-10-07")), true);
+	const log = "---\ntitle: Psalm\nsubjects:\n  - Robots -- Fiction\n  - Tea\ngenre: []\n---\n\n## Notes\n";
+	const withGenre = parseFrontmatter(genresFromLog(log));
+	assert.deepEqual(withGenre.genre, ["Science Fiction"], "genres from a log's own subjects");
+	assert.deepEqual(withGenre.subjects, ["Robots -- Fiction", "Tea"]);
+	assert.equal(genresFromLog(genresFromLog(log)), null, "genres already there are left alone");
+	assert.equal(genresFromLog("---\nsubjects:\n  - Tea\ngenre: []\n---\n"), null, "nothing to fill");
+	assert.equal(genresFromLog("---\ntitle: Not a book\nsubjects:\n  - Fantasy fiction\n---\n"), null, "only notes with a genre property");
 	assert.equal(needsLookup(fillBook(bookNote(a, "2026-10-07"), { ...found, coverImage: "x" })), false);
 });
