@@ -7,13 +7,14 @@ import { FEATURE_AREAS } from "./features.js";
 import { HOME_BODY } from "./home.js";
 
 // What someone might want wr1t3r for, and the areas each one needs. Every
-// area is in at least one, so picking them all leaves everything on.
+// area is in at least one, so picking them all leaves everything on. here:
+// [label, detail] for a build with no Worker (no clipping or recordings).
 export const USES = [
 	{ id: "writing", label: "Writing", detail: "Stories, books, essays: chapters on a corkboard, compiled into one file", areas: ["longform", "boards"] },
 	{ id: "planner", label: "Journal and day planner", detail: "A note for each day, tasks, reminders and a calendar", areas: ["daily", "calendar", "reminders"] },
 	{ id: "health", label: "Health and food", detail: "Log meals, recipes and nutrition from the day planner", areas: ["health", "daily"] },
 	{ id: "media", label: "Books, films and other media", detail: "Notes for what you read, watch, play and listen to", areas: ["media", "boards"] },
-	{ id: "research", label: "Research and clipping", detail: "Clip web pages, capture ideas, search the text in pictures and recordings", areas: ["capture", "ocr", "audio"] },
+	{ id: "research", label: "Research and clipping", detail: "Clip web pages, capture ideas, search the text in pictures and recordings", here: ["Research and capture", "Capture ideas to an Inbox and search the text in pictures and PDFs"], areas: ["capture", "ocr", "audio"] },
 ];
 
 export const DEFAULT_USES = ["writing"];
