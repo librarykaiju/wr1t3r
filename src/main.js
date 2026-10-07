@@ -5,6 +5,7 @@
 import { createEditor } from "./editor.js";
 import { setupKeyboardBar } from "./kbbar.js";
 import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js";
+import { builtinTemplate } from "./builtintemplates.js";
 import { promptFor } from "./prompts.js";
 import { resolveNote, headingFor, blockFor } from "./links.js";
 import { noteTags, tagHue } from "./frontmatter.js";
@@ -2854,7 +2855,7 @@ function allCommands() {
 		["Find in note", () => { view.focus(); openSearchPanel(view); }, "search replace", true],
 		// One per template, so each can have its own hotkey.
 		...vaultTemplates().map((t) => [`Insert template: ${t.name}`, () => insertTemplateAt(t), "templater " + t.name.toLowerCase(), true]),
-	].filter(([label]) => featureOn(commandArea(label))).map(([label, run, keywords, needsNote]) => ({ label, run, keywords, needsNote: !!needsNote }));
+	].filter(([label]) => featureOn(commandArea(label)) && !(onDropbox && NEEDS_WORKER.has(label))).map(([label, run, keywords, needsNote]) => ({ label, run, keywords, needsNote: !!needsNote }));
 	const edits = [
 		...COMMANDS.map((c) => ({ label: c.label, keywords: c.keywords, table: !!c.table, run: EDIT_ACTIONS[c.label] || ((v) => runCommand(v, c)) })),
 		{ label: "Indent", keywords: "tab nest", run: EDIT_ACTIONS.Indent },
@@ -2863,6 +2864,9 @@ function allCommands() {
 	].map((c) => ({ ...c, editor: true, needsNote: true }));
 	return [...app, ...edits];
 }
+
+// Commands that go through the Worker, so a Dropbox build has nothing to run.
+const NEEDS_WORKER = new Set(["Transcribe a video or audio file", "Back up to Google Drive now", "Record a voice memo", "Clip a web page"]);
 
 // Ctrl/Cmd+P: every command that can run now, with its hotkey.
 function commandPalette() {
@@ -3254,13 +3258,13 @@ async function newKindNote(kind, { blank = false } = {}) {
 	const lookup = !blank && kind.media && navigator.onLine && mediaKinds.find((k) => k.kind === kind.media && k.ready);
 	if (lookup) return newMediaNote(lookup, kind);
 	const paths = visible().map((n) => n.path);
-	const tmpl = findTemplate(paths, `_templates/${kind.template}.md`);
+	const tmpl = templateFor(`_templates/${kind.template}.md`);
 	if (!tmpl) return toast(`There's no _templates/${kind.template}.md in the vault.`);
 	const title = prompt(`${kind.label.replace(/^New /, "")}: title`)?.trim();
 	if (!title) return;
 	const folder = kindFolder(kind, tmpl.root, mediaKinds);
 	const path = freeNotePath(folder, noteFileName(title), paths);
-	const text = withTitleHeading(renderTemplate(notes.get(tmpl.path).text, { title: title.replaceAll('"', "'"), date: new Date() }).text, title);
+	const text = withTitleHeading(renderTemplate(tmpl.text, { title: title.replaceAll('"', "'"), date: new Date() }).text, title);
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	requestAnimationFrame(() => editor.view.focus());
@@ -3307,9 +3311,18 @@ async function nameBase(folder) {
 // Today's note in _daily, from _templates/Daily.md (and its companion notes,
 // like "<date> Health"), or the existing one. Made the way Obsidian would, so
 // both apps produce the same file.
+// A template: the notebook's own (findTemplate), else wr1t3r's built-in one
+// (src/builtintemplates.js) in the notes' folder. { path, root, text } or null.
+function templateFor(name = "_templates/daily.md") {
+	const t = findTemplate(visible().map((n) => n.path), name);
+	if (t) return { ...t, text: notes.get(t.path).text };
+	const text = builtinTemplate(name);
+	return text == null ? null : { path: null, root: commonFolder(visible()), text };
+}
+
 async function openDaily({ quiet = true } = {}) {
 	const paths = visible().map((n) => n.path);
-	const tmpl = findTemplate(paths);
+	const tmpl = templateFor();
 	if (!tmpl) return toast("There's no _templates/Daily.md in the vault.");
 	const date = new Date();
 	const title = isoDate(date);
@@ -3321,12 +3334,12 @@ async function openDaily({ quiet = true } = {}) {
 		openNote(existing);
 		return fillTimeline(existing, { quiet });
 	}
-	const { text, companion } = renderTemplate(notes.get(tmpl.path).text, { title, date });
+	const { text, companion } = renderTemplate(tmpl.text, { title, date });
 	for (const c of companion) {
 		const cPath = folder + c.name + ".md";
-		const t = findTemplate(paths, c.template.replace(/\.md$/i, "") + ".md");
+		const t = templateFor(c.template.replace(/\.md$/i, "") + ".md");
 		if (taken(cPath) || !t) continue;
-		const ct = renderTemplate(notes.get(t.path).text, { title: c.name, date }).text;
+		const ct = renderTemplate(t.text, { title: c.name, date }).text;
 		await change(cPath, (cur) => ({ path: cPath, text: ct, base: cur?.base ?? null, dirty: true, deleted: false }));
 	}
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
@@ -5282,6 +5295,8 @@ async function start() {
 	// imported, because Safari only opens the picker straight from the tap.
 	$("upload-input").accept = ".md,.markdown,.txt,.html,.htm,.docx,.pdf";
 	$("upload").addEventListener("click", () => $("upload-input").click());
+	// Clipping fetches the page through the Worker.
+	if (onDropbox) { const p = $("bookmarklet").closest("p"); for (const el of [$("clip"), p, p.previousElementSibling]) el.hidden = true; }
 	$("clip").addEventListener("click", () => clipPage(prompt("Web page to clip:") || ""));
 	$("bookmarklet").href = `javascript:location.href=${JSON.stringify(location.origin + "/#clip=")}+encodeURIComponent(location.href)`;
 	$("upload-input").addEventListener("change", (e) => {
