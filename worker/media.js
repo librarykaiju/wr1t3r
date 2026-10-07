@@ -30,6 +30,7 @@
 // (src/mediahere.js) with no keys, so it only calls services that allow it.
 
 import { HttpError } from "./util.js";
+import { genresFromSubjects, JUNK_SUBJECT } from "./genres.js";
 import { wikiSearch, wikiCovers, wikiMovie, wikiGame, wikiComic, isQid } from "./wikimedia.js";
 
 // In a page, a User-Agent header can't be set and would only cost a preflight.
@@ -149,7 +150,7 @@ function uniqueSubjects(list) {
 	const seen = new Set(), out = [];
 	for (const s of list) for (const part of String(s).split(",")) {
 		const t = part.trim();
-		if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push(t); }
+		if (t && !JUNK_SUBJECT.test(t) && !/^[a-z_]+:/i.test(t) && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push(t); }
 	}
 	return out;
 }
@@ -455,11 +456,12 @@ const NOTE = {
 	},
 	async book(env, ref, { cover, today }) {
 		const b = bookRef(ref);
-		let summary = "", olSubjects = [];
+		let summary = "", olSubjects = [], allSubjects = [];
 		await quietly(async () => {
 			const w = await getJSON(`https://openlibrary.org${b.workKey}.json`);
 			summary = textOf(w.description);
-			olSubjects = uniqueSubjects(w.subjects || []).slice(0, 15);
+			allSubjects = (w.subjects || []).map(String);
+			olSubjects = uniqueSubjects(allSubjects).slice(0, 15);
 		});
 		if (!summary) summary = await quietly(async () => ((await editions(b.workKey)).entries || []).map((e) => textOf(e.description)).find(Boolean) || "", "");
 		if (!summary) summary = await quietly(async () => (await googleBooks(b.title, b.authors[0], 1)).items?.[0]?.volumeInfo?.description || "", "");
@@ -468,7 +470,7 @@ const NOTE = {
 			fields: {
 				title: b.title, author: b.authors, series: [], volume: null, format: [], pages: b.pages,
 				subjects: tags.subjects.length ? tags.subjects : olSubjects,
-				genre: [], vibesAndThemes: tags.vibesAndThemes, shelf: [], rating: [],
+				genre: genresFromSubjects([...tags.subjects, ...allSubjects]), vibesAndThemes: tags.vibesAndThemes, shelf: [], rating: [],
 				coverImage: cover, summary, sticky: false, publish: false, date: today, eyebrow: null,
 			},
 			year: str(ref.year, 10),

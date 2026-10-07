@@ -70,7 +70,7 @@ test("matching titles, and filling in only what a log lacks", () => {
 });
 
 test("covers and summaries from Open Library fill only empty properties", async () => {
-	const { lookUpBook, fillBook } = await import("../src/storygraph.js");
+	const { lookUpBook, fillBook, needsLookup } = await import("../src/storygraph.js");
 	const calls = [];
 	const fake = async (url) => {
 		calls.push(url);
@@ -80,11 +80,15 @@ test("covers and summaries from Open Library fill only empty properties", async 
 	const found = await lookUpBook({ title: "A Psalm for the Wild-Built: Monk and Robot", authors: ["Becky Chambers"] }, fake);
 	assert.match(calls[0], /title=A\+Psalm\+for\+the\+Wild-Built&/);
 	assert.match(calls[0], /author=Becky\+Chambers/);
-	assert.deepEqual(found, { coverImage: "https://covers.openlibrary.org/b/id/42-M.jpg", pages: 160, subjects: ["Robots", "Tea"], summary: "A monk and a robot." });
+	assert.deepEqual(found, { coverImage: "https://covers.openlibrary.org/b/id/42-M.jpg", pages: 160, subjects: ["Robots", "Tea"], genre: ["Science Fiction"], summary: "A monk and a robot." });
 	const [a] = readExport(CSV);
 	const filled = parseFrontmatter(fillBook(bookNote(a, "2026-10-07"), found));
 	assert.equal(filled.pages, 160);
 	assert.equal(filled.summary, "A monk and a robot.");
 	assert.deepEqual(filled.subjects, ["Robots", "Tea"]);
+	assert.deepEqual(filled.genre, ["Science Fiction"], "genres go in genre, the other subjects stay in subjects");
 	assert.equal(parseFrontmatter(fillBook("---\npages: 99\n---\n", found)).pages, 99);
+	assert.equal(parseFrontmatter(fillBook("---\ngenre:\n  - Horror\n---\n", found)).genre[0], "Horror", "genres already written are kept");
+	assert.equal(needsLookup(bookNote(a, "2026-10-07")), true);
+	assert.equal(needsLookup(fillBook(bookNote(a, "2026-10-07"), { ...found, coverImage: "x" })), false);
 });

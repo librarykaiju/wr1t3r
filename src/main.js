@@ -3645,14 +3645,18 @@ async function importStoryGraph() {
 	const folder = kindFolder(kind, commonFolder(visible()), mediaKinds);
 	const logs = visible().filter((n) => !n.binary && n.path.toLowerCase().startsWith(folder.toLowerCase()) && /\.md$/i.test(n.path)).map((n) => ({ path: n.path, text: n.text || "" }));
 	const plan = sg.planImport(books, logs);
-	const look = navigator.onLine && plan.add.length > 0;
+	// Existing logs missing a cover, genres and the rest are looked up too,
+	// so importing again fills in what an earlier import couldn't.
+	const stale = plan.update.filter((u) => sg.needsLookup(logs.find((l) => l.path === u.path).text));
+	const look = navigator.onLine && plan.add.length + stale.length > 0;
 	if (!confirm(`Import ${books.length} book${books.length === 1 ? "" : "s"} from StoryGraph into ${folderLabel(folder)}?\n\n` +
 		`${plan.add.length} new log${plan.add.length === 1 ? "" : "s"}, and ${plan.update.length} existing log${plan.update.length === 1 ? "" : "s"} filled in where empty (nothing already written is changed).` +
-		(look ? "\n\nCovers, page counts and summaries for the new ones are then looked up on Open Library." : ""))) return;
+		(look ? "\n\nCovers, page counts, genres and summaries for the new ones (and existing ones missing them) are then looked up on Open Library." : ""))) return;
 	const today = isoDate(new Date());
 	const added = [];
 	for (const b of plan.add) added.push({ b, path: await addNote(folder, noteFileName(b.title), sg.bookNote(b, today)) });
 	for (const { path, book } of plan.update) await dataviewVault.write(path, (t) => sg.mergeBook(t, book));
+	for (const { path, book } of stale) added.push({ b: book, path });
 	renderTree();
 	scheduleSync();
 	toast(`Imported ${plan.add.length} new and updated ${plan.update.length} book log${plan.update.length === 1 ? "" : "s"}.`, 6000);
@@ -3670,7 +3674,7 @@ async function importStoryGraph() {
 		await new Promise((r) => setTimeout(r, 350));
 	}
 	note.close();
-	toast(`Found covers and details for ${found} of ${added.length} new book${added.length === 1 ? "" : "s"}.`, 6000);
+	toast(`Found covers and details for ${found} of ${added.length} book${added.length === 1 ? "" : "s"}.`, 6000);
 	folderTouched();
 }
 

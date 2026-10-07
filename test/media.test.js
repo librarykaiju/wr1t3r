@@ -194,7 +194,7 @@ test("a book: covers from Google and Open Library, summary, tags from Claude", a
 	const web = fakeWeb([
 		[host("www.googleapis.com"), { items: [{ volumeInfo: { imageLinks: { thumbnail: "http://books.google.com/c?id=1&zoom=1" }, description: "From Google." } }] }],
 		[host("openlibrary.org", "/works/OL1W/editions.json"), { entries: [{ covers: [7] }, { covers: [7] }, { covers: [-1] }] }],
-		[host("openlibrary.org", "/works/OL1W.json"), { description: { value: "A monk and a robot." }, subjects: ["Robots, Tea", "robots"] }],
+		[host("openlibrary.org", "/works/OL1W.json"), { description: { value: "A monk and a robot." }, subjects: ["Robots, Tea", "robots", "Fiction, science fiction, general"] }],
 		[host("api.anthropic.com"), { content: [{ text: '{"subjects": ["Robots -- Fiction"], "vibesAndThemes": ["Cozy"]}' }] }],
 	]);
 	try {
@@ -210,12 +210,14 @@ test("a book: covers from Google and Open Library, summary, tags from Claude", a
 		assert.equal(n.fields.summary, "A monk and a robot.");
 		assert.deepEqual(n.fields.subjects, ["Robots -- Fiction"]);
 		assert.deepEqual(n.fields.vibesAndThemes, ["Cozy"]);
+		assert.deepEqual(n.fields.genre, ["Science Fiction"]);
 		assert.equal(n.fields.coverImage, "https://covers.openlibrary.org/b/id/5-M.jpg");
 		assert.equal(n.year, "2021");
 		const claude = web.seen.find((s) => s.url.startsWith("https://api.anthropic.com"));
 		assert.equal(claude.init.headers["x-api-key"], "sk");
 		const noKey = await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/note", { kind: "book", ref, cover: "javascript:alert(1)" })).json();
-		assert.deepEqual(noKey.fields.subjects, ["Robots", "Tea"], "Open Library's subjects without Claude");
+		assert.deepEqual(noKey.fields.subjects, ["Robots", "Tea", "science fiction"], "Open Library's subjects without Claude, less \"Fiction\" and \"general\"");
+		assert.deepEqual(noKey.fields.genre, ["Science Fiction"], "genres without Claude too");
 		assert.equal(noKey.fields.coverImage, "", "only https covers");
 	} finally { web.restore(); }
 });
