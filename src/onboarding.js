@@ -132,7 +132,7 @@ export function guideText(features, { worker = true, story = false } = {}) {
 		"",
 		"## Publishing",
 		"",
-		"Set `publish: true` on any note (or Commands > Publish this note), then Commands > Export as website makes a ready-to-upload site from those notes, in your theme, for Neocities or any other host.",
+		"The globe button in the toolbar publishes the note you're on (it sets `publish: true`) and has **Export as website…**, which makes a ready-to-upload site from every published note, in your theme, for Neocities or any other host.",
 	);
 	return lines.join("\n") + "\n";
 }

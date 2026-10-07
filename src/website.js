@@ -27,9 +27,12 @@
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
 import { parseFrontmatter } from "./dvpage.js";
+import { isPublished } from "./published.js";
 import { cleanNote } from "./compile.js";
 import { resolveNote } from "./links.js";
 import { resolveAttachment, attachmentKind } from "./attachments.js";
+
+export { isPublished };
 
 export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html" };
 
@@ -37,13 +40,6 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const first = (v) => (Array.isArray(v) ? v.find((x) => x != null && String(x).trim() !== "") : v);
 const yes = (v) => v === true || /^(true|yes)$/i.test(String(first(v) ?? "").trim());
 
-// Whether a note goes on the website: publish: true, not a draft, and not in
-// one of wr1t3r's own "_" folders.
-export function isPublished(path, text) {
-	if (path.split("/").some((seg) => seg.startsWith("_"))) return false;
-	const p = parseFrontmatter(text);
-	return yes(p.publish) && !yes(p.draft);
-}
 
 // "Café Notes!" -> "cafe-notes": safe in any host's file names and URLs.
 export function slug(s, fallback = "page") {

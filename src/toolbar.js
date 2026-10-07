@@ -56,6 +56,7 @@ const ICON = {
 	code: '<path d="m8 8-4 4 4 4M16 8l4 4-4 4"/>',
 	insert: '<path d="M12 5v14M5 12h14"/>',
 	page: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 15h6M9 18h4"/>',
+	globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/>',
 	review: '<path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l3 3"/><path d="M14 20h6"/>',
 };
 
@@ -129,12 +130,13 @@ function typeControls(bar, type) {
 }
 
 // bar: the element to fill. getView: the editor now. print: opens Export.
-export function setupToolbar(bar, getView, { print, lookUp, type, review, page } = {}) {
+// publish(view, btn): the website menu.
+export function setupToolbar(bar, getView, { print, lookUp, type, review, page, publish } = {}) {
 	bar.setAttribute("role", "toolbar");
 	bar.setAttribute("aria-label", "Formatting");
 	let refreshType = () => {};
 	const [first, second, sep, ...rest] = BUTTONS; // undo, redo | font, size | the rest
-	const all = [first, second, sep, "type", ...rest, null, ["Page layout", "Page view, paper size, orientation and margins", "page", (view, btn) => page?.(view, btn)], ["Review", "Track changes, and accept or reject them", "review", (view, btn) => review?.(view, btn)], ["Look up", "Look up the word in the dictionary and thesaurus", "book", (view) => lookUp?.(view)], ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
+	const all = [first, second, sep, "type", ...rest, null, ["Page layout", "Page view, paper size, orientation and margins", "page", (view, btn) => page?.(view, btn)], ["Review", "Track changes, and accept or reject them", "review", (view, btn) => review?.(view, btn)], ["Look up", "Look up the word in the dictionary and thesaurus", "book", (view) => lookUp?.(view)], ["Publish", "Put this note on your website, or export the site", "globe", (view, btn) => publish?.(view, btn)], ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
 	for (const b of all) {
 		if (b === "type") { if (type) refreshType = typeControls(bar, type); continue; }
 		if (!b) { bar.append(Object.assign(document.createElement("span"), { className: "tb-sep" })); continue; }
@@ -149,7 +151,7 @@ export function setupToolbar(bar, getView, { print, lookUp, type, review, page }
 		btn.addEventListener("mousedown", (e) => e.preventDefault());
 		btn.addEventListener("click", () => {
 			const view = getView();
-			if (!view || (view.state.readOnly && label !== "Print or export" && label !== "Page layout")) return;
+			if (!view || (view.state.readOnly && !["Print or export", "Page layout", "Publish"].includes(label))) return;
 			run(view, btn);
 			view.focus();
 		});
@@ -159,5 +161,12 @@ export function setupToolbar(bar, getView, { print, lookUp, type, review, page }
 	// Pressed while the note's changes are being tracked.
 	const refreshReview = (on) => bar.querySelector(".tb-review")?.setAttribute("aria-pressed", String(!!on));
 	const refreshPage = (on) => bar.querySelector(".tb-page-layout")?.setAttribute("aria-pressed", String(!!on));
-	return { refreshType, refreshReview, refreshPage };
+	// Pressed while the note is on the website.
+	const refreshPublish = (on) => {
+		const b = bar.querySelector(".tb-publish");
+		if (!b) return;
+		b.setAttribute("aria-pressed", String(!!on));
+		b.title = on ? "On your website. Click to unpublish or export the site" : "Put this note on your website, or export the site";
+	};
+	return { refreshType, refreshReview, refreshPage, refreshPublish };
 }

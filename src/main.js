@@ -32,6 +32,7 @@ import { openStorage, registerStorage, storageKind, setStorageKind } from "./sto
 import { notebookCalendar, CALENDAR_FOLDER } from "./notecal.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
+import { isPublished, notPublishedWhy } from "./published.js";
 import { USES, DEFAULT_USES, featuresFor, starterNotes, guideText, needsHomeScreen } from "./onboarding.js";
 import { DEFAULT_API, licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, maskKey } from "./license.js";
 import { sync, conflictPath } from "./sync.js";
@@ -2036,6 +2037,7 @@ function applyTracking() {
 	const on = !!editor?.path && trackedNotes.has(editor.path);
 	if (editor?.view && isTracking(editor.view) !== on) setTracking(editor.view, on);
 	toolbarUi?.refreshReview(on);
+	refreshPublish();
 }
 function toggleTracking(on = !trackedNotes.has(editor.path)) {
 	if (!editor.path) return;
@@ -3207,6 +3209,7 @@ function onEdit(path, text) {
 	notes.set(path, { ...note, text, dirty: true });
 	change(path, (cur) => (cur ? { ...cur, text, dirty: true, deleted: false } : { path, text, base: null, dirty: true, deleted: false }));
 	if (/^---/.test(text)) watchFinished(path, note.text);
+	if (path === editor.path && (/^---/.test(text) || /^---/.test(note.text || ""))) refreshPublish();
 	if (!wasDirty) { renderStatus(); renderTree(); }
 	if (path === ref.path) refTouched();
 	scheduleSync();
@@ -5303,10 +5306,30 @@ async function exportWebsite() {
 	});
 }
 
-function setPublished(path, on) {
+async function setPublished(path, on) {
 	if (!path) return;
-	dataviewVault.write(path, (t) => setProperty(t, "publish", on));
-	toast(on ? "This note will be on the website next time you export it." : "This note won't be on the website. If it's online now, delete its page from your host after the next export.");
+	await dataviewVault.write(path, (t) => setProperty(t, "publish", on));
+	refreshPublish();
+	const why = on && notPublishedWhy(path, dataviewVault.text(path));
+	toast(why ? "Marked publish: true, but it won't be on the site. " + why : on ? "This note will be on the website next time you export it." : "This note won't be on the website. If it's online now, delete its page from your host after the next export.", why ? 8000 : 4000);
+}
+
+// The toolbar's globe: whether this note is on the website, and the site.
+function refreshPublish() {
+	const path = editor?.path;
+	toolbarUi?.refreshPublish(!!path && isPublished(path, path === editor.path ? editor.text() : ""));
+}
+
+function publishMenu(view, btn) {
+	const path = editor.path;
+	const on = !!path && isPublished(path, editor.text());
+	const b = btn.getBoundingClientRect();
+	const status = () => Object.assign(document.createElement("p"), { className: "menu-note", textContent: !path ? "No note open." : on ? "This note is on your website." : "This note isn't on your website." });
+	showMenu([
+		status,
+		...(path && !view.state.readOnly ? [[on ? "Unpublish this note" : "Publish this note", () => setPublished(path, !on)]] : []),
+		["Export as website…", exportWebsite],
+	], b.left, b.bottom + 4);
 }
 
 function exportNote(path) {
@@ -5445,6 +5468,7 @@ async function start() {
 		type: { fonts: Object.keys(FONTS).map((k) => [k, FONT_NAMES[k], FONTS[k]]), font: () => fontName, setFont, size: () => fontSize, setSize },
 		review: reviewMenu,
 		page: pageMenu,
+		publish: publishMenu,
 	});
 	applyTracking();
 	setupPageSettings();
