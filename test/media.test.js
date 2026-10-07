@@ -234,11 +234,13 @@ test("an album: tracks from the earliest release, repeated discs once", async ()
 		[host("coverartarchive.org"), new Response(null, { status: 307, headers: { Location: "https://archive.org/x.jpg" } })],
 	]);
 	try {
-		const n = await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/note", { kind: "music", ref: { releaseGroupId: id, title: "A New Dope", year: "2011" } })).json();
+		const n = await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/note", { kind: "music", ref: { releaseGroupId: id, title: "A New Dope", year: "2011" }, today: "2026-10-07" })).json();
 		assert.equal(n.fields.coverImage, `https://coverartarchive.org/release-group/${id}/front-500`);
 		assert.equal(n.fields.releasedOn, "04/05/2011");
 		assert.equal(n.fields.language, "English");
 		assert.equal(n.fields.albumDuration, "2:01");
+		assert.deepEqual(Object.keys(n.fields).slice(-3), ["publish", "date", "eyebrow"]);
+		assert.equal(n.fields.date, "2026-10-07");
 		assert.deepEqual(n.fields.tracks, [
 			{ number: 1, title: "One", duration: "1:01", featuredArtists: [] },
 			{ number: 2, title: "Two", duration: "1:00", featuredArtists: ["Guest"] },
