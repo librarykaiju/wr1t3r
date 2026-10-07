@@ -130,6 +130,12 @@ export function guideText(features, { worker = true, story = false } = {}) {
 	);
 	lines.push(
 		"",
+		"## Bringing notes over",
+		"",
+		"Commands > Import Obsidian vault copies a vault in from its folder or a .zip of it: notes exactly as they are, pictures and other attachments, bases (as boards) and templates. A note listing what came in, and anything that didn't, opens when it's done.",
+	);
+	lines.push(
+		"",
 		"## Publishing",
 		"",
 		"The globe button in the toolbar publishes the note you're on (it sets `publish: true`) and has **Export as website…**, which makes a ready-to-upload site from every published note, in your theme, for Neocities or any other host.",
