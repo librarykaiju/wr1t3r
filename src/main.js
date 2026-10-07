@@ -29,7 +29,7 @@ import { local, meta, persist } from "./store.js";
 import { resolveAttachment, attachmentURL, attachmentBlob } from "./attachments.js";
 import { api, token, setToken, AuthError } from "./api.js";
 import { openStorage, registerStorage, storageKind, setStorageKind } from "./storage.js";
-import { notebookCalendar, CALENDAR_FOLDER } from "./notecal.js";
+import { notebookCalendar, eventName, CALENDAR_FOLDER } from "./notecal.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { isPublished, notPublishedWhy } from "./published.js";
@@ -2872,6 +2872,7 @@ function allCommands() {
 		["Insert board", insertBoard, "grid gallery kanban list table view properties filter database base", true],
 		["Insert list", insertList, "checklist shopping wishlist tasks todo crit list card", true],
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
+		["Import calendar file (.ics)", importIcs, "ics ical icalendar import calendar events outlook apple google school"],
 		["Search notes", searchNotes, "find sidebar"],
 		["Bookmark this note", () => toggleBookmark(), "star pin unbookmark", true],
 		[editor.path && archivedNote({ path: editor.path, text: view.state.doc.toString() }) ? "Unarchive this note" : "Archive this note", toggleArchive, "archive hide remove from list restore unarchive", true],
@@ -4554,8 +4555,9 @@ function setupFocusTools() {
 // Worker without Google set up, events are notes in _wr1t3r/Calendar/
 // (src/notecal.js), which answer the same calls.
 let calNotebook = onDropbox;
+const calFolder = () => { const h = homeFile(); return h.slice(0, h.lastIndexOf("/") + 1) + CALENDAR_FOLDER; };
 const noteCal = notebookCalendar({
-	folder: () => { const h = homeFile(); return h.slice(0, h.lastIndexOf("/") + 1) + CALENDAR_FOLDER; },
+	folder: calFolder,
 	notes: () => visible().filter((n) => !n.binary),
 	create: (folder, noteName, text) => dataviewVault.create(folder, noteName, () => text, { open: false }),
 	write: (path, fn) => dataviewVault.write(path, fn),
@@ -4993,6 +4995,61 @@ function showAddEvent(on, day = null) {
 	$("evTitle").focus();
 }
 
+// An .ics file's events, into the notebook's calendar or the Google
+// calendar picked in the form (src/ics.js).
+async function importIcs() {
+	const file = await chooseFile(".ics,text/calendar");
+	if (!file) return;
+	const ics = await import("./ics.js");
+	let events;
+	try { events = ics.readIcs(await file.text()); } catch (e) { return toast("Couldn't read that calendar file: " + e.message, 8000); }
+	if (!events.length) return toast("That file has no events in it.");
+	const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+	if (calNotebook) {
+		const folder = calFolder();
+		const uid = (t) => { const m = /^uid:\s*(.+?)\s*$/m.exec(t || ""); if (!m) return ""; try { return m[1].startsWith('"') ? JSON.parse(m[1]) : m[1]; } catch { return m[1]; } };
+		const existing = new Set(visible().filter((n) => !n.binary && n.path.toLowerCase().startsWith(folder.toLowerCase())).map((n) => uid(n.text)).filter(Boolean));
+		const plan = ics.planIcs(events, existing);
+		const notes = [
+			plan.past && `${plural(plan.past, "event")} already over ${plan.past === 1 ? "is" : "are"} left out.`,
+			plan.already && `${plural(plan.already, "event")} ${plan.already === 1 ? "was" : "were"} imported before and ${plan.already === 1 ? "is" : "are"} left as ${plan.already === 1 ? "it is" : "they are"}.`,
+			plan.simplified && `${plural(plan.simplified, "event")} repeat${plan.simplified === 1 ? "s" : ""} in a way this calendar can't (every other week, the second Tuesday...), so only the first date comes in.`,
+		].filter(Boolean);
+		if (!plan.add.length) return toast(notes.join(" ") || "Nothing to import.", 8000);
+		const count = new Set(plan.add.map((a) => a.event)).size; // a Mon/Wed/Fri event is one event in three notes
+		if (!confirm(`Add ${plural(count, "event")} to the calendar?` + (notes.length ? "\n\n" + notes.join("\n") : ""))) return;
+		for (const a of plan.add) await dataviewVault.create(folder, eventName({ title: a.event.title, start: a.part.start }), () => a.text, { open: false });
+		renderTree();
+		scheduleSync();
+		refreshNotebookCalendar();
+		toast(`Added ${plural(count, "event")} to the calendar.`, 6000);
+		return;
+	}
+	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	const plan = ics.planGoogle(events, timeZone);
+	const calendarId = $("evCalendar").value || "";
+	const calName = $("evCalendar").selectedOptions[0]?.textContent || "Google Calendar";
+	if (!plan.add.length) return toast(`Nothing to import: ${plural(plan.past, "event")} already over.`, 8000);
+	if (!confirm(`Add ${plural(plan.add.length, "event")} to ${calName}?` + (plan.past ? `\n\n${plural(plan.past, "event")} already over ${plan.past === 1 ? "is" : "are"} left out.` : "") + "\n\nEvents Google already has from this file are updated, not doubled.")) return;
+	const note = toast(`Importing: 0 of ${plan.add.length}…`, 10 * 60000);
+	let imported = 0;
+	const failed = [];
+	try {
+		for (let i = 0; i < plan.add.length; i += 40) {
+			const r = await api.importEvents(calendarId, plan.add.slice(i, i + 40));
+			imported += r.imported;
+			failed.push(...r.failed);
+			note.set(`Importing: ${Math.min(i + 40, plan.add.length)} of ${plan.add.length}…`);
+		}
+	} catch (e) {
+		failed.push({ title: "", error: e.message });
+	} finally {
+		note.close();
+	}
+	loadAgenda(true);
+	toast(`Imported ${plural(imported, "event")} to ${calName}.` + (failed.length ? ` ${plural(failed.length, "event")} didn't go in: ${failed.slice(0, 3).map((f) => (f.title ? f.title + ": " : "") + f.error).join("; ")}` : ""), 10000);
+}
+
 let evPrevStart = ""; // the start time the end was last set from
 
 // Calendars you can add to, main one first; the last one used is picked.
@@ -5099,6 +5156,7 @@ function setupAgenda() {
 	$("monthToday").addEventListener("click", () => showMonth(0));
 	desk.addEventListener("change", () => { renderAgenda(); loadMonth(); });
 	$("addEventBtn").addEventListener("click", () => showAddEvent($("addEvent").hidden));
+	$("evImport").addEventListener("click", importIcs);
 	$("evCancel").addEventListener("click", () => showAddEvent(false));
 	$("evAllDay").addEventListener("change", allDayFields);
 	// Events are hour blocks: moving the start moves the end with it (keeping

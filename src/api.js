@@ -154,6 +154,15 @@ export const api = {
 		});
 		return (await jsonOrThrow(res)).event;
 	},
+	// Events from an .ics file (src/ics.js googleEvent), up to 40 at a time.
+	async importEvents(calendarId, events) {
+		const res = await call("/api/calendar/import", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ calendarId, events }),
+		});
+		return jsonOrThrow(res);
+	},
 	// One event (one occurrence of a repeating one) gone from Google Calendar.
 	async deleteEvent(calendar, id) {
 		const qs = new URLSearchParams({ calendar, id });
