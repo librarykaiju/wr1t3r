@@ -359,7 +359,6 @@ In a board's Grid, click under a column to pick its total: Sum, Average, Median,
 - **Underline, text color, alignment:** toolbar buttons and slash commands. Markdown has no syntax for these, so they're saved as HTML: `<u>…</u>`, `<span style="color: #3b7dd8">…</span>`, `<p align="center">…</p>`. Inline Markdown inside `<p align>` isn't drawn by other Markdown apps.
 - **Font:** Settings > Appearance > Font, per device.
 - **Focus mode:** palette "Toggle focus mode" (per device). The side columns, header and toolbar fold away, the line you're typing stays in the middle of the screen, and other paragraphs dim. Esc or "Leave focus" turns it off.
-The calendar switches to the built-in one (below), task reminders show while wr1t3r is open (any tab) instead of being pushed, and picture search, grammar, word lookup, the food table and media lookups run on the device. What still needs the Worker (transcripts, server-side capture) shows an error on a Dropbox device for now. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
 
 ## Dropbox instead of the Worker
 
@@ -370,7 +369,7 @@ A build with a Dropbox app key shows **Use Dropbox** on the sign-in screen. Note
 3. Settings: add the page's address as a Redirect URI (`https://your.host/`, with the slash). Copy the **App key** (the secret isn't used).
 4. Build with it: `VITE_DROPBOX_APP_KEY=<app key> npm run deploy`.
 
-The calendar switches to the built-in one (below), task reminders show while wr1t3r is open (any tab) instead of being pushed, and picture search, grammar, word lookup, the food table and media lookups run on the device. What still needs the Worker (transcripts, server-side capture) shows an error on a Dropbox device for now. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
+The calendar switches to the built-in one (below), task reminders show while wr1t3r is open (any tab) instead of being pushed, and picture search, grammar, word lookup, the food table and media lookups run on the device. What still needs the Worker (transcripts, voice memos, the Drive backup and web clipping) isn't offered on a Dropbox build. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
 
 ## First run
 
@@ -387,6 +386,25 @@ Each device gets a 14-day free trial from the day it's first opened. After that 
 3. Build with them: `VITE_LS_STORE_ID=<store id> VITE_LS_PRODUCT_ID=<product id> VITE_BUY_URL=<checkout link> npm run build`. The product ID is optional; without it any product in the store is accepted.
 
 `VITE_LICENSE_API` points the checks somewhere other than `https://api.lemonsqueezy.com/v1/licenses` (a proxy, if a browser can't reach it directly); add that host to `connect-src` in `public/_headers` too.
+
+## The product build (user.wr1t3r.app) and wr1t3r.app
+
+The version sold to other people is the same code built without the Worker: the page alone, served from https://user.wr1t3r.app, with each person's notes in their own Dropbox and a Lemon Squeezy license key. `site/` is the page at https://wr1t3r.app that describes it and links to the checkout.
+
+1. Make the Dropbox app (above), with `https://user.wr1t3r.app/` as its Redirect URI.
+2. Make the Lemon Squeezy product (above).
+3. Create `.env.product.local` (not in git) with the IDs:
+   ```
+   VITE_DROPBOX_APP_KEY=<app key>
+   VITE_LS_STORE_ID=<store id>
+   VITE_LS_PRODUCT_ID=<product id>
+   VITE_BUY_URL=<checkout link>
+   ```
+   `.env.product` already sets `VITE_DROPBOX_ONLY=1`, which makes the sign-in screen offer only Dropbox.
+4. `npm run deploy:product` builds into `dist-product/` and deploys it as the `wr1t3r-user` Worker (`wrangler.product.toml`: static files only, on the `user.wr1t3r.app` custom domain).
+5. Put the checkout link in `site/public/index.html` (the `buy-url` meta tag), then `npm run deploy:site` deploys `site/public/` as the `wr1t3r-site` Worker on `wr1t3r.app` and `www.wr1t3r.app`.
+
+Both custom domains are created by the deploy, since wr1t3r.app is a zone on the same Cloudflare account. The personal build (`npm run deploy`) is unaffected.
 
 ## Features and folders
 

@@ -154,6 +154,8 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 #login { max-width: 360px; margin: 18vh auto 0; padding: 0 16px; display: grid; gap: 10px; }
 #login h1 { font: 600 28px var(--serif); margin: 0; }
 #login p { margin: 0; color: var(--muted); }
+#tokenLogin { display: grid; gap: 10px; }
+#login.dropbox-only #dropboxStart { display: block; width: 100%; margin-top: 12px; padding: 8px; }
 
 #app { display: flex; height: 100%; }
 #sidebar {

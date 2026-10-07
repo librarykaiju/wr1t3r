@@ -109,6 +109,7 @@ class NoteMap extends Map {
 const notes = new NoteMap();
 // Where the notebook lives (src/storage.js); the Worker unless this device picked another.
 if (dropboxAppKey()) registerStorage("dropbox", () => dropboxStorage());
+const DROPBOX_ONLY = !!import.meta.env.VITE_DROPBOX_ONLY;
 const onDropbox = storageKind() === "dropbox";
 const remote = openStorage();
 const SIGNED_OUT = onDropbox ? "Dropbox ended wr1t3r's sign-in. Sign in again." : "That token no longer works.";
@@ -4992,8 +4993,15 @@ function showLogin(message = "") {
 	applyTheme();
 	$("login").hidden = false;
 	$("login-error").textContent = message;
-	$("token").focus();
 	$("dropboxLogin").hidden = !dropboxAppKey();
+	// The product build (VITE_DROPBOX_ONLY) has no Worker to sign in to.
+	if (DROPBOX_ONLY && dropboxAppKey()) {
+		$("tokenLogin").remove();
+		$("login").classList.add("dropbox-only");
+		$("dropboxLead").textContent = "Your notes live in your own Dropbox, in Apps › wr1t3r. They never pass through anyone else's server.";
+		$("dropboxStart").textContent = "Sign in with Dropbox";
+		$("dropboxStart").focus();
+	} else $("token").focus();
 	$("dropboxStart").onclick = () => {
 		setStorageKind("dropbox");
 		beginDropboxSignIn({ redirectUri: location.origin + location.pathname }).catch((err) => {

@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -30,10 +30,17 @@ function ocrAssets() {
 	};
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+	// The product build (`npm run deploy:product`, .env.product) is no use
+	// without a Dropbox app key: there's no Worker to sign in to instead.
+	if (mode === "product" && !loadEnv(mode, process.cwd()).VITE_DROPBOX_APP_KEY) throw new Error("Set VITE_DROPBOX_APP_KEY in .env.product.local (see README, \"The product build\")");
+	return config;
+});
+
+const config = {
 	// CodeMirror plus the markdown grammar (which embeds HTML, CSS and JS) is ~200 kB
 	// gzipped; it is cached for offline use, so one chunk is fine.
 	build: { outDir: "dist", emptyOutDir: true, target: "es2022", chunkSizeWarningLimit: 900 },
 	server: { proxy: { "/api": "http://localhost:8787" } },
 	plugins: [ocrAssets()],
-});
+};
