@@ -10,6 +10,7 @@
 
 import { parseFrontmatter } from "./dvpage.js";
 import { setProperty } from "./bases.js";
+import { genresFromSubjects, JUNK_SUBJECT } from "../worker/genres.js";
 
 // RFC 4180 CSV: quoted fields may hold commas, quotes ("") and line breaks.
 export function parseCsv(text) {
@@ -158,8 +159,8 @@ export function planImport(books, logs) {
 	return { add, update };
 }
 
-// What Open Library has for b: { coverImage, pages, subjects, summary }, any
-// of them missing; null when it doesn't know the book. Two requests.
+// What Open Library has for b: { coverImage, pages, subjects, genre, summary },
+// any of them missing; null when it doesn't know the book. Two requests.
 export async function lookUpBook(b, fetchFn = fetch) {
 	const q = new URLSearchParams({ title: b.title.split(":")[0], fields: "key,cover_i,number_of_pages_median,subject", limit: "1" });
 	if (b.authors[0]) q.set("author", b.authors[0]);
@@ -170,8 +171,11 @@ export async function lookUpBook(b, fetchFn = fetch) {
 	const out = {};
 	if (doc.cover_i) out.coverImage = `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`;
 	if (doc.number_of_pages_median > 0) out.pages = doc.number_of_pages_median;
-	const subjects = [...new Set((doc.subject || []).filter((s) => s.length < 40 && !/[,:(]|fiction$/i.test(s)))].slice(0, 8);
+	const subjects = [...new Set((doc.subject || []).filter((s) => s.length < 40 && !/[,:(]|fiction$/i.test(s) && !JUNK_SUBJECT.test(s)))].slice(0, 8);
 	if (subjects.length) out.subjects = subjects;
+	// Genres from all of them, "Fantasy fiction" and "Fiction, romance" included.
+	const genre = genresFromSubjects(doc.subject);
+	if (genre.length) out.genre = genre;
 	if (/^\/works\/OL\d+W$/.test(doc.key || "")) {
 		try {
 			const w = await (await fetchFn(`https://openlibrary.org${doc.key}.json`)).json();
@@ -180,6 +184,22 @@ export async function lookUpBook(b, fetchFn = fetch) {
 		} catch {}
 	}
 	return out;
+}
+
+// Whether a log is missing anything lookUpBook could fill in.
+export const needsLookup = (text) => {
+	const p = parseFrontmatter(text);
+	return ["coverImage", "pages", "subjects", "genre", "summary"].some((k) => empty(p[k]));
+};
+
+// A book log's text with genres from its own subjects, when it has subjects
+// and an empty genre; null when there's nothing to do. No lookups, so it
+// works offline and on logs made by the book lookup before genres were.
+export function genresFromLog(text) {
+	const p = parseFrontmatter(text);
+	if (!("genre" in p) || !empty(p.genre) || empty(p.subjects)) return null;
+	const genre = genresFromSubjects(Array.isArray(p.subjects) ? p.subjects.map(String) : [String(p.subjects)]);
+	return genre.length ? setProperty(text, "genre", genre) : null;
 }
 
 // A log's text with what lookUpBook found, where the log has nothing.
