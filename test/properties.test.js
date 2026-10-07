@@ -79,3 +79,19 @@ test("the types note round-trips", () => {
 	assert.ok(writeTypes(t, { a: "date" }).startsWith("Property types"));
 	assert.deepEqual(readTypes("```json\n{\"x\": \"bogus\"}\n```"), {});
 });
+
+test("ratings and book formats map to their set choices", async () => {
+	const { starsFor, formatFor, choiceFor, choiceOptions, toChoices } = await import("../src/properties.js");
+	assert.deepEqual(["4", 4, "4/5", "8/10", "★★", "⭐⭐⭐", "3.5", "⭐⭐½", "0", "6", "great"].map(starsFor), ["⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐", "⭐⭐⭐", null, null, null, null, null]);
+	assert.deepEqual(["📘 Book", "paperback", "📱 Ebook", "digital", "🔉 Audio", "Audiobook", "💬 Comic", "Graphic novel", "Zine"].map(formatFor),
+		["📖Book", "📖Book", "📱Ebook", "📱Ebook", "🎧Audiobook", "🎧Audiobook", "💬Comic", "💬Comic", null]);
+	assert.equal(choiceFor("rating", "5"), "⭐⭐⭐⭐⭐");
+	assert.equal(choiceFor("title", "5"), null);
+	assert.deepEqual(choiceOptions("rating", "2").map((o) => o.text), ["⭐⭐", "⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐"]);
+	assert.deepEqual(choiceOptions("format", "", ["📖Book"]).map((o) => o.text), ["📱Ebook", "🎧Audiobook", "💬Comic"]);
+	assert.equal(toChoices("---\ntitle: X\nrating: 4\nformat: 📘 Book\nshelf: []\n---\nBody"), "---\ntitle: X\nrating:\n  - ⭐⭐⭐⭐\nformat:\n  - 📖Book\nshelf: []\n---\nBody");
+	assert.equal(toChoices("---\r\nrating: [\"★★★\"]\r\nformat:\r\n    - 🔉 Audio\r\n---\r\n"), "---\r\nrating:\r\n  - ⭐⭐⭐\r\nformat:\r\n    - 🎧Audiobook\r\n---\r\n");
+	assert.equal(toChoices("---\nrating: 3.5\nformat: Zine\n---\n"), null, "half stars and unknown formats stay");
+	assert.equal(toChoices("---\nrating:\n  - ⭐⭐⭐\nformat: []\n---\n"), null, "already done");
+	assert.equal(toChoices("No frontmatter"), null);
+});

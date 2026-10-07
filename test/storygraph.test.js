@@ -20,7 +20,7 @@ test("a StoryGraph export as books", () => {
 	const [a, b, c] = readExport(CSV);
 	assert.equal(a.title, "A Psalm for the Wild-Built");
 	assert.deepEqual(a.authors, ["Becky Chambers"]);
-	assert.equal(a.format, "📘 Book");
+	assert.equal(a.format, "📖Book");
 	assert.equal(a.shelf, "Finished");
 	assert.equal(a.added, "2025-01-02");
 	assert.equal(a.finished, "2025-01-09");
@@ -29,11 +29,11 @@ test("a StoryGraph export as books", () => {
 	assert.deepEqual(a.tags, ["cozy", "solarpunk"]);
 	assert.equal(a.review, 'Lovely.\nMade me want tea, "badly".');
 	assert.equal(b.shelf, "Currently Reading");
-	assert.equal(b.format, "🔉 Audio");
+	assert.equal(b.format, "🎧Audiobook");
 	assert.equal(b.rating, null);
 	assert.deepEqual(b.vibes, ["Fast-paced", "Plot-driven"]);
 	assert.equal(c.shelf, "TBR");
-	assert.equal(c.format, "📱 Ebook");
+	assert.equal(c.format, "📱Ebook");
 	assert.throws(() => readExport("Name,Value\nx,1\n"), /StoryGraph/);
 });
 

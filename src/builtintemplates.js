@@ -4,7 +4,7 @@
 // the first day. Same <% %> forms as a notebook's templates (src/daily.js).
 
 const fm = (lines) => ["---", ...lines, "---", ""].join("\n");
-const log = (type, extra = []) => fm([`title: "<% tp.file.title %>"`, `type: ${type}`, ...extra, "rating:", "status:", `date: <% tp.date.now("YYYY-MM-DD") %>`, "tags: []", "publish: false"]) + "\n## Notes\n\n";
+const log = (type, extra = []) => fm([`title: "<% tp.file.title %>"`, `type: ${type}`, ...extra, "rating: []", "status:", `date: <% tp.date.now("YYYY-MM-DD") %>`, "tags: []", "publish: false"]) + "\n## Notes\n\n";
 
 const TEMPLATES = {
 	daily: fm([`date: <% tp.date.now("YYYY-MM-DD") %>`]) + "\n```wr1t3r-planner\ntasks: [crit, todo]\ntimeline: []\n```\n\n## Notes\n\n",
@@ -13,7 +13,7 @@ const TEMPLATES = {
 	microblog: fm([`date: <% tp.date.now("YYYY-MM-DD HH:mm") %>`, "tags: []"]) + "\n",
 	"catalog entry": fm([`title: "<% tp.file.title %>"`, "url:", "tags: []"]) + "\n",
 	"tools entry": fm([`title: "<% tp.file.title %>"`, "url:", "tags: []"]) + "\n",
-	book: log("book", ["author:"]),
+	book: log("book", ["author:", "format: []"]),
 	movie: log("movie", ["director:", "year:"]),
 	series: log("series", ["year:"]),
 	anime: log("anime", ["studio:", "year:"]),
