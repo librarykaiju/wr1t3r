@@ -32,6 +32,7 @@ import { openStorage, registerStorage, storageKind, setStorageKind } from "./sto
 import { notebookCalendar, eventName, CALENDAR_FOLDER } from "./notecal.js";
 import { googleClientId, googleTokens, googleHas, beginGoogleSignIn, finishGoogleSignIn, isGoogleReturn, forgetGoogle, googleClient, GoogleSignInEnded, CALENDAR_SCOPES } from "./google.js";
 import { googleCalendar } from "./gcal.js";
+import { driveStorage, DRIVE_SCOPES } from "./gdrive.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { isPublished, notPublishedWhy } from "./published.js";
@@ -114,10 +115,13 @@ class NoteMap extends Map {
 const notes = new NoteMap();
 // Where the notebook lives (src/storage.js); the Worker unless this device picked another.
 if (dropboxAppKey()) registerStorage("dropbox", () => dropboxStorage());
+if (googleClientId()) registerStorage("gdrive", () => driveStorage({ call: googleClient() }));
 const DROPBOX_ONLY = !!import.meta.env.VITE_DROPBOX_ONLY;
-const onDropbox = storageKind() === "dropbox";
+// onDropbox means no Worker: the notes are in Dropbox, or (onDrive) Google Drive.
+const onDrive = storageKind() === "gdrive";
+const onDropbox = storageKind() === "dropbox" || onDrive;
 const remote = openStorage();
-const SIGNED_OUT = onDropbox ? "Dropbox ended wr1t3r's sign-in. Sign in again." : "That token no longer works.";
+const SIGNED_OUT = onDrive ? "Google ended wr1t3r's sign-in. Sign in again." : onDropbox ? "Dropbox ended wr1t3r's sign-in. Sign in again." : "That token no longer works.";
 let editor;
 
 // ---- storage: one write chain so saves land in order ----------------------
@@ -3825,6 +3829,7 @@ async function signOut(message) {
 	if (pending() && !confirm(`${pending()} change(s) haven't reached the vault yet and will be lost. Sign out anyway?`)) return;
 	setToken("");
 	forgetDropbox();
+	if (onDrive) await forgetGoogle();
 	setStorageKind("worker");
 	await local.clear();
 	if (message) sessionStorage.setItem("wr1t3r-msg", message);
@@ -4012,7 +4017,7 @@ function showSettingsTab(tab, onPhoneList = false) {
 	if (tab === "hotkeys") renderHotkeyTab();
 	if (tab === "sync") {
 		$("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
-		$("setStorage").textContent = onDropbox ? "Notes are kept in your Dropbox, in Apps › wr1t3r." : "";
+		$("setStorage").textContent = onDrive ? "Notes are kept in your Google Drive, in the wr1t3r folder. wr1t3r only sees files it put there itself, so add notes and pictures with Upload." : onDropbox ? "Notes are kept in your Dropbox, in Apps › wr1t3r." : "";
 	}
 	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
 	if (tab === "focus") markSeg("focusSeg", $("app").classList.contains("focus-mode"));
@@ -5248,6 +5253,16 @@ function showLogin(message = "") {
 		$("dropboxLead").textContent = "Your notes live in your own Dropbox, in Apps › wr1t3r. They never pass through anyone else's server.";
 		$("dropboxStart").textContent = "Sign in with Dropbox";
 		$("dropboxStart").focus();
+		if (googleClientId()) {
+			$("driveLogin").hidden = false;
+			$("driveStart").onclick = () => {
+				setStorageKind("gdrive");
+				beginGoogleSignIn({ scopes: DRIVE_SCOPES, redirectUri: location.origin + "/" }).catch((err) => {
+					setStorageKind("worker");
+					$("login-error").textContent = "Couldn't start Google sign-in: " + err.message;
+				});
+			};
+		}
 	} else $("token").focus();
 	$("dropboxStart").onclick = () => {
 		setStorageKind("dropbox");
@@ -5686,8 +5701,12 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
 if (isGoogleReturn(location.href)) {
 	// Back from connecting Google: keep the tokens, then load the page fresh.
 	finishGoogleSignIn({ url: location.href })
-		.then(() => sessionStorage.setItem("wr1t3r-google-msg", "Google Calendar is connected."))
-		.catch((err) => sessionStorage.setItem("wr1t3r-google-msg", "Couldn't connect Google: " + err.message))
+		.then(() => { if (googleHas(CALENDAR_SCOPES)) sessionStorage.setItem("wr1t3r-google-msg", "Google Calendar is connected."); })
+		.catch((err) => {
+			// Signing in to keep notes in Drive: back to the sign-in screen.
+			if (onDrive) { setStorageKind("worker"); sessionStorage.setItem("wr1t3r-msg", "Couldn't sign in with Google: " + err.message); }
+			else sessionStorage.setItem("wr1t3r-google-msg", "Couldn't connect Google: " + err.message);
+		})
 		.finally(() => location.replace(location.pathname));
 } else if (isDropboxReturn(location.href)) {
 	finishDropboxSignIn({ url: location.href })
@@ -5698,7 +5717,7 @@ if (isGoogleReturn(location.href)) {
 			sessionStorage.setItem("wr1t3r-msg", err.message);
 			location.replace(location.pathname);
 		});
-} else if (onDropbox ? dropboxSignedIn() : token()) start();
+} else if (onDrive ? googleHas(DRIVE_SCOPES) : onDropbox ? dropboxSignedIn() : token()) start();
 else {
 	const msg = sessionStorage.getItem("wr1t3r-msg") || "";
 	sessionStorage.removeItem("wr1t3r-msg");
