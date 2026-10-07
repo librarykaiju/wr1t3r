@@ -117,7 +117,7 @@ export async function wikiCovers(get, ref) {
 	return image ? [image] : [];
 }
 
-export async function wikiMovie(get, ref, today) {
+export async function wikiMovie(get, ref, cover, today) {
 	const e = await entity(get, ref.qid, ref.title);
 	const c = e.claims;
 	const names = await labels(get, [...ids(c, "P57"), ...ids(c, "P58"), ...ids(c, "P161", 10), ...ids(c, "P136"), ...ids(c, "P272")]);
@@ -125,7 +125,7 @@ export async function wikiMovie(get, ref, today) {
 	const series = ref.series || ids(c, "P31").includes("Q5398426");
 	const common = {
 		title: e.title, writers: list("P58"), studio: list("P272"), performers: list("P161", 10), genre: list("P136").map(genreName),
-		streamingServices: [], shelf: [], rating: [], coverImage: e.image, summary: e.summary,
+		streamingServices: [], shelf: [], rating: [], coverImage: cover ?? e.image, summary: e.summary,
 		sticky: false, publish: false, date: today, eyebrow: null,
 	};
 	return { fields: series ? common : { title: e.title, director: list("P57"), ...common }, year: year(c) };
@@ -139,14 +139,14 @@ export async function wikiGame(get, ref, cover, today) {
 	return {
 		fields: {
 			title: e.title, developer: list("P178"), publisher: list("P123"), platform: list("P400"), genre: list("P136").map(genreName),
-			status: [], rating: [], coverImage: cover || e.image, banner: "",
+			status: [], rating: [], coverImage: cover ?? e.image, banner: "",
 			description: e.summary, tags: [], sticky: false, publish: false, date: today, eyebrow: null,
 		},
 		year: year(c),
 	};
 }
 
-export async function wikiComic(get, ref, today) {
+export async function wikiComic(get, ref, cover, today) {
 	const e = await entity(get, ref.qid, ref.title);
 	const c = e.claims;
 	const writers = [...ids(c, "P50"), ...ids(c, "P170")];
@@ -158,7 +158,7 @@ export async function wikiComic(get, ref, today) {
 			title: e.title, author: named(writers), artist: named(ids(c, "P110")),
 			series, volume: null, format: "💬 Comic", publisher: named(ids(c, "P123"))[0] || "",
 			subjects: ["Comics & Graphic Novels"], genre: ["comics"], vibesAndThemes: [], shelf: [], rating: [],
-			coverImage: e.image, summary: e.summary, sticky: false, publish: false, date: today, eyebrow: null,
+			coverImage: cover ?? e.image, summary: e.summary, sticky: false, publish: false, date: today, eyebrow: null,
 		},
 		year: year(c),
 	};

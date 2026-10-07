@@ -1,6 +1,6 @@
 // Media lookups with no Worker: the page runs the Worker's own media code
 // (worker/media.js) itself, with no keys, so books come from Open Library,
-// music from MusicBrainz, podcasts from iTunes, and movies, TV, games and
+// music from MusicBrainz, anime from AniList, podcasts from iTunes, and movies, TV, games and
 // comics from Wikidata and Wikipedia. Same calls and answers as src/api.js's
 // media* methods.
 
@@ -24,5 +24,6 @@ export const mediaHere = {
 	async mediaKinds() { return (await run("/api/media/kinds")).kinds.map((k) => ({ ...k, folder: k.folder.replace(/^content\//, "") })); },
 	async mediaSearch(kind, q) { return (await run("/api/media/search?" + new URLSearchParams({ kind, q }))).results; },
 	async mediaCovers(kind, ref) { return (await run("/api/media/covers", { kind, ref })).covers; },
+	async mediaFindCovers(kind, title, creator = "", year = "") { return (await run("/api/media/findcovers", { kind, title, creator, year })).covers; },
 	async mediaNote(kind, ref, cover, today) { return run("/api/media/note", { kind, ref, cover, today }); },
 };

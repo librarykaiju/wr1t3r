@@ -12,6 +12,7 @@ export const NEW_NOTE_KINDS = [
 	{ label: "New book log", template: "Book", folder: "logs/books/", media: "book", keywords: "reading log books" },
 	{ label: "New movie log", template: "Movie", folder: "logs/movies-tv/", media: "movie", keywords: "film watching log" },
 	{ label: "New TV series log", template: "Series", folder: "logs/movies-tv/", media: "movie", keywords: "show television watching log" },
+	{ label: "New anime log", template: "Anime", folder: "logs/movies-tv/", media: "anime", keywords: "anime series show watching log anilist myanimelist" },
 	{ label: "New music log", template: "Music", folder: "logs/music/", media: "music", keywords: "album listening log" },
 	{ label: "New game log", template: "Game", folder: "logs/games/", media: "game", keywords: "video game playing log" },
 	{ label: "New podcast log", template: "Podcast", folder: "logs/podcasts/", media: "podcast", keywords: "listening log episode" },

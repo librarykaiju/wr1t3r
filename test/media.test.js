@@ -355,3 +355,79 @@ test("a RAWG game: the chosen entry's own data, and box art for its own year", a
 		assert.equal(n.year, "2023");
 	} finally { web.restore(); }
 });
+
+test("an anime: AniList's details, its cover and MyAnimeList's to choose from", async () => {
+	const media = {
+		id: 21, idMal: 5114, title: { romaji: "Hagane no Renkinjutsushi: Fullmetal Alchemist", english: "Fullmetal Alchemist: Brotherhood" },
+		startDate: { year: 2009 }, format: "TV", episodes: 64, genres: ["Action", "Adventure"], description: "Two brothers.<br>Alchemy.",
+		bannerImage: "https://s4.anilist.co/banner.jpg", siteUrl: "https://anilist.co/anime/5114",
+		coverImage: { extraLarge: "https://s4.anilist.co/xl.jpg", large: "https://s4.anilist.co/l.jpg", medium: "https://s4.anilist.co/m.jpg" },
+		studios: { nodes: [{ name: "Bones" }] }, externalLinks: [{ site: "Crunchyroll", type: "STREAMING" }, { site: "Twitter", type: "SOCIAL" }],
+		staff: { edges: [{ role: "Director", node: { name: { full: "Yasuhiro Irie" } } }, { role: "Music", node: { name: { full: "Akira Senju" } } }] },
+	};
+	const web = fakeWeb([
+		[(u, init) => u.hostname === "graphql.anilist.co" && init.body.includes("Page("), { data: { Page: { media: [media] } } }],
+		[host("graphql.anilist.co"), { data: { Media: media } }],
+		[host("api.jikan.moe", "/v4/anime/5114"), { data: { images: { jpg: { large_image_url: "https://cdn.myanimelist.net/l.jpg" } } } }],
+	]);
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const kinds = (await (await call(e, "/api/media/kinds")).json()).kinds;
+		assert.ok(kinds.every((k) => k.covers), "every kind offers covers");
+		assert.equal(kinds.find((k) => k.kind === "anime").folder, "content/logs/movies-tv");
+		const s = await (await call(e, "/api/media/search?kind=anime&q=fullmetal")).json();
+		assert.equal(s.results[0].title, "Fullmetal Alchemist: Brotherhood");
+		assert.match(s.results[0].subtitle, /TV series - 2009/);
+		const c = (await (await post(e, "/api/media/covers", { kind: "anime", ref: s.results[0].ref })).json()).covers;
+		assert.deepEqual(c, ["https://s4.anilist.co/xl.jpg", "https://cdn.myanimelist.net/l.jpg"]);
+		const n = await (await post(e, "/api/media/note", { kind: "anime", ref: s.results[0].ref, cover: c[1], today: "2026-10-07" })).json();
+		assert.deepEqual([n.fields.director, n.fields.studio, n.fields.episodes, n.fields.format], [["Yasuhiro Irie"], ["Bones"], 64, "TV series"]);
+		assert.deepEqual(n.fields.streamingServices, ["Crunchyroll"]);
+		assert.equal(n.fields.summary, "Two brothers. Alchemy.");
+		assert.equal(n.fields.coverImage, "https://cdn.myanimelist.net/l.jpg");
+		assert.equal(n.fields.banner, "https://s4.anilist.co/banner.jpg");
+		assert.equal(n.year, "2009");
+	} finally { web.restore(); }
+});
+
+test("album covers: the group's, its releases', then iTunes'", async () => {
+	const id = "9c3e150e-1bf4-47bb-8526-84f84562763e", rel = "11111111-2222-3333-4444-555555555555";
+	const web = fakeWeb([
+		[host("musicbrainz.org", "/ws/2/release"), { releases: [{ id: rel, date: "2011", "cover-art-archive": { front: true } }, { id: "22222222-2222-3333-4444-555555555555", "cover-art-archive": { front: false } }] }],
+		[host("coverartarchive.org"), new Response(null, { status: 404 })],
+		[host("itunes.apple.com"), { results: [
+			{ collectionName: "A New Dope (Deluxe Edition)", artistName: "Death*Star", artworkUrl100: "https://is1.mzstatic.com/a/100x100bb.jpg" },
+			{ collectionName: "Another Album", artistName: "Death*Star", artworkUrl100: "https://is1.mzstatic.com/b/100x100bb.jpg" },
+		] }],
+	]);
+	try {
+		const c = (await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/covers", { kind: "music", ref: { releaseGroupId: id, title: "A New Dope", artist: "Death*Star" } })).json()).covers;
+		assert.deepEqual(c, [`https://coverartarchive.org/release/${rel}/front-500`, "https://is1.mzstatic.com/a/600x600bb.jpg"]);
+	} finally { web.restore(); }
+});
+
+test("covers for an existing log: search its title, take the matching result's", async () => {
+	const web = fakeWeb([
+		[host("musicbrainz.org", "/ws/2/release-group"), { "release-groups": [] }],
+		[host("itunes.apple.com"), { results: [{ collectionName: "Kid A", artistName: "Radiohead", artworkUrl100: "https://is1.mzstatic.com/k/100x100bb.jpg" }] }],
+	]);
+	try {
+		const r = await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/findcovers", { kind: "music", title: "Kid A", creator: "Radiohead" })).json();
+		assert.deepEqual(r.covers, ["https://is1.mzstatic.com/k/600x600bb.jpg"], "iTunes when MusicBrainz has no match");
+		assert.equal((await post({ WR1T3R_TOKEN: "t" }, "/api/media/findcovers", { kind: "music", title: "" })).status, 400);
+	} finally { web.restore(); }
+});
+
+test("a movie's covers: OMDb's poster, then iTunes' for the same title and year", async () => {
+	const web = fakeWeb([
+		[(u) => u.hostname === "www.omdbapi.com" && u.searchParams.get("i"), { Title: "The Matrix", Type: "movie", Poster: "https://p/m.jpg" }],
+		[host("itunes.apple.com"), { results: [
+			{ trackName: "The Matrix", releaseDate: "1999-03-31T08:00:00Z", artworkUrl100: "https://is1.mzstatic.com/m/100x100bb.jpg" },
+			{ trackName: "The Matrix Resurrections", releaseDate: "2021-12-22T08:00:00Z", artworkUrl100: "https://is1.mzstatic.com/r/100x100bb.jpg" },
+		] }],
+	]);
+	try {
+		const c = (await (await post({ WR1T3R_TOKEN: "t", OMDB_API_KEY: "k" }, "/api/media/covers", { kind: "movie", ref: { imdbID: "tt0133093", title: "The Matrix", year: "1999" } })).json()).covers;
+		assert.deepEqual(c, ["https://p/m.jpg", "https://is1.mzstatic.com/m/600x600bb.jpg"]);
+	} finally { web.restore(); }
+});

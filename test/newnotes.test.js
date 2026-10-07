@@ -45,3 +45,18 @@ date: "{{date:YYYY-MM-DD}}"
 	assert.equal(renderTemplate(journal, { title: "Dune: Part Two", date }).text, '---\ntitle: "Dune: Part Two"\npublish: false\ndate: "2026-09-30"\n---\n');
 	assert.equal(renderTemplate(book, { title: "Dune", date }).text, '---\ntitle: "Dune"\nauthor: ""\ngenre: ""\ndate: "2026-09-30"\n---\n');
 });
+
+test("a log's cover search: kind from its folder, title, creator and year", async () => {
+	const { coverQuery } = await import("../src/medianote.js");
+	const kinds = [
+		{ kind: "movie", folder: "content/logs/movies-tv" }, { kind: "anime", folder: "content/logs/movies-tv" },
+		{ kind: "book", folder: "content/logs/books" }, { kind: "comic", folder: "content/logs/books" }, { kind: "music", folder: "content/logs/music" },
+	];
+	assert.deepEqual(coverQuery("content/logs/music/Kid A (2000).md", { title: "Kid A", artist: ["Radiohead"] }, kinds), { kind: "music", title: "Kid A", creator: "Radiohead", year: "2000" });
+	assert.equal(coverQuery("content/logs/movies-tv/Frieren (2023).md", { type: "anime" }, kinds).kind, "anime");
+	assert.equal(coverQuery("content/logs/movies-tv/Frieren.md", { episodes: 28, studio: ["Madhouse"] }, kinds).kind, "anime");
+	assert.equal(coverQuery("content/logs/movies-tv/Heat (1995).md", { director: ["Michael Mann"] }, kinds).kind, "movie");
+	assert.equal(coverQuery("content/logs/books/Saga #1.md", { format: ["💬Comic"] }, kinds).kind, "comic");
+	assert.deepEqual(coverQuery("content/logs/books/Dune (1965).md", {}, kinds), { kind: "book", title: "Dune", creator: "", year: "1965" });
+	assert.equal(coverQuery("content/notes/Dune.md", {}, kinds), null);
+});
