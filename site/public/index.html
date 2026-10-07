@@ -3,8 +3,8 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>wr1t3r: a writing app that keeps your notes in your own Dropbox</title>
-	<meta name="description" content="A Markdown writing app for stories, journals and notes. Corkboard, outliner, draft view, day planner. Your notes stay in your own Dropbox as plain files.">
+	<title>wr1t3r: write, publish and keep your notes in your own Dropbox</title>
+	<meta name="description" content="A Markdown writing app for stories, journals and notes. Corkboard, outliner, draft view, day planner, eight color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox as plain files.">
 	<!-- The Lemon Squeezy checkout link. Every Buy button uses it; while it's
 	     empty they go to the pricing section instead. -->
 	<meta name="buy-url" content="">
@@ -16,6 +16,8 @@
 		<a class="brand" href="/"><img src="/icon.svg" alt="" width="28" height="28"> wr1t3r</a>
 		<nav>
 			<a href="#features">Features</a>
+			<a href="#publish">Publishing</a>
+			<a href="#themes">Themes</a>
 			<a href="#pricing">Pricing</a>
 			<a href="https://my.wr1t3r.app/">Open the app</a>
 		</nav>
@@ -23,8 +25,8 @@
 
 	<main>
 		<section class="hero">
-			<h1>Write the long thing.<br>Keep it in your own Dropbox.</h1>
-			<p class="lede">wr1t3r is a writing app for stories, books, journals and notes. Plan scenes on a corkboard, read the whole draft as one document, and keep a day planner next to it. Every note is a plain Markdown file in your Dropbox, so nothing is locked in and nobody else holds your work.</p>
+			<h1>Write the long thing.<br>Publish it. Keep it yours.</h1>
+			<p class="lede">wr1t3r is a writing app for stories, books, journals and notes. Plan scenes on a corkboard, read the whole draft as one document, keep a day planner next to it, and turn the notes you choose into a website you can put on Neocities. Every note is a plain Markdown file in your Dropbox, so nothing is locked in and nobody else holds your work.</p>
 			<p class="cta">
 				<a class="button primary" href="https://my.wr1t3r.app/">Try it free for 14 days</a>
 				<a class="button buy" href="#pricing">Buy for $20</a>
@@ -68,8 +70,56 @@
 					<p>Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your Dropbox, so the scene you wrote on the train is on your laptop when you get home.</p>
 				</div>
 				<div class="phones">
-					<img class="shot phone" src="/shots/phone-corkboard.webp" width="600" height="1299" alt="The corkboard on a phone" loading="lazy">
-					<img class="shot phone" src="/shots/phone-editor.webp" width="600" height="1299" alt="The editor on a phone" loading="lazy">
+					<img class="shot phone" src="/shots/phone-corkboard.webp" width="600" height="1298" alt="The corkboard on a phone" loading="lazy">
+					<img class="shot phone" src="/shots/phone-editor.webp" width="600" height="1298" alt="The editor on a phone" loading="lazy">
+				</div>
+			</div>
+		</section>
+
+		<section id="publish" class="publish">
+			<h2>Publish a website from your notes</h2>
+			<p class="lede">Click the globe on any note to publish it. Export as website turns every published note into a finished site, in your colors, packed in one .zip. Drop it on <a href="https://neocities.org">Neocities</a>, GitHub Pages or any web host. No server, no account with us, no monthly fee.</p>
+			<img class="shot wide" src="/shots/site-notebook.webp" width="1600" height="1167" alt="An exported site: a notebook-style folder menu on the left, an essay in the middle, and a sidebar with a calendar of posts, Ko-fi and Patreon buttons and social links" loading="lazy">
+			<ul class="points">
+				<li><strong>Only what you choose.</strong> Notes go on the site when you publish them. Everything else stays private in your Dropbox.</li>
+				<li><strong>Two layouts.</strong> A menu across the top, or a notebook-style sidebar with folders that open and close.</li>
+				<li><strong>Your name and logo.</strong> A site title, a logo from your notes, and a footer line.</li>
+				<li><strong>Get paid for your work.</strong> Ko-fi and Patreon buttons in the sidebar, or a link to any shop or tip jar.</li>
+				<li><strong>An archive by month.</strong> A calendar in the sidebar and a page for each month, for notes with a date.</li>
+				<li><strong>Find me on.</strong> Links to Bluesky, Mastodon, Instagram and the rest, plus an email link written so spam bots have a harder time reading your address.</li>
+				<li><strong>Share and reply.</strong> A share button on every post. Link a post to Bluesky and its likes and replies show on your page.</li>
+				<li><strong>Made for Neocities.</strong> Plain pages with links that work on any host, and a preview before you download.</li>
+			</ul>
+			<div class="feature">
+				<div>
+					<h3>One button, right in the toolbar</h3>
+					<p>The globe lights up when the note you're on is published. Click it to publish or unpublish, or to open Export as website and see the whole site before you download it.</p>
+				</div>
+				<img class="shot" src="/shots/publish.webp" width="1600" height="989" alt="The globe button in the toolbar, open, with Publish this note and Export as website" loading="lazy">
+			</div>
+		</section>
+
+		<section id="themes" class="themes">
+			<h2>Eight color themes, light and dark</h2>
+			<p class="lede">Pick the colors you like writing in. Each theme sets the page, the folders in the sidebar and your tag colors, and follows your system's light or dark mode if you want it to.</p>
+			<div class="theme-grid">
+				<figure><img src="/shots/theme-default-light.webp" width="800" height="500" alt="wr1t3r in the Default theme" loading="lazy"><figcaption>Default</figcaption></figure>
+				<figure><img src="/shots/theme-sepia-light.webp" width="800" height="500" alt="wr1t3r in the Sepia theme" loading="lazy"><figcaption>Sepia</figcaption></figure>
+				<figure><img src="/shots/theme-dracula-dark.webp" width="800" height="500" alt="wr1t3r in the Dracula theme" loading="lazy"><figcaption>Dracula</figcaption></figure>
+				<figure><img src="/shots/theme-rosepine-light.webp" width="800" height="500" alt="wr1t3r in the Rosé Pine Dawn theme" loading="lazy"><figcaption>Rosé Pine</figcaption></figure>
+				<figure><img src="/shots/theme-tokyonight-dark.webp" width="800" height="500" alt="wr1t3r in the Tokyo Night theme" loading="lazy"><figcaption>Tokyo Night</figcaption></figure>
+				<figure><img src="/shots/theme-catppuccin-light.webp" width="800" height="500" alt="wr1t3r in the Catppuccin Latte theme" loading="lazy"><figcaption>Catppuccin</figcaption></figure>
+				<figure><img src="/shots/theme-kanagawa-dark.webp" width="800" height="500" alt="wr1t3r in the Kanagawa theme" loading="lazy"><figcaption>Kanagawa</figcaption></figure>
+				<figure><img src="/shots/theme-synthwave-dark.webp" width="800" height="500" alt="wr1t3r in the SynthWave '84 theme" loading="lazy"><figcaption>SynthWave '84</figcaption></figure>
+			</div>
+			<div class="feature">
+				<div>
+					<h3>Your website wears it too</h3>
+					<p>Export as website starts with your theme, or pick another one for the site. Light and dark switch with each visitor's settings.</p>
+				</div>
+				<div class="pair">
+					<img class="shot" src="/shots/site-catppuccin.webp" width="800" height="500" alt="An exported site in the Catppuccin theme" loading="lazy">
+					<img class="shot" src="/shots/site-synthwave.webp" width="800" height="500" alt="An exported site in the SynthWave '84 theme, with glowing headings" loading="lazy">
 				</div>
 			</div>
 		</section>
@@ -78,7 +128,7 @@
 			<h2>Also in the box</h2>
 			<ul>
 				<li><strong>Boards</strong> for tracking anything in columns, with totals.</li>
-				<li><strong>Book, film and TV logs</strong> that look up the title and fill in the details.</li>
+				<li><strong>Book, film and TV logs</strong> that look up the title and fill in the details, with charts of what you've finished and a StoryGraph import.</li>
 				<li><strong>Templates</strong> for new notes, daily notes and logs.</li>
 				<li><strong>Version history</strong> for every note, with a side-by-side compare.</li>
 				<li><strong>Search inside pictures and PDFs</strong>, read on your device.</li>
@@ -124,6 +174,10 @@
 			<details>
 				<summary>Is there support?</summary>
 				<p>wr1t3r is made by one person and sold as is. Email <a href="mailto:hello@wr1t3r.app">hello@wr1t3r.app</a> for license and billing problems; there's no promise of feature requests or a response time.</p>
+			</details>
+			<details>
+				<summary>Do I need a web host to publish?</summary>
+				<p>Only somewhere to upload the .zip. A free <a href="https://neocities.org">Neocities</a> site works: unzip it and drag the files into Neocities' uploader. Free Neocities accounts don't take audio or video files, so wr1t3r leaves those out unless you ask for them.</p>
 			</details>
 			<details>
 				<summary>Can I get a refund?</summary>
