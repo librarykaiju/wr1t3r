@@ -17,15 +17,49 @@ const KIND_TEST = {
 };
 const SERIES = /\b(television|tv|web|animated|anime) (series|program|programme|show)|miniseries|sitcom|soap opera|docuseries\b/i;
 
+// Words for matching titles: "Spider-Man: Brand New Day" and "spider man
+// brand new day" both -> "spider man brand new day".
+export const looseTitle = (s) => String(s || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/['’]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+// An item's English name, else its name in any language Wikidata has.
+const labelOf = (labels) => labels?.en?.value || labels?.mul?.value || Object.values(labels || {})[0]?.value || "";
+
+// A result; the year from its description ("2023 video game") helps pick
+// the right box art when a remake shares the original's name.
+const hit = (kind, id, title, description = "") => ({
+	title, subtitle: description,
+	ref: { qid: id, title, year: /\b(1[89]\d\d|20\d\d)\b/.exec(description)?.[1] || "", series: kind === "movie" && SERIES.test(description) },
+});
+
 // get(url) -> parsed JSON. The caller supplies it (the Worker adds a
 // User-Agent; a page can't).
+// The name search matches from the start of a title, so a title typed with
+// different punctuation ("Spider-man Brand New Day") can miss; Wikidata's
+// full-text search, which ignores punctuation and case, is tried next.
 export async function wikiSearch(get, kind, q) {
 	const qs = new URLSearchParams({ action: "wbsearchentities", search: q, language: "en", uselang: "en", type: "item", limit: "30", format: "json", origin: "*" });
 	const data = await get(`${WD}?${qs}`);
-	return (data.search || [])
+	const found = (data.search || [])
 		.filter((r) => KIND_TEST[kind].test(r.description || ""))
 		.slice(0, 10)
-		.map((r) => ({ title: r.label || r.id, subtitle: r.description || "", ref: { qid: r.id, series: kind === "movie" && SERIES.test(r.description || "") } }));
+		.map((r) => hit(kind, r.id, r.label || r.match?.text || r.display?.label?.value || r.id, r.description));
+	if (found.length) return found;
+	return wikiFullText(get, kind, q);
+}
+
+async function wikiFullText(get, kind, q) {
+	const words = looseTitle(q);
+	if (!words) return [];
+	const qs = new URLSearchParams({ action: "query", list: "search", srsearch: words, srnamespace: "0", srlimit: "20", format: "json", origin: "*" });
+	const ids = ((await get(`${WD}?${qs}`)).query?.search || []).map((r) => r.title).filter(isQid);
+	if (!ids.length) return [];
+	const info = new URLSearchParams({ action: "wbgetentities", ids: ids.join("|"), props: "labels|descriptions", languages: "en|mul", languagefallback: "1", format: "json", origin: "*" });
+	const entities = (await get(`${WD}?${info}`)).entities || {};
+	return ids
+		.map((id) => ({ id, label: labelOf(entities[id]?.labels), description: entities[id]?.descriptions?.en?.value || "" }))
+		.filter((r) => r.label && KIND_TEST[kind].test(r.description))
+		.slice(0, 10)
+		.map((r) => hit(kind, r.id, r.label, r.description));
 }
 
 const QID = /^Q\d+$/;
@@ -41,9 +75,9 @@ async function labels(get, list) {
 	const out = new Map();
 	const unique = [...new Set(list)];
 	for (let i = 0; i < unique.length; i += 50) {
-		const qs = new URLSearchParams({ action: "wbgetentities", ids: unique.slice(i, i + 50).join("|"), props: "labels", languages: "en", format: "json", origin: "*" });
+		const qs = new URLSearchParams({ action: "wbgetentities", ids: unique.slice(i, i + 50).join("|"), props: "labels", languages: "en|mul", languagefallback: "1", format: "json", origin: "*" });
 		const data = await get(`${WD}?${qs}`);
-		for (const [id, e] of Object.entries(data.entities || {})) if (e.labels?.en?.value) out.set(id, e.labels.en.value);
+		for (const [id, e] of Object.entries(data.entities || {})) if (labelOf(e.labels)) out.set(id, labelOf(e.labels));
 	}
 	return out;
 }
@@ -51,9 +85,13 @@ async function labels(get, list) {
 // "science fiction film" -> "science fiction" (the kind is already known).
 const genreName = (s) => s.replace(/\s+(film|films|television series|video game|comic|comics|manga)$/i, "").trim();
 
-// The item's claims, English title and Wikipedia summary.
-async function entity(get, qid) {
-	const qs = new URLSearchParams({ action: "wbgetentities", ids: qid, props: "claims|labels|sitelinks", languages: "en", sitefilter: "enwiki", format: "json", origin: "*" });
+// The item's claims, English title and Wikipedia summary. fallbackTitle (the
+// search result's) is used when Wikidata has no name for it, so the title is
+// never the bare item id. A sitelink that's only a redirect (a remake listed
+// under the original game's article) gives no summary or picture: those would
+// be the original's.
+async function entity(get, qid, fallbackTitle = "") {
+	const qs = new URLSearchParams({ action: "wbgetentities", ids: qid, props: "claims|labels|sitelinks", languages: "en|mul", languagefallback: "1", sitefilter: "enwiki", format: "json", origin: "*" });
 	const e = (await get(`${WD}?${qs}`)).entities?.[qid];
 	if (!e || e.missing !== undefined) throw Object.assign(new Error("Wikidata has no such item"), { status: 404 });
 	const page = e.sitelinks?.enwiki?.title;
@@ -61,22 +99,26 @@ async function entity(get, qid) {
 	if (page) {
 		try {
 			const s = await get(WP + encodeURIComponent(page.replace(/ /g, "_")));
-			summary = s.extract || "";
-			image = s.originalimage?.source || s.thumbnail?.source || "";
+			const landed = s.titles?.canonical || s.title || "";
+			const same = !landed || landed.replace(/_/g, " ").toLowerCase() === page.replace(/_/g, " ").toLowerCase();
+			if (same && s.type !== "disambiguation") {
+				summary = s.extract || "";
+				image = s.originalimage?.source || s.thumbnail?.source || "";
+			}
 		} catch {}
 	}
-	return { claims: e.claims || {}, title: e.labels?.en?.value || page || qid, summary, image };
+	return { claims: e.claims || {}, title: labelOf(e.labels) || page || String(fallbackTitle || "").slice(0, 300) || qid, summary, image };
 }
 
 // The picture from the item's Wikipedia article, as the cover choice.
 export async function wikiCovers(get, ref) {
 	if (!isQid(ref.qid)) return [];
-	const { image } = await entity(get, ref.qid);
+	const { image } = await entity(get, ref.qid, ref.title);
 	return image ? [image] : [];
 }
 
 export async function wikiMovie(get, ref, today) {
-	const e = await entity(get, ref.qid);
+	const e = await entity(get, ref.qid, ref.title);
 	const c = e.claims;
 	const names = await labels(get, [...ids(c, "P57"), ...ids(c, "P58"), ...ids(c, "P161", 10), ...ids(c, "P136"), ...ids(c, "P272")]);
 	const list = (p, max) => ids(c, p, max).map((id) => names.get(id)).filter(Boolean);
@@ -90,7 +132,7 @@ export async function wikiMovie(get, ref, today) {
 }
 
 export async function wikiGame(get, ref, cover, today) {
-	const e = await entity(get, ref.qid);
+	const e = await entity(get, ref.qid, ref.title);
 	const c = e.claims;
 	const names = await labels(get, [...ids(c, "P178"), ...ids(c, "P123"), ...ids(c, "P400"), ...ids(c, "P136")]);
 	const list = (p) => ids(c, p).map((id) => names.get(id)).filter(Boolean);
@@ -105,7 +147,7 @@ export async function wikiGame(get, ref, cover, today) {
 }
 
 export async function wikiComic(get, ref, today) {
-	const e = await entity(get, ref.qid);
+	const e = await entity(get, ref.qid, ref.title);
 	const c = e.claims;
 	const writers = [...ids(c, "P50"), ...ids(c, "P170")];
 	const names = await labels(get, [...writers, ...ids(c, "P110"), ...ids(c, "P123"), ...ids(c, "P179"), ...ids(c, "P136")]);

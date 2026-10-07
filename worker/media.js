@@ -31,7 +31,7 @@
 
 import { HttpError } from "./util.js";
 import { genresFromSubjects, JUNK_SUBJECT } from "./genres.js";
-import { wikiSearch, wikiCovers, wikiMovie, wikiGame, wikiComic, isQid } from "./wikimedia.js";
+import { wikiSearch, wikiCovers, wikiMovie, wikiGame, wikiComic, isQid, looseTitle } from "./wikimedia.js";
 
 // In a page, a User-Agent header can't be set and would only cost a preflight.
 const inPage = typeof document !== "undefined";
@@ -109,6 +109,30 @@ const str = (v, max = 500) => (typeof v === "string" ? v.slice(0, max) : v == nu
 function need(ok, what) {
 	if (!ok) throw new HttpError(400, "ref: bad " + what);
 }
+
+// A search as typed, then without its punctuation, then as bare lowercase
+// words: "Spider-man Brand New Day" finds "Spider-Man: Brand New Day" on
+// services that match punctuation strictly.
+export function queryVariants(q) {
+	const plain = q.replace(/[^\p{L}\p{N}'’]+/gu, " ").replace(/\s+/g, " ").trim();
+	return [...new Set([q.trim(), plain, looseTitle(q)])].filter(Boolean);
+}
+
+// Runs find(query) for each variant until one finds something; results whose
+// title matches what was typed (punctuation and case aside) come first.
+export async function forgiving(q, find) {
+	for (const v of queryVariants(q)) {
+		const found = await find(v);
+		if (found.length) {
+			const want = looseTitle(q);
+			return [...found].sort((a, b) => (looseTitle(b.title) === want) - (looseTitle(a.title) === want));
+		}
+	}
+	return [];
+}
+
+// MusicBrainz reads its search as Lucene, where - : ! and the like are syntax.
+const lucene = (q) => q.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, "\\$&");
 
 // "A, B and C" -> ["A", "B", "C"]; OMDb's "N/A" -> [].
 export function splitList(s) {
@@ -290,33 +314,38 @@ async function igdb(env, endpoint, query) {
 	});
 }
 
-// IGDB's box art for the game, the release closest to year first.
+// IGDB's box art for the game: up to three, the release closest to year
+// first, so a remake gets its own box and not the original's.
 async function boxArt(env, title, year) {
-	if (!env.IGDB_CLIENT_ID || !env.IGDB_CLIENT_SECRET) return null;
+	if (!env.IGDB_CLIENT_ID || !env.IGDB_CLIENT_SECRET) return [];
 	return quietly(async () => {
 		const found = (await igdb(env, "games", `search "${title.replace(/"/g, '\\"')}"; fields name,first_release_date,cover.image_id; limit 10;`)) || [];
 		const withCover = found.filter((g) => g.cover?.image_id);
-		if (!withCover.length) return null;
-		if (year) {
-			const y = Number(year);
-			const yearOf = (g) => (g.first_release_date ? new Date(g.first_release_date * 1000).getUTCFullYear() : Infinity);
-			withCover.sort((a, b) => Math.abs(yearOf(a) - y) - Math.abs(yearOf(b) - y));
-		}
-		return `https://images.igdb.com/igdb/image/upload/t_cover_big/${withCover[0].cover.image_id}.jpg`;
-	}, null);
+		const want = looseTitle(title);
+		const yearOf = (g) => (g.first_release_date ? new Date(g.first_release_date * 1000).getUTCFullYear() : Infinity);
+		const score = (g) => (looseTitle(g.name) === want ? 0 : 10000) + (year ? Math.abs(yearOf(g) - Number(year)) : 0);
+		withCover.sort((a, b) => score(a) - score(b));
+		return withCover.slice(0, 3).map((g) => `https://images.igdb.com/igdb/image/upload/t_cover_big/${g.cover.image_id}.jpg`);
+	}, []);
 }
 
 const squash = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 // The game's Steam header image, when Steam has a game by exactly that name.
-async function steamBanner(title) {
+// With a year, a same-named game from another year (the original of a remake)
+// isn't used. Steam doesn't answer pages (CORS), so only the Worker asks.
+async function steamBanner(title, year = "") {
+	if (inPage) return "";
 	return quietly(async () => {
 		const found = await getJSON(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(title)}&cc=us&l=en`);
-		const hit = (found.items || []).find((i) => squash(i.name) === squash(title));
-		if (!hit) return "";
-		const d = await getJSON(`https://store.steampowered.com/api/appdetails?appids=${hit.id}`);
-		const img = d?.[hit.id]?.data?.header_image;
-		return typeof img === "string" ? img : "";
+		const hits = (found.items || []).filter((i) => squash(i.name) === squash(title)).slice(0, 3);
+		for (const hit of hits) {
+			const d = (await getJSON(`https://store.steampowered.com/api/appdetails?appids=${hit.id}`))?.[hit.id]?.data;
+			const img = typeof d?.header_image === "string" ? d.header_image : "";
+			const y = /\b(\d{4})\b/.exec(d?.release_date?.date || "")?.[1];
+			if (img && (!year || !y || y === String(year))) return img;
+		}
+		return "";
 	}, "");
 }
 
@@ -354,63 +383,74 @@ function podcastGenres(primary, genres) {
 // ---- the three calls, per kind -------------------------------------------------------
 
 const SEARCH = {
+	// A keyed service that finds nothing hands over to Wikidata, which has
+	// most films, shows, games and comics too.
 	async movie(env, q) {
-		if (!env.OMDB_API_KEY) return wikiSearch(getJSON, "movie", q);
-		const data = await omdb(env, { s: q });
-		return (data?.Search || []).filter((r) => r.Type === "movie" || r.Type === "series").map((r) => ({
+		const wiki = () => forgiving(q, (v) => wikiSearch(getJSON, "movie", v));
+		if (!env.OMDB_API_KEY) return wiki();
+		const found = await forgiving(q, async (v) => ((await omdb(env, { s: v }))?.Search || []).filter((r) => r.Type === "movie" || r.Type === "series").map((r) => ({
 			title: r.Title, subtitle: `${r.Year} - ${r.Type}`,
 			thumbnailUrl: r.Poster !== "N/A" ? r.Poster : undefined,
 			ref: { imdbID: r.imdbID },
-		}));
+		})));
+		return found.length ? found : wiki();
 	},
 	async book(env, q) {
-		const data = await getJSON("https://openlibrary.org/search.json?" + new URLSearchParams({ q, fields: "title,author_name,first_publish_year,cover_i,key,number_of_pages_median", limit: "10" }));
-		return (data.docs || []).map((d) => ({
-			title: d.title,
-			subtitle: [d.author_name?.join(", "), d.first_publish_year].filter(Boolean).join(" - "),
-			thumbnailUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-S.jpg` : undefined,
-			ref: { workKey: d.key, title: d.title, authors: d.author_name || [], coverId: d.cover_i, year: d.first_publish_year ? String(d.first_publish_year) : "", pages: d.number_of_pages_median || null },
-		}));
+		return forgiving(q, async (v) => {
+			const data = await getJSON("https://openlibrary.org/search.json?" + new URLSearchParams({ q: v, fields: "title,author_name,first_publish_year,cover_i,key,number_of_pages_median", limit: "10" }));
+			return (data.docs || []).map((d) => ({
+				title: d.title,
+				subtitle: [d.author_name?.join(", "), d.first_publish_year].filter(Boolean).join(" - "),
+				thumbnailUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-S.jpg` : undefined,
+				ref: { workKey: d.key, title: d.title, authors: d.author_name || [], coverId: d.cover_i, year: d.first_publish_year ? String(d.first_publish_year) : "", pages: d.number_of_pages_median || null },
+			}));
+		});
 	},
 	async music(env, q) {
-		const data = await mb("release-group", { query: q, limit: "10" });
-		return (data["release-groups"] || []).map((g) => {
-			const year = g["first-release-date"]?.slice(0, 4) || "";
-			return {
-				title: g.title,
-				subtitle: [(g["artist-credit"] || []).map((a) => a.name).join(""), g["primary-type"], year].filter(Boolean).join(" - "),
-				ref: { releaseGroupId: g.id, title: g.title, year },
-			};
+		return forgiving(q, async (v) => {
+			const data = await mb("release-group", { query: lucene(v), limit: "10" });
+			return (data["release-groups"] || []).map((g) => {
+				const year = g["first-release-date"]?.slice(0, 4) || "";
+				return {
+					title: g.title,
+					subtitle: [(g["artist-credit"] || []).map((a) => a.name).join(""), g["primary-type"], year].filter(Boolean).join(" - "),
+					ref: { releaseGroupId: g.id, title: g.title, year },
+				};
+			});
 		});
 	},
 	async game(env, q) {
-		if (!env.RAWG_API_KEY) return wikiSearch(getJSON, "game", q);
-		const data = await rawg(env, "/games", { search: q, page_size: "10" });
-		return (data.results || []).map((g) => ({
+		const wiki = () => forgiving(q, (v) => wikiSearch(getJSON, "game", v));
+		if (!env.RAWG_API_KEY) return wiki();
+		const found = await forgiving(q, async (v) => ((await rawg(env, "/games", { search: v, page_size: "10" })).results || []).map((g) => ({
 			title: g.name, subtitle: g.released?.slice(0, 4) || "", thumbnailUrl: g.background_image || undefined,
 			ref: { id: g.id, title: g.name, year: g.released?.slice(0, 4) || "", thumbnailUrl: g.background_image || "" },
-		}));
+		})));
+		return found.length ? found : wiki();
 	},
 	async comic(env, q) {
-		if (!env.COMICVINE_API_KEY) return wikiSearch(getJSON, "comic", q);
-		const data = await comicVine(env, "/search/", { resources: "issue", query: q, field_list: "id,name,issue_number,cover_date,image,volume", limit: "10" });
-		return (data.results || []).map((i) => ({
+		const wiki = () => forgiving(q, (v) => wikiSearch(getJSON, "comic", v));
+		if (!env.COMICVINE_API_KEY) return wiki();
+		const found = await forgiving(q, async (v) => ((await comicVine(env, "/search/", { resources: "issue", query: v, field_list: "id,name,issue_number,cover_date,image,volume", limit: "10" })).results || []).map((i) => ({
 			title: issueTitle(i.volume?.name || "", i.issue_number, i.name),
 			subtitle: i.cover_date ? i.cover_date.slice(0, 4) : "",
 			thumbnailUrl: i.image?.small_url,
 			ref: { issueId: i.id },
-		}));
+		})));
+		return found.length ? found : wiki();
 	},
 	async podcast(env, q) {
-		const data = await getJSON("https://itunes.apple.com/search?" + new URLSearchParams({ term: q, media: "podcast", entity: "podcast", limit: "10" }));
-		return (data.results || []).map((p) => ({
-			title: p.collectionName || "", subtitle: p.artistName || "", thumbnailUrl: p.artworkUrl100,
-			ref: {
-				title: p.collectionName || "", creator: p.artistName || "",
-				artworkUrl: bigArtwork(p.artworkUrl600 || p.artworkUrl100), collectionViewUrl: p.collectionViewUrl || "",
-				genre: podcastGenres(p.primaryGenreName, p.genres),
-			},
-		}));
+		return forgiving(q, async (v) => {
+			const data = await getJSON("https://itunes.apple.com/search?" + new URLSearchParams({ term: v, media: "podcast", entity: "podcast", limit: "10" }));
+			return (data.results || []).map((p) => ({
+				title: p.collectionName || "", subtitle: p.artistName || "", thumbnailUrl: p.artworkUrl100,
+				ref: {
+					title: p.collectionName || "", creator: p.artistName || "",
+					artworkUrl: bigArtwork(p.artworkUrl600 || p.artworkUrl100), collectionViewUrl: p.collectionViewUrl || "",
+					genre: podcastGenres(p.primaryGenreName, p.genres),
+				},
+			}));
+		});
 	},
 };
 
@@ -428,13 +468,17 @@ const COVERS = {
 		const own = b.coverId ? [`https://covers.openlibrary.org/b/id/${b.coverId}-M.jpg`] : [];
 		return [...new Set([...google, ...own, ...others])].slice(0, 8);
 	},
-	// IGDB's box art when it's set up, then RAWG's screenshot.
+	// IGDB's box art when it's set up, then RAWG's screenshot (for the
+	// chosen game's own id) or the Wikipedia article's picture.
 	async game(env, ref) {
-		if (isQid(ref.qid)) return quietly(() => wikiCovers(getJSON, ref), []);
+		const title = str(ref.title), year = str(ref.year, 10);
+		if (isQid(ref.qid)) {
+			const [art, wiki] = await Promise.all([boxArt(env, title, year), quietly(() => wikiCovers(getJSON, ref), [])]);
+			return [...new Set([...art, ...wiki])];
+		}
 		need(Number.isInteger(ref.id), "id");
-		const art = await boxArt(env, str(ref.title), str(ref.year));
-		const shot = httpsUrl(ref.thumbnailUrl);
-		return [art, shot].filter(Boolean).filter((u, i, a) => a.indexOf(u) === i);
+		const art = await boxArt(env, title, year);
+		return [...new Set([...art, httpsUrl(ref.thumbnailUrl)].filter(Boolean))];
 	},
 };
 
@@ -510,9 +554,16 @@ const NOTE = {
 		};
 	},
 	async game(env, ref, { cover, today }) {
-		if (isQid(ref.qid)) return wikiGame(getJSON, ref, cover, today);
+		if (isQid(ref.qid)) {
+			const [made, banner] = await Promise.all([wikiGame(getJSON, ref, cover, today), steamBanner(str(ref.title), str(ref.year, 10))]);
+			if (!made.fields.banner) made.fields.banner = banner;
+			return made;
+		}
 		need(Number.isInteger(ref.id), "id");
-		const [g, banner] = await Promise.all([rawg(env, `/games/${ref.id}`), steamBanner(str(ref.title))]);
+		// Everything from the chosen game's own RAWG entry (a remake's, not
+		// the original's); Steam's banner only when its year agrees.
+		const [g, steam] = await Promise.all([rawg(env, `/games/${ref.id}`), steamBanner(str(ref.title), str(ref.year, 10))]);
+		const banner = steam || httpsUrl(g.background_image);
 		return {
 			fields: {
 				title: g.name,
