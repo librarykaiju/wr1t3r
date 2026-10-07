@@ -369,7 +369,7 @@ Commands, then "Export as website", turns every note with `publish: true` into a
 - Each page shows the note's other properties in a **Properties** box under the title (lists as pills, yes/no as a checkbox, dates written out, web addresses as links), leaving out the ones the page already uses or that only steer wr1t3r (`title`, `publish`, `tags`, `date`, `cover`, `cssclasses` and the like). A switch in the dialog turns it off.
 - Tags are pills in the theme's rainbow, each the same color as in the app, and top-level folders keep their sidebar colors: tinted rows in the notebook layout's folders, a colored underline in the top menu.
 - One .html page per note with relative links, a front page listing them by folder (a published `Home.md` or `Index.md` at the top becomes its text), `not_found.html` for Neocities, and `style.css` built from a theme picked in the dialog (any of the notebook's, starting with the one in use) and the notebook's font. With Auto the site follows each visitor's light or dark setting.
-- `[[Links]]` to published notes become links; links to anything else become plain words. Properties, `%% comments %%`, block ids and dataview/base blocks never go in. Notes in `_` folders and `draft: true` notes are left out even when marked.
+- `[[Links]]` to published notes become links; links to anything else become plain words. `%% comments %%`, block ids and dataview/base blocks never go in. Notes in `_` folders and `draft: true` notes are left out even when marked.
 - Pictures and PDFs a published note uses are copied into `files/`. Audio and video only when "Include audio and video" is on, since a free Neocities site won't take them.
 - Layout: "Top menu" (a link per top-level folder across the top) or "Notebook" (the folders down the left as in the app, folding open; plain `<details>`, no scripts). On phones the left column goes above the text.
 - Navigation: the site title (and an optional logo, a picture from the notebook that's also the tab icon) goes to the front page; a menu links each top-level folder's own list (`folder/index.html`); each page ends with Previous and Next in its folder, newest first.
@@ -379,6 +379,10 @@ Commands, then "Export as website", turns every note with `publish: true` into a
 - The dialog remembers its settings and the pages of the last download on this device, and lists pages that have dropped off since, so they can be deleted from the host.
 
 To put it online: unzip, then drag the files and folders into the Neocities dashboard, Netlify Drop or Cloudflare Pages.
+
+**Publish to GitHub** (src/githubpublish.js) sends the same files straight to a GitHub repo from the page, as one commit through GitHub's API (which takes calls from browsers, so it needs no Worker and works on both builds). The person makes a fine-grained token for that repo with Contents and Pages set to Read and write; it's kept on the device only if they tick "Remember the token". Files whose git blob id already matches aren't sent again, files the last publish to that repo put there and the site no longer has are deleted, anything else in the repo is left alone, and `.nojekyll` is added. An empty repo gets a first commit; GitHub Pages is turned on for the branch if it isn't already. `https://api.github.com` is in the page's `connect-src` (public/_headers). Cloudflare Pages can watch the same repo.
+
+Step-by-step guides with screenshots live on the product site at `site/public/help.html` (setup, publishing, Neocities, GitHub Pages, Cloudflare); Settings > Help links to them.
 
 ## Writing stats, goals and fonts
 
