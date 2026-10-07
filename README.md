@@ -249,6 +249,10 @@ With no Worker of ours holding a Google account, each person connects their own:
 
 Setup, once: a Google Cloud project with the Google Calendar API on, a Web OAuth client whose redirect URI is `https://my.wr1t3r.app/`, scopes `calendar.events` and `calendar.calendarlist.readonly`; then `VITE_GOOGLE_CLIENT_ID` in .env.product.local and `npx wrangler secret put GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET -c wrangler.product.toml`.
 
+### Notes in Google Drive (a test)
+
+On the paid build with `VITE_GOOGLE_CLIENT_ID` set, the sign-in screen also offers **Sign in with Google Drive** (src/gdrive.js, storage kind `gdrive`). It asks only for `drive.file`, which Google grants without a security review: wr1t3r sees the files it made (notes written in wr1t3r, and anything added with Upload) and nothing else in the person's Drive. A file dropped into the folder from Drive's website or desktop app stays invisible. The notebook is a "wr1t3r" folder at the top of My Drive, found again on other devices by its appProperties. Drive works by ids, so each listing rebuilds paths from parent folders. It has no "only if unchanged" write, so writes check the version first; two devices saving in the same second can still overwrite each other. Deleting moves the file to Drive's trash. The Google Cloud project also needs the Google Drive API on, and the `drive.file` scope on the consent screen.
+
 ## Google Drive backup
 
 Every hour, at 17 minutes past, the Worker copies the vault bucket into a folder at the top of your Google Drive (`DRIVE_BACKUP` in `wrangler.toml`, `wr1t3r-vault-backup`), with the bucket's folders inside it (`worker/backup.js`). Only files that changed since the last copy are sent. It only adds and updates: a file deleted from the bucket keeps its last copy in Drive. A run copies a batch (up to `BACKUP_CALLS` Google and R2 calls, default 400) and the next run carries on, so the first full copy can take a few hours. Its progress is kept in the bucket at `.wr1t3r/backup.json`.

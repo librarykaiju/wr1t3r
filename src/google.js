@@ -7,6 +7,8 @@
 // Set the client ID at build time: VITE_GOOGLE_CLIENT_ID=... (public).
 // The Google client's redirect URI must be this page's address (https://host/).
 
+import { AuthError } from "./api.js";
+
 const AUTHORIZE = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKENS = "wr1t3r-google";
 const PENDING = "wr1t3r-google-pending";
@@ -30,7 +32,8 @@ export const googleTokens = () => readJson(local(), TOKENS);
 export const googleSignedIn = () => !!googleTokens()?.refresh;
 export const googleHas = (scopes) => { const have = new Set((googleTokens()?.scope || "").split(" ")); return scopes.every((s) => have.has(s)); };
 
-export class GoogleSignInEnded extends Error {}
+// An AuthError, so a notebook kept in Google Drive signs out as Dropbox's does.
+export class GoogleSignInEnded extends AuthError {}
 
 const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
@@ -95,7 +98,8 @@ export async function forgetGoogle({ get = (...a) => fetch(...a) } = {}) {
 }
 
 // A function that calls a Google API with a fresh token:
-// call(url, init) -> parsed JSON, throwing Error (or GoogleSignInEnded).
+// call(url, init) -> parsed JSON (the Response itself with init.raw),
+// throwing Error (or GoogleSignInEnded). A string body is sent as JSON.
 export function googleClient({ get = (...a) => fetch(...a), now = Date.now } = {}) {
 	async function access(force = false) {
 		const t = googleTokens();
@@ -112,8 +116,10 @@ export function googleClient({ get = (...a) => fetch(...a), now = Date.now } = {
 	}
 	return async function call(url, init = {}) {
 		for (let tries = 0; ; tries++) {
-			const res = await get(url, { ...init, headers: { Authorization: `Bearer ${await access(tries > 0)}`, ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers } });
+			const { raw, ...rest } = init;
+			const res = await get(url, { ...rest, headers: { Authorization: `Bearer ${await access(tries > 0)}`, ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}), ...init.headers } });
 			if (res.status === 401 && tries === 0) continue;
+			if (raw && res.ok) return res;
 			const data = res.status === 204 ? {} : await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(data.error?.message || `Google said ${res.status}`);
 			return data;
