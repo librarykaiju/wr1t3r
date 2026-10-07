@@ -349,7 +349,7 @@ function onNote(path, note) {
 // never races an edit on its way from Obsidian; it's written only when the
 // order changes, and undoes like any edit.
 let sortPending = null;
-const sortable = (path) => !!path && /\.md$/i.test(path) && !/(^|\/)_(templates|clippings|uploads)\//i.test(path) && !isAppFile(path);
+const sortable = (path) => !!path && /\.md$/i.test(path) && !/(^|\/)_(templates|clippings|uploads)\//i.test(path) && !dataviewVault.untrusted(path) && !isAppFile(path);
 function sortOpenNote({ quiet = true } = {}) {
 	const view = editor.view;
 	if (!sortable(editor.path) || view.state.readOnly) return quiet || toast("This note's checklists aren't sorted.");
@@ -5203,6 +5203,8 @@ function diffChange(a, b) {
 const dataviewVault = {
 	// Where new task list notes go (Settings > Features > Folders).
 	listsFolder: () => ownFolder("lists"),
+	// Text from outside the notebook, whose dataviewjs blocks never run.
+	untrusted: (path) => ["clippings", "uploads"].some((id) => path.toLowerCase().startsWith(ownFolder(id).toLowerCase())),
 	paths: () => cachedPaths("notes", (n) => !n.binary && !isBoardPath(n.path)),
 	files: () => cachedPaths("files", (n) => !n.binary),
 	// A base changing a note's property: the open note through the editor (so

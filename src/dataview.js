@@ -7,8 +7,8 @@
 // linked from it, and asks the app for anything else (a note's text, a web
 // page through the clipper's /api/fetch). Scripts can't write: vault.modify
 // and processFrontMatter do nothing here, so wr1t3r never changes a note
-// behind your back. Blocks in _clippings/ and _uploads/ (text from outside
-// the vault) are never run.
+// behind your back. Blocks in the clippings and uploads folders (text from
+// outside the vault) are never run.
 
 import { StateField, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType, ViewPlugin } from "@codemirror/view";
@@ -25,6 +25,8 @@ import { tickInText } from "./tasks.js";
 
 const SANDBOX = "/dv-sandbox"; // public/dv-sandbox.html
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
+// The default folders, or wherever Settings > Features puts them (host.untrusted).
+const untrusted = (host, p) => UNTRUSTED.test(p) || !!host?.untrusted?.(p);
 const MAX_PAGES = 300;
 const MAX_ALL = 5000; // dv.pages() gets every note, up to this many
 
@@ -106,7 +108,7 @@ function payload(view, code) {
 	}
 	// Scripts that query the vault (dv.pages) get every note's page.
 	const all = /\bdv\.(pages|pagePaths)\s*\(/.test(code);
-	if (all) for (const p of paths.filter((x) => !UNTRUSTED.test(x)).slice(0, MAX_ALL)) wanted.add(p);
+	if (all) for (const p of paths.filter((x) => !untrusted(host, x)).slice(0, MAX_ALL)) wanted.add(p);
 	const pages = {};
 	for (const p of wanted) {
 		const t = p === path ? text : host.text(p);
@@ -118,7 +120,7 @@ function payload(view, code) {
 		for (const pg of Object.values(pages)) pg.file.inlinks = [];
 		for (const pg of Object.values(pages)) for (const o of pg.file.outlinks) pages[o]?.file.inlinks.push(pg.file.path);
 	}
-	return { type: "run", code, current: pages[path], pages, all, paths: paths.filter((p) => !UNTRUSTED.test(p)), theme: theme() };
+	return { type: "run", code, current: pages[path], pages, all, paths: paths.filter((p) => !untrusted(host, p)), theme: theme() };
 }
 
 const live = new Set(); // widgets on screen, to re-run when the note changes
@@ -127,7 +129,7 @@ const live = new Set(); // widgets on screen, to re-run when the note changes
 // the done date, as ticking it there would). False when it couldn't be found.
 export function tick(view, path, line, text, checked) {
 	const host = view.state.facet(dvHost);
-	if (!host?.write || UNTRUSTED.test(path) || host.text(path) == null) return false;
+	if (!host?.write || untrusted(host, path) || host.text(path) == null) return false;
 	const now = path === view.state.facet(notePath) ? view.state.sliceDoc() : host.text(path);
 	if (tickInText(now, line, text, checked) == null) return false;
 	host.write(path, (t) => tickInText(t, line, text, checked) ?? t);
@@ -277,7 +279,7 @@ class DataviewWidget extends WidgetType {
 				const paths = host.paths();
 				const lower = new Map(paths.map((x) => [x.toLowerCase(), x]));
 				p = lower.get(p.toLowerCase()) || lower.get((p + ".md").toLowerCase()) || resolveNote({ note: p, wiki: true }, view.state.facet(notePath), paths);
-				if (!p || UNTRUSTED.test(p)) return reply(d.req, null);
+				if (!p || untrusted(host, p)) return reply(d.req, null);
 				reply(d.req, p === view.state.facet(notePath) ? view.state.sliceDoc() : host.text(p));
 			} else if (d.type === "open") {
 				view.state.facet(linkOpener)?.({ note: String(d.note || ""), heading: "", wiki: true });
@@ -313,7 +315,7 @@ function runFor(state, code, path) {
 	const text = state.sliceDoc();
 	const pages = {};
 	for (const p of paths) {
-		if (UNTRUSTED.test(p) && p !== path) continue;
+		if (untrusted(host, p) && p !== path) continue;
 		const t = p === path ? text : host.text(p);
 		if (t != null) pages[p] = cachedPage(p, t, paths);
 	}
@@ -453,7 +455,7 @@ function recipeSyncWidget(state, blk, path) {
 function build(state) {
 	const b = new RangeSetBuilder();
 	const path = state.facet(notePath);
-	if (!state.facet(dvHost) || !path || UNTRUSTED.test(path)) return b.finish();
+	if (!state.facet(dvHost) || !path || untrusted(state.facet(dvHost), path)) return b.finish();
 	const sel = state.selection.ranges;
 	const found = [
 		...dataviewBlocks(state).map((blk) => ({ ...blk, widget: isRecipeSync(blk.code) ? () => recipeSyncWidget(state, blk, path) : (fold) => new DataviewWidget(blk.code, path, blk.from, fold) })),
