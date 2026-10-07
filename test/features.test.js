@@ -20,7 +20,7 @@ test("only false turns an area off; folders are cleaned", () => {
 });
 
 test("written settings leave out defaults and read back the same", () => {
-	const want = { features: { ...defaults.features, health: false, ocr: false }, folders: { ...defaults.folders, lists: "Lists/" } };
+	const want = { features: { ...defaults.features, health: false, ocr: false }, folders: { ...defaults.folders, lists: "Lists/" }, icons: {} };
 	const text = writeSettings("", want);
 	assert.equal(text, `---\nfeatures:\n  health: false\n  ocr: false\nfolders:\n  lists: Lists/\n---\n${SETTINGS_BODY}`);
 	assert.deepEqual(readSettings(text), want);
@@ -31,6 +31,15 @@ test("rewriting keeps other properties and the body, and replaces the old blocks
 	const text = "---\ntitle: Mine\nfeatures:\n  media: false\n  health: false\nfolders:\n  uploads: X/\ntags: [a]\n---\nMy notes.\n";
 	const out = writeSettings(text, { features: { ...defaults.features, media: false }, folders: defaults.folders });
 	assert.equal(out, "---\ntitle: Mine\ntags: [a]\nfeatures:\n  media: false\n---\nMy notes.\n");
+});
+
+test("folder icons are written and read back, and replaced on rewrite", () => {
+	const want = { ...defaults, icons: { Drafts: "✏️", "Story: one/Old": "📦" } };
+	const text = writeSettings("", want);
+	assert.equal(text, `---\nicons:\n  "Drafts": "✏️"\n  "Story: one/Old": "📦"\n---\n${SETTINGS_BODY}`);
+	assert.deepEqual(readSettings(text).icons, want.icons);
+	assert.equal(writeSettings(text, { ...defaults, icons: { Drafts: "🌸" } }), `---\nicons:\n  "Drafts": "🌸"\n---\n${SETTINGS_BODY}`);
+	assert.deepEqual(readSettings("---\nicons:\n  Drafts: a very long word indeed\n  /Ideas/: 💡\n---\n").icons, { Ideas: "💡" });
 });
 
 test("odd folder names are quoted so they read back", () => {

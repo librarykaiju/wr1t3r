@@ -8,10 +8,13 @@
 //     health: false
 //   folders:
 //     uploads: Imports/
+//   icons:
+//     Drafts: "✏️"
 //   ---
 
 import { PRODUCT, ownFolderName } from "./build.js";
 import { parseYaml } from "./bases.js";
+import { cleanIcon } from "./icons.js";
 
 export const SETTINGS_NAME = "Settings.md";
 
@@ -84,7 +87,7 @@ export function cleanFolder(id, value) {
 }
 
 // The settings in a Settings note's text, defaults filled in:
-// { features: {id: bool}, folders: {id: path} }.
+// { features: {id: bool}, folders: {id: path}, icons: {folder: icon} }.
 export function readSettings(text) {
 	const lines = String(text || "").split("\n");
 	const f = fence(lines);
@@ -92,9 +95,11 @@ export function readSettings(text) {
 	if (f) try { y = parseYaml(lines.slice(f[0] + 1, f[1]).join("\n")); } catch {}
 	const feats = isMap(y?.features) ? y.features : {};
 	const dirs = isMap(y?.folders) ? y.folders : {};
+	const icons = isMap(y?.icons) ? Object.entries(y.icons).map(([k, v]) => [String(k).replace(/^\/+|\/+$/g, ""), cleanIcon(v)]).filter(([k, v]) => k && v) : [];
 	return {
 		features: Object.fromEntries(FEATURE_AREAS.map((a) => [a.id, feats[a.id] !== false])),
 		folders: Object.fromEntries(FOLDER_SETTINGS.map((s) => [s.id, typeof dirs[s.id] === "string" ? cleanFolder(s.id, dirs[s.id]) : s.dflt])),
+		icons: Object.fromEntries(icons),
 	};
 }
 
@@ -107,12 +112,14 @@ function settingsYaml(settings) {
 	if (feats.length) out.push("features:", ...feats.map((a) => `  ${a.id}: false`));
 	const dirs = FOLDER_SETTINGS.map((s) => [s, cleanFolder(s.id, settings.folders?.[s.id])]).filter(([s, v]) => v !== s.dflt);
 	if (dirs.length) out.push("folders:", ...dirs.map(([s, v]) => `  ${s.id}: ${yamlString(v)}`));
+	const icons = Object.entries(settings.icons || {}).map(([k, v]) => [k, cleanIcon(v)]).filter(([k, v]) => k && v);
+	if (icons.length) out.push("icons:", ...icons.map(([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)}`));
 	return out;
 }
 
 export const SETTINGS_BODY = "wr1t3r's settings for this notebook: which parts are on, and where its own folders are. Change them in Settings > Features, or edit the list above.\n";
 
-// text with its features and folders replaced by settings'. Other frontmatter
+// text with its features, folders and icons replaced by settings'. Other frontmatter
 // and the body stay as they were.
 export function writeSettings(text, settings) {
 	const lines = String(text || "").split("\n");
@@ -122,7 +129,7 @@ export function writeSettings(text, settings) {
 	// Drop the old features: and folders: blocks (each key and its indented lines).
 	const keep = [];
 	for (let i = f[0] + 1; i < f[1]; i++) {
-		if (/^(features|folders)\s*:/.test(lines[i])) {
+		if (/^(features|folders|icons)\s*:/.test(lines[i])) {
 			while (i + 1 < f[1] && (/^[ \t]/.test(lines[i + 1]) || !lines[i + 1].trim())) i++;
 			continue;
 		}

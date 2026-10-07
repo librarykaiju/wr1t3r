@@ -65,6 +65,8 @@ import { mountScrivenings, readingOrder } from "./scrivenings.js";
 import { cleanNote, writeCompileSettings } from "./compile.js";
 import { openCompile as openCompileDialog } from "./compileview.js";
 import { setProperty } from "./bases.js";
+import { noteIcon, cleanIcon, moveFolderIcons, ICON_CHOICES } from "./icons.js";
+import { deleteKey } from "./propclean.js";
 import { prettyOf, draggedPosition } from "./pretty.js";
 import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
@@ -436,6 +438,7 @@ function link(note, label) {
 	const a = document.createElement("a");
 	a.href = "#" + encodeURIComponent(note.path);
 	a.textContent = label;
+	withIcon(a, iconOf(note));
 	a.title = note.path;
 	a.classList.toggle("current", note.path === editor.path);
 	a.classList.toggle("dirty", !!note.dirty);
@@ -474,6 +477,24 @@ function archivedNote(n) {
 	const on = isArchived(n.text);
 	archivedCache.set(n.path, { text: n.text, on });
 	return on;
+}
+
+// A note's icon (src/icons.js), worked out again only when its text changes.
+const iconCache = new Map();
+function iconOf(n) {
+	if (!n || n.binary || !n.text) return "";
+	const hit = iconCache.get(n.path);
+	if (hit && hit.text === n.text) return hit.icon;
+	const icon = noteIcon(n.text);
+	iconCache.set(n.path, { text: n.text, icon });
+	return icon;
+}
+// A folder's icon, from the Settings note; folder is its full path ("content/Drafts/").
+const folderKey = (folder) => folder.slice(commonFolder(visible()).length).replace(/\/+$/, "");
+const folderIcon = (folder) => appSettings().icons[folderKey(folder)] || "";
+function withIcon(el, icon) {
+	if (icon) el.prepend(Object.assign(document.createElement("span"), { className: "item-icon", textContent: icon, ariaHidden: "true" }));
+	return el;
 }
 
 // Archives the open note, or brings it back.
@@ -603,6 +624,7 @@ function renderTree() {
 		d.open = openFolders.has(full);
 		const s = document.createElement("summary");
 		s.textContent = dir;
+		withIcon(s, folderIcon(full));
 		itemRow(s, full);
 		dropTarget(s, full, d);
 		const kids = document.createElement("div");
@@ -721,6 +743,7 @@ function itemMenu(item, x, y) {
 			...(featureOn("boards") ? [["New board…", () => newBase(item)]] : []),
 		] : []),
 		pinEntry(item),
+		...(isFolder || /\.md$/i.test(item) ? [["Icon…", () => pickIcon(item, x, y)]] : []),
 		isFolder
 			? [notesIn(item).length && notesIn(item).every((p) => archivedNote(notes.get(p))) ? "Unarchive folder" : "Archive folder", () => archiveFolder(item)]
 			: [notes.get(item) && archivedNote(notes.get(item)) ? "Unarchive" : "Archive", () => archivePaths([item], !archivedNote(notes.get(item) || {}))],
@@ -765,6 +788,59 @@ function showMenu(entries, x, y) {
 		document.addEventListener("keydown", esc, true);
 	});
 	menu.querySelector("button")?.focus();
+}
+
+// "Icon…": a grid of emoji to pick from, a box for any other, and Remove.
+function pickIcon(item, x, y) {
+	const isFolder = item.endsWith("/");
+	const now = isFolder ? folderIcon(item) : iconOf(notes.get(item));
+	showMenu([(close) => {
+		const box = document.createElement("div");
+		box.className = "icon-pick";
+		const set = (icon) => { close(); setItemIcon(item, icon); };
+		for (const [label, row] of ICON_CHOICES) {
+			const grid = document.createElement("div");
+			grid.className = "icon-row";
+			grid.setAttribute("aria-label", label);
+			for (const e of row) {
+				const b = Object.assign(document.createElement("button"), { type: "button", textContent: e, title: e });
+				if (e === now) b.className = "on";
+				b.addEventListener("click", () => set(e));
+				grid.append(b);
+			}
+			box.append(grid);
+		}
+		const own = document.createElement("form");
+		own.className = "icon-own";
+		const input = Object.assign(document.createElement("input"), { type: "text", placeholder: "Or type or paste an emoji", value: now, maxLength: 12 });
+		input.setAttribute("aria-label", "Icon");
+		own.append(input, Object.assign(document.createElement("button"), { type: "submit", textContent: "Use" }));
+		own.addEventListener("submit", (e) => {
+			e.preventDefault();
+			const icon = cleanIcon(input.value);
+			if (!icon && input.value.trim()) return toast("That's too long for an icon: use an emoji or a symbol or two.");
+			set(icon);
+		});
+		box.append(own);
+		if (now) {
+			const rm = Object.assign(document.createElement("button"), { type: "button", textContent: "Remove icon", className: "danger" });
+			rm.addEventListener("click", () => set(""));
+			box.append(rm);
+		}
+		return box;
+	}], x, y);
+}
+
+// A note's icon is its icon: property; a folder's is in the Settings note.
+async function setItemIcon(item, icon) {
+	if (item.endsWith("/")) {
+		const s = appSettings(), key = folderKey(item), icons = { ...s.icons };
+		if (icon) icons[key] = icon; else delete icons[key];
+		await saveSettings({ ...s, icons });
+	} else await dataviewVault.write(item, (t) => (icon ? setProperty(t, "icon", icon) : deleteKey(t, "icon")));
+	renderTree();
+	renderTabs();
+	showPath();
 }
 
 const parentFolder = (item) => {
@@ -819,6 +895,11 @@ async function moveItem(item, folder, newName = null) {
 		if (dataviewVault.text(bp) != null) await dataviewVault.write(bp, (t) => renameFolderEntry(t, itemLabel(item), newName));
 	}
 	if (destFolder) followFolderTabs(item, destFolder);
+	if (destFolder) {
+		const base = commonFolder(list), s = appSettings();
+		const icons = moveFolderIcons(s.icons, item.slice(base.length).replace(/\/+$/, ""), destFolder.slice(base.length).replace(/\/+$/, ""));
+		if (icons) await saveSettings({ ...s, icons });
+	}
 	if (item.endsWith("/")) {
 		const dest = destFolder;
 		openFolders = new Set([...openFolders].map((f) => (f.startsWith(item) ? dest + f.slice(item.length) : f)));
@@ -1860,6 +1941,9 @@ function showPath() {
 	input.value = !p ? "" : document.activeElement === input ? p : name(p);
 	input.size = Math.max(4, input.value.length + 1);
 	$("tab").hidden = !p;
+	const icon = p ? iconOf(notes.get(p)) : "";
+	$("tabIcon").textContent = icon;
+	$("tabIcon").hidden = !icon;
 }
 
 // ---- tabs ----------------------------------------------------------------------
@@ -1915,6 +1999,7 @@ function renderTabs() {
 		b.type = "button";
 		b.className = "name quiet";
 		b.textContent = tabName(p);
+		withIcon(b, isFolderTab(p) ? folderIcon(p.slice(FOLDER_TAB.length)) : iconOf(notes.get(p)));
 		b.addEventListener("click", () => openNote(p, { tab: false }));
 		const x = document.createElement("button");
 		x.type = "button";
