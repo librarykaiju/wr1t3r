@@ -18,7 +18,7 @@ export const SETTINGS_NAME = "Settings.md";
 // Areas that can be turned off as a whole. What isn't listed (the editor,
 // sync, search, links, properties, tags, templates, themes...) is always on.
 export const FEATURE_AREAS = [
-	{ id: "longform", label: "Long-form writing", detail: "Corkboard, outliner, draft and compile" },
+	{ id: "longform", label: "Long-form writing", detail: "Corkboard, outliner, draft and compile. Right-click a folder in the sidebar to open it in one" },
 	{ id: "boards", label: "Boards", detail: "Board files and board blocks in notes" },
 	{ id: "daily", label: "Daily notes and planner", detail: "The Today button, the planner page and its timeline" },
 	{ id: "health", label: "Health and food", detail: "Food logging, recipes and nutrition, and the planner's health buttons" },

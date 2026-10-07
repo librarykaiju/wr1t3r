@@ -29,19 +29,25 @@ export function featuresFor(uses) {
 
 const has = (uses, id) => uses.includes(id);
 
-function welcomeText(uses) {
+// The getting-started note, written for the areas that are on (features: the
+// map from featuresFor or the Settings note). worker: false for the Dropbox
+// build, which has no Clip button, transcripts or voice memos. story: the
+// sample manuscript is there to point at.
+export function guideText(features, { worker = true, story = false } = {}) {
+	const on = (id) => features[id] !== false;
 	const lines = [
 		"# Welcome to wr1t3r",
 		"",
-		"Everything here is a plain Markdown file in your own storage. You can open, copy or back them up with anything, and delete this note when you're done with it.",
+		"Everything here is a plain Markdown file in your own storage. You can open, copy or back them up with anything, and delete this note when you're done with it. Commands > Getting started brings it back, written for whatever is switched on then.",
 		"",
 		"## Getting around",
 		"",
 		"- **New note:** the New button in the sidebar.",
+		"- **Right-click** a note or folder in the sidebar (or press and hold it on a phone or tablet) for everything you can do with it: new notes inside it, rename, move, pin to Home, archive or delete.",
 		"- **Commands:** the ⌘ button, or Ctrl/Cmd+P, finds everything wr1t3r can do.",
 		"- **Open a note fast:** Ctrl/Cmd+O.",
 		"- **Home:** the house button shows your pinned tiles. Commands > Pin this note to Home adds one.",
-		"- **Settings:** the Aa button. Settings > Features turns whole parts of wr1t3r on or off.",
+		"- **Settings:** the gear button. Settings > Features turns whole parts of wr1t3r on or off.",
 		"",
 		"## Writing",
 		"",
@@ -49,30 +55,83 @@ function welcomeText(uses) {
 		"- Link notes with `[[double brackets]]`. The link follows the note if you rename it.",
 		"- `#tags` anywhere in a note show up in the sidebar.",
 		"- Properties (the block between `---` lines at the top) hold things like a title, tags or a status.",
+		"- The printer button in the toolbar exports the note as Markdown, HTML, PDF or Word.",
 	];
-	if (has(uses, "writing")) lines.push(
+	if (on("longform")) lines.push(
 		"",
-		"## Long-form",
+		"## Long-form writing",
 		"",
-		"The [[My Story/01 Opening|My Story]] folder is a sample manuscript, one note per scene. Open it as a corkboard (Commands > Open corkboard) to move scenes around, as an outline, or as a draft to read and edit them as one document. Commands > Compile a folder joins them into one file.",
+		"Keep a book or story in a folder, one note per scene or chapter. **Right-click the folder in the sidebar** (press and hold on a phone or tablet) to open it as:",
+		"",
+		"- **Corkboard:** a card for each note, showing its `synopsis` property. Drag the cards to change the order.",
+		"- **Outliner:** the same notes as a table, with their synopsis, status and word count.",
+		"- **Draft:** every note in the folder as one long document, to read and edit straight through.",
+		"- **Compile…:** joins the folder into one file, as Markdown, HTML, PDF or Word, with a title page if you like.",
+		"",
+		"Once a folder is open, the buttons along its top switch between Corkboard, Outliner and Draft. A note with `status: cut` or `compile: false` is left out of Compile.",
 	);
-	if (has(uses, "planner") || has(uses, "health")) lines.push(
+	if (on("longform") && story) lines.push("", "Try it on [[My Story/01 Opening|My Story]], a sample manuscript with three scenes.");
+	if (on("boards")) lines.push(
+		"",
+		"## Boards",
+		"",
+		"A board shows notes as a grid, a gallery of cards or a kanban, sorted and filtered by their properties. Right-click a folder > **New board…** makes one for that folder, and Commands > Insert board puts one inside a note.",
+	);
+	if (on("daily")) lines.push(
 		"",
 		"## Your day",
 		"",
-		"The Today button opens today's note with the day planner. Tasks like `- [ ] Call Sam (@2026-10-07 14:00)` get a reminder at that time.",
+		"The **Today** button opens today's note: a planner with a timeline for the day beside your Critical and To Do task lists. Tag a task `#crit` or `#todo` in any note and it shows up there; unticked tasks from earlier days carry over until they're done.",
 	);
-	if (has(uses, "media")) lines.push(
+	if (on("health")) lines.push(
 		"",
-		"## Media",
+		"## Health and food",
 		"",
-		"Commands > New book log (or movie, TV series, music, game, podcast, comic) looks the title up and fills in the details and cover.",
+		"The buttons at the top of the planner log food, water, meds and mood to the day's health note. Commands > Log food does the same from anywhere.",
 	);
-	if (has(uses, "research")) lines.push(
+	if (on("calendar")) lines.push(
+		"",
+		"## Calendar",
+		"",
+		"The calendar button at the top right opens the agenda: today and the week ahead. On a computer, click an empty day in the month calendar to add an event.",
+	);
+	if (on("reminders")) lines.push(
+		"",
+		"## Reminders",
+		"",
+		"A task with a date and time, like `- [ ] Call Sam (@2026-10-07 14:00)`, reminds you then. " + (worker
+			? "Turn them on for each phone or computer with Commands > Turn on reminders on this device, and they come even with wr1t3r closed."
+			: "They come while wr1t3r is open in a tab. Commands > Turn on reminders on this device lets them show as notifications when the tab is in the background."),
+	);
+	if (on("media")) lines.push(
+		"",
+		"## Books, films and more",
+		"",
+		"Commands > New book log (or movie, TV series, music, game, podcast, comic) looks the title up and fills in the details and cover. Commands > Open stats charts what you've finished, and Commands > Import StoryGraph library brings in what you've already read.",
+	);
+	if (on("capture")) lines.push(
 		"",
 		"## Capture",
 		"",
-		"The Clip button saves a web page as a note, and Commands > Capture to the Inbox jots a thought into your Inbox note without leaving what you're on.",
+		(worker ? "The Clip button saves a web page as a note, and " : "") + "Commands > Capture to the Inbox jots a thought into your Inbox note without leaving what you're on.",
+	);
+	if (on("ocr")) lines.push(
+		"",
+		"## Pictures and PDFs",
+		"",
+		"Commands > Make pictures and PDFs searchable reads the text in them, so search finds a photo of a page or a scanned PDF.",
+	);
+	if (on("audio") && worker) lines.push(
+		"",
+		"## Recordings",
+		"",
+		"Commands > Record a voice memo, or Transcribe a video or audio file, writes what was said into a note.",
+	);
+	lines.push(
+		"",
+		"## Publishing",
+		"",
+		"Set `publish: true` on any note (or Commands > Publish this note), then Commands > Export as website makes a ready-to-upload site from those notes, in your theme, for Neocities or any other host.",
 	);
 	return lines.join("\n") + "\n";
 }
@@ -80,9 +139,9 @@ function welcomeText(uses) {
 const scene = (title, synopsis, status, body) => ["---", `synopsis: ${synopsis}`, `status: ${status}`, "---", "", `# ${title}`, "", body, ""].join("\n");
 
 // The notes to add for the chosen uses, as [{ path, text }], under root
-// ("" or "content/"). The Home note pins the ones worth a tile.
-export function starterNotes(uses, root = "") {
-	const out = [{ path: root + "Welcome.md", text: welcomeText(uses) }];
+// ("" or "content/"); worker as for guideText. The Home note pins the ones worth a tile.
+export function starterNotes(uses, root = "", { worker = true } = {}) {
+	const out = [{ path: root + "Welcome.md", text: guideText(featuresFor(uses), { worker, story: has(uses, "writing") }) }];
 	const pins = [{ link: "[[Welcome]]", color: 4 }];
 	if (has(uses, "writing")) {
 		out.push(

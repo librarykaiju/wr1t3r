@@ -1,5 +1,5 @@
 // Which build this is. The product build (`npm run build:product`, sold at
-// user.wr1t3r.app) has no Worker and no published site, so its own folders
+// my.wr1t3r.app) has no Worker and no published site, so its own folders
 // don't need the leading "_" that keeps them out of a site build.
 export const PRODUCT = (() => { try { return !!import.meta.env?.VITE_DROPBOX_ONLY; } catch { return false; } })();
 

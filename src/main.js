@@ -32,7 +32,7 @@ import { openStorage, registerStorage, storageKind, setStorageKind } from "./sto
 import { notebookCalendar, CALENDAR_FOLDER } from "./notecal.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
-import { USES, DEFAULT_USES, featuresFor, starterNotes, needsHomeScreen } from "./onboarding.js";
+import { USES, DEFAULT_USES, featuresFor, starterNotes, guideText, needsHomeScreen } from "./onboarding.js";
 import { DEFAULT_API, licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, maskKey } from "./license.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
@@ -973,7 +973,8 @@ async function finishWelcome(start) {
 	if (!start || visible().length) return; // something synced in meanwhile: leave it be
 	const uses = [...$("welcomeUses").querySelectorAll("input:checked")].map((i) => i.value);
 	const features = featuresFor(uses);
-	const files = $("welcomeStarter").checked ? starterNotes(uses) : [];
+	// The Welcome note always: it says how to use what was just switched on.
+	const files = starterNotes(uses, "", { worker: !onDropbox }).filter((f) => $("welcomeStarter").checked || f.path === "Welcome.md");
 	if (Object.values(features).includes(false)) files.push({ path: "_wr1t3r/Settings.md", text: writeSettings("", { ...readSettings(""), features }) });
 	for (const f of files) await change(f.path, (cur) => ({ path: f.path, text: f.text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	applyFeatures();
@@ -981,6 +982,20 @@ async function finishWelcome(start) {
 	renderStatus();
 	scheduleSync(0);
 	if (files.some((f) => f.path === "Welcome.md")) openNote("Welcome.md");
+}
+
+// "Getting started": the Welcome note if it's still there, or a new one for
+// the areas that are on now.
+async function openGuide() {
+	const path = "Welcome.md", here = (p) => notes.get(p) && !notes.get(p).deleted;
+	if (!here(path)) {
+		const text = guideText(appSettings().features, { worker: !onDropbox, story: here("My Story/01 Opening.md") });
+		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+		renderTree();
+		renderStatus();
+		scheduleSync();
+	}
+	openNote(path);
 }
 
 // ---- The license key (src/license.js) -----------------------------------------
@@ -1121,6 +1136,9 @@ function renderFeatureSettings() {
 	pane.textContent = "";
 	const h2 = (t) => { const h = document.createElement("h2"); h.textContent = t; return h; };
 	const hint = (t) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = t; return p; };
+	const guide = Object.assign(document.createElement("button"), { type: "button", textContent: "Getting started guide" });
+	guide.addEventListener("click", () => { openSettings(false); openGuide(); });
+	pane.append(hint("How to use each part that's on: the Welcome note, or a new one if it's gone."), guide);
 	for (const a of FEATURE_AREAS) {
 		const seg = document.createElement("div");
 		seg.className = "seg";
@@ -2673,6 +2691,13 @@ let pushHere = false;
 const markReminders = async () => { pushHere = await remindersHere(); markSeg("remSeg", pushHere); };
 
 async function turnOnReminders() {
+	// No Worker to push from: reminders come while a tab is open, and the
+	// permission only lets them show while it's in the background.
+	if (onDropbox) {
+		if (!window.Notification) return toast("Reminders come while wr1t3r is open. This browser can't show them as notifications.", 8000);
+		const ok = (await Notification.requestPermission().catch(() => "denied")) === "granted";
+		return toast(ok ? "Reminders come while wr1t3r is open in a tab, as notifications when it's in the background." : "Notifications are blocked for wr1t3r. Reminders still show while it's open; allow notifications in the browser's settings for this site to get them in the background.", 10000);
+	}
 	if (!("serviceWorker" in navigator) || !window.PushManager || !window.Notification) {
 		return toast(MAC && /iPhone|iPad/.test(navigator.userAgent) ? "On iPhone, reminders work in wr1t3r on the Home Screen: Share, Add to Home Screen, then open it from there and try again." : "This browser can't show reminders.", 12000);
 	}
@@ -2877,7 +2902,8 @@ function allCommands() {
 		["Export as website", exportWebsite, "publish site web neocities html zip blog garden static share"],
 		["Publish this note", () => setPublished(editor.path, true), "website site web share public", true],
 		["Unpublish this note", () => setPublished(editor.path, false), "website site web private hide", true],
-		["Settings", () => openSettings($("settings").hidden), "preferences theme"],
+		["Settings", () => openSettings($("settings").hidden), "preferences theme gear"],
+		["Getting started", openGuide, "help guide welcome tips how to tutorial manual"],
 		...[...document.querySelectorAll("#setTabs [data-tab]")].map((b) => ["Settings: " + b.textContent, () => openSettings(true, b.dataset.tab), "preferences options"]),
 		["Change hotkeys", editHotkeys, "keyboard shortcuts keys bindings"],
 		["Open corkboard", () => pickFolder("corkboard"), "scrivener index cards folder board order"],
@@ -2912,7 +2938,7 @@ function allCommands() {
 }
 
 // Commands that go through the Worker, so a Dropbox build has nothing to run.
-const NEEDS_WORKER = new Set(["Transcribe a video or audio file", "Back up to Google Drive now", "Record a voice memo", "Clip a web page"]);
+const NEEDS_WORKER = new Set(["Transcribe a video or audio file", "Back up to Google Drive now", "Record a voice memo", "Clip a web page", "Turn off reminders on this device"]);
 
 // Ctrl/Cmd+P: every command that can run now, with its hotkey.
 function commandPalette() {
