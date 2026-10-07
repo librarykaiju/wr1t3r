@@ -177,6 +177,9 @@ export const api = {
 	async mediaCovers(kind, ref) {
 		return (await jsonOrThrow(await call("/api/media/covers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, ref }) }))).covers;
 	},
+	async mediaFindCovers(kind, title, creator = "", year = "") {
+		return (await jsonOrThrow(await call("/api/media/findcovers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, title, creator, year }) }))).covers;
+	},
 	async mediaNote(kind, ref, cover, today) {
 		return jsonOrThrow(await call("/api/media/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, ref, cover, today }) }));
 	},

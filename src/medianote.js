@@ -4,6 +4,29 @@
 
 const BAD_NAME = /[\\/:*?"<>|#^[\]]/g;
 
+const first = (v) => (Array.isArray(v) ? v[0] : v);
+
+// What a cover search needs from a log that already exists: { kind, title,
+// creator, year }, or null when the note isn't in a log folder. kinds: the
+// media kinds ({ kind, folder }). The kind is the folder's; where kinds share
+// a folder (movies and anime, books and comics), type: and the log's
+// properties decide.
+export function coverQuery(path, props, kinds) {
+	const p = String(path).toLowerCase();
+	const here = kinds.filter((k) => k.folder && p.startsWith(k.folder.toLowerCase().replace(/\/*$/, "/"))).map((k) => k.kind);
+	if (!here.length) return null;
+	const type = String(first(props.type) ?? "").trim().toLowerCase();
+	const kind = here.includes(type) ? type
+		: here.includes("comic") && /comic/i.test(String(first(props.format) ?? "")) ? "comic"
+		: here.includes("anime") && props.episodes !== undefined && props.director === undefined ? "anime"
+		: here.find((k) => k !== "comic" && k !== "anime") || here[0];
+	const name = String(path).split("/").pop().replace(/\.md$/i, "");
+	const title = String(first(props.title) ?? "").trim() || name.replace(/\s*\([^)]*\)$/, "").trim();
+	const creator = String(first(props.artist) ?? first(props.author) ?? first(props.creator) ?? first(props.developer) ?? "").trim();
+	const year = /\((\d{4})[^)]*\)$/.exec(name)?.[1] || /^\d{4}/.exec(String(first(props.year) ?? ""))?.[0] || "";
+	return { kind, title, creator, year };
+}
+
 // "Title (Year)", without the characters a file name can't have.
 export function mediaNoteName(title, year) {
 	const t = String(title || "").replace(BAD_NAME, "").replace(/\s+/g, " ").trim() || "Untitled";
