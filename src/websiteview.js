@@ -96,6 +96,7 @@ export function openWebsite(host) {
 	const after = Object.assign(document.createElement("div"), { className: "website-after hint" });
 	form.append(after);
 	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "Notes with publish: true go on the site. Links to other notes stay links only when those notes are published too; properties and %% comments %% never go in." }));
+	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "Shared a post on Bluesky? Add a bluesky property with the Bluesky post's address, and the page shows its likes and replies." }));
 
 	const side = document.createElement("div");
 	side.className = "website-side";

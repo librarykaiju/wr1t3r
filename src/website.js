@@ -6,7 +6,8 @@
 // src/websiteview.js reads the attachments and zips them.
 //
 // What a page leaves out: properties, %% comments %%, block ids, tracked
-// changes' comments, and dataview/base/query blocks. [[Links]] to published
+// changes' comments, and dataview/base/query blocks. A note with a bluesky:
+// post address shows that post's likes and replies (blueskyBox below). [[Links]] to published
 // notes become links; links to anything else become plain words, so nothing
 // private is named by its path. Pictures and PDFs it uses are copied into
 // files/; audio and video only when asked (a free Neocities site won't take
@@ -245,6 +246,7 @@ export function pageInfo(path, text) {
 		cover: s(p.cover) || s(p.coverImage) || s(p.image) || s(p.thumbnail),
 		banner: s(p.banner),
 		description: s(p.description) || s(p.summary),
+		bluesky: blueskyPost(s(p.bluesky)),
 	};
 }
 
@@ -449,7 +451,7 @@ export function buildSite(notes, attachments, opts = {}) {
 		const side = opts.sidebar === false ? "" : calendarFor(site, info) + support + social;
 		const tree = notebook ? treeFor(site) : "";
 		const post = pages.some((p) => p.file === site && site !== SITE_FILES.index);
-		out.set(site, html({ ...info, body: body + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+		out.set(site, html({ ...info, body: body + (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
 	out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
@@ -562,6 +564,55 @@ const SHARE = `<div class="share" hidden>
 })();
 </script>
 `;
+
+// Likes and replies from Bluesky: a note with bluesky: <the post's address>
+// (the writer shared the page there) shows that post's likes, reposts and
+// replies under the page, read in the reader's browser from Bluesky's public
+// API. Nothing is stored anywhere; readers like and reply on Bluesky itself.
+// -> { url, actor, rkey } or null.
+export function blueskyPost(value) {
+	const m = /^https:\/\/bsky\.app\/profile\/([\w.:-]+)\/post\/([\w]+)\/?$/.exec(String(value || "").trim());
+	return m ? { url: m[0].replace(/\/$/, ""), actor: m[1], rkey: m[2] } : null;
+}
+
+function blueskyBox(b) {
+	return `<section class="bsky" data-actor="${esc(b.actor)}" data-rkey="${esc(b.rkey)}">
+<h2>Comments</h2>
+<p class="bsky-counts"><a href="${esc(b.url)}" target="_blank" rel="noopener">Like or reply on Bluesky</a></p>
+<ol class="bsky-replies"></ol>
+</section>
+<script>
+(async () => {
+	const box = document.currentScript.previousElementSibling, api = "https://public.api.bsky.app/xrpc/";
+	const get = async (path) => { const r = await fetch(api + path); if (!r.ok) throw new Error(r.status); return r.json(); };
+	const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+	try {
+		let did = box.dataset.actor;
+		if (!did.startsWith("did:")) did = (await get("com.atproto.identity.resolveHandle?handle=" + encodeURIComponent(did))).did;
+		const { thread } = await get("app.bsky.feed.getPostThread?depth=6&parentHeight=0&uri=" + encodeURIComponent("at://" + did + "/app.bsky.feed.post/" + box.dataset.rkey));
+		const p = thread.post, link = box.querySelector(".bsky-counts a");
+		const n = (k, one, many) => k + " " + (k === 1 ? one : many);
+		box.querySelector(".bsky-counts").prepend(el("span", "bsky-n", n(p.likeCount || 0, "like", "likes") + " · " + n(p.repostCount || 0, "repost", "reposts") + " · " + n(p.replyCount || 0, "reply", "replies")), " ");
+		const at = (uri) => "https://bsky.app/profile/" + uri.split("/")[2] + "/post/" + uri.split("/").pop();
+		const draw = (replies, list) => {
+			for (const r of (replies || []).filter((r) => r.post && r.post.record).sort((a, b) => (b.post.likeCount || 0) - (a.post.likeCount || 0))) {
+				const a = r.post.author, li = el("li", "bsky-reply"), head = el("div", "bsky-head");
+				if (a.avatar) { const img = el("img", "bsky-avatar"); img.src = a.avatar; img.alt = ""; img.loading = "lazy"; head.append(img); }
+				const who = el("a", "bsky-who", a.displayName || a.handle); who.href = "https://bsky.app/profile/" + a.handle; who.target = "_blank"; who.rel = "noopener";
+				const when = el("a", "bsky-when", new Date(r.post.record.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })); when.href = at(r.post.uri); when.target = "_blank"; when.rel = "noopener";
+				head.append(who, el("span", "bsky-handle", "@" + a.handle), when);
+				li.append(head, el("p", "bsky-text", r.post.record.text || ""));
+				if (r.post.likeCount) li.append(el("span", "bsky-likes", n(r.post.likeCount, "like", "likes")));
+				if (r.replies && r.replies.length) { const sub = el("ol", "bsky-replies"); draw(r.replies, sub); li.append(sub); }
+				list.append(li);
+			}
+		};
+		draw(thread.replies, box.querySelector(".bsky-replies"));
+	} catch {}
+})();
+</script>
+`;
+}
 
 const MAIL_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>`;
 
@@ -685,6 +736,19 @@ li > input[type=checkbox] { margin: 0 0.5em 0 0; }
 .social ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .social a { display: inline-block; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; color: var(--fg); font-size: 14px; }
 .social a:hover { border-color: var(--accent); }
+.bsky { margin: 3em 0 0; font: 15px/1.5 var(--sans); }
+.bsky h2 { font: 600 17px/1.4 var(--sans); margin: 0 0 6px; }
+.bsky-counts { color: var(--muted); margin: 0 0 12px; }
+.bsky ol { list-style: none; margin: 0; padding: 0; }
+.bsky ol ol { margin: 10px 0 0 14px; padding-left: 14px; border-left: 2px solid var(--line); }
+.bsky-reply { padding: 12px 0; border-top: 1px solid var(--line); }
+.bsky ol ol .bsky-reply { border-top: 0; padding: 6px 0; }
+.bsky-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.bsky-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.bsky-who { font-weight: 600; color: var(--fg); text-decoration: none; }
+.bsky-handle, .bsky-when, .bsky-likes { color: var(--muted); font-size: 13px; }
+.bsky-when { margin-left: auto; text-decoration: none; }
+.bsky-text { margin: 6px 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .share { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2.4em 0 0; font: 14px/1.4 var(--sans); }
 .share[hidden], .share [hidden] { display: none; }
 .share > span { color: var(--muted); margin-right: 4px; }

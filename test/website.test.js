@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildSite, isPublished, pageFiles, relativeURL, slug, socialLinks, supportLinks, themeCss } from "../src/website.js";
+import { blueskyPost, buildSite, isPublished, pageFiles, relativeURL, slug, socialLinks, supportLinks, themeCss } from "../src/website.js";
 
 const note = (props, body) => `---\n${props}\n---\n${body}`;
 
@@ -134,6 +134,15 @@ test("share buttons on posts only, unless turned off", () => {
 	const site = buildSite(notes, []);
 	assert.ok(site.files.get("a.html").includes('<div class="share" hidden>') && !site.files.get("index.html").includes('class="share"'));
 	assert.ok(!buildSite(notes, [], { share: false }).files.get("a.html").includes('class="share"'));
+});
+
+test("a bluesky: post shows its likes and replies under the page", () => {
+	assert.deepEqual(blueskyPost("https://bsky.app/profile/me.bsky.social/post/3abc123/"), { url: "https://bsky.app/profile/me.bsky.social/post/3abc123", actor: "me.bsky.social", rkey: "3abc123" });
+	assert.equal(blueskyPost("https://example.com/post/1"), null);
+	const site = buildSite([{ path: "a.md", text: note("publish: true\nbluesky: https://bsky.app/profile/me.bsky.social/post/3abc123", "a") }, { path: "b.md", text: note("publish: true", "b") }], []);
+	const a = site.files.get("a.html");
+	assert.ok(a.includes('<section class="bsky" data-actor="me.bsky.social" data-rkey="3abc123">') && a.includes('href="https://bsky.app/profile/me.bsky.social/post/3abc123"'));
+	assert.ok(!site.files.get("b.html").includes('class="bsky"'));
 });
 
 test("support links take names or addresses, and only https links", () => {
