@@ -5,7 +5,7 @@
 // looked up afterwards (src/main.js), since StoryGraph's file has neither.
 //
 // The columns used, matched by name so their order doesn't matter:
-//   Title, Authors, Format, Read Status, Date Added, Last Date Read,
+//   Title, Authors, ISBN/UID, Format, Read Status, Date Added, Last Date Read,
 //   Moods, Pace, Character- or Plot-Driven?, Star Rating, Review, Tags
 
 import { parseFrontmatter } from "./dvpage.js";
@@ -51,7 +51,7 @@ const day = (s) => {
 export function readExport(text) {
 	const [head, ...rows] = parseCsv(text);
 	const col = (name) => (head || []).findIndex((h) => h.trim().toLowerCase() === name.toLowerCase());
-	const at = { title: col("Title"), authors: col("Authors"), format: col("Format"), status: col("Read Status"), added: col("Date Added"), last: col("Last Date Read"), dates: col("Dates Read"), moods: col("Moods"), pace: col("Pace"), driven: col("Character- or Plot-Driven?"), rating: col("Star Rating"), review: col("Review"), tags: col("Tags") };
+	const at = { title: col("Title"), authors: col("Authors"), isbn: col("ISBN/UID"), format: col("Format"), status: col("Read Status"), added: col("Date Added"), last: col("Last Date Read"), dates: col("Dates Read"), moods: col("Moods"), pace: col("Pace"), driven: col("Character- or Plot-Driven?"), rating: col("Star Rating"), review: col("Review"), tags: col("Tags") };
 	if (at.title < 0 || at.status < 0) throw new Error("That isn't a StoryGraph library export (no Title and Read Status columns).");
 	const get = (r, k) => (at[k] >= 0 ? String(r[at[k]] ?? "").trim() : "");
 	return rows.map((r) => {
@@ -59,10 +59,13 @@ export function readExport(text) {
 		const pace = get(r, "pace").toLowerCase();
 		const driven = get(r, "driven").toLowerCase();
 		// The last read date; else the end of the last range in Dates Read.
+		// ISBN/UID holds StoryGraph's own id when it has no ISBN.
+		const isbn = get(r, "isbn").replace(/[\s-]/g, "").toUpperCase();
 		const finished = day(get(r, "last")) || day(get(r, "dates").split(/[-–,]/).filter((x) => /\d{4}/.test(x)).pop());
 		return {
 			title: get(r, "title"),
 			authors: list(get(r, "authors")),
+			isbn: /^(97[89]\d{10}|\d{9}[\dX])$/.test(isbn) ? isbn : null,
 			format: FORMATS.find(([re]) => re.test(get(r, "format")))?.[1] || null,
 			shelf: SHELVES[get(r, "status").toLowerCase()] || (get(r, "status") ? cap(get(r, "status").replace(/-/g, " ")) : null),
 			added: day(get(r, "added")),
@@ -79,8 +82,11 @@ export function readExport(text) {
 	}).filter((b) => b.title);
 }
 
-// A title for matching: no subtitle, case, punctuation or "(2021)".
-export const titleKey = (t) => String(t || "").replace(/\s*\(\d{4}\)\s*$/, "").split(/[:(]/)[0].toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+// A title for matching: no case, punctuation or "(2021)". The whole title,
+// so "Batman: Year One" and "Batman: The Long Halloween" stay two books.
+export const titleKey = (t) => String(t || "").replace(/\s*\(\d{4}\)\s*$/, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+// The same without a subtitle: "Onyx Storm: Empyrean 3" -> "onyx storm".
+const shortKey = (t) => titleKey(String(t || "").replace(/\s*\(\d{4}\)\s*$/, "").split(/[:(]/)[0]);
 
 const yamlList = (key, values) => (values.length ? [`${key}:`, ...values.map((v) => `  - ${JSON.stringify(v)}`)] : [`${key}: []`]);
 
@@ -142,31 +148,43 @@ export function mergeBook(text, b) {
 // What importing would do: { add: [book], update: [{ path, book }] }.
 // logs: [{ path, text }] of the existing book logs.
 export function planImport(books, logs) {
-	const byTitle = new Map();
+	const byTitle = new Map(), byShort = new Map();
 	for (const l of logs) {
 		const p = parseFrontmatter(l.text);
-		const key = titleKey(Array.isArray(p.title) ? p.title[0] : p.title || l.path.split("/").pop().replace(/\.md$/i, ""));
+		const title = Array.isArray(p.title) ? p.title[0] : p.title || l.path.split("/").pop().replace(/\.md$/i, "");
+		const key = titleKey(title);
 		if (key && !byTitle.has(key)) byTitle.set(key, l.path);
+		const s = shortKey(title);
+		if (s) byShort.set(s, [...(byShort.get(s) || []), l.path]);
 	}
+	// A log titled without its subtitle still matches, unless the title
+	// before the colon is shared by more than one log or book.
+	const shared = new Map();
+	for (const b of new Map(books.map((b) => [titleKey(b.title), b])).values()) shared.set(shortKey(b.title), (shared.get(shortKey(b.title)) || 0) + 1);
 	const add = [], update = [], seen = new Set();
 	for (const b of books) {
 		const key = titleKey(b.title);
 		if (seen.has(key)) continue;
 		seen.add(key);
-		const path = byTitle.get(key);
+		const s = shortKey(b.title), loose = byShort.get(s);
+		const path = byTitle.get(key) || (loose?.length === 1 && shared.get(s) === 1 ? loose[0] : null);
 		if (path) update.push({ path, book: b }); else add.push(b);
 	}
 	return { add, update };
 }
 
 // What Open Library has for b: { coverImage, pages, subjects, genre, summary },
-// any of them missing; null when it doesn't know the book. Two requests.
+// any of them missing; null when it doesn't know the book. By ISBN when the
+// export has one, else (or when Open Library doesn't know it) by title and author.
 export async function lookUpBook(b, fetchFn = fetch) {
-	const q = new URLSearchParams({ title: b.title.split(":")[0], fields: "key,cover_i,number_of_pages_median,subject", limit: "1" });
-	if (b.authors[0]) q.set("author", b.authors[0]);
-	const res = await fetchFn("https://openlibrary.org/search.json?" + q);
-	if (!res.ok) throw new Error(`Open Library: ${res.status}`);
-	const doc = (await res.json()).docs?.[0];
+	const search = async (params) => {
+		const q = new URLSearchParams({ ...params, fields: "key,cover_i,number_of_pages_median,subject", limit: "1" });
+		const res = await fetchFn("https://openlibrary.org/search.json?" + q);
+		if (!res.ok) throw new Error(`Open Library: ${res.status}`);
+		return (await res.json()).docs?.[0];
+	};
+	let doc = b.isbn ? await search({ isbn: b.isbn }) : null;
+	if (!doc) doc = await search({ title: b.title.split(":")[0], ...(b.authors[0] ? { author: b.authors[0] } : {}) });
 	if (!doc) return null;
 	const out = {};
 	if (doc.cover_i) out.coverImage = `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`;
