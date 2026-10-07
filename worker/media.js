@@ -192,6 +192,7 @@ function bookRef(ref) {
 		title: str(ref.title),
 		authors: Array.isArray(ref.authors) ? ref.authors.slice(0, 10).map((a) => str(a, 200)) : [],
 		coverId: Number.isInteger(ref.coverId) && ref.coverId > 0 ? ref.coverId : null,
+		pages: Number.isInteger(ref.pages) && ref.pages > 0 && ref.pages < 100000 ? ref.pages : null,
 	};
 }
 
@@ -362,12 +363,12 @@ const SEARCH = {
 		}));
 	},
 	async book(env, q) {
-		const data = await getJSON("https://openlibrary.org/search.json?" + new URLSearchParams({ q, fields: "title,author_name,first_publish_year,cover_i,key", limit: "10" }));
+		const data = await getJSON("https://openlibrary.org/search.json?" + new URLSearchParams({ q, fields: "title,author_name,first_publish_year,cover_i,key,number_of_pages_median", limit: "10" }));
 		return (data.docs || []).map((d) => ({
 			title: d.title,
 			subtitle: [d.author_name?.join(", "), d.first_publish_year].filter(Boolean).join(" - "),
 			thumbnailUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-S.jpg` : undefined,
-			ref: { workKey: d.key, title: d.title, authors: d.author_name || [], coverId: d.cover_i, year: d.first_publish_year ? String(d.first_publish_year) : "" },
+			ref: { workKey: d.key, title: d.title, authors: d.author_name || [], coverId: d.cover_i, year: d.first_publish_year ? String(d.first_publish_year) : "", pages: d.number_of_pages_median || null },
 		}));
 	},
 	async music(env, q) {
@@ -465,7 +466,7 @@ const NOTE = {
 		const tags = await bookTags(env, b.title, b.authors[0], summary);
 		return {
 			fields: {
-				title: b.title, author: b.authors, series: [], volume: null, format: [],
+				title: b.title, author: b.authors, series: [], volume: null, format: [], pages: b.pages,
 				subjects: tags.subjects.length ? tags.subjects : olSubjects,
 				genre: [], vibesAndThemes: tags.vibesAndThemes, shelf: [], rating: [],
 				coverImage: cover, summary, sticky: false, publish: false, date: today, eyebrow: null,

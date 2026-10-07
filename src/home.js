@@ -9,6 +9,7 @@
 //       cover: "[[covers/reading.jpg]]"  any image Pretty Properties takes, or "none"
 //     - link: "folder:content/_daily"    a folder: opens it as a corkboard
 //     - link: "outliner:content/Novel"   a folder as an outline (or draft:, corkboard:; scrivenings: is the same as draft:)
+//     - link: "stats:content/logs/books" a folder of logs as charts
 //     - link: "command:Open today's daily note"   a palette command
 //     - link: "https://example.com"      a web page
 //       title: Example                   the tile's name, for any kind
@@ -135,7 +136,7 @@ export function pinKind(link) {
 	if (/^https?:\/\//i.test(l)) return { kind: "url", url: l };
 	let m = l.match(/^command:\s*(.+)$/i);
 	if (m) return { kind: "command", command: m[1].trim() };
-	m = l.match(/^(corkboard|outliner|scrivenings|draft):\s*(.*)$/i);
+	m = l.match(/^(corkboard|outliner|scrivenings|draft|stats):\s*(.*)$/i);
 	if (m) return { kind: "view", view: m[1].toLowerCase() === "draft" ? "scrivenings" : m[1].toLowerCase(), folder: m[2].trim().replace(/^\/+|\/+$/g, "") + "/" };
 	m = l.match(/^folder:\s*(.*)$/i);
 	if (m) return { kind: "folder", folder: m[1].trim().replace(/^\/+|\/+$/g, "") + "/" };

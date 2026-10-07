@@ -314,6 +314,15 @@ npx wrangler secret put ANTHROPIC_API_KEY   # optional: subject headings and vib
 
 Notes go in `content/logs/movies-tv`, `books` (comics too), `music`, `games` and `podcasts`. Set `MEDIA_MOVIE_FOLDER`, `MEDIA_BOOK_FOLDER`, `MEDIA_MUSIC_FOLDER`, `MEDIA_GAME_FOLDER` or `MEDIA_PODCAST_FOLDER` under `[vars]` to change them.
 
+
+### Stats and StoryGraph import
+
+A folder of logs (most notes have a `rating:`, `shelf:` or `status:`) gets a **Stats** tab beside Corkboard, Outliner and Draft; Commands > Open stats picks one, and a `stats:content/logs/books` pin opens it from Home. It shows, for all time or one year: how many were finished (and pages, for books), the average rating, what's in progress and planned, finished per month (per year for all time), the ratings, and the most common genres, moods, pace, formats, authors, directors, platforms and so on, with covers for what's in progress and what got five stars (`src/mediastats.js`, `src/mediastatsview.js`). Everything is worked out on the device from the notes' properties.
+
+A log counts as finished when its shelf or status says so ("Finished", "Read", "Watched", ...), or has none; its day is `finished:`, else `date:`. Changing a log's shelf to a finished value, in the editor or by moving its card on a board, adds `finished:` with today's date if it has none. Book lookups now fill in `pages:` from Open Library.
+
+Commands > **Import StoryGraph library** takes StoryGraph's export (Manage Account > Export StoryGraph Library, a CSV) and makes a book log for each book, or fills in an existing log of the same title where it's empty (nothing already written changes): shelf, rating (rounded to whole stars), finished date, format, moods and pace into `vibesAndThemes`, tags, and the review as the note's text. New logs then get a cover, page count, subjects and summary from Open Library, one at a time in the background (`src/storygraph.js`).
+
 ## Using a GitHub repo instead of R2
 
 For a vault that lives in git without Remotely Save, set `BACKEND = "github"`, `GITHUB_REPO`, `GITHUB_BRANCH` and `VAULT_PREFIX` in `wrangler.toml`, and `npx wrangler secret put GITHUB_TOKEN` with a fine-grained token that has Contents read/write on that repo only. Each save becomes one commit. Don't point this at `librarykaiju/w3bz1n3`: its R2 → git sync runs every 10 minutes and can overwrite a commit that hasn't reached R2 yet.
