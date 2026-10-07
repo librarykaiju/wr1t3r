@@ -7,10 +7,8 @@
 
 import { isNotePath, isAttachmentPath, BOARD_EXT } from "./paths.js";
 import { moveLinkEdits } from "./moves.js";
-
-export const MAX_FILE = 20 * 1024 * 1024; // what every storage takes for one attachment
-
-const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+import { MAX_FILE } from "./imports.js";
+export { MAX_FILE, noteText } from "./imports.js";
 
 // The vault's own folder name and its files with paths inside it. A folder
 // pick gives "Vault/Notes/a.md"; a zip may or may not wrap everything in one
@@ -74,11 +72,6 @@ function whyNot(path) {
 	return ext ? `.${ext} files don't open in wr1t3r` : "not a note or attachment";
 }
 
-// A note's bytes as text, unchanged; null when they aren't UTF-8 (kept as bytes).
-export function noteText(bytes) {
-	try { return decoder.decode(bytes); } catch { return null; }
-}
-
 // The notes' texts with links following the renames. texts: Map from -> text.
 // -> Map to -> text, for every note (changed or not).
 export function followRenames(plan, texts) {
@@ -114,28 +107,4 @@ export function pluginFeatures(text) {
 export function defaultTarget(finalPaths, existing, home, vaultName) {
 	const clash = finalPaths.some((p) => existing.has((home + p).toLowerCase()));
 	return clash ? home + (vaultName || "Obsidian") + "/" : home;
-}
-
-const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
-
-// The import's summary, written as a note beside what came in.
-// done: { notes, boards, templates, files }, skipped: [{ path, why }],
-// plugins: [{ path, features }], hidden: count; target is the folder the vault went into.
-export function report({ vaultName, date, target, done, skipped, plugins, hidden }) {
-	const linkTo = (p) => `[[${(target + p).replace(/\.md$/i, "")}|${p.slice(p.lastIndexOf("/") + 1).replace(/\.md$/i, "")}]]`;
-	const lines = ["---", `date: ${date}`, "tags: []", "---", "", "# Obsidian import", ""];
-	const what = [plural(done.notes, "note"), done.boards && plural(done.boards, "board"), done.templates && plural(done.templates, "template"), done.files && plural(done.files, "picture or file", "pictures and files")].filter(Boolean);
-	const list = what.length > 1 ? what.slice(0, -1).join(", ") + " and " + what[what.length - 1] : what[0];
-	lines.push(`Imported ${list} from “${vaultName}” on ${date}${target ? ` into ${target.replace(/\/$/, "")}` : ""}.`);
-	if (done.templates) lines.push("", "Templates are in Settings > Templates.");
-	if (hidden) lines.push("", `Left out ${plural(hidden, "file")} in hidden folders: Obsidian's settings (.obsidian), its trash (.trash) and the like.`);
-	if (skipped.length) {
-		lines.push("", "## Not imported", "");
-		for (const s of skipped) lines.push(`- ${s.path}: ${s.why}`);
-	}
-	if (plugins.length) {
-		lines.push("", "## Plugin features kept as text", "", "These notes came in unchanged, but wr1t3r doesn't draw these plugins' blocks, so they show as their text.", "");
-		for (const p of plugins) lines.push(`- ${linkTo(p.path)}: ${p.features.join(", ")}`);
-	}
-	return lines.join("\n") + "\n";
 }

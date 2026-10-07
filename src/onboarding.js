@@ -132,7 +132,15 @@ export function guideText(features, { worker = true, story = false } = {}) {
 		"",
 		"## Bringing notes over",
 		"",
-		"Commands > Import Obsidian vault copies a vault in from its folder or a .zip of it: notes exactly as they are, pictures and other attachments, bases (as boards) and templates. A note listing what came in, and anything that didn't, opens when it's done.",
+		"Commands has an import for each of these, from the export file the app makes (nothing signs in to it):",
+		"",
+		"- **Import Obsidian vault:** the vault's folder or a .zip of it. Notes come in exactly as they are, with pictures, bases (as boards) and templates.",
+		"- **Import from Notion:** the .zip from Notion's Export with “Markdown & CSV”. Databases become boards.",
+		"- **Import WordPress export:** the file from Tools > Export. Posts and pages become notes.",
+		"- **Import Evernote notebooks (.enex):** one or more exported notebooks, with their pictures and checklists.",
+		"- **Import Day One journal:** the .zip from Day One's JSON export. Entries go in the journal folder with their photos.",
+		"",
+		"A note listing what came in, and anything that didn't, opens when each one is done.",
 	);
 	lines.push(
 		"",
