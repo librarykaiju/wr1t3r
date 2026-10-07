@@ -10,8 +10,11 @@
 // The notebook is a folder called "wr1t3r" at the top of My Drive, found by
 // the appProperties wr1t3r puts on it. Drive is organized by ids, not paths,
 // so each listing rebuilds path -> {id, version} from the parent folders.
-// Drive has no "only if unchanged" write, so a write checks the file's
-// version first; two devices saving in the same second could still collide.
+// Drive has no "only if unchanged" write, so a write checks the file first;
+// two devices saving in the same second could still collide. A file's
+// "version" here is its md5Checksum: Drive's own version number also goes up
+// for changes made on Google's side (indexing and the like), which would turn
+// every second save into a conflict copy.
 // Deleting moves the file to Drive's trash.
 
 import { isNotePath, isAttachmentPath, attachmentType } from "./paths.js";
@@ -21,7 +24,9 @@ const API = "https://www.googleapis.com/drive/v3";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3";
 const FOLDER = "application/vnd.google-apps.folder";
 const ROOT_KEY = "wr1t3r-drive-root";
-const FIELDS = "id,name,parents,mimeType,version,size,trashed";
+const FIELDS = "id,name,parents,mimeType,md5Checksum,headRevisionId,size,trashed";
+// What a write compares: the content's checksum (the revision id if Drive has none).
+const tag = (f) => String(f.md5Checksum || f.headRevisionId || "");
 
 // call(url, init) from src/google.js googleClient; init.raw returns the Response.
 export function driveStorage({ call, store = globalThis.localStorage }) {
@@ -67,7 +72,7 @@ export function driveStorage({ call, store = globalThis.localStorage }) {
 			const path = pathOf(f);
 			if (path == null) continue;
 			if (f.mimeType === FOLDER) folders.set(path, f.id);
-			else index.set(path, { id: f.id, version: String(f.version), size: Number(f.size || 0) });
+			else index.set(path, { id: f.id, version: tag(f), size: Number(f.size || 0) });
 		}
 		return index;
 	}
@@ -78,7 +83,7 @@ export function driveStorage({ call, store = globalThis.localStorage }) {
 		if (!at) return null;
 		const f = await call(`${API}/files/${at.id}?fields=${FIELDS}`).catch((e) => (/not found/i.test(e.message) ? null : Promise.reject(e)));
 		if (!f || f.trashed) { index.delete(path); return null; }
-		at.version = String(f.version);
+		at.version = tag(f);
 		return at;
 	}
 
@@ -108,8 +113,8 @@ export function driveStorage({ call, store = globalThis.localStorage }) {
 
 	async function create(path, blob) {
 		const parent = await folderFor(path);
-		const made = await call(`${UPLOAD}/files?uploadType=multipart&fields=id,version,size`, { method: "POST", ...multipart({ name: path.split("/").pop(), parents: [parent] }, blob) });
-		const at = { id: made.id, version: String(made.version), size: Number(made.size || blob.size) };
+		const made = await call(`${UPLOAD}/files?uploadType=multipart&fields=id,md5Checksum,headRevisionId,size`, { method: "POST", ...multipart({ name: path.split("/").pop(), parents: [parent] }, blob) });
+		const at = { id: made.id, version: tag(made), size: Number(made.size || blob.size) };
 		index.set(path, at);
 		return at;
 	}
@@ -156,8 +161,8 @@ export function driveStorage({ call, store = globalThis.localStorage }) {
 				return { ok: true, version: (await create(path, blobOf(path, bytes))).version };
 			}
 			if (!cur || cur.version !== expected) return { ok: false, version: cur?.version ?? null };
-			const r = await call(`${UPLOAD}/files/${cur.id}?uploadType=media&fields=version,size`, { method: "PATCH", headers: { "Content-Type": "text/markdown" }, body: blobOf(path, bytes) });
-			cur.version = String(r.version);
+			const r = await call(`${UPLOAD}/files/${cur.id}?uploadType=media&fields=md5Checksum,headRevisionId,size`, { method: "PATCH", headers: { "Content-Type": "text/markdown" }, body: blobOf(path, bytes) });
+			cur.version = tag(r);
 			cur.size = Number(r.size || bytes.length);
 			return { ok: true, version: cur.version };
 		},
