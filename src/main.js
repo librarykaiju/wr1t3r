@@ -4317,8 +4317,8 @@ function applyTheme() {
 	rerunDataview();
 	$("themeFamilies").value = family;
 	document.querySelectorAll("#themes button").forEach((b) => {
-		// Sepia is light only, SynthWave '84 dark only.
-		const oneMode = family === "sepia" || family === "synthwave";
+		// Sepia is light only, Monokai and SynthWave '84 dark only.
+		const oneMode = family === "sepia" || family === "monokai" || family === "synthwave";
 		b.setAttribute("aria-pressed", String(!oneMode && b.dataset.theme === mode));
 		b.disabled = oneMode;
 	});
