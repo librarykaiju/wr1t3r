@@ -694,7 +694,7 @@ const NOTE = {
 			year: str(ref.year, 10),
 		};
 	},
-	async music(env, ref, { cover }) {
+	async music(env, ref, { cover, today }) {
 		need(UUID.test(ref.releaseGroupId || ""), "releaseGroupId");
 		const id = ref.releaseGroupId;
 		const [group, releases] = await Promise.all([
@@ -723,7 +723,7 @@ const NOTE = {
 				language: languageName(release?.["text-representation"]?.language),
 				releasedOn: usDate(release?.date),
 				albumDuration: duration(all.reduce((s, t) => s + (t.length || 0), 0)) || null,
-				tracks, tags: (group.tags || []).map((t) => t.name), rating: [], sticky: null, publish: false, eyebrow: null,
+				tracks, tags: (group.tags || []).map((t) => t.name), rating: [], sticky: null, publish: false, date: today, eyebrow: null,
 			},
 			year: release?.date?.slice(0, 4) || str(ref.year, 10),
 		};
