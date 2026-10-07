@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { vaultRoot, templatesFolderOf, planVault, noteText, followRenames, pluginFeatures, defaultTarget, report, MAX_FILE } from "../src/obsidianimport.js";
+import { vaultRoot, templatesFolderOf, planVault, noteText, followRenames, pluginFeatures, defaultTarget, MAX_FILE } from "../src/obsidianimport.js";
+import { report } from "../src/imports.js";
 
 test("a picked folder's name comes off the paths", () => {
 	const r = vaultRoot([{ path: "My Vault/a.md" }, { path: "My Vault/.obsidian/app.json" }, { path: "My Vault/Pics/x.png" }]);
@@ -74,7 +75,7 @@ test("the vault goes to the top unless something there has the same name", () =>
 
 test("the report lists what came in and what didn't", () => {
 	const r = report({
-		vaultName: "V", date: "2026-10-07", target: "V/", hidden: 2,
+		source: "Obsidian", name: "V", date: "2026-10-07", target: "V/", remarks: ["Left out 2 files in hidden folders."],
 		done: { notes: 3, boards: 1, templates: 0, files: 1 },
 		skipped: [{ path: "Map.canvas", why: "canvases don't open in wr1t3r" }],
 		plugins: [{ path: "Board.md", features: ["Kanban board (shows as lists)"] }],

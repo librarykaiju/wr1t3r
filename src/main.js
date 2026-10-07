@@ -2984,6 +2984,10 @@ function allCommands() {
 		["Open outliner", () => pickFolder("outliner"), "scrivener outline table folder order"],
 		["Open draft", () => pickFolder("scrivenings"), "scrivenings scrivener one document whole folder read draft"],
 		["Import Obsidian vault", importObsidian, "obsidian vault import folder zip markdown notes move switch bring over"],
+		["Import from Notion", importNotion, "notion export zip markdown csv database pages import move switch bring over"],
+		["Import WordPress export", importWordPress, "wordpress blog posts pages wxr xml export import move switch bring over"],
+		["Import Evernote notebooks (.enex)", importEvernote, "evernote enex notebook export import move switch bring over"],
+		["Import Day One journal", importDayOne, "day one dayone journal diary entries json export import move switch bring over"],
 		["Import StoryGraph library", importStoryGraph, "storygraph csv export books reading goodreads import"],
 		["Fill book genres from subjects", fillBookGenres, "genre genres subjects books open library tags book logs"],
 		["Update log ratings and formats", updateRatingsAndFormats, "rating ratings stars star format audiobook comic book logs convert numbers"],
@@ -3802,12 +3806,23 @@ async function fillBookGenres() {
 	folderTouched();
 }
 
-// ---- Obsidian import (src/obsidianimport.js) -----------------------------------------
+// ---- imports from other apps (src/imports.js, and a file per app) ----------------------
+// Each reads the person's own export file here in the page and hands
+// writeImport notes and attachments, so they work the same on every build.
 
 // A folder picked on this device: its files, with paths starting at the folder's name.
 function chooseFolder() {
 	return new Promise((resolve) => {
 		const input = Object.assign(document.createElement("input"), { type: "file", webkitdirectory: true, multiple: true });
+		input.addEventListener("change", () => resolve([...input.files]), { once: true });
+		input.addEventListener("cancel", () => resolve(null), { once: true });
+		input.click();
+	});
+}
+
+function chooseFiles(accept) {
+	return new Promise((resolve) => {
+		const input = Object.assign(document.createElement("input"), { type: "file", accept, multiple: true });
 		input.addEventListener("change", () => resolve([...input.files]), { once: true });
 		input.addEventListener("cancel", () => resolve(null), { once: true });
 		input.click();
@@ -3820,104 +3835,104 @@ const picturesAndFiles = (n) => (n === 1 ? "1 picture or file" : `${n} pictures 
 
 const canPickFolders = () => "webkitdirectory" in document.createElement("input") && !/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-function importObsidian() {
-	const items = [
-		...(canPickFolders() ? [{ label: "Choose the vault's folder", detail: "on this computer", run: () => chooseFolder().then((files) => files?.length && importVault(files.map(fileEntry))) }] : []),
-		{ label: "Choose a .zip of the vault", detail: "zip the vault's folder first", run: () => chooseFile(".zip,application/zip").then((f) => f && importZip(f)) },
-	];
-	openPalette({ placeholder: "Import an Obsidian vault from…", items });
+// A .zip's files as entries ({ path, size, bytes() }); zips inside it (Notion
+// splits big exports that way) are opened too. null if it isn't a zip.
+async function zipEntries(file) {
+	const { default: JSZip } = await import("jszip");
+	const out = [];
+	const open = async (data, depth) => {
+		const zip = await JSZip.loadAsync(data);
+		for (const e of Object.values(zip.files)) {
+			if (e.dir) continue;
+			if (/\.zip$/i.test(e.name) && depth < 2) await open(await e.async("uint8array"), depth + 1);
+			else out.push({ path: e.name, size: e._data?.uncompressedSize || 0, bytes: () => e.async("uint8array") });
+		}
+	};
+	try { await open(file, 0); } catch { return null; }
+	return out;
 }
 
-async function importZip(file) {
-	let zip;
-	try {
-		const { default: JSZip } = await import("jszip");
-		zip = await JSZip.loadAsync(file);
-	} catch {
-		return toast("That isn't a .zip file wr1t3r can open.", 6000);
-	}
-	const entries = Object.values(zip.files).filter((e) => !e.dir)
-		.map((e) => ({ path: e.name, size: e._data?.uncompressedSize || 0, bytes: () => e.async("uint8array") }));
-	return importVault(entries, file.name);
+const textOf = async (entry) => new TextDecoder().decode(await entry.bytes());
+
+// HTML from an export as Markdown (src/convert.js), pictures on the web kept as links.
+async function htmlConverter() {
+	const convert = await import("./convert.js");
+	return (html) => convert.htmlToMarkdown(new DOMParser().parseFromString(`<body>${html}</body>`, "text/html").body, { keepImages: true });
 }
 
-async function importVault(picked, zipName = "") {
-	const ob = await import("./obsidianimport.js");
-	const { name: vaultName, entries } = ob.vaultRoot(picked, zipName);
-	const byPath = new Map(entries.map((e) => [e.path, e]));
-	const json = async (p) => { try { return JSON.parse(new TextDecoder().decode(await byPath.get(p).bytes())); } catch { return null; } };
-	const paths = [...byPath.keys()];
-	const templates = ob.templatesFolderOf(paths, {
-		templates: byPath.has(".obsidian/templates.json") ? await json(".obsidian/templates.json") : null,
-		templater: byPath.has(".obsidian/plugins/templater-obsidian/data.json") ? await json(".obsidian/plugins/templater-obsidian/data.json") : null,
-	});
-	const plan = ob.planVault(paths, { sizes: new Map(entries.map((e) => [e.path, e.size])), templates });
-	if (!plan.notes.length && !plan.files.length) return toast("There are no notes in that folder. Pick the vault's own folder, the one with .obsidian in it.", 8000);
-	if (plan.files.length && !navigator.onLine) return toast("Importing a vault's pictures and files needs a connection.", 6000);
-	if (plan.files.length && !attachmentsLoaded) await refreshAttachments();
-
+// Writes an import into the notebook: asks where, skips anything already
+// there, saves the notes, uploads the attachments, and opens a report note.
+// r: { source, name, folder (suggested, inside home; null = the top unless names clash),
+//      notes: [{ path, text } | { path, bytes } | { path, board: folder of notes it shows }],
+//      files: [{ path, bytes: () => bytes }], skipped, plugins, remarks, confirmNote }
+// Paths are inside the folder the import goes into; from (optional) is the
+// file's name in the export, for the report.
+async function writeImport(r) {
+	const ob = await import("./imports.js");
+	const skipped = [...(r.skipped || [])];
+	if (!r.notes.length && !r.files.length) return toast(`There's nothing to import in that ${r.source} export.`, 6000);
+	if (r.files.length && !navigator.onLine) return toast("Importing pictures and files needs a connection.", 6000);
+	if (r.files.length && !attachmentsLoaded) await refreshAttachments();
 	const list = visible(), home = commonFolder(list);
 	const existing = new Set([...list.map((n) => n.path), ...attachments.map((f) => f.path)].map((p) => p.toLowerCase()));
-	const finals = [...plan.notes, ...plan.files].map((n) => n.to);
-	let target = prompt(`Import “${vaultName || "the vault"}” into which folder? Leave it empty for the top of the notebook.`, ob.defaultTarget(finals, existing, home, vaultName).slice(home.length).replace(/\/$/, ""));
+	const all = [...r.notes, ...r.files];
+	const suggest = r.folder ?? (all.some((n) => existing.has((home + n.path).toLowerCase())) ? r.name : "");
+	let target = prompt(`Import “${r.name}” into which folder? Leave it empty for the top of the notebook.`, suggest);
 	if (target == null) return;
 	target = target.trim().replace(/^\/+|\/+$/g, "");
 	target = home + (target ? target + "/" : "");
 
-	const clash = new Set([...plan.notes, ...plan.files].filter((n) => existing.has((target + n.to).toLowerCase())).map((n) => n.from));
-	const skipped = [...plan.skipped, ...[...clash].map((path) => ({ path, why: "the notebook already has a file there, so it's left as it is" }))];
-	const notesIn = plan.notes.filter((n) => !clash.has(n.from)), filesIn = plan.files.filter((n) => !clash.has(n.from));
-	const boards = notesIn.filter((n) => /\.board$/i.test(n.to)).length, tmpl = notesIn.filter((n) => n.to.startsWith("_templates/")).length;
-	if (!notesIn.length && !filesIn.length) return toast(`Everything in “${vaultName}” is already in ${folderLabel(target)}.`, 6000);
-	if (!confirm(`Import “${vaultName}” into ${folderLabel(target)}?\n\n` +
-		[`${notesIn.length - boards - tmpl} note${notesIn.length - boards - tmpl === 1 ? "" : "s"}`, boards && `${boards} board${boards === 1 ? "" : "s"} (.base files become .board)`, tmpl && `${tmpl} template${tmpl === 1 ? "" : "s"}`, filesIn.length && picturesAndFiles(filesIn.length)].filter(Boolean).map((s) => "• " + s).join("\n") +
-		"\n\nNotes come in exactly as they are. Obsidian's settings and trash stay behind" + (skipped.length ? `, and so ${skipped.length === 1 ? "does 1 other file" : `do ${skipped.length} other files`}` : "") + ". A note listing what came in opens when it's done.")) return;
+	const there = (n) => existing.has((target + n.path).toLowerCase());
+	for (const n of all) if (there(n)) skipped.push({ path: n.from || n.path, why: "the notebook already has a file there, so it's left as it is" });
+	const notesIn = r.notes.filter((n) => !there(n)), filesIn = r.files.filter((n) => !there(n));
+	const boards = notesIn.filter((n) => /\.board$/i.test(n.path)).length, tmpl = notesIn.filter((n) => n.path.startsWith("_templates/")).length;
+	if (!notesIn.length && !filesIn.length) return toast(`Everything in “${r.name}” is already in ${folderLabel(target)}.`, 6000);
+	const counts = [ob.plural(notesIn.length - boards - tmpl, "note"), boards && ob.plural(boards, "board"), tmpl && ob.plural(tmpl, "template"), filesIn.length && picturesAndFiles(filesIn.length)].filter(Boolean);
+	if (!confirm(`Import “${r.name}” into ${folderLabel(target)}?\n\n` + counts.map((s) => "• " + s).join("\n") + "\n\n" +
+		(r.confirmNote ? r.confirmNote + " " : "") + (skipped.length ? `${ob.plural(skipped.length, "other file")} can't come in. ` : "") + "A note listing what came in, and what didn't, opens when it's done.")) return;
 
-	const note = toast(`Importing: reading ${notesIn.length} notes…`, 60 * 60000);
+	const note = toast(`Importing ${notesIn.length} notes…`, 60 * 60000);
 	try {
-		const texts = new Map(), raw = new Map();
-		for (const n of plan.notes) {
-			const bytes = await byPath.get(n.from).bytes();
-			const t = ob.noteText(bytes);
-			if (t == null) raw.set(n.from, bytes); else texts.set(n.from, t);
-		}
-		const edited = ob.followRenames(plan, texts);
-		const plugins = [];
 		let i = 0;
 		for (const n of notesIn) {
 			if (++i % 50 === 0) note.set(`Importing: ${i} of ${notesIn.length} notes…`);
-			const path = target + n.to;
-			const text = edited.get(n.to);
-			if (raw.has(n.from)) await change(path, () => ({ path, bytes: raw.get(n.from), binary: true, base: null, dirty: true, deleted: false }));
-			else await change(path, () => ({ path, text, base: null, dirty: true, deleted: false }));
-			const features = ob.pluginFeatures(text);
-			if (features.length) plugins.push({ path: n.to, features });
+			const path = target + n.path;
+			if (n.bytes) await change(path, () => ({ path, bytes: n.bytes, binary: true, base: null, dirty: true, deleted: false }));
+			else {
+				const text = n.board != null ? starterBase(target + n.board, notesIn.filter((m) => m.path.startsWith(n.board) && m.text).slice(0, 200).map((m) => m.text)) : n.text;
+				await change(path, () => ({ path, text, base: null, dirty: true, deleted: false }));
+			}
 		}
 		renderTree();
 		scheduleSync();
 		let files = 0;
 		for (const f of filesIn) {
 			note.set(`Importing: ${files + 1} of ${filesIn.length} pictures and files…`);
-			const path = target + f.to;
+			const path = target + f.path;
 			try {
-				const bytes = await byPath.get(f.from).bytes();
-				if (bytes.length > ob.MAX_FILE) { skipped.push({ path: f.from, why: "bigger than 20 MB" }); continue; }
+				const bytes = await f.bytes();
+				if (bytes.length > ob.MAX_FILE) { skipped.push({ path: f.from || f.path, why: "bigger than 20 MB" }); continue; }
 				const added = await remote.uploadAttachment(path, new Blob([bytes], { type: attachmentType(path) }));
-				if (!added) { skipped.push({ path: f.from, why: "the notebook already has a file there, so it's left as it is" }); continue; }
+				if (!added) { skipped.push({ path: f.from || f.path, why: "the notebook already has a file there, so it's left as it is" }); continue; }
 				attachments = [...attachments.filter((x) => x.path !== path), added];
 				files++;
 			} catch (e) {
 				if (e instanceof AuthError) throw e;
-				skipped.push({ path: f.from, why: "couldn't upload it (" + e.message + ")" });
+				skipped.push({ path: f.from || f.path, why: "couldn't upload it (" + e.message + ")" });
 			}
 		}
 		if (files) meta.set("attachments", attachments).catch(() => {});
+		const written = new Set(notesIn.map((n) => n.path));
 		const date = isoDate(new Date());
-		const summary = ob.report({ vaultName, date, target, hidden: plan.hidden, skipped, plugins, done: { notes: notesIn.length - boards - tmpl, boards, templates: tmpl, files } });
-		const at = await addNote(target, `Obsidian import ${date}`, summary);
+		const summary = ob.report({
+			source: r.source, name: r.name, date, target, skipped, remarks: r.remarks,
+			plugins: (r.plugins || []).filter((p) => written.has(p.path)),
+			done: { notes: notesIn.length - boards - tmpl, boards, templates: tmpl, files },
+		});
+		const at = await addNote(target, `${r.source} import ${date}`, summary);
 		note.close();
 		vaultTouched();
-		toast(`Imported “${vaultName}”: ${notesIn.length} note${notesIn.length === 1 ? "" : "s"}` + (files ? ` and ${picturesAndFiles(files)}` : "") + ".", 6000);
+		toast(`Imported “${r.name}”: ${ob.plural(notesIn.length, "note")}` + (files ? ` and ${picturesAndFiles(files)}` : "") + ".", 6000);
 		showAdded(target, at);
 	} catch (e) {
 		note.close();
@@ -3926,6 +3941,136 @@ async function importVault(picked, zipName = "") {
 		renderTree();
 		scheduleSync();
 	}
+}
+
+// Obsidian (src/obsidianimport.js): the vault's folder, or a .zip of it.
+function importObsidian() {
+	const items = [
+		...(canPickFolders() ? [{ label: "Choose the vault's folder", detail: "on this computer", run: () => chooseFolder().then((files) => files?.length && importVault(files.map(fileEntry))) }] : []),
+		{ label: "Choose a .zip of the vault", detail: "zip the vault's folder first", run: () => chooseFile(".zip,application/zip").then(async (f) => {
+			if (!f) return;
+			const entries = await zipEntries(f);
+			if (!entries) return toast("That isn't a .zip file wr1t3r can open.", 6000);
+			importVault(entries, f.name);
+		}) },
+	];
+	openPalette({ placeholder: "Import an Obsidian vault from…", items });
+}
+
+async function importVault(picked, zipName = "") {
+	const ob = await import("./obsidianimport.js");
+	const { name: vaultName, entries } = ob.vaultRoot(picked, zipName);
+	const byPath = new Map(entries.map((e) => [e.path, e]));
+	const json = async (p) => { try { return JSON.parse(await textOf(byPath.get(p))); } catch { return null; } };
+	const paths = [...byPath.keys()];
+	const templates = ob.templatesFolderOf(paths, {
+		templates: byPath.has(".obsidian/templates.json") ? await json(".obsidian/templates.json") : null,
+		templater: byPath.has(".obsidian/plugins/templater-obsidian/data.json") ? await json(".obsidian/plugins/templater-obsidian/data.json") : null,
+	});
+	const plan = ob.planVault(paths, { sizes: new Map(entries.map((e) => [e.path, e.size])), templates });
+	if (!plan.notes.length && !plan.files.length) return toast("There are no notes in that folder. Pick the vault's own folder, the one with .obsidian in it.", 8000);
+	const note = toast(`Reading ${plan.notes.length} notes…`, 60 * 60000);
+	const texts = new Map(), raw = new Map();
+	for (const n of plan.notes) {
+		const bytes = await byPath.get(n.from).bytes();
+		const t = ob.noteText(bytes);
+		if (t == null) raw.set(n.from, bytes); else texts.set(n.from, t);
+	}
+	note.close();
+	const edited = ob.followRenames(plan, texts);
+	const notes = plan.notes.map((n) => (raw.has(n.from) ? { from: n.from, path: n.to, bytes: raw.get(n.from) } : { from: n.from, path: n.to, text: edited.get(n.to) }));
+	return writeImport({
+		source: "Obsidian", name: vaultName || "the vault", folder: null, notes,
+		files: plan.files.map((f) => ({ from: f.from, path: f.to, bytes: byPath.get(f.from).bytes })),
+		skipped: plan.skipped,
+		plugins: notes.filter((n) => n.text).map((n) => ({ path: n.path, features: ob.pluginFeatures(n.text) })).filter((p) => p.features.length),
+		remarks: plan.hidden ? [`Left out ${plan.hidden} file${plan.hidden === 1 ? "" : "s"} in hidden folders: Obsidian's settings (.obsidian), its trash (.trash) and the like.`] : [],
+		confirmNote: "Notes come in exactly as they are, with .base files as boards. Obsidian's settings and trash stay behind.",
+	});
+}
+
+// Notion (src/notionimport.js): its "Markdown & CSV" export, a .zip.
+async function importNotion() {
+	const f = await chooseFile(".zip,application/zip");
+	if (!f) return;
+	const picked = await zipEntries(f);
+	if (!picked) return toast("That isn't a .zip file wr1t3r can open. In Notion, export as “Markdown & CSV” and pick the .zip it saves.", 8000);
+	const [{ vaultRoot }, notion] = await Promise.all([import("./obsidianimport.js"), import("./notionimport.js")]);
+	const { entries } = vaultRoot(picked);
+	const byPath = new Map(entries.map((e) => [e.path, e]));
+	const texts = new Map();
+	for (const e of entries) if (/\.md$/i.test(e.path)) texts.set(e.path, await textOf(e));
+	let r;
+	try { r = notion.readNotion([...byPath.keys()], texts); } catch (e) { return toast(e.message, 8000); }
+	return writeImport({
+		source: "Notion", name: "Notion", folder: "Notion", ...r,
+		files: r.files.map((x) => ({ ...x, bytes: byPath.get(x.from).bytes })),
+		confirmNote: "Pages lose Notion's ID codes, and databases become boards.",
+	});
+}
+
+// WordPress (src/wordpressimport.js): Tools > Export's .xml file.
+async function importWordPress() {
+	const f = await chooseFile(".xml,text/xml,application/xml");
+	if (!f) return;
+	const [wp, toMarkdown] = await Promise.all([import("./wordpressimport.js"), htmlConverter()]);
+	let r;
+	try { r = wp.readWordPress(await f.text(), toMarkdown); } catch (e) { return toast(e.message, 8000); }
+	return writeImport({ source: "WordPress", folder: r.name, files: [], ...r, confirmNote: "Pictures in posts stay linked to the site." });
+}
+
+// Evernote (src/evernoteimport.js): one or more .enex files, a notebook each.
+async function importEvernote() {
+	const picked = await chooseFiles(".enex");
+	if (!picked?.length) return;
+	const [en, toMarkdown] = await Promise.all([import("./evernoteimport.js"), htmlConverter()]);
+	const out = { notes: [], files: [], skipped: [], plugins: [] };
+	const taken = new Set();
+	const note = toast(`Reading ${picked.length} notebook${picked.length === 1 ? "" : "s"}…`, 60 * 60000);
+	try {
+		for (const f of picked) {
+			const r = en.readEnex(await f.text(), f.name.replace(/\.enex$/i, ""), toMarkdown, taken);
+			for (const k of Object.keys(out)) out[k].push(...r[k]);
+		}
+	} catch (e) {
+		note.close();
+		return toast(e.message, 8000);
+	}
+	note.close();
+	return writeImport({
+		source: "Evernote", name: picked.length === 1 ? picked[0].name.replace(/\.enex$/i, "") : "Evernote", folder: "Evernote", ...out,
+		files: out.files.map((x) => ({ path: x.path, bytes: () => x.bytes })),
+		confirmNote: "Each notebook gets a folder, with its pictures and attachments in an attachments folder inside it.",
+	});
+}
+
+// Day One (src/dayoneimport.js): its JSON export, a .zip (or just the .json).
+async function importDayOne() {
+	const f = await chooseFile(".zip,.json,application/zip,application/json");
+	if (!f) return;
+	let entries = /\.json$/i.test(f.name) ? [{ path: f.name, size: f.size, bytes: async () => new Uint8Array(await f.arrayBuffer()) }] : await zipEntries(f);
+	if (!entries) return toast("That isn't a .zip file wr1t3r can open. In Day One, export as JSON and pick the .zip it saves.", 8000);
+	const [{ vaultRoot }, dayone] = await Promise.all([import("./obsidianimport.js"), import("./dayoneimport.js")]);
+	entries = vaultRoot(entries).entries;
+	const byPath = new Map(entries.map((e) => [e.path, e]));
+	const journals = entries.filter((e) => /^[^/]+\.json$/i.test(e.path));
+	if (!journals.length) return toast("There's no journal in that file. In Day One, export as JSON and pick the .zip it saves.", 8000);
+	const out = { notes: [], files: [], skipped: [] };
+	const taken = new Set();
+	try {
+		for (const j of journals) {
+			const name = j.path.replace(/\.json$/i, "");
+			const r = dayone.readDayOne(JSON.parse(await textOf(j)), name, (p) => byPath.has(p), { base: journals.length > 1 ? name + "/" : "", taken });
+			for (const k of Object.keys(out)) out[k].push(...r[k]);
+		}
+	} catch (e) {
+		return toast(e instanceof SyntaxError ? "That journal file couldn't be read." : e.message, 8000);
+	}
+	return writeImport({
+		source: "Day One", name: journals.length === 1 ? journals[0].path.replace(/\.json$/i, "") : "Day One", folder: "journal", ...out,
+		files: out.files.map((x) => ({ ...x, bytes: byPath.get(x.from).bytes })),
+		confirmNote: "Each entry becomes a note named by its date, with its photos alongside.",
+	});
 }
 
 // ---- uploads -------------------------------------------------------------------
