@@ -27,7 +27,7 @@ Image links to web addresses (`![alt](https://...)`) show the picture under the 
 
 A line holding just `![[Note]]` shows that note in a box, as Obsidian does (`src/embeds.js`); `![[Note#Heading]]` shows that section and `![[Note#^id]]` that block. The box is read-only: click its title to open the note, or put the cursor on the line (or press ✎) to edit the embed. Embeds inside an embedded note stay as text, so notes that embed each other can't loop.
 
-**Settings** (the Aa button, or palette "Settings"): a window over the page with tabs down the side: Appearance, Writing, Focus, Tasks and daily note, Home, Hotkeys, and Sync and files. The search box above the tabs shows matching settings from every tab, commands included, so typing "goal" or "grammar" goes straight to the row. Palette commands "Settings: Writing" and so on open one tab, so each can have a hotkey. On a phone the window fills the screen and the tabs are a list. Settings apply at once and are kept per device; the last tab used is remembered.
+**Settings** (the gear button, or palette "Settings"): a window over the page with tabs down the side: Appearance, Writing, Focus, Tasks and daily note, Home, Hotkeys, and Sync and files. The search box above the tabs shows matching settings from every tab, commands included, so typing "goal" or "grammar" goes straight to the row. Palette commands "Settings: Writing" and so on open one tab, so each can have a hotkey. On a phone the window fills the screen and the tabs are a list. Settings apply at once and are kept per device; the last tab used is remembered.
 
 **Live Preview** (Settings > Appearance > Markdown symbols, off by default) hides `**`, `##`, `[text](url)` parts, `[[`/`]]` and `==` on every line except the one the cursor is on, like Obsidian's Live Preview (`src/livepreview.js`). Code blocks, tables and the properties box are left as they are. The note's text never changes.
 
@@ -49,7 +49,7 @@ A line holding just `![[Note]]` shows that note in a box, as Obsidian does (`src
 
 **Quick switcher and command palette** (`src/palette.js`): **Ctrl/Cmd+O** jumps to a note by name (recent ones first; letters in order are enough, so `chone` finds Chapter One), and offers to create the note when nothing matches. **Ctrl/Cmd+P**, or the ⌘ button in the header, runs any command: new note, today's note, templates, bookmark, rename, delete, close tab, reference pane, Contents, Live Preview, upload, clip, media notes, sync, the focus timer, find, and every formatting command from the slash menu. Hotkeys follow Obsidian's defaults (Ctrl/Cmd+B bold, +I italic, +K link, +Enter checkbox, +D delete the line, +] / +[ indent) and can be changed in **Settings > Hotkeys**; on a Mac, Ctrl+Enter works for the checkbox too.
 
-**Templates** (`src/templates.js`): **New note from template** and **Insert template** (both in the command palette) list everything in `_templates/`. A new note is named first; inserting puts the template's text at the cursor and adds only the properties the note doesn't have yet. Templater tags (dates, the title) and Obsidian's core `{{title}}`, `{{date}}`, `{{time}}` and `{{date:FORMAT}}` are filled in without running anything; plugin fields like `{{LIST:director}}` come out empty. The `_templates` folder stays out of the notes list; **Aa > Templates** lists the templates and opens, renames, deletes or adds them.
+**Templates** (`src/templates.js`): **New note from template** and **Insert template** (both in the command palette) list everything in `_templates/`. A new note is named first; inserting puts the template's text at the cursor and adds only the properties the note doesn't have yet. Templater tags (dates, the title) and Obsidian's core `{{title}}`, `{{date}}`, `{{time}}` and `{{date:FORMAT}}` are filled in without running anything; plugin fields like `{{LIST:director}}` come out empty. The `_templates` folder stays out of the notes list; **Settings > Templates** lists the templates and opens, renames, deletes or adds them.
 
 **New notes that file themselves** (`src/newnotes.js`): **New journal entry**, **New microblog post**, **New note in Notes**, **New book log**, **New movie log**, **New TV series log**, **New music log**, **New game log** and **New podcast log** in the command palette ask for a title, fill in that template (`Journal`, `Microblog`, `Note`, `Book`, `Movie`, `Series`, `Music`, `Game`, `Podcast`) and save the note in its folder: `journal/`, `microblog/`, `notes/`, or `logs/books/`, `logs/movies-tv/`, `logs/music/`, `logs/games/` and `logs/podcasts/` (the same folders as the media lookups, so the Worker's `MEDIA_*_FOLDER` settings move both). A name that's taken gets a number. **New note from template** files those templates the same way. Each can have a hotkey or a Home tile like any command. They make a blank log to fill in by hand; **Create book note** and the other lookups fill one in from the web.
 
@@ -96,7 +96,7 @@ To clip from any page, use the bookmarklet in **Settings > Sync and files**: dra
 javascript:location.href="https://wr1t3r.brandonj.ink/#clip="+encodeURIComponent(location.href)
 ```
 
-**Settings > Appearance** (the Aa button) sets the theme, kept per device; on a phone, or with the toolbar off, it has the font and text size too. Themes are Default (Reader's colors), Sepia, Dracula, Rosé Pine, Tokyo Night, Catppuccin, Kanagawa and SynthWave '84; each but Sepia (light only) and SynthWave '84 (dark only) has Light and Dark variants (Dracula's light one is Alucard, Rosé Pine's is Dawn, Tokyo Night's Night and Day, Catppuccin's Mocha and Latte, Kanagawa's Wave and Lotus), and Auto follows the system. Top-level folders in the sidebar take the theme's rainbow colors in turn, and their subfolders keep the same color. The same seven colors mark everything else that's color-coded, so it all changes with the theme: each tag has one (its pill in the properties, `#tag` in the text and its row in the sidebar's Tags), bookmarks take their folder's color, and list bullets and numbers change color with each level of nesting.
+**Settings > Appearance** (the gear button) sets the theme, kept per device; on a phone, or with the toolbar off, it has the font and text size too. Themes are Default (Reader's colors), Sepia, Dracula, Rosé Pine, Tokyo Night, Catppuccin, Kanagawa and SynthWave '84; each but Sepia (light only) and SynthWave '84 (dark only) has Light and Dark variants (Dracula's light one is Alucard, Rosé Pine's is Dawn, Tokyo Night's Night and Day, Catppuccin's Mocha and Latte, Kanagawa's Wave and Lotus), and Auto follows the system. Top-level folders in the sidebar take the theme's rainbow colors in turn, and their subfolders keep the same color. The same seven colors mark everything else that's color-coded, so it all changes with the theme: each tag has one (its pill in the properties, `#tag` in the text and its row in the sidebar's Tags), bookmarks take their folder's color, and list bullets and numbers change color with each level of nesting.
 
 The bar under the editor shows the note's word count, leaving out frontmatter. Tap it to switch to characters. When text is selected, it counts the selection.
 
@@ -398,7 +398,7 @@ The calendar switches to the built-in one (below), task reminders show while wr1
 
 ## First run
 
-When the first sync finds the notebook empty, wr1t3r asks what it's for: writing, a journal and day planner, health and food, media logs, or research and clipping. Start turns on the areas those need and the rest off (written to `_wr1t3r/Settings.md`, see below), and by default adds a Welcome note that shows the way around, a sample `My Story/` manuscript for writing, and a Home screen pinning them. Skip leaves everything on and adds nothing. It's asked once per device, and never for a notebook with anything in it. On an iPhone or iPad outside the Home Screen it also says to add wr1t3r there, since Safari otherwise clears the offline copy after about a week. The choices and starter notes are in `src/onboarding.js`.
+When the first sync finds the notebook empty, wr1t3r asks what it's for: writing, a journal and day planner, health and food, media logs, or research and clipping. Start turns on the areas those need and the rest off (written to `_wr1t3r/Settings.md`, see below), adds a Welcome note on how to use each area that's on (right-click a folder for Corkboard, Outliner and Draft, and so on, leaving out what the build can't do), and by default a sample `My Story/` manuscript for writing and a Home screen pinning them. Skip leaves everything on and adds nothing. **Getting started** (command palette, or the button at the top of Settings > Features) opens the Welcome note, or writes a new one for the areas on now if it's gone. It's asked once per device, and never for a notebook with anything in it. On an iPhone or iPad outside the Home Screen it also says to add wr1t3r there, since Safari otherwise clears the offline copy after about a week. The choices and starter notes are in `src/onboarding.js`.
 
 ## License key (product build)
 
@@ -412,11 +412,11 @@ Each device gets a 14-day free trial from the day it's first opened. After that 
 
 `VITE_LICENSE_API` points the checks somewhere other than `https://api.lemonsqueezy.com/v1/licenses` (a proxy, if a browser can't reach it directly); add that host to `connect-src` in `public/_headers` too.
 
-## The product build (user.wr1t3r.app) and wr1t3r.app
+## The product build (my.wr1t3r.app) and wr1t3r.app
 
-The version sold to other people is the same code built without the Worker: the page alone, served from https://user.wr1t3r.app, with each person's notes in their own Dropbox and a Lemon Squeezy license key. `site/` is the page at https://wr1t3r.app that describes it and links to the checkout.
+The version sold to other people is the same code built without the Worker: the page alone, served from https://my.wr1t3r.app, with each person's notes in their own Dropbox and a Lemon Squeezy license key. `site/` is the page at https://wr1t3r.app that describes it and links to the checkout.
 
-1. Make the Dropbox app (above), with `https://user.wr1t3r.app/` as its Redirect URI.
+1. Make the Dropbox app (above), with `https://my.wr1t3r.app/` as its Redirect URI.
 2. Make the Lemon Squeezy product (above).
 3. Create `.env.product.local` (not in git) with the IDs:
    ```
@@ -426,7 +426,7 @@ The version sold to other people is the same code built without the Worker: the 
    VITE_BUY_URL=<checkout link>
    ```
    `.env.product` already sets `VITE_DROPBOX_ONLY=1`, which makes the sign-in screen offer only Dropbox.
-4. `npm run deploy:product` builds into `dist-product/` and deploys it as the `wr1t3r-user` Worker (`wrangler.product.toml`: static files only, on the `user.wr1t3r.app` custom domain).
+4. `npm run deploy:product` builds into `dist-product/` and deploys it as the `wr1t3r-user` Worker (`wrangler.product.toml`: static files only, on the `my.wr1t3r.app` custom domain).
 5. Put the checkout link in `site/public/index.html` (the `buy-url` meta tag), then `npm run deploy:site` deploys `site/public/` as the `wr1t3r-site` Worker on `wr1t3r.app` and `www.wr1t3r.app`.
 
 Both custom domains are created by the deploy, since wr1t3r.app is a zone on the same Cloudflare account. The personal build (`npm run deploy`) is unaffected.

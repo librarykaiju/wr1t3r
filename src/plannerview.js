@@ -504,7 +504,7 @@ class PlannerWidget extends WidgetType {
 		if (!ro && host && this.day) {
 			const imp = el("button", "md-tl-btn", "Import");
 			imp.type = "button";
-			imp.title = "Add this day's events from the calendar picked under Aa > Daily note timeline";
+			imp.title = "Add this day's events from the calendar picked under Settings > Tasks and daily note > Timeline calendar";
 			imp.addEventListener("mousedown", (e) => e.preventDefault());
 			imp.addEventListener("click", async () => {
 				imp.disabled = true;
