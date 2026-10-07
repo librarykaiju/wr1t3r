@@ -33,7 +33,7 @@ test("a StoryGraph export as books", () => {
 	assert.equal(b.rating, null);
 	assert.deepEqual(b.vibes, ["Fast-paced", "Plot-driven"]);
 	assert.equal(c.shelf, "TBR");
-	assert.equal(c.format, "📖Book", "an ebook is a book");
+	assert.equal(c.format, "📱Ebook");
 	assert.throws(() => readExport("Name,Value\nx,1\n"), /StoryGraph/);
 });
 

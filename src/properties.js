@@ -324,11 +324,11 @@ export function suggest(counts, typed, { skip = [], limit = 8 } = {}) {
 // ---- properties with set choices ------------------------------------------------
 //
 // rating (a log's personal rating, one to five stars) and format (a book
-// log's: book, audiobook or comic) are lists whose values come from a set of
+// log's: book, ebook, audiobook or comic) are lists whose values come from a set of
 // choices. The properties box offers just these, and a rating holds one.
 
 export const STARS = ["⭐", "⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐"];
-export const BOOK_FORMATS = ["📖Book", "🎧Audiobook", "💬Comic"];
+export const BOOK_FORMATS = ["📖Book", "📱Ebook", "🎧Audiobook", "💬Comic"];
 export const CHOICES = {
 	rating: { options: STARS, single: true },
 	format: { options: BOOK_FORMATS, single: false },
@@ -350,15 +350,16 @@ export function starsFor(v) {
 	return Number.isInteger(n) && n >= 1 && n <= 5 ? STARS[n - 1] : null;
 }
 
-// A book format as one of the choices: "📘 Book", "Paperback", "📱 Ebook" ->
-// "📖Book"; "🔉 Audio", "audiobook" -> "🎧Audiobook"; "💬 Comic", "Graphic
+// A book format as one of the choices: "📘 Book", "Paperback" -> "📖Book";
+// "📱 Ebook", "Digital", "Kindle" -> "📱Ebook"; "🔉 Audio", "audiobook" -> "🎧Audiobook"; "💬 Comic", "Graphic
 // novel", "Manga" -> "💬Comic"; null when it's none of them.
 export function formatFor(v) {
 	const s = String(v ?? "").trim();
 	if (!s) return null;
 	if (/audio/i.test(s)) return "🎧Audiobook";
 	if (/comic|graphic|manga|manhwa/i.test(s)) return "💬Comic";
-	if (/book|paper|hard|print|kindle|digital|e-?reader|novel/i.test(s)) return "📖Book";
+	if (/e-?book|digital|kindle|kobo|e-?reader|epub/i.test(s)) return "📱Ebook";
+	if (/book|paper|hard|print|novel/i.test(s)) return "📖Book";
 	return null;
 }
 
