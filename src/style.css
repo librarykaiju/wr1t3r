@@ -1,6 +1,6 @@
 /* Colors, fonts and themes follow Reader's (librarykaiju/reader). A theme is a
    family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night, Catppuccin,
-   Kanagawa, Everforest, Nord, Monokai, SynthWave '84) and a mode (Auto, Light, Dark);
+   Kanagawa, Everforest, Nord, Monokai, SynthWave '84, Bubblegum, Sakura) and a mode (Auto, Light, Dark);
    src/theme.js and public/theme.js set data-theme on <html>. Default + Auto
    sets none, and this sheet follows the system. --f1 to --f7 are each theme's
    rainbow, for the sidebar's folders, from its official palette where it has
@@ -177,6 +177,38 @@
 	color-scheme: dark;
 }
 :root[data-theme=synthwave] :is(.md-h1, .md-h2, .md-h3, .planner-title, .home-section, .home-boards-head h2) { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }
+/* Bubblegum, wr1t3r's own: candy pink with a bright rainbow, and a
+   plum-dark Bubblegum Night. Pink links and buttons, deeper pink headings. */
+:root[data-theme=bubblegum] {
+	--bg: #fff4f9; --fg: #3a1d33; --muted: #86597a; --line: #f6cfe1; --card: #ffffff; --sel: #fcdcea;
+	--accent: #d6246f; --bad: #b3261e; --hl: #ffe27a; --heading: #c2185b;
+	--panel: #ffe6f1; --mark: #c79bb3; --code-bg: #fdeaf3;
+	--f1: #d6246f; --f2: #d4500b; --f3: #966b00; --f4: #16804f; --f5: #0a7a91; --f6: #5b4cf0; --f7: #a32fd0;
+	color-scheme: light;
+}
+:root[data-theme=bubblegum-night] {
+	--bg: #22131f; --fg: #fde4f0; --muted: #c49ab3; --line: #43263b; --card: #2c1828; --sel: #4a2843;
+	--accent: #ff6fb5; --bad: #ff8a80; --hl: #6b2a55; --heading: #ff8fc8;
+	--panel: #1c0f1a; --mark: #8a6380; --code-bg: #331d2f;
+	--f1: #ff6fb5; --f2: #ff9a62; --f3: #ffd166; --f4: #6ee7a8; --f5: #5fd4e8; --f6: #a99bff; --f7: #e08cff;
+	color-scheme: dark;
+}
+/* Sakura, wr1t3r's own: soft cherry-blossom pink with sage and dusty
+   colors, and Sakura Night for dark. */
+:root[data-theme=sakura] {
+	--bg: #fdf6f7; --fg: #40303a; --muted: #7d6670; --line: #ecd5dc; --card: #ffffff; --sel: #f6e3e8;
+	--accent: #c73a6c; --bad: #b3261e; --hl: #f8e3a8; --heading: #b03f68;
+	--panel: #f6e8eb; --mark: #b8a2ab; --code-bg: #f6e8eb;
+	--f1: #c73a6c; --f2: #bb5f2c; --f3: #87700f; --f4: #4c7d4f; --f5: #2f7a7a; --f6: #5868ad; --f7: #8c58a8;
+	color-scheme: light;
+}
+:root[data-theme=sakura-night] {
+	--bg: #241c22; --fg: #f3e4e9; --muted: #b8a2ab; --line: #463640; --card: #2d232a; --sel: #4a3a44;
+	--accent: #f28fb3; --bad: #ff8a80; --hl: #5c3a48; --heading: #f2a7c3;
+	--panel: #1e171c; --mark: #7d6670; --code-bg: #322730;
+	--f1: #f28fb3; --f2: #f2b08a; --f3: #e8d28a; --f4: #a3d4a0; --f5: #8fd0cc; --f6: #a9b8ef; --f7: #d2a8e8;
+	color-scheme: dark;
+}
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
