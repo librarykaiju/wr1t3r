@@ -1,4 +1,6 @@
 // Just enough of Google Drive's API for src/gdrive.js, as fetch(url, init).
+import { createHash } from "node:crypto";
+
 // Files the app didn't make (hidden: true) are left out of listings, as
 // drive.file would.
 
@@ -7,7 +9,7 @@ export function fakeDrive() {
 	const files = new Map(); // id -> {id, name, parents, mimeType, version, bytes, trashed, appProperties, hidden}
 	const calls = [];
 	const json = (d, status = 200) => new Response(JSON.stringify(d), { status, headers: { "Content-Type": "application/json" } });
-	const meta = (f) => ({ id: f.id, name: f.name, parents: f.parents, mimeType: f.mimeType, version: String(f.version), size: f.bytes ? String(f.bytes.length) : undefined, trashed: !!f.trashed });
+	const meta = (f) => ({ id: f.id, name: f.name, parents: f.parents, mimeType: f.mimeType, version: String(f.version), md5Checksum: f.bytes ? createHash("md5").update(f.bytes).digest("hex") : undefined, headRevisionId: f.bytes ? "r" + f.version : undefined, size: f.bytes ? String(f.bytes.length) : undefined, trashed: !!f.trashed });
 	const add = (o) => { const f = { id: "f" + ++n, version: 1, parents: [], ...o }; files.set(f.id, f); return f; };
 	const bytesOf = async (body) => (body == null ? new Uint8Array() : typeof body === "string" ? new TextEncoder().encode(body) : body instanceof Blob ? new Uint8Array(await body.arrayBuffer()) : new Uint8Array(body));
 
@@ -55,11 +57,13 @@ export function fakeDrive() {
 		return json({ error: { message: `fake has no ${method} ${u.pathname}` } }, 500);
 	}
 	// A path's file, for checking; and a way to edit one "elsewhere".
+	// Drive's version number also goes up on its own (indexing and the like).
+	const bump = (path) => { find(path).version += 3; };
 	const find = (path) => {
 		const top = [...files.values()].find((f) => f.appProperties?.wr1t3r === "notebook" && !f.trashed);
 		let at = top;
 		for (const name of path.split("/")) { at = [...files.values()].find((f) => !f.trashed && f.name === name && f.parents[0] === at?.id); if (!at) return null; }
 		return at;
 	};
-	return { fetch, calls, files, find, add };
+	return { fetch, calls, files, find, add, bump };
 }

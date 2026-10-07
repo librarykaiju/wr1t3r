@@ -41,8 +41,14 @@ test("Drive keeps notes and pictures under one folder, by path", async () => {
 	assert.equal(r.version, b.version);
 	assert.deepEqual(gone, { path: "Nope.md", missing: true });
 
+	// Google bumping its own version number isn't a change.
+	const v1 = (await drive.list()).find((f) => f.path === "Story/Ch 2.md").version;
+	fake.bump("Story/Ch 2.md");
+	const again = await drive.write("Story/Ch 2.md", enc("two, more"), v1);
+	assert.equal(again.ok, true, "a second save after Google's own bump isn't a conflict");
+
 	// A change made elsewhere shows as a conflict here.
-	fake.find("Story/Ch 2.md").version++;
+	const f2 = fake.find("Story/Ch 2.md"); f2.bytes = enc("changed elsewhere"); f2.version++;
 	const v2 = (await drive.list()).find((f) => f.path === "Story/Ch 2.md").version;
 	assert.deepEqual(await drive.remove("Story/Ch 2.md", "1"), { ok: false, version: v2 });
 	assert.deepEqual(await drive.remove("Story/Ch 2.md", v2), { ok: true });
