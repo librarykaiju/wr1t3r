@@ -1,6 +1,6 @@
 /* Colors, fonts and themes follow Reader's (librarykaiju/reader). A theme is a
    family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night, Catppuccin,
-   Kanagawa, SynthWave '84) and a mode (Auto, Light, Dark);
+   Kanagawa, Everforest, Nord, Monokai, SynthWave '84) and a mode (Auto, Light, Dark);
    src/theme.js and public/theme.js set data-theme on <html>. Default + Auto
    sets none, and this sheet follows the system. --f1 to --f7 are each theme's
    rainbow, for the sidebar's folders, from its official palette where it has
@@ -119,6 +119,52 @@
 	--panel: #e5ddb0; --mark: #a09cac; --code-bg: #e7dba0;
 	--f1: #c84053; --f2: #cc6d00; --f3: #77713f; --f4: #6f894e; --f5: #597b75; --f6: #4d699b; --f7: #624c83;
 	color-scheme: light;
+}
+/* Everforest (github.com/sainnhe/everforest): Medium dark and light. Light's
+   green and grey wash out on its cream background, so its accent and muted
+   text are darkened from its palette (4.9:1 and 4.3:1). */
+:root[data-theme=everforest] {
+	--bg: #2d353b; --fg: #d3c6aa; --muted: #9da9a0; --line: #3d484d; --card: #343f44; --sel: #475258;
+	--accent: #a7c080; --bad: #e67e80; --hl: #4d4c43;
+	--panel: #232a2e; --mark: #7a8478; --code-bg: #343f44;
+	--f1: #e67e80; --f2: #e69875; --f3: #dbbc7f; --f4: #a7c080; --f5: #83c092; --f6: #7fbbb3; --f7: #d699b6;
+	color-scheme: dark;
+}
+:root[data-theme=everforest-light] {
+	--bg: #fdf6e3; --fg: #5c6a72; --muted: #687867; --line: #e6e2cc; --card: #fffbef; --sel: #e6e2cc;
+	--accent: #627200; --bad: #f85552; --hl: #faedcd;
+	--panel: #f4f0d9; --mark: #a6b0a0; --code-bg: #efebd4;
+	--f1: #f85552; --f2: #f57d26; --f3: #dfa000; --f4: #8da101; --f5: #35a77c; --f6: #3a94c5; --f7: #df69ba;
+	color-scheme: light;
+}
+/* Nord (nordtheme.com): Polar Night, and its "bright ambiance" (Snow Storm
+   background) for light. Nord's comment grey is too faint for muted text, so
+   dark's muted sits between Snow Storm and Polar Night, and light's accent is
+   a darker Frost blue (4.6:1). */
+:root[data-theme=nord] {
+	--bg: #2e3440; --fg: #d8dee9; --muted: #a3acbd; --line: #3b4252; --card: #3b4252; --sel: #434c5e;
+	--accent: #88c0d0; --bad: #bf616a; --hl: #5a5443;
+	--panel: #272c36; --mark: #616e88; --code-bg: #3b4252;
+	--f1: #bf616a; --f2: #d08770; --f3: #ebcb8b; --f4: #a3be8c; --f5: #8fbcbb; --f6: #81a1c1; --f7: #b48ead;
+	color-scheme: dark;
+}
+:root[data-theme=nord-light] {
+	--bg: #eceff4; --fg: #2e3440; --muted: #4c566a; --line: #d8dee9; --card: #f8f9fb; --sel: #d8dee9;
+	--accent: #4c6d99; --bad: #bf616a; --hl: #f3e3bd;
+	--panel: #e5e9f0; --mark: #7b88a1; --code-bg: #e5e9f0;
+	--f1: #bf616a; --f2: #d08770; --f3: #c9a14f; --f4: #8aa872; --f5: #6aa3a2; --f6: #5e81ac; --f7: #b48ead;
+	color-scheme: light;
+}
+/* Monokai (monokai.nl, the classic Sublime Text colors): dark only, like
+   SynthWave '84. Green buttons, cyan links, pink for errors. Its comment
+   brown is too faint for muted text, so muted is a lighter brown. Six
+   accents, so the rainbow's fifth is its terminal palette's pale cyan. */
+:root[data-theme=monokai] {
+	--bg: #272822; --fg: #f8f8f2; --muted: #a59f85; --line: #3e3d32; --card: #2f302a; --sel: #49483e;
+	--accent: #a6e22e; --link: #66d9ef; --bad: #f92672; --hl: #5b5a2e;
+	--panel: #1e1f1c; --mark: #75715e; --code-bg: #3e3d32;
+	--f1: #f92672; --f2: #fd971f; --f3: #e6db74; --f4: #a6e22e; --f5: #a1efe4; --f6: #66d9ef; --f7: #ae81ff;
+	color-scheme: dark;
 }
 /* SynthWave '84 (github.com/robb0wen/synthwave-vscode): dark only, like
    Sepia is light only. Cyan links, pink buttons, headings in its hot pink

@@ -1,10 +1,10 @@
 // Themes: a family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night,
-// Catppuccin, Kanagawa, SynthWave '84) and a mode (Auto,
-// Light, Dark). themeAttr() gives the data-theme value set on <html>; the
+// Catppuccin, Kanagawa, Everforest, Nord, Monokai, SynthWave '84) and a
+// mode (Auto, Light, Dark). themeAttr() gives the data-theme value set on <html>; the
 // colors are in src/style.css. public/theme.js repeats this before the page
 // draws, so keep the two in step.
 
-export const FAMILIES = ["default", "sepia", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "synthwave"];
+export const FAMILIES = ["default", "sepia", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave"];
 
 const VARIANTS = {
 	default: { light: "light", dark: "dark" },
@@ -14,6 +14,9 @@ const VARIANTS = {
 	tokyonight: { light: "tokyonight-day", dark: "tokyonight" },
 	catppuccin: { light: "catppuccin-latte", dark: "catppuccin" },
 	kanagawa: { light: "kanagawa-lotus", dark: "kanagawa" },
+	everforest: { light: "everforest-light", dark: "everforest" },
+	nord: { light: "nord-light", dark: "nord" },
+	monokai: { light: "monokai", dark: "monokai" }, // dark only
 	synthwave: { light: "synthwave", dark: "synthwave" }, // dark only
 };
 
