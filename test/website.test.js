@@ -52,6 +52,58 @@ test("the site: pages, links, pictures, front page, and what stays private", () 
 	assert.ok(withMedia.files.get("essays/walking.html").includes('<audio controls preload="none" src="../files/song.mp3">'));
 });
 
+test("the calendar links days to posts, and each month gets a page", () => {
+	const notes = [
+		{ path: "a.md", text: note("publish: true\ndate: 2026-09-14", "A") },
+		{ path: "b.md", text: note("publish: true\ndate: 2026-09-14", "B") },
+		{ path: "c.md", text: note("publish: true\ndate: 2026-09-02", "C") },
+		{ path: "d.md", text: note("publish: true\ndate: 2026-07-30", "D") },
+		{ path: "e.md", text: note("publish: true", "undated") },
+	];
+	const site = buildSite(notes, [], { calendar: true });
+	const c = site.files.get("c.html");
+	assert.ok(c.includes('<td class="on"><a href="c.html" title="c">2</a></td>'), "one post: links to it");
+	assert.ok(c.includes('href="archive/2026-09.html#d-14"'), "two posts: links to the day on the month's page");
+	assert.ok(c.includes('class="cal-prev" href="archive/2026-07.html"') && c.includes('<span class="cal-next"></span>'));
+	assert.ok(site.files.get("d.html").includes(">July 2026</a>"), "a page shows its own month");
+	assert.ok(site.files.get("e.html").includes(">September 2026</a>"), "an undated page shows the latest month");
+	const sept = site.files.get("archive/2026-09.html");
+	assert.ok(sept.includes('<h2 id="d-14">September 14, 2026</h2>') && sept.includes('href="../a.html"') && sept.includes('href="../style.css"'));
+	assert.ok(site.files.get("archive/index.html").includes('href="2026-07.html"'));
+	assert.ok(!buildSite(notes, []).files.has("archive/index.html"), "off unless asked");
+	// September 2026 starts on a Tuesday: two blank cells first.
+	assert.ok(c.includes("<tbody><tr><td></td><td></td><td>1</td>"));
+});
+
+test("a menu of top folders, each with its list, and previous/next within a folder", () => {
+	const notes = [
+		{ path: "Essays/One.md", text: note("publish: true\ndate: 2026-01-01", "1") },
+		{ path: "Essays/Two.md", text: note("publish: true\ndate: 2026-02-01", "2") },
+		{ path: "Essays/Old/Three.md", text: note("publish: true\ndate: 2025-01-01", "3") },
+		{ path: "Essays/index.md", text: note("publish: true", "named index") },
+		{ path: "Recipes/Soup.md", text: note("publish: true", "soup") },
+	];
+	const site = buildSite(notes, []);
+	const one = site.files.get("essays/one.html");
+	assert.ok(one.includes('<nav class="menu" aria-label="Sections"><a href="index.html" aria-current="page">Essays</a><a href="../recipes/index.html">Recipes</a></nav>'));
+	assert.ok(one.includes('class="prev" href="two.html"><span>Previous</span>Two</a>') && one.includes('<span class="next"></span>') === false);
+	assert.ok(site.files.get("essays/two.html").includes('<span class="prev"></span>'));
+	const list = site.files.get("essays/index.html");
+	assert.ok(list.includes('href="old/three.html"') && list.includes('<h2 class="folder">Old</h2>') && list.includes('href="index-2.html"'));
+	assert.ok(!site.files.get("recipes/soup.html").includes('class="pager"'), "alone in its folder: no pager");
+});
+
+test("a logo from the notebook beside the title, and as the tab icon", () => {
+	const notes = [{ path: "Essays/A.md", text: note("publish: true", "a") }];
+	const site = buildSite(notes, ["art/Logo.png"], { title: "Mine", logo: "art/Logo.png" });
+	const a = site.files.get("essays/a.html");
+	assert.ok(a.includes('<img class="logo" src="../files/logo.png" alt=""><span>Mine</span>') && a.includes('<link rel="icon" href="../files/logo.png">'));
+	assert.deepEqual(site.files.get("files/logo.png"), { attachment: "art/Logo.png" });
+	const only = buildSite(notes, ["art/Logo.png"], { title: "Mine", logo: "art/Logo.png", logoOnly: true }).files.get("index.html");
+	assert.ok(only.includes('<img class="logo" src="files/logo.png" alt="Mine"></a>'));
+	assert.ok(!buildSite(notes, [], { logo: "art/Logo.png" }).files.get("index.html").includes("logo"), "a missing picture is no logo");
+});
+
 test("support links take names or addresses, and only https links", () => {
 	assert.deepEqual(supportLinks({ kofi: "@me", patreon: "https://www.patreon.com/me?x=1" }).map((l) => l.url), ["https://ko-fi.com/me", "https://patreon.com/me"]);
 	assert.deepEqual(supportLinks({ url: "javascript:alert(1)" }), []);

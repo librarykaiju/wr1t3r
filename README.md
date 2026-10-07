@@ -360,7 +360,8 @@ Commands, then "Export as website", turns every note with `publish: true` into a
 - One .html page per note with relative links, a front page listing them by folder (a published `Home.md` or `Index.md` at the top becomes its text), `not_found.html` for Neocities, and `style.css` built from the notebook's theme and font. With the Auto theme the site follows the visitor's light or dark setting.
 - `[[Links]]` to published notes become links; links to anything else become plain words. Properties, `%% comments %%`, block ids and dataview/base blocks never go in. Notes in `_` folders and `draft: true` notes are left out even when marked.
 - Pictures and PDFs a published note uses are copied into `files/`. Audio and video only when "Include audio and video" is on, since a free Neocities site won't take them.
-- Support buttons (Ko-fi, Patreon, one link of your own) are plain links in a box beside the text, or under it on phones. No third-party scripts.
+- Navigation: the site title (and an optional logo, a picture from the notebook that's also the tab icon) goes to the front page; a menu links each top-level folder's own list (`folder/index.html`); each page ends with Previous and Next in its folder, newest first.
+- The sidebar, beside the text or under it on phones, can hold a calendar of what was posted when (from each note's `date`), with a page per month under `archive/` and an Archive menu item, and support buttons (Ko-fi, Patreon, one link of your own). They're plain links, no third-party scripts.
 - The dialog remembers its settings and the pages of the last download on this device, and lists pages that have dropped off since, so they can be deleted from the host.
 
 To put it online: unzip, then drag the files and folders into the Neocities dashboard, Netlify Drop or Cloudflare Pages.

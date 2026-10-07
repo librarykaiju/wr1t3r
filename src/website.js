@@ -11,10 +11,13 @@
 // private is named by its path. Pictures and PDFs it uses are copied into
 // files/; audio and video only when asked (a free Neocities site won't take
 // them). A published note named Home or Index (at the top of the notebook)
-// becomes the front page's text, above the list of pages.
+// becomes the front page's text, above the list of pages. A menu at the top
+// links each top-level folder's own list of pages (folder/index.html), and
+// each page ends with links to the pages before and after it in its folder.
 //
-// Support buttons (Ko-fi, Patreon, one link of the user's own) go in a box
-// beside the text on wide screens and under it on phones. They're plain
+// The sidebar (beside the text on wide screens, under it on phones) can hold
+// a calendar of what was posted when, with a page per month under archive/,
+// and support buttons (Ko-fi, Patreon, one link of the user's own). They're plain
 // links in the site's colors: no embed scripts, so nothing third-party loads.
 
 import MarkdownIt from "markdown-it";
@@ -24,7 +27,7 @@ import { cleanNote } from "./compile.js";
 import { resolveNote } from "./links.js";
 import { resolveAttachment, attachmentKind } from "./attachments.js";
 
-export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html" };
+export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html" };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const first = (v) => (Array.isArray(v) ? v.find((x) => x != null && String(x).trim() !== "") : v);
@@ -58,7 +61,8 @@ export function pageFiles(paths) {
 		const parts = sitePath(path).split("/");
 		const base = parts.map((p, i) => slug(p, i < parts.length - 1 ? "folder" : "page")).join("/");
 		let name = base + ".html", n = 1;
-		while (taken.has(name)) name = `${base}-${++n}.html`;
+		// index.html in a folder is that folder's list of pages.
+		while (taken.has(name) || /(^|\/)index\.html$/.test(name)) name = `${base}-${++n}.html`;
 		taken.add(name);
 		out.set(path, name);
 	}
@@ -287,7 +291,9 @@ export function buildSite(notes, attachments, opts = {}) {
 	const out = new Map();
 	const pages = [];
 	const support = supportBox(opts.support);
-	const page = (site, from, info, body) => out.set(site, html({ ...info, body, siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, support, isIndex: site === SITE_FILES.index }));
+	// Pages are written last, once every page's date is known for the calendar.
+	const pending = [];
+	const page = (site, from, info, body) => pending.push({ site, info, body });
 	const ctxFor = (from, site) => ({
 		kindOf: (name) => (IMAGE.test(name) || /\.(pdf|mp3|m4a|wav|ogg|flac|mp4|webm|mov)$/i.test(name) ? attachmentKind(name) || (IMAGE.test(name) ? "image" : null) : null),
 		fileFor(name) {
@@ -333,26 +339,93 @@ export function buildSite(notes, attachments, opts = {}) {
 
 	// The front page: Home's text, then every page by folder, newest first.
 	const lead = front ? render(front, SITE_FILES.index) : null;
-	const groups = new Map();
-	for (const p of [...pages].sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title))) {
-		if (!groups.has(p.folder)) groups.set(p.folder, []);
-		groups.get(p.folder).push(p);
+	const newest = (a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title);
+	// Pages grouped by folder (under `under`, whose name is left off), newest first.
+	const listOf = (site, ps, under = "") => {
+		const groups = new Map();
+		for (const p of [...ps].sort(newest)) {
+			const f = under ? p.folder.slice(under.length).replace(/^\//, "") : p.folder;
+			if (!groups.has(f)) groups.set(f, []);
+			groups.get(f).push(p);
+		}
+		return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([folder, ps]) => [
+			folder ? `<h2 class="folder">${esc(folder.split("/").join(" / "))}</h2>` : "",
+			`<ul class="pages">`,
+			...ps.map((p) => `<li><a href="${esc(relativeURL(site, p.file))}">${esc(p.title)}</a>${p.date ? ` <time datetime="${p.date}">${esc(longDate(p.date))}</time>` : ""}</li>`),
+			`</ul>`,
+		].filter(Boolean).join("\n")).join("\n");
+	};
+	const list = listOf(SITE_FILES.index, pages);
+	// Each top-level folder's list of pages.
+	const tops = [...new Set(pages.map((p) => p.folder.split("/")[0]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+	// (archive/ and files/ are the site's own, so folders by those names list elsewhere)
+	const topFile = (f) => { const d = slug(f, "folder"); return `${/^(archive|files)$/.test(d) ? d + "-2" : d}/index.html`; };
+	for (const f of tops) page(topFile(f), "", { title: f, tags: [], date: "" }, `<nav class="contents">\n${listOf(topFile(f), pages.filter((p) => p.folder === f || p.folder.startsWith(f + "/")), f)}\n</nav>`);
+	// Previous and next within a folder, in the lists' order.
+	const pagerOf = new Map();
+	for (const f of new Set(pages.map((p) => p.folder))) {
+		const ps = pages.filter((p) => p.folder === f).sort(newest);
+		ps.forEach((p, i) => pagerOf.set(p.file, { prev: ps[i - 1], next: ps[i + 1] }));
 	}
-	const list = [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([folder, ps]) => [
-		folder ? `<h2 class="folder">${esc(folder.split("/").join(" / "))}</h2>` : "",
-		`<ul class="pages">`,
-		...ps.map((p) => `<li><a href="${esc(relativeURL(SITE_FILES.index, p.file))}">${esc(p.title)}</a>${p.date ? ` <time datetime="${p.date}">${esc(longDate(p.date))}</time>` : ""}</li>`),
-		`</ul>`,
-	].filter(Boolean).join("\n")).join("\n");
 	page(SITE_FILES.index, front?.path ?? "", { title: lead?.info.title || title, tags: [], date: "", cover: lead?.info.cover, banner: lead?.info.banner, description: lead?.info.description }, (lead?.body || "") + (pages.length ? `<nav class="contents" aria-label="Pages">\n${list}\n</nav>` : `<p class="empty">Nothing published yet.</p>`));
 	if (front) pages.unshift({ path: front.path, file: SITE_FILES.index, title: lead.info.title, date: lead.info.date, folder: "" });
 	page(SITE_FILES.missing, "", { title: "Page not found", tags: [], date: "" }, `<p>There's no page here. It may have been moved or taken down.</p>\n<p><a href="/">Go to the front page</a></p>`);
+
+	// The calendar: a page per month with something posted, and an index of months.
+	const byMonth = new Map();
+	if (opts.calendar) {
+		for (const p of pages) if (p.date && p.file !== SITE_FILES.index) {
+			const m = p.date.slice(0, 7);
+			if (!byMonth.has(m)) byMonth.set(m, []);
+			byMonth.get(m).push(p);
+		}
+	}
+	const months = [...byMonth.keys()].sort();
+	const monthFile = (m) => `archive/${m}.html`;
+	for (const m of months) {
+		const site = monthFile(m);
+		const days = new Map();
+		for (const p of byMonth.get(m).sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title))) {
+			if (!days.has(p.date)) days.set(p.date, []);
+			days.get(p.date).push(p);
+		}
+		const body = [...days].map(([d, ps]) => `<h2 id="d-${d.slice(8)}">${esc(longDate(d))}</h2>\n<ul class="pages">\n${ps.map((p) => `<li><a href="${esc(relativeURL(site, p.file))}">${esc(p.title)}</a></li>`).join("\n")}\n</ul>`).join("\n");
+		page(site, "", { title: monthName(m), tags: [], date: "" }, `<nav class="contents archive">\n${body}\n</nav>`);
+	}
+	if (months.length) {
+		const site = SITE_FILES.archive;
+		const years = [...new Set(months.map((m) => m.slice(0, 4)))].sort().reverse();
+		const body = years.map((y) => `<h2 class="folder">${y}</h2>\n<ul class="pages">\n${months.filter((m) => m.startsWith(y)).reverse().map((m) => `<li><a href="${esc(relativeURL(site, monthFile(m)))}">${esc(monthName(m))}</a> <span class="count">${byMonth.get(m).length}</span></li>`).join("\n")}\n</ul>`).join("\n");
+		page(site, "", { title: "Archive", tags: [], date: "" }, `<nav class="contents">\n${body}\n</nav>`);
+	}
+	// Each page's calendar shows its own month (or the month it lists), else the latest.
+	const calendarFor = (site, info) => {
+		if (!months.length) return "";
+		const own = /^archive\/(\d{4}-\d{2})\.html$/.exec(site)?.[1] || info.date?.slice(0, 7);
+		const m = months.includes(own) ? own : months[months.length - 1];
+		return calendarBox(site, m, byMonth.get(m), months, monthFile);
+	};
+	// The logo: a picture from the notebook, beside (or instead of) the title.
+	const logo = opts.logo && attachments.includes(opts.logo) && attachmentKind(opts.logo) === "image" ? fileOf(opts.logo) : null;
+	const menuItems = [...tops.map((f) => ({ file: topFile(f), label: f })), ...(months.length ? [{ file: SITE_FILES.archive, label: "Archive" }] : [])];
+	const menuFor = (site) => (menuItems.length < 1 ? "" : `<nav class="menu" aria-label="Sections">${menuItems.map((m) => `<a href="${esc(relativeURL(site, m.file))}"${site === m.file || (m.file !== SITE_FILES.archive && site.startsWith(m.file.slice(0, -"index.html".length))) || (m.file === SITE_FILES.archive && site.startsWith("archive/")) ? ' aria-current="page"' : ""}>${esc(m.label)}</a>`).join("")}</nav>`);
+	const pagerFor = (site) => {
+		const pn = pagerOf.get(site);
+		if (!pn || (!pn.prev && !pn.next)) return "";
+		const a = (p, cls, word) => (p ? `<a class="${cls}" href="${esc(relativeURL(site, p.file))}"><span>${word}</span>${esc(p.title)}</a>` : `<span class="${cls}"></span>`);
+		return `<nav class="pager" aria-label="More in this folder">${a(pn.prev, "prev", "Previous")}${a(pn.next, "next", "Next")}</nav>\n`;
+	};
+	for (const { site, info, body } of pending) {
+		const side = calendarFor(site, info) + support;
+		out.set(site, html({ ...info, body: body + pagerFor(site), menu: menuFor(site), siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+	}
 	out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
 	return { files: out, pages, skipped: [...skipped].sort(), title };
 }
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const monthName = (m) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
 const longDate = (d) => { const [y, m, day] = d.split("-").map(Number); return `${MONTHS[m - 1]} ${day}, ${y}`; };
 
 // The support box's links, from { kofi, patreon, label, url }: a Ko-fi or
@@ -375,14 +448,42 @@ export function supportLinks(s = {}) {
 	return out;
 }
 
+// A month's calendar: each day with a post links to it (to the month's page
+// when there are several), with the months before and after a click away.
+function calendarBox(site, month, posts, months, monthFile) {
+	const [y, m] = month.split("-").map(Number);
+	const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+	const length = new Date(Date.UTC(y, m, 0)).getUTCDate();
+	const onDay = new Map();
+	for (const p of posts) { const d = Number(p.date.slice(8)); onDay.set(d, [...(onDay.get(d) || []), p]); }
+	const i = months.indexOf(month);
+	const link = (mm, label, cls) => (mm ? `<a class="${cls}" href="${esc(relativeURL(site, monthFile(mm)))}" aria-label="${esc(monthName(mm))}">${label}</a>` : `<span class="${cls}"></span>`);
+	const cells = [...Array(first).fill("<td></td>")];
+	for (let d = 1; d <= length; d++) {
+		const ps = onDay.get(d);
+		const href = ps && (ps.length === 1 ? relativeURL(site, ps[0].file) : relativeURL(site, monthFile(month)) + `#d-${String(d).padStart(2, "0")}`);
+		cells.push(ps ? `<td class="on"><a href="${esc(href)}" title="${esc(ps.map((p) => p.title).join(", "))}">${d}</a></td>` : `<td>${d}</td>`);
+	}
+	while (cells.length % 7) cells.push("<td></td>");
+	const rows = [];
+	for (let r = 0; r < cells.length; r += 7) rows.push(`<tr>${cells.slice(r, r + 7).join("")}</tr>`);
+	return `<section class="cal" aria-label="Calendar">
+<div class="cal-head">${link(months[i - 1], "‹", "cal-prev")}<a class="cal-month" href="${esc(relativeURL(site, monthFile(month)))}">${esc(monthName(month))}</a>${link(months[i + 1], "›", "cal-next")}</div>
+<table><thead><tr>${["S", "M", "T", "W", "T", "F", "S"].map((d) => `<th>${d}</th>`).join("")}</tr></thead>
+<tbody>${rows.join("")}</tbody></table>
+<a class="cal-all" href="${esc(relativeURL(site, SITE_FILES.archive))}">All months</a>
+</section>
+`;
+}
+
 function supportBox(s) {
 	const links = supportLinks(s);
 	if (!links.length) return "";
 	const heading = String(s?.heading || "").trim() || "Support my work";
-	return `<aside class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</aside>\n`;
+	return `<section class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</section>\n`;
 }
 
-function html({ title, date, tags, cover, banner, description, body, siteTitle, home, css, footer, support, isIndex }) {
+function html({ title, date, tags, cover, banner, description, body, siteTitle, home, css, footer, side, menu, logo, logoOnly, isIndex }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
 	return `<!doctype html>
 <html lang="en">
@@ -392,15 +493,16 @@ function html({ title, date, tags, cover, banner, description, body, siteTitle, 
 <title>${esc(pageTitle)}</title>
 ${description ? `<meta name="description" content="${esc(description)}">\n` : ""}<meta property="og:title" content="${esc(title)}">
 <link rel="stylesheet" href="${esc(css)}">
+${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 </head>
 <body>
-<header class="site"><a href="${esc(home)}">${esc(siteTitle)}</a></header>
-${banner ? `<div class="banner"><img src="${esc(banner)}" alt=""></div>\n` : ""}<main${support ? ' class="with-support"' : ""}>
+<header class="site"><a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}</a>${menu || ""}</header>
+${banner ? `<div class="banner"><img src="${esc(banner)}" alt=""></div>\n` : ""}<main${side ? ' class="with-side"' : ""}>
 <article>
 <h1>${esc(title)}</h1>
 ${date || tags.length ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag">#${esc(t)}</span>`).join("")}</p>\n` : ""}${cover ? `<img class="cover" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
-${support || ""}</main>
+${side ? `<aside class="side">\n${side}</aside>\n` : ""}</main>
 ${footer ? `<footer class="site">Made with <a href="https://wr1t3r.app">wr1t3r</a></footer>\n` : ""}</body>
 </html>
 `;
@@ -413,7 +515,18 @@ html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 19px/1.65 var(--editor-font, var(--serif)); }
 a { color: var(--link, var(--accent)); }
 header.site, footer.site { max-width: 42rem; margin: 0 auto; padding: 18px 20px; font: 600 15px/1.4 var(--sans); }
+header.site { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
 header.site a { color: var(--fg); text-decoration: none; }
+header.site .home { margin-right: auto; display: inline-flex; align-items: center; gap: 10px; }
+header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: contain; display: block; }
+.menu { display: flex; flex-wrap: wrap; gap: 4px 16px; font-weight: normal; }
+.menu a { color: var(--muted); }
+.menu a:hover, .menu a[aria-current] { color: var(--fg); }
+.menu a[aria-current] { text-decoration: underline; text-underline-offset: 4px; }
+.pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 3em 0 0; padding-top: 1.2em; border-top: 1px solid var(--line); font: 15px/1.4 var(--sans); }
+.pager a { text-decoration: none; color: var(--fg); }
+.pager a span { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+.pager .next { text-align: right; }
 footer.site { font-weight: normal; color: var(--muted); border-top: 1px solid var(--line); margin-top: 3em; }
 footer.site a { color: var(--muted); }
 main { max-width: 42rem; margin: 0 auto; padding: 0 20px 4em; }
@@ -444,21 +557,33 @@ li > input[type=checkbox] { margin: 0 0.5em 0 0; }
 .callout-quote, .callout-cite { border-left-color: var(--muted); }
 .footnotes { font-size: 0.85em; color: var(--muted); }
 .footnotes-sep { border: 0; border-top: 1px solid var(--line); width: 30%; margin: 3em 0 1em; }
-.contents h2.folder { font: 600 13px/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 2em 0 0.4em; }
+.contents h2.folder, .contents.archive h2 { font: 600 13px/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 2em 0 0.4em; }
 .contents ul.pages { list-style: none; padding: 0; margin: 0; }
 .contents li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .contents li time { flex: none; color: var(--muted); font: 13px var(--sans); }
 .empty { color: var(--muted); }
-.support { font: 15px/1.5 var(--sans); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 3em 0 0; }
+.side { margin: 3em 0 0; display: flex; flex-direction: column; gap: 16px; }
+.side > section { font: 15px/1.5 var(--sans); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.cal-head a { text-decoration: none; }
+.cal-month { font-weight: 600; color: var(--fg); }
+.cal-prev, .cal-next { width: 1.6em; text-align: center; font-size: 1.2em; line-height: 1; color: var(--muted); }
+.cal table { width: 100%; table-layout: fixed; border-collapse: collapse; display: table; margin: 0; font-size: 13px; }
+.cal th, .cal td { border: 0; padding: 1px 0; text-align: center; vertical-align: middle; height: 2em; line-height: 1.8em; }
+.cal th { color: var(--muted); font-weight: 500; }
+.cal td { color: var(--muted); }
+.cal td.on a { display: block; width: 1.8em; height: 1.8em; line-height: 1.8em; margin: 0 auto; border-radius: 50%; background: var(--accent); color: var(--bg); text-decoration: none; font-weight: 600; }
+.cal-all { display: block; margin-top: 8px; font-size: 13px; }
+.contents .count { color: var(--muted); font: 13px var(--sans); }
 .support h2 { font: 600 15px/1.4 var(--sans); margin: 0 0 6px; }
 .support p { margin: 0 0 10px; color: var(--muted); }
 .support a { display: block; text-align: center; text-decoration: none; font-weight: 600; padding: 9px 12px; border-radius: 999px; margin-top: 8px; color: var(--bg); background: var(--accent); }
 .support a.support-kofi { background: #13c3ff; color: #102a35; }
 .support a.support-patreon { background: #f96854; color: #fff; }
 @media (min-width: 1000px) {
-	main.with-support { max-width: calc(60rem + 40px); display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 0 3rem; }
-	main.with-support .support { margin-top: 4.2em; position: sticky; top: 20px; align-self: start; }
-	header.site:has(+ main.with-support), header.site:has(+ .banner + main.with-support), body:has(main.with-support) footer.site { max-width: calc(60rem + 40px); }
+	main.with-side { max-width: calc(60rem + 40px); display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 0 3rem; }
+	main.with-side .side { margin-top: 4.2em; position: sticky; top: 20px; align-self: start; }
+	header.site:has(+ main.with-side), header.site:has(+ .banner + main.with-side), body:has(main.with-side) footer.site { max-width: calc(60rem + 40px); }
 }
 @media (max-width: 600px) { body { font-size: 17px; } h1 { font-size: 1.6em; } }
 `;
