@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildSite, isPublished, pageFiles, relativeURL, slug, supportLinks, themeCss } from "../src/website.js";
+import { buildSite, isPublished, pageFiles, relativeURL, slug, socialLinks, supportLinks, themeCss } from "../src/website.js";
 
 const note = (props, body) => `---\n${props}\n---\n${body}`;
 
@@ -102,6 +102,38 @@ test("a logo from the notebook beside the title, and as the tab icon", () => {
 	const only = buildSite(notes, ["art/Logo.png"], { title: "Mine", logo: "art/Logo.png", logoOnly: true }).files.get("index.html");
 	assert.ok(only.includes('<img class="logo" src="files/logo.png" alt="Mine"></a>'));
 	assert.ok(!buildSite(notes, [], { logo: "art/Logo.png" }).files.get("index.html").includes("logo"), "a missing picture is no logo");
+});
+
+test("the notebook layout: folders down the left, open on the way to the page", () => {
+	const notes = [
+		{ path: "Essays/One.md", text: note("publish: true", "1") },
+		{ path: "Essays/Old/Two.md", text: note("publish: true", "2") },
+		{ path: "Recipes/Soup.md", text: note("publish: true", "s") },
+		{ path: "Loose.md", text: note("publish: true", "l") },
+	];
+	const site = buildSite(notes, [], { layout: "notebook", sidebar: false, support: { kofi: "me" } });
+	const two = site.files.get("essays/old/two.html");
+	assert.ok(two.includes('<body class="layout-notebook">') && !two.includes('class="menu"') && !two.includes("ko-fi"), "no top menu, and no sidebar when it's off");
+	assert.ok(two.includes('<li><details open><summary>Essays</summary><ul><li><details open><summary>Old</summary><ul><li><a href="two.html" aria-current="page">Two</a></li></ul></details></li><li><a href="../one.html">One</a></li></ul></details></li>'));
+	assert.ok(two.includes("<li><details><summary>Recipes</summary>") && two.includes('<a href="../../loose.html">Loose</a>') && two.includes('<a href="../../index.html">Home</a>'));
+});
+
+test("social links are named for their site", () => {
+	assert.deepEqual(socialLinks("https://bsky.app/profile/me\n@me@mastodon.social\nhttps://www.instagram.com/me\nhttps://example.com/@me\nnot a link\njavascript:alert(1)").map((l) => l.name + " " + l.url), [
+		"Bluesky https://bsky.app/profile/me", "Mastodon https://mastodon.social/@me", "Instagram https://www.instagram.com/me", "Mastodon https://example.com/@me",
+	]);
+	assert.deepEqual(socialLinks("me@example.com\nmailto:you@example.org"), [{ name: "Email", url: "mailto:me@example.com", email: true }, { name: "Email", url: "mailto:you@example.org", email: true }]);
+	const mail = buildSite([{ path: "a.md", text: note("publish: true", "a") }], [], { social: "me@example.com" }).files.get("a.html");
+	assert.ok(mail.includes('class="email" href="&#109;&#97;') && !mail.includes("me@example.com"), "the address is written as character codes");
+	const site = buildSite([{ path: "a.md", text: note("publish: true", "a") }], [], { social: "https://bsky.app/profile/me" });
+	assert.ok(site.files.get("a.html").includes('<a href="https://bsky.app/profile/me" rel="me noopener">Bluesky</a>'));
+});
+
+test("share buttons on posts only, unless turned off", () => {
+	const notes = [{ path: "a.md", text: note("publish: true", "a") }];
+	const site = buildSite(notes, []);
+	assert.ok(site.files.get("a.html").includes('<div class="share" hidden>') && !site.files.get("index.html").includes('class="share"'));
+	assert.ok(!buildSite(notes, [], { share: false }).files.get("a.html").includes('class="share"'));
 });
 
 test("support links take names or addresses, and only https links", () => {

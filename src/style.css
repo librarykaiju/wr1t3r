@@ -1553,6 +1553,7 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .compile-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .compile-actions button:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .compile-preview { width: 100%; height: 100%; border: 0; background: #fff; }
+.website .compile-form textarea { margin: 0; font: 14px/1.4 var(--sans); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; resize: vertical; }
 .website .compile-form h3 { margin: 6px 0 -4px; font-size: 13px; font-weight: 600; color: var(--fg); }
 .website .compile-form label.check { flex-direction: row; align-items: flex-start; gap: 6px; color: var(--fg); }
 .website .compile-form label.check input { margin-top: 2px; }

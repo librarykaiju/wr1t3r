@@ -69,7 +69,12 @@ export function openWebsite(host) {
 	for (const p of host.attachments().filter((p) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(p)).sort()) logo.append(new Option(p.split("/").pop(), p, false, p === saved.logo));
 	field("Logo (a picture in the notebook)", logo);
 	const logoOnly = check("Show only the logo, not the title beside it", saved.logoOnly);
-	sub("Sidebar");
+	const layout = document.createElement("select");
+	layout.append(new Option("Top menu: a link per folder across the top", "top", false, saved.layout !== "notebook"), new Option("Notebook: folders down the left, as in the app", "notebook", false, saved.layout === "notebook"));
+	field("Layout", layout);
+	const share = check("Share buttons under each post", saved.share !== false);
+	sub("Right sidebar");
+	const sidebar = check("Show the right sidebar (on phones it goes under the text)", saved.sidebar !== false);
 	const calendar = check("A calendar of posts, with a page per month (for notes with a date)", saved.calendar);
 	sub("Support buttons");
 	const kofi = field("Ko-fi", text(saved.kofi, "Your Ko-fi name or page"));
@@ -77,6 +82,9 @@ export function openWebsite(host) {
 	const label = field("Your own link: words", text(saved.label, "Support my work"));
 	const url = field("Your own link: address", text(saved.url, "https://…"));
 	const note = field("A line above the buttons", text(saved.note, "Optional"));
+	const social = document.createElement("textarea");
+	Object.assign(social, { rows: 3, value: saved.social || "", placeholder: "https://bsky.app/profile/you\n@you@mastodon.social\nyou@example.com" });
+	field("Find me on: one link or email address per line", social);
 	sub("Files");
 	const media = check("Include audio and video (a free Neocities site won't take them)", saved.media);
 	const footer = check("Say “Made with wr1t3r” at the bottom", saved.footer);
@@ -104,11 +112,11 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ title: title.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked });
+	const settings = () => ({ title: title.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked });
 	const css = () => { const t = host.theme(); return themeCss(appCss, { ...t, font: host.font() }); };
 	const build = () => {
 		const s = settings();
-		return buildSite(host.notes(), host.attachments(), { title: s.title, css: css(), footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
+		return buildSite(host.notes(), host.attachments(), { title: s.title, css: css(), footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
 	};
 
 	let site = null, timer;

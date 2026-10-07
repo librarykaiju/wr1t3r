@@ -15,9 +15,12 @@
 // links each top-level folder's own list of pages (folder/index.html), and
 // each page ends with links to the pages before and after it in its folder.
 //
-// The sidebar (beside the text on wide screens, under it on phones) can hold
-// a calendar of what was posted when, with a page per month under archive/,
-// and support buttons (Ko-fi, Patreon, one link of the user's own). They're plain
+// Two layouts: "top", a menu of top-level folders across the top, and
+// "notebook", the folders down the left as in the app, folding open (plain
+// <details>, no scripts). The right sidebar is optional; it holds a calendar
+// of what was posted when (with a page per month under archive/), support
+// buttons (Ko-fi, Patreon, one link of the user's own) and links to the
+// user's social accounts. On phones the sidebars go above and below the text. They're plain
 // links in the site's colors: no embed scripts, so nothing third-party loads.
 
 import MarkdownIt from "markdown-it";
@@ -291,6 +294,8 @@ export function buildSite(notes, attachments, opts = {}) {
 	const out = new Map();
 	const pages = [];
 	const support = supportBox(opts.support);
+	const social = socialBox(opts.social);
+	const notebook = opts.layout === "notebook";
 	// Pages are written last, once every page's date is known for the calendar.
 	const pending = [];
 	const page = (site, from, info, body) => pending.push({ site, info, body });
@@ -409,6 +414,31 @@ export function buildSite(notes, attachments, opts = {}) {
 	const logo = opts.logo && attachments.includes(opts.logo) && attachmentKind(opts.logo) === "image" ? fileOf(opts.logo) : null;
 	const menuItems = [...tops.map((f) => ({ file: topFile(f), label: f })), ...(months.length ? [{ file: SITE_FILES.archive, label: "Archive" }] : [])];
 	const menuFor = (site) => (menuItems.length < 1 ? "" : `<nav class="menu" aria-label="Sections">${menuItems.map((m) => `<a href="${esc(relativeURL(site, m.file))}"${site === m.file || (m.file !== SITE_FILES.archive && site.startsWith(m.file.slice(0, -"index.html".length))) || (m.file === SITE_FILES.archive && site.startsWith("archive/")) ? ' aria-current="page"' : ""}>${esc(m.label)}</a>`).join("")}</nav>`);
+	// The notebook layout's folders: each a <details>, open on the way to this page.
+	const treeFor = (site) => {
+		const root = { folders: new Map(), pages: [] };
+		for (const p of pages) {
+			if (p.file === SITE_FILES.index) continue;
+			let node = root;
+			for (const seg of p.folder ? p.folder.split("/") : []) {
+				if (!node.folders.has(seg)) node.folders.set(seg, { folders: new Map(), pages: [], file: null });
+				node = node.folders.get(seg);
+			}
+			node.pages.push(p);
+		}
+		const draw = (node, path) => {
+			const items = [];
+			for (const [name, sub] of [...node.folders].sort(([a], [b]) => a.localeCompare(b))) {
+				const here = path ? `${path}/${name}` : name;
+				const open = pages.some((p) => p.file === site && (p.folder === here || p.folder.startsWith(here + "/"))) || (!path && site === topFile(name));
+				items.push(`<li><details${open ? " open" : ""}><summary>${esc(name)}</summary>${draw(sub, here)}</details></li>`);
+			}
+			for (const p of [...node.pages].sort((a, b) => a.title.localeCompare(b.title))) items.push(`<li><a href="${esc(relativeURL(site, p.file))}"${p.file === site ? ' aria-current="page"' : ""}>${esc(p.title)}</a></li>`);
+			return `<ul>${items.join("")}</ul>`;
+		};
+		const top = [`<li><a href="${esc(relativeURL(site, SITE_FILES.index))}"${site === SITE_FILES.index ? ' aria-current="page"' : ""}>Home</a></li>`, ...(months.length ? [`<li><a href="${esc(relativeURL(site, SITE_FILES.archive))}"${site.startsWith("archive/") ? ' aria-current="page"' : ""}>Archive</a></li>`] : [])];
+		return `<nav class="tree" aria-label="Notes"><ul class="tree-top">${top.join("")}</ul>${draw(root, "")}</nav>\n`;
+	};
 	const pagerFor = (site) => {
 		const pn = pagerOf.get(site);
 		if (!pn || (!pn.prev && !pn.next)) return "";
@@ -416,8 +446,10 @@ export function buildSite(notes, attachments, opts = {}) {
 		return `<nav class="pager" aria-label="More in this folder">${a(pn.prev, "prev", "Previous")}${a(pn.next, "next", "Next")}</nav>\n`;
 	};
 	for (const { site, info, body } of pending) {
-		const side = calendarFor(site, info) + support;
-		out.set(site, html({ ...info, body: body + pagerFor(site), menu: menuFor(site), siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+		const side = opts.sidebar === false ? "" : calendarFor(site, info) + support + social;
+		const tree = notebook ? treeFor(site) : "";
+		const post = pages.some((p) => p.file === site && site !== SITE_FILES.index);
+		out.set(site, html({ ...info, body: body + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
 	out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
@@ -476,6 +508,75 @@ function calendarBox(site, month, posts, months, monthFile) {
 `;
 }
 
+// Links to the user's accounts elsewhere, one address per line (or a
+// Mastodon @name@server, or an email address), each named for its site. rel="me" lets Mastodon
+// show the site as verified on the profile.
+const SOCIAL = [[/(^|\.)bsky\.app$/, "Bluesky"], [/(^|\.)instagram\.com$/, "Instagram"], [/(^|\.)threads\.(net|com)$/, "Threads"], [/(^|\.)youtube\.com$|^youtu\.be$/, "YouTube"], [/(^|\.)tiktok\.com$/, "TikTok"], [/(^|\.)(x|twitter)\.com$/, "X"], [/(^|\.)facebook\.com$/, "Facebook"], [/(^|\.)linkedin\.com$/, "LinkedIn"], [/(^|\.)github\.com$/, "GitHub"], [/(^|\.)tumblr\.com$/, "Tumblr"], [/(^|\.)substack\.com$/, "Substack"], [/(^|\.)pinterest\.com$/, "Pinterest"], [/(^|\.)twitch\.tv$/, "Twitch"], [/(^|\.)goodreads\.com$/, "Goodreads"], [/(^|\.)letterboxd\.com$/, "Letterboxd"], [/(^|\.)thestorygraph\.com$/, "StoryGraph"]];
+export function socialLinks(text) {
+	const out = [];
+	for (let line of String(text || "").split(/\n/)) {
+		line = line.trim();
+		if (!line) continue;
+		const mail = /^(?:mailto:)?([^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,})$/i.exec(line);
+		if (mail && !/^@/.test(line)) { out.push({ name: "Email", url: "mailto:" + mail[1], email: true }); continue; }
+		const handle = /^@?([\w.]+)@([\w-]+(?:\.[\w-]+)+)$/.exec(line);
+		if (handle) { out.push({ name: "Mastodon", url: `https://${handle[2]}/@${handle[1]}` }); continue; }
+		if (!/^https?:\/\/[^\s"<>]+$/i.test(line)) continue;
+		let host;
+		try { host = new URL(line).hostname.replace(/^www\./, ""); } catch { continue; }
+		const name = SOCIAL.find(([re]) => re.test(host))?.[1] || (/\/@[\w.]+\/?$/.test(line) ? "Mastodon" : host);
+		out.push({ name, url: line.replace(/^http:/i, "https:") });
+	}
+	return out;
+}
+
+// Share under each post. The page doesn't know its own address until it's
+// online, so a few lines of script fill the links in (and the box stays
+// hidden without scripts). Phones get the system share sheet.
+const SHARE = `<div class="share" hidden>
+<span>Share</span>
+<button type="button" data-share="native" hidden>Share…</button>
+<button type="button" data-share="copy">Copy link</button>
+<a data-share="bluesky" target="_blank" rel="noopener">Bluesky</a>
+<button type="button" data-share="mastodon">Mastodon</button>
+<a data-share="email">Email</a>
+</div>
+<script>
+(() => {
+	const box = document.currentScript.previousElementSibling, url = location.href.split("#")[0], title = document.querySelector("h1")?.textContent || document.title;
+	const q = (k) => box.querySelector('[data-share="' + k + '"]'), text = encodeURIComponent(title + " " + url);
+	box.hidden = false;
+	if (navigator.share && matchMedia("(pointer: coarse)").matches) q("native").hidden = false;
+	q("native").onclick = () => navigator.share({ title, url }).catch(() => {});
+	q("copy").onclick = async (e) => { try { await navigator.clipboard.writeText(url); e.target.textContent = "Copied"; } catch { prompt("Copy this link:", url); } };
+	q("bluesky").href = "https://bsky.app/intent/compose?text=" + text;
+	q("email").href = "mailto:?subject=" + encodeURIComponent(title) + "&body=" + encodeURIComponent(url);
+	q("mastodon").onclick = () => {
+		let host = "";
+		try { host = localStorage.getItem("share-mastodon") || ""; } catch {}
+		host = (prompt("Your Mastodon server:", host || "mastodon.social") || "").trim().replace(/^https?:\\/\\//, "").replace(/\\/.*$/, "");
+		if (!host) return;
+		try { localStorage.setItem("share-mastodon", host); } catch {}
+		window.open("https://" + host + "/share?text=" + text, "_blank", "noopener");
+	};
+})();
+</script>
+`;
+
+const MAIL_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>`;
+
+function socialBox(text) {
+	const links = socialLinks(text);
+	if (!links.length) return "";
+	// An email address is written as character codes: the same link, a little
+	// harder for address-harvesting bots to read.
+	const codes = (t) => [...t].map((c) => `&#${c.codePointAt(0)};`).join("");
+	const item = (l) => (l.email
+		? `<li><a class="email" href="${codes(l.url)}">${MAIL_ICON}Email</a></li>`
+		: `<li><a href="${esc(l.url)}" rel="me noopener">${esc(l.name)}</a></li>`);
+	return `<section class="social" aria-label="Find me on">\n<h2>Find me on</h2>\n<ul>${links.map(item).join("")}</ul>\n</section>\n`;
+}
+
 function supportBox(s) {
 	const links = supportLinks(s);
 	if (!links.length) return "";
@@ -483,7 +584,7 @@ function supportBox(s) {
 	return `<section class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</section>\n`;
 }
 
-function html({ title, date, tags, cover, banner, description, body, siteTitle, home, css, footer, side, menu, logo, logoOnly, isIndex }) {
+function html({ title, date, tags, cover, banner, description, body, siteTitle, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
 	return `<!doctype html>
 <html lang="en">
@@ -495,10 +596,10 @@ ${description ? `<meta name="description" content="${esc(description)}">\n` : ""
 <link rel="stylesheet" href="${esc(css)}">
 ${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 </head>
-<body>
+<body class="${tree ? "layout-notebook" : "layout-top"}${side ? " has-side" : ""}">
 <header class="site"><a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}</a>${menu || ""}</header>
-${banner ? `<div class="banner"><img src="${esc(banner)}" alt=""></div>\n` : ""}<main${side ? ' class="with-side"' : ""}>
-<article>
+${banner ? `<div class="banner"><img src="${esc(banner)}" alt=""></div>\n` : ""}<main>
+${tree || ""}<article>
 <h1>${esc(title)}</h1>
 ${date || tags.length ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag">#${esc(t)}</span>`).join("")}</p>\n` : ""}${cover ? `<img class="cover" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
@@ -514,7 +615,7 @@ export const SITE_CSS = `
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 19px/1.65 var(--editor-font, var(--serif)); }
 a { color: var(--link, var(--accent)); }
-header.site, footer.site { max-width: 42rem; margin: 0 auto; padding: 18px 20px; font: 600 15px/1.4 var(--sans); }
+header.site, footer.site { margin: 0 auto; padding: 18px 20px; font: 600 15px/1.4 var(--sans); }
 header.site { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
 header.site a { color: var(--fg); text-decoration: none; }
 header.site .home { margin-right: auto; display: inline-flex; align-items: center; gap: 10px; }
@@ -529,7 +630,7 @@ header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: con
 .pager .next { text-align: right; }
 footer.site { font-weight: normal; color: var(--muted); border-top: 1px solid var(--line); margin-top: 3em; }
 footer.site a { color: var(--muted); }
-main { max-width: 42rem; margin: 0 auto; padding: 0 20px 4em; }
+main { margin: 0 auto; padding: 0 20px 4em; }
 .banner img { display: block; width: 100%; max-height: 280px; object-fit: cover; }
 h1, h2, h3, h4, h5, h6 { color: var(--heading, var(--fg)); line-height: 1.25; margin: 1.6em 0 0.6em; }
 h1 { font-size: 2em; margin-top: 0.6em; }
@@ -580,10 +681,45 @@ li > input[type=checkbox] { margin: 0 0.5em 0 0; }
 .support a { display: block; text-align: center; text-decoration: none; font-weight: 600; padding: 9px 12px; border-radius: 999px; margin-top: 8px; color: var(--bg); background: var(--accent); }
 .support a.support-kofi { background: #13c3ff; color: #102a35; }
 .support a.support-patreon { background: #f96854; color: #fff; }
+.social h2 { font: 600 15px/1.4 var(--sans); margin: 0 0 6px; }
+.social ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.social a { display: inline-block; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; color: var(--fg); font-size: 14px; }
+.social a:hover { border-color: var(--accent); }
+.share { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2.4em 0 0; font: 14px/1.4 var(--sans); }
+.share[hidden], .share [hidden] { display: none; }
+.share > span { color: var(--muted); margin-right: 4px; }
+.share a, .share button { font: inherit; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); text-decoration: none; cursor: pointer; }
+.share a:hover, .share button:hover { border-color: var(--accent); }
+.social a.email { display: inline-flex; align-items: center; gap: 6px; }
+/* The notebook layout's folders. */
+.tree { font: 15px/1.45 var(--sans); margin: 0 0 1.5em; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.tree ul { list-style: none; margin: 0; padding: 0; }
+.tree ul ul { padding-left: 14px; border-left: 1px solid var(--line); margin-left: 6px; }
+.tree .tree-top { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+.tree a, .tree summary { display: block; padding: 4px 6px; border-radius: 6px; color: var(--fg); text-decoration: none; cursor: pointer; }
+.tree summary { font-weight: 600; list-style: none; }
+.tree summary::-webkit-details-marker { display: none; }
+.tree summary::before { content: "›"; display: inline-block; width: 1em; color: var(--muted); transition: transform 0.15s; }
+.tree details[open] > summary::before { transform: rotate(90deg); }
+.tree a:hover, .tree summary:hover { background: var(--sel); }
+.tree a[aria-current] { background: var(--sel); font-weight: 600; }
+/* Widths: the header, footer and columns line up. */
+body { --page: calc(42rem + 40px); }
+header.site, footer.site, main { max-width: var(--page); }
 @media (min-width: 1000px) {
-	main.with-side { max-width: calc(60rem + 40px); display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 0 3rem; }
-	main.with-side .side { margin-top: 4.2em; position: sticky; top: 20px; align-self: start; }
-	header.site:has(+ main.with-side), header.site:has(+ .banner + main.with-side), body:has(main.with-side) footer.site { max-width: calc(60rem + 40px); }
+	body.has-side { --page: calc(60rem + 40px); }
+	body.has-side main { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 0 3rem; }
+	body.has-side .side { margin-top: 4.2em; position: sticky; top: 20px; align-self: start; }
+	body.layout-notebook { --page: calc(57rem + 40px); }
+	body.layout-notebook main { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 0 2.5rem; }
+	body.layout-notebook .tree { position: sticky; top: 20px; align-self: start; margin-top: 1.4em; max-height: calc(100vh - 40px); overflow-y: auto; }
+	body.layout-notebook.has-side main { grid-template-columns: 13rem minmax(0, 1fr); }
+	body.layout-notebook.has-side .side { grid-column: 2; position: static; margin-top: 3em; }
+}
+@media (min-width: 1280px) {
+	body.layout-notebook.has-side { --page: calc(75rem + 40px); }
+	body.layout-notebook.has-side main { grid-template-columns: 13rem minmax(0, 1fr) 15rem; }
+	body.layout-notebook.has-side .side { grid-column: 3; grid-row: 1; position: sticky; top: 20px; align-self: start; margin-top: 4.2em; }
 }
 @media (max-width: 600px) { body { font-size: 17px; } h1 { font-size: 1.6em; } }
 `;
