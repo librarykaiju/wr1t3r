@@ -46,6 +46,15 @@ h2 { font-size: clamp(24px, 3.4vw, 32px); margin: 0 0 12px; }
 .phones { display: flex; gap: 20px; justify-content: center; }
 .shot.phone { width: 44%; max-width: 260px; border-radius: 26px; }
 
+h3 { font: 600 22px/1.2 var(--serif); margin: 0 0 10px; }
+.points { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 40px; padding: 0; list-style: none; margin: 36px 0 8px; }
+.points li { color: var(--muted); }
+.points strong { color: var(--fg); }
+.theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin: 30px 0 12px; }
+.theme-grid figure { margin: 0; }
+.theme-grid img { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1); }
+.theme-grid figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; text-align: center; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .more ul { columns: 2; column-gap: 40px; padding-left: 20px; }
 .more li { margin-bottom: 10px; break-inside: avoid; }
 .own p { max-width: 760px; color: var(--muted); }
@@ -70,5 +79,7 @@ footer { max-width: 1120px; margin: 0 auto; padding: 32px 20px 48px; border-top:
 	.feature, .feature:nth-child(even) { grid-template-columns: 1fr; gap: 20px; }
 	.feature:nth-child(even) > :first-child { order: 0; }
 	.more ul { columns: 1; }
+	.points { grid-template-columns: 1fr; }
+	.theme-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
 	nav a:not(:last-child) { display: none; }
 }
