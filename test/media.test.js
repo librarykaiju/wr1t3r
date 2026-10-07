@@ -431,3 +431,37 @@ test("a movie's covers: OMDb's poster, then iTunes' for the same title and year"
 		assert.deepEqual(c, ["https://p/m.jpg", "https://is1.mzstatic.com/m/600x600bb.jpg"]);
 	} finally { web.restore(); }
 });
+
+test("anime falls back to Wikidata when AniList can't be reached", async () => {
+	const web = fakeWeb([
+		[host("graphql.anilist.co"), new Response("Forbidden", { status: 403 })],
+		[(u) => u.hostname === "www.wikidata.org" && u.searchParams.get("action") === "wbsearchentities", { search: [
+			{ id: "Q1", label: "Frieren", description: "2023 anime television series" },
+			{ id: "Q2", label: "Frieren", description: "2024 film" },
+		] }],
+		[(u) => u.hostname === "www.wikidata.org" && u.searchParams.get("action") === "wbgetentities", { entities: { Q1: { labels: { en: { value: "Frieren" } }, claims: {} } } }],
+	]);
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const s = await (await call(e, "/api/media/search?kind=anime&q=frieren")).json();
+		assert.deepEqual(s.results.map((r) => r.ref.qid), ["Q1"], "anime results first");
+		const n = await (await post(e, "/api/media/note", { kind: "anime", ref: s.results[0].ref, cover: "", today: "2026-10-07" })).json();
+		assert.equal(n.fields.title, "Frieren");
+	} finally { web.restore(); }
+	const down = fakeWeb([[host("graphql.anilist.co"), new Response("Forbidden", { status: 403 })]]);
+	try {
+		const r = await call({ WR1T3R_TOKEN: "t" }, "/api/media/search?kind=anime&q=frieren");
+		assert.equal(r.status, 502, "nothing anywhere: AniList's error is shown");
+		assert.match((await r.json()).error, /graphql\.anilist\.co answered 403/);
+	} finally { down.restore(); }
+});
+
+test("the page's security policy lets it reach every keyless lookup service", async () => {
+	const { readFile } = await import("node:fs/promises");
+	const csp = (await readFile(new URL("../public/_headers", import.meta.url), "utf8")).match(/connect-src ([^;]+)/)[1].split(/\s+/);
+	const code = (await readFile(new URL("../worker/media.js", import.meta.url), "utf8")) + (await readFile(new URL("../worker/wikimedia.js", import.meta.url), "utf8"));
+	// Keyed services and Steam are only ever called from the Worker.
+	const workerOnly = /omdbapi|rawg|igdb|twitch|comicvine|steampowered|anthropic/;
+	const hosts = [...new Set([...code.matchAll(/https:\/\/([a-z0-9.-]+\.[a-z]+)/g)].map((m) => m[1]))].filter((h) => !workerOnly.test(h) && !/^(images|media|covers|s4|cdn|is1)\./.test(h) && h !== "wr1t3r.invalid" && h !== "github.com");
+	for (const h of hosts) assert.ok(csp.includes("https://" + h), `connect-src is missing https://${h}`);
+});

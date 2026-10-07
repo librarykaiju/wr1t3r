@@ -176,9 +176,21 @@ async function itunesPoster(title, year = "", series = false) {
 
 // ---- anime (AniList; MyAnimeList's art through Jikan) ----------------------------------
 
-const anilist = (query, variables) => getJSON("https://graphql.anilist.co", {
-	method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }),
-});
+async function anilist(query, variables) {
+	const data = await getJSON("https://graphql.anilist.co", {
+		method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }),
+	});
+	if (!data?.data && data?.errors?.length) throw new HttpError(502, "AniList: " + (data.errors[0].message || "unknown error"));
+	return data;
+}
+
+// Anime from Wikidata, for when AniList can't be reached or finds nothing:
+// films and series whose description says they're anime or animated first.
+async function wikiAnime(q) {
+	const found = await forgiving(q, (v) => wikiSearch(getJSON, "movie", v));
+	const anime = found.filter((r) => /\banime\b|\banimated\b/i.test(r.subtitle || ""));
+	return anime.length ? anime : found;
+}
 const ANIME_FIELDS = "id idMal title { romaji english } startDate { year } format episodes coverImage { extraLarge large medium }";
 
 async function malCover(idMal) {
@@ -470,7 +482,8 @@ const SEARCH = {
 		return found.length ? found : wiki();
 	},
 	async anime(env, q) {
-		return forgiving(q, async (v) => {
+		let failed = null;
+		const found = await forgiving(q, async (v) => {
 			const data = await anilist(`query ($q: String) { Page(perPage: 10) { media(search: $q, type: ANIME, sort: SEARCH_MATCH) { ${ANIME_FIELDS} } } }`, { q: v });
 			return (data.data?.Page?.media || []).map((a) => ({
 				title: animeTitle(a.title),
@@ -478,7 +491,11 @@ const SEARCH = {
 				thumbnailUrl: a.coverImage?.medium || undefined,
 				ref: { anilistId: a.id, title: animeTitle(a.title), year: a.startDate?.year ? String(a.startDate.year) : "" },
 			}));
-		});
+		}).catch((e) => { failed = e; return []; });
+		if (found.length) return found;
+		const wiki = await quietly(() => wikiAnime(q), []);
+		if (!wiki.length && failed) throw failed;
+		return wiki;
 	},
 	async book(env, q) {
 		return forgiving(q, async (v) => {
@@ -555,6 +572,7 @@ const COVERS = {
 	},
 	// AniList's cover, then MyAnimeList's.
 	async anime(env, ref) {
+		if (isQid(ref.qid)) return COVERS.movie(env, { ...ref, series: true });
 		need(Number.isInteger(ref.anilistId), "anilistId");
 		const a = (await anilist(`query ($id: Int) { Media(id: $id, type: ANIME) { ${ANIME_FIELDS} } }`, { id: ref.anilistId })).data?.Media;
 		const own = [a?.coverImage?.extraLarge, a?.coverImage?.large].map(httpsUrl).filter(Boolean).slice(0, 1);
@@ -620,6 +638,7 @@ const NOTE = {
 		return { fields, year: t.Year };
 	},
 	async anime(env, ref, { cover, today }) {
+		if (isQid(ref.qid)) return wikiMovie(getJSON, ref, cover, today);
 		need(Number.isInteger(ref.anilistId), "anilistId");
 		const a = (await anilist(`query ($id: Int) { Media(id: $id, type: ANIME) {
 			title { romaji english } startDate { year } format episodes genres description(asHtml: false) bannerImage siteUrl
