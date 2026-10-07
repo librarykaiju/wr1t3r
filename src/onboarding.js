@@ -88,7 +88,7 @@ export function guideText(features, { worker = true, story = false } = {}) {
 		"",
 		"## Health and food",
 		"",
-		"The buttons at the top of the planner log food, water, meds and mood to the day's health note. Commands > Log food does the same from anywhere.",
+		"The buttons at the top of the planner log food, water, meds, exercise, mood, sleep and weight to the day's health note. The first daily note asks you to set it up: which buttons show, your calorie and water targets (worked out from your goal if you like), and your medications with their times. **Planner** at the top of the daily note changes any of it later. Commands > Log food logs food from anywhere.",
 	);
 	if (on("calendar")) lines.push(
 		"",
