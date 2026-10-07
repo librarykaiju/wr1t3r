@@ -15,7 +15,8 @@ import { parseYaml } from "./bases.js";
 
 export const SETTINGS_NAME = "Settings.md";
 
-// Areas that can be turned off as a whole. What isn't listed (the editor,
+// Areas that can be turned off as a whole. here: [label, detail] on a build
+// with no Worker, where the part that needs one isn't offered. What isn't listed (the editor,
 // sync, search, links, properties, tags, templates, themes...) is always on.
 export const FEATURE_AREAS = [
 	{ id: "longform", label: "Long-form writing", detail: "Corkboard, outliner, draft and compile. Right-click a folder in the sidebar to open it in one" },
@@ -26,7 +27,7 @@ export const FEATURE_AREAS = [
 	{ id: "calendar", label: "Calendar", detail: "The agenda, the month calendar and calendar events in the timeline" },
 	{ id: "audio", label: "Transcripts and voice memos", detail: "Transcribe video and audio files, and record voice memos" },
 	{ id: "ocr", label: "Searchable pictures and PDFs", detail: "Read the text in pictures and PDFs so search finds them" },
-	{ id: "capture", label: "Capture and clipping", detail: "The Inbox, quick capture and the web clipper" },
+	{ id: "capture", label: "Capture and clipping", detail: "The Inbox, quick capture and the web clipper", here: ["Capture", "The Inbox and quick capture"] },
 	{ id: "reminders", label: "Reminders", detail: "Notifications for tasks with a time" },
 ];
 

@@ -959,7 +959,8 @@ function maybeWelcome() {
 	for (const u of USES) {
 		const lab = document.createElement("label");
 		const input = Object.assign(document.createElement("input"), { type: "checkbox", value: u.id, checked: DEFAULT_USES.includes(u.id) });
-		lab.append(input, Object.assign(document.createElement("b"), { textContent: u.label }), Object.assign(document.createElement("span"), { textContent: u.detail }));
+		const [label, detail] = (onDropbox && u.here) || [u.label, u.detail];
+		lab.append(input, Object.assign(document.createElement("b"), { textContent: label }), Object.assign(document.createElement("span"), { textContent: detail }));
 		box.append(lab);
 	}
 	$("welcomeIos").hidden = !needsHomeScreen(navigator.userAgent, matchMedia("(display-mode: standalone)").matches || navigator.standalone === true, navigator.maxTouchPoints);
@@ -1140,9 +1141,11 @@ function renderFeatureSettings() {
 	guide.addEventListener("click", () => { openSettings(false); openGuide(); });
 	pane.append(hint("How to use each part that's on: the Welcome note, or a new one if it's gone."), guide);
 	for (const a of FEATURE_AREAS) {
+		if (onDropbox && a.id === "audio") continue; // transcripts and voice memos go through the Worker
+		const [label, detail] = (onDropbox && a.here) || [a.label, a.detail];
 		const seg = document.createElement("div");
 		seg.className = "seg";
-		seg.title = a.detail;
+		seg.title = detail;
 		for (const [on, label] of [[true, "On"], [false, "Off"]]) {
 			const b = document.createElement("button");
 			b.type = "button";
@@ -1151,7 +1154,7 @@ function renderFeatureSettings() {
 			b.addEventListener("click", () => { if (s.features[a.id] !== on) saveSettings({ ...s, features: { ...s.features, [a.id]: on } }).then(renderFeatureSettings); });
 			seg.append(b);
 		}
-		pane.append(h2(a.label), seg, hint(a.detail + "."));
+		pane.append(h2(label), seg, hint(detail + "."));
 	}
 	pane.append(h2("Folders"), hint("wr1t3r's own folders, inside the notes' folder. Notes already there stay where they are."));
 	for (const f of FOLDER_SETTINGS) {
