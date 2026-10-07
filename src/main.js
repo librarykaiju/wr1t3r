@@ -45,7 +45,7 @@ import { timelineChanges, eventsOn } from "./timeline.js";
 import { newNoteFrontmatter, withTitleHeading } from "./frontmatter.js";
 import { readTypes, writeTypes, listKeys, propertyUsage } from "./properties.js";
 import { quoteFor } from "./quotes.js";
-import { readTheme, themeAttr, themeVariants } from "./theme.js";
+import { readTheme, themeAttr } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
 import { makeMediaNote } from "./media.js";
 import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
@@ -5158,7 +5158,7 @@ async function exportWebsite() {
 			if (!file) throw new Error("not found");
 			return attachmentBlob(file, (p) => remote.attachment(p));
 		},
-		theme: () => { const { family, mode } = readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme")); return themeVariants(family, mode); },
+		theme: () => readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme")),
 		font: () => FONTS[fontName] && fontName !== "serif" ? FONTS[fontName] : "",
 		toast,
 	});

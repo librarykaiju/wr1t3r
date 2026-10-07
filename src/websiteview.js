@@ -9,13 +9,16 @@
 //   notes()        [{ path, text }] for every note
 //   attachments()  every vault file's path
 //   blob(path)     a vault file as a Blob
-//   theme()        { light, dark } (src/theme.js themeVariants)
+//   theme()        the notebook's { family, mode } (src/theme.js readTheme)
 //   font()         the editor font, as CSS
 //   toast(text)
 // }
 
 import appCss from "./style.css?raw";
 import { buildSite, themeCss, SITE_FILES } from "./website.js";
+import { FAMILIES, themeVariants } from "./theme.js";
+
+const FAMILY_NAMES = { default: "Default", sepia: "Sepia", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", synthwave: "SynthWave '84" };
 
 const KEY = "wr1t3r-website";
 let open = null;
@@ -69,6 +72,13 @@ export function openWebsite(host) {
 	for (const p of host.attachments().filter((p) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(p)).sort()) logo.append(new Option(p.split("/").pop(), p, false, p === saved.logo));
 	field("Logo (a picture in the notebook)", logo);
 	const logoOnly = check("Show only the logo, not the title beside it", saved.logoOnly);
+	const now = host.theme();
+	const family = document.createElement("select");
+	for (const f of FAMILIES) family.append(new Option(FAMILY_NAMES[f] + (f === now.family ? " (the notebook's)" : ""), f, false, f === (saved.family || now.family)));
+	field("Theme", family);
+	const mode = document.createElement("select");
+	for (const [v, label] of [["auto", "Auto: light or dark, as each visitor's device is set"], ["light", "Light"], ["dark", "Dark"]]) mode.append(new Option(label, v, false, v === (saved.mode || now.mode)));
+	field("Light or dark", mode);
 	const layout = document.createElement("select");
 	layout.append(new Option("Top menu: a link per folder across the top", "top", false, saved.layout !== "notebook"), new Option("Notebook: folders down the left, as in the app", "notebook", false, saved.layout === "notebook"));
 	field("Layout", layout);
@@ -113,8 +123,10 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ title: title.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked });
-	const css = () => { const t = host.theme(); return themeCss(appCss, { ...t, font: host.font() }); };
+	const settings = () => ({ title: title.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, family: family.value, mode: mode.value });
+	// SynthWave '84's neon headings come along too.
+	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
+	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font() }) + (family.value === "synthwave" ? GLOW : "");
 	const build = () => {
 		const s = settings();
 		return buildSite(host.notes(), host.attachments(), { title: s.title, css: css(), footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });

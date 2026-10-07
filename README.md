@@ -357,7 +357,7 @@ In a board's Grid, click under a column to pick its total: Sum, Average, Median,
 
 Commands, then "Export as website", turns every note with `publish: true` into a static website and downloads it as a .zip (src/website.js plans the files; src/websiteview.js is the dialog). "Publish this note" and "Unpublish this note" set the property. Everything runs in the page, so it's the same in both builds.
 
-- One .html page per note with relative links, a front page listing them by folder (a published `Home.md` or `Index.md` at the top becomes its text), `not_found.html` for Neocities, and `style.css` built from the notebook's theme and font. With the Auto theme the site follows the visitor's light or dark setting.
+- One .html page per note with relative links, a front page listing them by folder (a published `Home.md` or `Index.md` at the top becomes its text), `not_found.html` for Neocities, and `style.css` built from a theme picked in the dialog (any of the notebook's, starting with the one in use) and the notebook's font. With Auto the site follows each visitor's light or dark setting.
 - `[[Links]]` to published notes become links; links to anything else become plain words. Properties, `%% comments %%`, block ids and dataview/base blocks never go in. Notes in `_` folders and `draft: true` notes are left out even when marked.
 - Pictures and PDFs a published note uses are copied into `files/`. Audio and video only when "Include audio and video" is on, since a free Neocities site won't take them.
 - Layout: "Top menu" (a link per top-level folder across the top) or "Notebook" (the folders down the left as in the app, folding open; plain `<details>`, no scripts). On phones the left column goes above the text.
