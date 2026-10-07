@@ -49,7 +49,7 @@ const COMMAND_AREAS = [
 	["daily", ["Open today's daily note"]],
 	["health", ["Log food"]],
 	["media", ["Open stats", "Import StoryGraph library", "New book log", "New movie log", "New TV series log", "New music log", "New game log", "New podcast log", "New comic log"]],
-	["calendar", ["Add calendar events to the timeline"]],
+	["calendar", ["Add calendar events to the timeline", "Import calendar file (.ics)"]],
 	["audio", ["Transcribe a video or audio file", "Record a voice memo"]],
 	["ocr", ["Make pictures and PDFs searchable", "Stop reading new pictures and PDFs"]],
 	["capture", ["Capture to the Inbox", "Clip a web page"]],

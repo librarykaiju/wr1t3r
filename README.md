@@ -214,6 +214,10 @@ skip: [2026-10-14]        # occurrences deleted from the agenda
 
 Alerts show while wr1t3r is open. Times are wall-clock times on the device showing them.
 
+### Importing an .ics file
+
+**Import .ics…** in the Add event form (or Commands, "Import calendar file (.ics)") reads a calendar file from Google, Apple or Outlook calendar, a school or a team (src/ics.js). Events already over are left out. Each event note gets a `uid:` so importing the same file again skips what's already there, and one changed occurrence of a repeating event becomes its own event with that day skipped on the repeating one. Times are moved to this device's clock. The built-in calendar repeats daily, weekly, monthly or yearly: a weekly rule on several days (Mon, Wed, Fri) becomes one weekly note per day, and a rule it can't hold (every other week, the second Tuesday) comes in as its first date only, which the import says. With Google Calendar connected, the events go to the calendar picked in the form instead, through Google's own import (`POST /api/calendar/import`), with their repeat rules as written; Google skips events it already has.
+
 ## Google Calendar
 
 This is a one-time setup, done in a browser and a terminal on your computer.

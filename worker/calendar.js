@@ -11,6 +11,10 @@
 //                                          description, reminder, calendarId}
 //                                          -> {event}; calendarId defaults to
 //                                          the main calendar
+//   POST /api/calendar/import              {calendarId, events: [up to 40 of
+//                                          src/ics.js googleEvent]} -> {imported,
+//                                          failed: [{title, error}]}; Google
+//                                          skips events it already has by uid
 //   DELETE /api/calendar/events?calendar=&id=
 //                                          deletes that event (one occurrence,
 //                                          for a repeating one) -> {deleted: true}
@@ -106,6 +110,24 @@ export async function calendarApi(request, env, url) {
 		return { event: slimEvent(made, { id }) };
 	}
 
+	if (url.pathname === "/api/calendar/import" && request.method === "POST") {
+		const body = await request.json().catch(() => null);
+		if (!Array.isArray(body?.events) || body.events.length > IMPORT_BATCH) throw new HttpError(400, `events: up to ${IMPORT_BATCH} at a time`);
+		const id = body.calendarId == null || body.calendarId === "" ? "primary" : body.calendarId;
+		if (typeof id !== "string" || id.length > 300) throw new HttpError(400, "Bad calendarId");
+		let imported = 0;
+		const failed = [];
+		for (const e of body.events) {
+			try {
+				await google(env, `/calendars/${encodeURIComponent(id)}/events/import`, { method: "POST", body: JSON.stringify(importBody(e)) });
+				imported++;
+			} catch (err) {
+				failed.push({ title: String(e?.title || "").slice(0, 200), error: err.message });
+			}
+		}
+		return { imported, failed };
+	}
+
 	if (url.pathname === "/api/calendar/events" && request.method === "DELETE") {
 		const calendar = url.searchParams.get("calendar") || "", id = url.searchParams.get("id") || "";
 		if (!calendar || !id || calendar.length > 300 || id.length > 1024) throw new HttpError(400, "calendar and id: the event to delete");
@@ -133,6 +155,8 @@ export function slimEvent(e, cal) {
 		alerts: reminders.filter((r) => r.method === "popup").map((r) => r.minutes),
 	};
 }
+
+const IMPORT_BATCH = 40; // Workers allow 50 outgoing requests per request
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
@@ -167,5 +191,17 @@ export function eventBody(b) {
 	else if (Number.isInteger(b.reminder) && b.reminder >= 0 && b.reminder <= 40320) {
 		out.reminders = { useDefault: false, overrides: [{ method: "popup", minutes: b.reminder }] };
 	}
+	return out;
+}
+
+// An imported event (src/ics.js googleEvent): eventBody plus its uid and
+// repeat rule, which Google takes as iCalendar lines.
+export function importBody(e) {
+	const out = eventBody(e);
+	if (typeof e.uid !== "string" || !e.uid || e.uid.length > 1000) throw new HttpError(400, "The event needs a uid");
+	out.iCalUID = e.uid;
+	const rec = Array.isArray(e.recurrence) ? e.recurrence : [];
+	if (rec.length > 10 || !rec.every((l) => typeof l === "string" && l.length < 4000 && /^(RRULE|EXDATE|RDATE)[:;]/.test(l))) throw new HttpError(400, "Bad repeat rule");
+	if (rec.length) out.recurrence = rec;
 	return out;
 }

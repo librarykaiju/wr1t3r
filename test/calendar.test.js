@@ -34,6 +34,7 @@ function fakeGoogle() {
 			{ id: "a", summary: "Earlier", start: { date: "2026-09-28" }, end: { date: "2026-09-29" }, reminders: { useDefault: false, overrides: [{ method: "email", minutes: 60 }] } },
 		] });
 		if (init.method === "POST" && /^\/api\/calendars\/[^/]+\/events$/.test(u.pathname)) return j({ id: "new", ...JSON.parse(init.body) });
+		if (init.method === "POST" && /^\/api\/calendars\/[^/]+\/events\/import$/.test(u.pathname)) return JSON.parse(init.body).summary === "Bad" ? j({ error: { message: "Invalid recurrence" } }, 400) : j({ id: "imp", ...JSON.parse(init.body) });
 		return j({ error: { message: "nope" } }, 404);
 	};
 	return { seen, restore: () => (globalThis.fetch = real) };
@@ -129,4 +130,25 @@ test("the add-event form's end follows its start", () => {
 	assert.equal(A.endAfterStart("23:30", "10:00", "11:00"), "00:30"); // past midnight
 	assert.equal(A.endAfterStart("08:00", "10:00", "10:00"), "09:00");
 	assert.equal(A.endAfterStart("", "10:00", "11:00"), "11:00");
+});
+
+test("imports go to Google's import with the uid and the repeat rule", async () => {
+	const g = fakeGoogle();
+	try {
+		const events = [
+			{ uid: "a@x", title: "Class", start: "2026-09-01T18:00", end: "2026-09-01T19:00", timeZone: "America/Chicago", recurrence: ["RRULE:FREQ=WEEKLY;INTERVAL=2", "EXDATE;TZID=America/Chicago:20261013T180000"] },
+			{ uid: "b@x", title: "Bad", allDay: true, start: "2026-10-09", end: "2026-10-09", recurrence: [] },
+		];
+		const r = await call(env, "/api/calendar/import", { method: "POST", body: JSON.stringify({ calendarId: "fam", events }) });
+		const body = await r.json();
+		assert.equal(r.status, 200);
+		assert.equal(body.imported, 1);
+		assert.deepEqual(body.failed.map((f) => f.title), ["Bad"]);
+		const sent = JSON.parse(g.seen.find((s) => s.url.endsWith("/calendars/fam/events/import")).init.body);
+		assert.equal(sent.iCalUID, "a@x");
+		assert.deepEqual(sent.recurrence, events[0].recurrence);
+		const bad = await call(env, "/api/calendar/import", { method: "POST", body: JSON.stringify({ events: [{ ...events[0], recurrence: ["X-EVIL:1"] }] }) });
+		assert.equal((await bad.json()).failed.length, 1);
+		assert.equal((await call(env, "/api/calendar/import", { method: "POST", body: JSON.stringify({ events: Array(41).fill(events[0]) }) })).status, 400);
+	} finally { g.restore(); }
 });
