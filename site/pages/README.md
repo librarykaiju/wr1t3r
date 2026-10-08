@@ -1,8 +1,8 @@
 # The words on wr1t3r.app
 
-Each `.md` file here is one page of wr1t3r.app: `index.md` is the front page, `help.md` the Help page, `legal.md` terms and privacy. Change the words, then run `npm run deploy:site`. It turns these files into the pages in `site/public/` and puts them online. To look first, `npm run preview:site` builds them and serves the site at http://localhost:8787.
+Each `.md` file here is one page of wr1t3r.app: `index.md` is the front page, `help.md` the Help page, `legal.md` terms and refunds, `privacy.md` the privacy policy (Google checks it when it reviews the app's Google sign-in, so keep it matching what the app does). Change the words, then run `npm run deploy:site`. It turns these files into the pages in `site/public/` and puts them online. To look first, `npm run preview:site` builds them and serves the site at http://localhost:8787.
 
-Don't edit `site/public/index.html`, `help.html` or `legal.html`: they're rebuilt from these files every time and aren't kept in git.
+Don't edit `site/public/index.html`, `help.html`, `legal.html` or `privacy.html`: they're rebuilt from these files every time and aren't kept in git.
 
 ## The rules
 

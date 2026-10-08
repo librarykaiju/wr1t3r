@@ -1,5 +1,5 @@
 ---
-title: "wr1t3r: terms, privacy and refunds"
+title: "wr1t3r: terms and refunds"
 page: legal
 ---
 
@@ -9,13 +9,13 @@ page: legal
 
 --- legal
 
-# Terms, privacy and refunds
+# Terms and refunds
 
-_Last updated October 7, 2026._
+_Last updated October 8, 2026._
 
 ## What you're buying
 
-A license key for the wr1t3r web app at my.wr1t3r.app, for your own use on up to the number of devices stated at purchase. Bug fixes and updates are included, and you can email [hello@wr1t3r.app](mailto:hello@wr1t3r.app) for help. Beyond that, the app comes without any warranty that it will meet your needs or run without errors. Keep your own backups of anything important; your notes are plain files in your Dropbox, so any backup tool works.
+A license key for the wr1t3r web app at my.wr1t3r.app, for your own use on up to the number of devices stated at purchase. Bug fixes and updates are included, and you can email [hello@wr1t3r.app](mailto:hello@wr1t3r.app) for help. Beyond that, the app comes without any warranty that it will meet your needs or run without errors. Keep your own backups of anything important; your notes are plain files in your Dropbox or Google Drive, so any backup tool works.
 
 ## Payments
 
@@ -40,4 +40,4 @@ Every device gets a 14-day free trial before you buy. If you buy and it isn't wo
 
 --- footer
 
-[wr1t3r](/)
+[wr1t3r](/) · [Privacy policy](/privacy.html)

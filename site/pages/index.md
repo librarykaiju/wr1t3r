@@ -183,7 +183,11 @@ _After you buy, your license key is on your Polar purchases page, linked from yo
 
 ### Do I need a Dropbox account?
 
-Yes. A free Dropbox account is plenty for text notes. wr1t3r only gets access to its own app folder, not the rest of your Dropbox.
+You need Dropbox or Google Drive to keep your notes in, and a free account of either is plenty for text notes. In Dropbox, wr1t3r only gets access to its own app folder, not the rest of your Dropbox.
+
+### What does wr1t3r do with my Google account?
+
+Only what you turn on. If you keep your notes in Google Drive, wr1t3r saves them in a "wr1t3r" folder there and can see only the files it made, nothing else in your Drive. If you connect Google Calendar, your events show in the agenda, new events you add go to your calendar, and task and medicine reminders can go there as events so your phone's Calendar app reminds you. Everything goes straight between your browser and Google; I never see or keep any of it. The [privacy policy](/privacy.html) has the details.
 
 ### Does it work offline?
 
@@ -191,7 +195,7 @@ Yes. Once wr1t3r has opened on a device, your notes are kept there too. Edits ma
 
 ### What happens when the trial ends?
 
-wr1t3r asks for a license key. Your notes stay in your Dropbox the whole time, readable by any text editor, whether you buy or not.
+wr1t3r asks for a license key. Your notes stay in your Dropbox or Google Drive the whole time, readable by any text editor, whether you buy or not.
 
 ### Is there support?
 
@@ -207,4 +211,4 @@ Try it free first. If it isn't working out after you buy, ask within 30 days for
 
 --- footer
 
-wr1t3r · [Help](/help.html) · [Terms, privacy and refunds](/legal.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
+wr1t3r · [Help](/help.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
