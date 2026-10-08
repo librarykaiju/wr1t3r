@@ -67,7 +67,7 @@ The first daily note asks a few questions: which buttons you want, your daily ta
 
 ### Track the habits you care about
 
-One tap logs a glass of water, a walk, your mood, last night's sleep or this morning's weight. Medications get a list of their own with the times you take each one, a Take button for every dose, and, while wr1t3r is open, a reminder when one is due. Each log is a line in the day's health note, and the day's totals are saved as properties, so a board can line your days up side by side.
+One tap logs a glass of water, a walk, your mood, last night's sleep or this morning's weight. Medications get a list of their own with the times you take each one, a Take button for every dose, and a reminder when one is due. Each log is a line in the day's health note, and the day's totals are saved as properties, so a board can line your days up side by side.
 
 ![The Meds button open: today's doses with times, Take buttons, a Take all due now button and as-needed medicines](/shots/planner-meds.webp)
 
@@ -79,7 +79,7 @@ Give your height, weight, activity and goal, and wr1t3r works out daily targets 
 
 ### Tasks that don't get lost
 
-Keep your Critical Tasks and To Do's as master lists, or write a task in any note. Each day shows the tasks due that day, and anything unticked from earlier days stays on today's list as overdue until it's done. Add a time to a task and wr1t3r reminds you while it's open in a tab.
+Keep your Critical Tasks and To Do's as master lists, or write a task in any note. Each day shows the tasks due that day, and anything unticked from earlier days stays on today's list as overdue until it's done. Add a time to a task and wr1t3r reminds you while it's open, or, with Google Calendar connected, through the Calendar app when it's closed.
 
 ![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
 

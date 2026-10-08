@@ -407,7 +407,7 @@ body:has(.settings-win:not([hidden])) #notices #status { display: none; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed=true] { background: var(--sel); font-weight: 600; }
 /* Seven theme families, three to a row. */
-#themeFamilies, #fontPick, #dailyCal { display: block; width: 100%; margin: 0 0 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: 14px var(--sans); }
+#themeFamilies, #fontPick, #dailyCal, #remCal { display: block; width: 100%; margin: 0 0 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: 14px var(--sans); }
 /* Mixtape's four color pickers, two to a row. */
 .mixtape { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin: 0 0 10px; }
 .mixtape label { display: flex; align-items: center; gap: 8px; font: 14px var(--sans); }
@@ -705,7 +705,7 @@ main:not(.has-note) #count { visibility: hidden; }
 #addEvent .row.end { justify-content: flex-end; }
 #addEvent input[type=checkbox] { width: auto; margin: 0; }
 #addEvent .check { font-size: 14px; display: flex; gap: 6px; align-items: center; }
-#addEvent select, #dailyCal { font: inherit; font-size: 14px; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px; flex: 1; }
+#addEvent select, #dailyCal, #remCal { font: inherit; font-size: 14px; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px; flex: 1; }
 #addEvent .error:empty { display: none; }
 #agendaNote:empty { display: none; }
 /* Month calendar above the agenda (desktop) */

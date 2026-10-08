@@ -99,6 +99,7 @@ import { INBOX, captureEntry, appendCapture, stamp } from "./capture.js";
 import { bookmarklet } from "./clippayload.js";
 import { recordVoice } from "./recorder.js";
 import { remindersIn, dueReminders } from "./reminders.js";
+import { plan as remindPlan, prune as remindPrune, reminderEvent, eventIdFor } from "./calreminders.js";
 import { openHistory } from "./historyview.js";
 
 const $ = (id) => document.getElementById(id);
@@ -172,6 +173,7 @@ async function runSync() {
 		applyFeatures();
 		if (r.downloaded || r.deleted) refreshNotebookCalendar();
 		uploadReminders();
+		sendCalendarReminders();
 		maybeWelcome();
 		lastError = null;
 		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
@@ -2981,6 +2983,58 @@ async function uploadReminders() {
 	}
 }
 
+// ---- reminders through Google Calendar (src/calreminders.js) -----------------
+// With a calendar picked under Settings > Reminders, this device copies the
+// next two weeks of reminders into it as events with a popup, so the Calendar
+// app reminds you with wr1t3r closed. Per device, like the Google connection.
+const REMIND_CAL_KEY = "wr1t3r-remind-calendar"; // the calendar's id
+const REMIND_SENT_KEY = "wr1t3r-remind-sent"; // { eventId: { at, title, cal } }
+let remindSending = false;
+
+// Google Calendar itself (the page's own connection, or the Worker's), never
+// wr1t3r's notebook calendar: those events wouldn't remind anyone.
+const googleSide = () => pageGoogle || (!onDropbox && !calNotebook ? api : null);
+const calendarReminders = () => featureOn("reminders") && !!readRaw(REMIND_CAL_KEY) && !!googleSide();
+
+const gone = (e) => /\b(404|410)\b|not found|has been deleted/i.test(e?.message || "");
+
+async function sendCalendarReminders() {
+	if (remindSending || !navigator.onLine) return;
+	const g = googleSide(), calId = readRaw(REMIND_CAL_KEY);
+	let sent = remindPrune(readJSON(REMIND_SENT_KEY, {}), Date.now());
+	// Turned off, or moved to another calendar: take back the events still to come.
+	const want = featureOn("reminders") && calId && g ? calId : null;
+	const { add, remove } = want ? remindPlan(upcomingReminders(), Object.fromEntries(Object.entries(sent).filter(([, x]) => x.cal === want)), Date.now()) : { add: [], remove: [] };
+	const stale = Object.entries(sent).filter(([, x]) => x.cal !== want && x.at > Date.now()).map(([id]) => id);
+	if (!g || (!add.length && !remove.length && !stale.length)) return;
+	remindSending = true;
+	const save = () => writeJSON(REMIND_SENT_KEY, sent);
+	try {
+		for (const id of [...remove, ...stale]) {
+			try { await g.deleteEvent(sent[id].cal, id); } catch (e) { if (!gone(e)) throw e; }
+			delete sent[id];
+			save();
+		}
+		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		for (const r of add) {
+			const ev = reminderEvent(r, timeZone);
+			// Already there: another device sent it first.
+			try { await g.addEvent({ ...ev, calendarId: want }); } catch (e) { if (!/already exists|\b409\b/i.test(e?.message || "")) throw e; }
+			sent[ev.id] = { at: r.at, title: r.title, cal: want };
+			save();
+		}
+	} catch (e) {
+		if (e instanceof GoogleSignInEnded) googleEnded();
+		else console.warn("Couldn't send reminders to Google Calendar", e);
+	} finally {
+		remindSending = false;
+	}
+}
+
+// Whether a reminder's popup is Google Calendar's job (so the page doesn't
+// alert it a second time).
+const sentToCalendar = (r) => calendarReminders() && !!readJSON(REMIND_SENT_KEY, {})[eventIdFor(r)];
+
 const keyBytes = (b64) => Uint8Array.from(atob(b64.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64.length + 3) % 4)), (c) => c.charCodeAt(0));
 const sameKey = (buf, b64) => !!buf && keyBytes(b64).every((v, i) => new Uint8Array(buf)[i] === v);
 
@@ -3882,6 +3936,7 @@ function calendarName(id) {
 }
 
 function fillCalendarSetting() {
+	fillRemindCalendar();
 	const sel = $("dailyCal"), id = readRaw(DAILY_CAL_KEY) || "";
 	const list = calState === "setup" ? [] : cal?.calendars || [];
 	sel.replaceChildren(new Option("Off", ""));
@@ -3890,6 +3945,20 @@ function fillCalendarSetting() {
 	if (id && !list.some((c) => c.id === id)) sel.append(new Option("Picked calendar", id));
 	sel.value = id;
 	sel.disabled = calState === "setup";
+}
+
+// Settings > Reminders: which Google calendar gets the reminders (Off unless
+// Google Calendar is connected).
+function fillRemindCalendar() {
+	const sel = $("remCal"), id = readRaw(REMIND_CAL_KEY) || "";
+	const google = !!googleSide() && calState !== "setup";
+	for (const id of ["remCalHead", "remCalRow", "remCalHint"]) $(id).hidden = !google;
+	if (!google || document.activeElement === sel) return;
+	const list = (cal?.calendars || []).filter((c) => c.writable !== false);
+	sel.replaceChildren(new Option("Off", ""));
+	for (const c of [...list].sort((a, b) => b.primary - a.primary)) sel.append(new Option(agenda.calendarLabel(c), c.id));
+	if (id && !list.some((c) => c.id === id)) sel.append(new Option("Picked calendar", id));
+	sel.value = id;
 }
 
 // A clicked link: web links open in a new tab, links to notes open the note
@@ -4949,6 +5018,11 @@ function setupSettings() {
 	$("templateAdd").addEventListener("click", (e) => { e.stopPropagation(); newTemplate(); });
 	$("homeEdit").addEventListener("click", editHomeNote);
 	$("dailyCal").addEventListener("change", (e) => storeRaw(DAILY_CAL_KEY, e.target.value || null));
+	$("remCal").addEventListener("change", async (e) => {
+		storeRaw(REMIND_CAL_KEY, e.target.value || null);
+		await sendCalendarReminders();
+		toast(e.target.value ? "Reminders for the next two weeks are going into that calendar; its app reminds you even with wr1t3r closed." : "Reminders stopped going to Google Calendar, and the ones still to come were taken out.", 8000);
+	});
 	$("smaller").addEventListener("click", () => setSize(fontSize - 1));
 	$("fontPick").addEventListener("change", (e) => setFont(e.target.value));
 	$("larger").addEventListener("click", () => setSize(fontSize + 1));
@@ -5946,7 +6020,7 @@ function checkAlerts() {
 	const now = Date.now();
 	const since = Number(readRaw(ALERTED_KEY)) || now;
 	storeRaw(ALERTED_KEY, now);
-	if (!pushHere && featureOn("reminders")) for (const r of dueReminders(upcomingReminders(), since, now)) alertUser("Reminder", r.title);
+	if (!pushHere && featureOn("reminders")) for (const r of dueReminders(upcomingReminders(), since, now)) if (!sentToCalendar(r)) alertUser("Reminder", r.title);
 	if (!events) return;
 	for (const due of agenda.dueAlerts(events, since, now)) alertUser(due.event.title, agenda.alertText(due));
 }
@@ -6002,7 +6076,7 @@ function setupAgenda() {
 	// No Worker, no push: reminders come while wr1t3r is open.
 	if (onDropbox) {
 		$("remSeg").hidden = true;
-		$("remHint").textContent = "Tasks with a ⏰ time notify you while wr1t3r is open, in any tab.";
+		$("remHint").textContent = "Tasks with a ⏰ time notify you while wr1t3r is open, in any tab. To be reminded with it closed, connect Google Calendar (Settings > Features) and pick a calendar here.";
 	}
 }
 
