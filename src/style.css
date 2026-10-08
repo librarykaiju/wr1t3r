@@ -1,6 +1,6 @@
 /* Colors, fonts and themes follow Reader's (librarykaiju/reader). A theme is a
-   family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night, Catppuccin,
-   Kanagawa, Everforest, Nord, Monokai, SynthWave '84, Bubblegum, Sakura,
+   family (Default, Gruvbox, Dracula, Rosé Pine, Tokyo Night, Catppuccin,
+   Kanagawa, Everforest, Nord, Monokai, SynthWave '84, Bubblegum,
    Mixtape) and a mode (Auto, Light, Dark);
    src/theme.js and public/theme.js set data-theme on <html>. Default + Auto
    sets none, and this sheet follows the system. --f1 to --f7 are each theme's
@@ -33,11 +33,20 @@
 	--f1: #ff8a80; --f2: #ffb074; --f3: #f0d06a; --f4: #8fd694; --f5: #7fd6d9; --f6: #8fb0ff; --f7: #d0a0ff;
 	color-scheme: dark;
 }
-:root[data-theme=sepia] {
-	--bg: #f4ecd8; --fg: #3b3024; --muted: #7b6c58; --line: #e2d6bb; --card: #f9f2e2; --sel: #eadfc4;
-	--accent: #8a4b14; --bad: #a3261e; --hl: #f0d27a;
-	--panel: #efe5cd; --mark: #a8987f; --code-bg: #eadfc4;
-	--f1: #a3261e; --f2: #aa5a14; --f3: #86700f; --f4: #4d7a2c; --f5: #2f7470; --f6: #3d5f9e; --f7: #7a4a8f;
+/* Gruvbox (github.com/morhetz/gruvbox): Medium dark and light. Orange
+   buttons, blue links, yellow headings (an amber in light, for contrast). */
+:root[data-theme=gruvbox] {
+	--bg: #282828; --fg: #ebdbb2; --muted: #a89984; --line: #3c3836; --card: #32302f; --sel: #504945;
+	--accent: #fe8019; --link: #83a598; --bad: #fb4934; --hl: #5c4a1c; --heading: #fabd2f;
+	--panel: #1d2021; --mark: #7c6f64; --code-bg: #3c3836;
+	--f1: #fb4934; --f2: #fe8019; --f3: #fabd2f; --f4: #b8bb26; --f5: #8ec07c; --f6: #83a598; --f7: #d3869b;
+	color-scheme: dark;
+}
+:root[data-theme=gruvbox-light] {
+	--bg: #fbf1c7; --fg: #3c3836; --muted: #665c54; --line: #ebdbb2; --card: #f9f5d7; --sel: #ebdbb2;
+	--accent: #af3a03; --link: #076678; --bad: #9d0006; --hl: #f5d98b; --heading: #9d4b03;
+	--panel: #f2e5bc; --mark: #a89984; --code-bg: #f2e5bc;
+	--f1: #9d0006; --f2: #af3a03; --f3: #b57614; --f4: #79740e; --f5: #427b58; --f6: #076678; --f7: #8f3f71;
 	color-scheme: light;
 }
 /* Dracula (draculatheme.com) and its light variant, Alucard. */
@@ -168,7 +177,7 @@
 	color-scheme: dark;
 }
 /* SynthWave '84 (github.com/robb0wen/synthwave-vscode): dark only, like
-   Sepia is light only. Cyan links, pink buttons, headings in its hot pink
+   Monokai. Cyan links, pink buttons, headings in its hot pink
    with the theme's neon glow, the sidebar's purple-black for panels. */
 :root[data-theme=synthwave] {
 	--bg: #262335; --fg: #f0eff1; --muted: #b6b1b1; --line: #34294f; --card: #2a2139; --sel: #463465;
@@ -194,23 +203,6 @@
 	--f1: #ff6fb5; --f2: #ff9a62; --f3: #ffd166; --f4: #6ee7a8; --f5: #5fd4e8; --f6: #a99bff; --f7: #e08cff;
 	color-scheme: dark;
 }
-/* Sakura, wr1t3r's own: soft cherry-blossom pink with sage and dusty
-   colors, and Sakura Night for dark. */
-:root[data-theme=sakura] {
-	--bg: #fdf6f7; --fg: #40303a; --muted: #7d6670; --line: #ecd5dc; --card: #ffffff; --sel: #f6e3e8;
-	--accent: #c73a6c; --bad: #b3261e; --hl: #f8e3a8; --heading: #b03f68;
-	--panel: #f6e8eb; --mark: #b8a2ab; --code-bg: #f6e8eb;
-	--f1: #c73a6c; --f2: #bb5f2c; --f3: #87700f; --f4: #4c7d4f; --f5: #2f7a7a; --f6: #5868ad; --f7: #8c58a8;
-	color-scheme: light;
-}
-:root[data-theme=sakura-night] {
-	--bg: #241c22; --fg: #f3e4e9; --muted: #b8a2ab; --line: #463640; --card: #2d232a; --sel: #4a3a44;
-	--accent: #f28fb3; --bad: #ff8a80; --hl: #5c3a48; --heading: #f2a7c3;
-	--panel: #1e171c; --mark: #7d6670; --code-bg: #322730;
-	--f1: #f28fb3; --f2: #f2b08a; --f3: #e8d28a; --f4: #a3d4a0; --f5: #8fd0cc; --f6: #a9b8ef; --f7: #d2a8e8;
-	color-scheme: dark;
-}
-
 /* Mixtape: the reader's own four colors (Settings > Appearance), which
    src/theme.js and public/theme.js put on <html> as --mx-bg, --mx-fg,
    --mx-accent and --mx-second. Everything else is mixed from them: borders

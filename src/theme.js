@@ -1,14 +1,14 @@
-// Themes: a family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night,
+// Themes: a family (Default, Gruvbox, Dracula, Rosé Pine, Tokyo Night,
 // Catppuccin, Kanagawa, Everforest, Nord, Monokai, SynthWave '84, Bubblegum,
-// Sakura, Mixtape) and a mode (Auto, Light, Dark). themeAttr() gives the data-theme value set on <html>; the
+// Mixtape) and a mode (Auto, Light, Dark). themeAttr() gives the data-theme value set on <html>; the
 // colors are in src/style.css. public/theme.js repeats this before the page
 // draws, so keep the two in step.
 
-export const FAMILIES = ["default", "sepia", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave", "bubblegum", "sakura", "mixtape"];
+export const FAMILIES = ["default", "gruvbox", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave", "bubblegum", "mixtape"];
 
 const VARIANTS = {
 	default: { light: "light", dark: "dark" },
-	sepia: { light: "sepia", dark: "sepia" }, // light only
+	gruvbox: { light: "gruvbox-light", dark: "gruvbox" },
 	dracula: { light: "dracula-light", dark: "dracula" },
 	rosepine: { light: "rosepine-dawn", dark: "rosepine" },
 	tokyonight: { light: "tokyonight-day", dark: "tokyonight" },
@@ -19,16 +19,22 @@ const VARIANTS = {
 	monokai: { light: "monokai", dark: "monokai" }, // dark only
 	synthwave: { light: "synthwave", dark: "synthwave" }, // dark only
 	bubblegum: { light: "bubblegum", dark: "bubblegum-night" },
-	sakura: { light: "sakura", dark: "sakura-night" },
 	mixtape: { light: "mixtape", dark: "mixtape" }, // the reader's own colors, one mode
 };
 
-// Saved values -> { family, mode }. Before families, wr1t3rTheme held
-// "light", "dark" or "sepia" on its own.
+// Families since dropped, and the one a saved choice moves to: Sakura was
+// too close to Bubblegum to keep both.
+export const RETIRED = { sakura: "bubblegum" };
+export function familyOf(raw) {
+	const f = RETIRED[raw] || raw;
+	return FAMILIES.includes(f) ? f : null;
+}
+
+// Saved values -> { family, mode }. A family no longer listed (Sepia, say)
+// opens as Default.
 export function readTheme(familyRaw, modeRaw) {
-	let family = FAMILIES.includes(familyRaw) ? familyRaw : "default";
+	let family = familyOf(familyRaw) || "default";
 	let mode = modeRaw === "light" || modeRaw === "dark" ? modeRaw : "auto";
-	if (modeRaw === "sepia" && !FAMILIES.includes(familyRaw)) family = "sepia";
 	return { family, mode };
 }
 
