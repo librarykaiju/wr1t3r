@@ -11,6 +11,7 @@
 //     - link: "outliner:content/Novel"   a folder as an outline (or draft:, corkboard:; scrivenings: is the same as draft:)
 //     - link: "stats:content/logs/books" a folder of logs as charts
 //     - link: "command:Open today's daily note"   a palette command
+//     - link: "habits:"                  today's habits and streaks (opens today's note)
 //     - link: "https://example.com"      a web page
 //       title: Example                   the tile's name, for any kind
 //     - section: Reading                 a header; the tiles after it are its
@@ -131,10 +132,11 @@ export function writePins(text, pins) {
 // (with its trailing /) | { kind: "view", view, folder } (a folder's
 // storyboard, outliner or draft; view "corkboard" is the storyboard (its name
 // before it was renamed, kept in saved pins) and "scrivenings" the draft) | { kind: "command", command } |
-// { kind: "url", url }.
+// { kind: "url", url } | { kind: "habits" }.
 export function pinKind(link) {
 	const l = String(link || "").trim();
 	if (/^https?:\/\//i.test(l)) return { kind: "url", url: l };
+	if (/^habits:\s*$/i.test(l)) return { kind: "habits" };
 	let m = l.match(/^command:\s*(.+)$/i);
 	if (m) return { kind: "command", command: m[1].trim() };
 	m = l.match(/^(corkboard|storyboard|outliner|scrivenings|draft|stats):\s*(.*)$/i);
@@ -179,6 +181,7 @@ export function pinTitle(pin, path) {
 	const k = pinKind(pin.link);
 	if (k.kind === "url") { try { return new URL(k.url).hostname.replace(/^www\./, ""); } catch { return k.url; } }
 	if (k.kind === "command") return k.command;
+	if (k.kind === "habits") return "Habits";
 	if (k.kind === "folder") return k.folder.slice(0, -1).split("/").pop() || "Folder";
 	if (k.kind === "view") return k.folder.slice(0, -1).split("/").pop() || "Folder";
 	return (path ? baseName(path) : baseName(k.target)).replace(/\.(md|board|base)$/i, "") || "Note";

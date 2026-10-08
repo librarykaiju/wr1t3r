@@ -137,7 +137,8 @@ function glanceFace(g, chart) {
 
 // host: { pins, homeFile, paths, text(path), image(ref, from) -> Promise<src>|null,
 //         open(pin, path), menu(index, x, y), add()?, reorder(from, to), emptyLabel?,
-//         glance(folder)? -> glance(...) | null, for stats tiles }
+//         glance(folder)? -> glance(...) | null, for stats tiles,
+//         habits()? -> habitsGlance(...) | null, for the Habits tile }
 export function drawHome(grid, host) {
 	grid.replaceChildren();
 	const { pins, homeFile, paths } = host;
@@ -184,11 +185,11 @@ export function drawHome(grid, host) {
 			tile.classList.add("has-cover");
 			tile.append(img);
 		}
-		const g = k.kind === "view" && k.view === "stats" && host.glance ? host.glance(k.folder) : null;
+		const g = k.kind === "view" && k.view === "stats" && host.glance ? host.glance(k.folder) : k.kind === "habits" && host.habits ? host.habits() : null;
 		if (g) {
 			tile.classList.add("has-glance");
 			tile.append(label, glanceFace(g, pin.chart));
-		} else tile.append(icon(kind), label);
+		} else tile.append(icon(ICONS[kind] ? kind : "view"), label);
 		tile.addEventListener("click", () => host.open(pin, path));
 		onMenu(tile, (x, y) => host.menu(i, x, y));
 		draggable(tile, i, grid, host);
