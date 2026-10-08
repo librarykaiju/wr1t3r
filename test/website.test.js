@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { blueskyPost, buildSite, isPublished, pageFiles, relativeURL, slug, socialLinks, supportLinks, themeCss } from "../src/website.js";
+import { blueskyPost, buildSite, isPublished, pageFiles, relativeURL, slug, socialLinks, supportLinks, tagHue, themeCss, webMarkdown } from "../src/website.js";
 
 const note = (props, body) => `---\n${props}\n---\n${body}`;
 
@@ -38,7 +38,7 @@ test("the site: pages, links, pictures, front page, and what stays private", () 
 	assert.ok(walk.includes("Secret plans") && !walk.includes("secret-plans"), "unpublished notes are words, not links");
 	assert.ok(walk.includes('<a href="../index.html">home</a>'));
 	assert.ok(!walk.includes("private") && !walk.includes("LIST") && !walk.includes("song.mp3"));
-	assert.ok(walk.includes('class="callout callout-tip"') && walk.includes('<p class="callout-title">Bring water</p>') && walk.includes("Lots of it."));
+	assert.ok(walk.includes('class="callout callout-tip co-cyan"') && /<p class="callout-title"><svg [^>]*>.*<\/svg>Bring water<\/p>/.test(walk) && walk.includes("Lots of it."));
 	assert.ok(walk.includes('<input type="checkbox" disabled checked>'));
 	assert.ok(walk.includes('<h2 id="map">Map</h2>') && walk.includes('href="#map"'));
 	assert.ok(walk.includes('href="https://ko-fi.com/brandon"'));
@@ -181,13 +181,14 @@ test("pages show their other properties, tags in the theme's colors, folders in 
 	];
 	const { files } = buildSite(notes, [], { title: "S", layout: "notebook" });
 	const page = files.get("essays/on-walking.html");
-	assert.match(page, /<details class="props" open>/);
-	assert.match(page, /<dt>status<\/dt><dd>finished<\/dd>/);
-	assert.match(page, /<dt>rating<\/dt><dd>4<\/dd>/);
-	assert.match(page, /<dt>read<\/dt><dd><input type="checkbox" disabled checked/);
+	// Outside logs/, sketchbooks/ and catalog/ the box starts folded, as in the app.
+	assert.match(page, /<details class="props">\n<summary>Properties<span class="count">&nbsp;· 5<\/span>/);
+	assert.match(page, /<dt><span class="icon">Aa<\/span>status<\/dt><dd>finished<\/dd>/);
+	assert.match(page, /<dt><span class="icon">12<\/span>rating<\/dt><dd>4<\/dd>/);
+	assert.match(page, /<dt><span class="icon">☑<\/span>read<\/dt><dd><input type="checkbox" disabled checked/);
 	assert.match(page, /<a href="https:\/\/example.com\/walk" rel="noopener">example.com\/walk<\/a>/);
-	assert.match(page, /<span class="pill">Sam<\/span> <span class="pill">Ana<\/span>/);
-	for (const k of ["publish", "title", "tags", "cssclasses", "empty", "date"]) assert.doesNotMatch(page, new RegExp(`<dt>${k}</dt>`));
+	assert.match(page, new RegExp(`<span class="pill tag-${tagHue("Sam")}">Sam</span> <span class="pill tag-${tagHue("Ana")}">Ana</span>`));
+	for (const k of ["publish", "title", "tags", "cssclasses", "empty", "date"]) assert.doesNotMatch(page, new RegExp(`</span>${k}</dt>`));
 	assert.match(page, new RegExp(`class="tag tag-${tagHue("essays")}">#essays`));
 	// Archive/ is unpublished but still counts, as in the app: Archive 1, Essays 2, Recipes 3.
 	assert.match(page, /<li class="top" style="--fc: var\(--f2\)"><details open><summary>Essays/);
@@ -196,4 +197,39 @@ test("pages show their other properties, tags in the theme's colors, folders in 
 	const top = buildSite(notes, [], { title: "S" }).files.get("essays/on-walking.html");
 	assert.match(top, /<a href="index.html" style="--fc: var\(--f2\)" aria-current="page">Essays<\/a>/);
 	assert.doesNotMatch(buildSite(notes, [], { title: "S", properties: false }).files.get("essays/on-walking.html"), /class="props"/);
+});
+
+test("a log's page looks as it does in the notebook: cover beside the properties, notes below", () => {
+	const notes = [
+		{ path: "content/logs/books/Dune.md", text: note("publish: true\ntitle: Dune\ncoverImage: \"[[dune.jpg]]\"\ncover_shape: vertical-cover\nbanner: https://example.com/b.jpg\nbanner_position: 30\ndate: 2026-09-01\ntags: [book, scifi]\nrating: [⭐⭐⭐⭐]\nauthor: Frank Herbert", "## Notes\n\nSpice. #reread\n\n- one\n  - two\n- [x] finished") },
+	];
+	const { files } = buildSite(notes, ["content/attachments/dune.jpg"], { title: "S" });
+	const page = files.get("logs/books/dune.html");
+	// The box is open, the cover inside it beside the rows, and the notes after the box.
+	const box = page.indexOf('<details class="props" open>');
+	const cover = page.indexOf('<span class="cover vertical-cover left"><img src="../../files/dune.jpg" alt=""></span>');
+	const rows = page.indexOf("<dl>", box);
+	const notesAt = page.indexOf('<div class="note">');
+	assert.ok(box > 0 && cover > box && rows > cover && notesAt > rows, "box, cover, rows, then the notes");
+	assert.match(page, /<div class="props-body cover-left" style="--cover-w: 200px">/);
+	assert.doesNotMatch(page, /<img class="cover"/);
+	// Date and tags sit in the box, as in the app, not on a line under the title.
+	assert.doesNotMatch(page, /<p class="meta">/);
+	assert.match(page, /<span class="icon">▦<\/span>date<\/dt><dd><time datetime="2026-09-01">September 1, 2026<\/time>/);
+	assert.match(page, new RegExp(`<span class="icon">#</span>tags</dt><dd><span class="pill tag-${tagHue("book")}">book</span> <span class="pill tag-${tagHue("scifi")}">scifi</span>`));
+	for (const k of ["coverImage", "banner", "banner_position", "cover_shape", "title"]) assert.doesNotMatch(page, new RegExp(`</span>${k}</dt>`));
+	assert.match(page, /<div class="banner"><img src="https:\/\/example.com\/b.jpg" alt="" style="object-position: center 30%"><\/div>/);
+	assert.match(page, new RegExp(`<span class="tag tag-${tagHue("reread")}">#reread</span>`));
+	// Turning properties off brings back the date line and the plain cover.
+	const plain = buildSite(notes, ["content/attachments/dune.jpg"], { title: "S", properties: false }).files.get("logs/books/dune.html");
+	assert.match(plain, /<p class="meta"><time datetime="2026-09-01">/);
+	assert.match(plain, /<img class="cover" src="..\/..\/files\/dune.jpg" alt="">/);
+});
+
+test("#tags become pills, but not headings, links or code", () => {
+	const ctx = { kindOf: () => null, fileFor: () => null, pageFor: () => "a.html" };
+	const md = webMarkdown("## Head\n\n#one and `#two` and [[A#Part]] and x#three", ctx);
+	assert.match(md, /^## Head/m);
+	assert.match(md, new RegExp(`<span class="tag tag-${tagHue("one")}">#one</span>`));
+	assert.ok(md.includes("`#two`") && !md.includes("#three<") && !md.includes(">#Part"));
 });

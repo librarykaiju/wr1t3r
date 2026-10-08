@@ -138,6 +138,14 @@ class CheckboxWidget extends WidgetType {
 	ignoreEvent() { return false; }
 }
 
+// A callout type's color and icon as the notebook draws them, for the
+// website export: { color, svg } (svg as markup).
+export function calloutLook(type) {
+	const t = String(type).toLowerCase();
+	const paths = ICON_PATHS[CALLOUT_ICON[t] || "pencil"].map((d) => `<path d="${d}"/>`).join("");
+	return { color: CALLOUT_COLOR[t] || "blue", svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>` };
+}
+
 const SVG = "http://www.w3.org/2000/svg";
 class CalloutIconWidget extends WidgetType {
 	// label: the type's name, shown when the callout has no title (as Obsidian does).
