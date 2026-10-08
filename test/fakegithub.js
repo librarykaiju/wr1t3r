@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 const gitSha = (buf) => createHash("sha1").update(Buffer.concat([Buffer.from(`blob ${buf.length}\0`), buf])).digest("hex");
 
 // Just enough of GitHub's API: one repo, commits as path -> sha maps.
-export function fakeGitHub({ empty = false, pages = false, canPages = true, push = true } = {}) {
+export function fakeGitHub({ empty = false, pages = false, canPages = true, push = true, workflows = true } = {}) {
 	const blobs = new Map(), texts = new Map(), trees = new Map(), commits = new Map(), refs = new Map();
 	const calls = [];
 	let n = 0;
@@ -25,6 +25,7 @@ export function fakeGitHub({ empty = false, pages = false, canPages = true, push
 			return json(200, { tree: [...trees.get(m[1])].map(([path, sha]) => ({ path, sha, type: "blob" })) });
 		if (path === "/repos/you/site/git/blobs") { const s = gitSha(Buffer.from(b.content, "base64")); blobs.set(s, b.content); return json(201, { sha: s }); }
 		if (path === "/repos/you/site/git/trees") {
+			if (!workflows && b.tree.some((e) => e.path.startsWith(".github/workflows/"))) return json(404, { message: "Not Found" });
 			const files = new Map(trees.get(b.base_tree));
 			for (const e of b.tree) {
 				if (e.sha === null) files.delete(e.path);

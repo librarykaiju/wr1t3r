@@ -18,7 +18,8 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 - [Publishing your notes as a website](#publishing)
 - [Putting the site on Neocities](#neocities)
 - [Putting the site on GitHub Pages](#github)
-- [Cloudflare Pages, from the same GitHub repo](#cloudflare)
+- [Sending it on to Neocities from GitHub](#neocities-github)
+- [Cloudflare Pages, Netlify or Porkbun, from the same GitHub repo](#cloudflare)
 
 --- setup
 
@@ -98,7 +99,7 @@ wr1t3r can send the site to GitHub itself, so there's nothing to unzip or drag. 
 
     - Name it `wr1t3r` and pick how long it lasts.
     - Under _Repository access_, choose _Only select repositories_ and pick your site's repository.
-    - Under _Permissions_, add _Contents_ and _Pages_, and set both to _Read and write_.
+    - Under _Permissions_, add _Contents_ and _Pages_, and set both to _Read and write_. If you'll also [send it on to Neocities](#neocities-github), add _Workflows_ as well, set to _Read and write_.
     - Click _Generate token_ and copy it. GitHub only shows it once.
 
 4.  **Publish from wr1t3r.** In Export as website, scroll to _Publish to GitHub_. Type the repository as `yourname/my-site`, leave the branch as `main`, paste the token, and click _Publish to GitHub_. Tick _Remember the token on this device_ if you don't want to paste it each time.
@@ -120,13 +121,35 @@ Click _Publish to GitHub_ again. Only files that changed are sent, and pages you
 
 _The token goes from your browser straight to GitHub. wr1t3r never sees it or your site. If you tick Remember, it's kept in this browser only; you can delete the token on GitHub at any time._
 
+--- neocities-github
+
+## Sending it on to Neocities from GitHub
+
+Neocities doesn't take uploads straight from a web page, so wr1t3r can't send to it directly. It can go through GitHub instead: one click publishes to GitHub Pages and your Neocities site together. Set up [GitHub Pages](#github) first, then:
+
+1.  **Copy your Neocities API key.** On neocities.org, open _Settings_ for your site, then _API_ (or go to _neocities.org/settings_), and generate a key. Copy it.
+
+2.  **Give it to the repository as a secret.** In your site's repository on GitHub, open _Settings_, then _Secrets and variables_, then _Actions_, and click _New repository secret_. Name it `NEOCITIES_API_TOKEN` and paste the key.
+
+3.  **Let the token add the step.** Edit your wr1t3r token on GitHub ([github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens)) and add _Workflows_, set to _Read and write_.
+
+4.  **Tick _Also send it to Neocities each time_** under Publish to GitHub, and click _Publish to GitHub_. wr1t3r adds a small file to the repository (`.github/workflows/neocities.yml`) that uploads the site to Neocities after every publish.
+
+5.  **Check it went.** A minute or two later your Neocities site has the same pages. If it doesn't, open the repository's _Actions_ tab on GitHub: a red mark there says what went wrong, usually a missing or mistyped secret. Fix it, then use _Run workflow_ on that page, or publish again.
+
+Untick the box and publish to stop sending to Neocities; wr1t3r takes the file out again. Like dragging files in by hand, this doesn't delete pages from Neocities, so remove unpublished pages from your Neocities dashboard. If you have a paid Neocities site and tick _Include audio and video_, those go too.
+
 --- cloudflare
 
-## Cloudflare Pages, from the same GitHub repo
+## Cloudflare Pages, Netlify or Porkbun, from the same GitHub repo
 
-Prefer Cloudflare? Publish to GitHub as above, then let Cloudflare watch the repository. In the Cloudflare dashboard, create a Pages project, connect it to GitHub, and pick your site's repository. There's no build step: leave the build command empty and the output folder as the top of the repository. Every time you click _Publish to GitHub_, Cloudflare picks up the change.
+These hosts can watch a GitHub repository and put each change online themselves. Publish to GitHub as above, then connect the host to your site's repository once. There's no build step anywhere: leave the build command empty and the output folder as the top of the repository. After that, every time you click _Publish to GitHub_, the host picks up the change.
 
-You can also upload the unzipped folder to a Cloudflare Pages project by hand, the same way as Neocities.
+- **Cloudflare Pages:** in the Cloudflare dashboard, create a Pages project, choose _Connect to Git_, and pick your site's repository and branch.
+- **Netlify:** _Add new site_, then _Import an existing project_, choose GitHub, and pick the repository and branch. Leave _Build command_ empty and _Publish directory_ blank.
+- **Porkbun:** for a domain with Porkbun static hosting, open its _Static Hosting_ page, click _Connect_ under _GitHub Connect_, let Porkbun see just your site's repository, then pick that repository and branch.
+
+You can also upload the unzipped folder to Cloudflare Pages or Netlify Drop by hand, the same way as Neocities.
 
 --- footer
 

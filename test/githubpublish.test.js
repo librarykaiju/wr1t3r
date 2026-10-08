@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { parseRepo, pagesUrl, blobSha, publishToGitHub } from "../src/githubpublish.js";
+import { parseRepo, pagesUrl, blobSha, publishToGitHub, neocitiesWorkflow, NEOCITIES_WORKFLOW } from "../src/githubpublish.js";
 import { fakeGitHub } from "./fakegithub.js";
 
 test("repo names and Pages addresses", () => {
@@ -61,4 +61,29 @@ test("plain words for the usual mistakes", async () => {
 	await assert.rejects(publishToGitHub({ token: "t", repo: "you/site", files: site(), read, fetch: fakeGitHub({ push: false }).fetch }), /Contents: Read and write/);
 	const bad = async () => ({ ok: false, status: 401, json: async () => ({ message: "Bad credentials" }) });
 	await assert.rejects(publishToGitHub({ token: "t", repo: "you/site", files: site(), read, fetch: bad }), /didn't accept the token/);
+});
+
+test("Neocities: adds the Action for the publish branch, and takes it out when unticked", async () => {
+	const gh = fakeGitHub();
+	const r = await publishToGitHub({ token: "t", repo: "you/site", files: site(), read, neocities: { supporter: false }, fetch: gh.fetch });
+	const yml = gh.text(NEOCITIES_WORKFLOW);
+	assert.match(yml, /branches: \["main"\]/);
+	assert.match(yml, /bcomnes\/deploy-to-neocities@v3/);
+	assert.match(yml, /api_key: \$\{\{ secrets\.NEOCITIES_API_TOKEN \}\}/);
+	assert.match(yml, /neocities_supporter: false/);
+	assert.match(yml, /--exclude \.github/);
+	assert.ok(r.paths.includes(NEOCITIES_WORKFLOW));
+	assert.match(neocitiesWorkflow("site", { supporter: true }), /branches: \["site"\][\s\S]*neocities_supporter: true/);
+
+	const off = await publishToGitHub({ token: "t", repo: "you/site", files: site(), read, last: r.paths, fetch: gh.fetch });
+	assert.equal(off.deleted, 1);
+	assert.ok(!gh.files().has(NEOCITIES_WORKFLOW));
+	assert.ok(gh.files().has("index.html"));
+});
+
+test("Neocities: a token that can't edit workflows gets plain words", async () => {
+	const gh = fakeGitHub({ workflows: false });
+	await assert.rejects(publishToGitHub({ token: "t", repo: "you/site", files: site(), read, neocities: {}, fetch: gh.fetch }), /Workflows to Read and write/);
+	const ok = await publishToGitHub({ token: "t", repo: "you/site", files: site(), read, fetch: gh.fetch });
+	assert.ok(ok.changed > 0, "publishes fine without it");
 });
