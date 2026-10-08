@@ -23,6 +23,8 @@ header.site, footer.site { margin: 0 auto; padding: 18px 20px; font: 600 15px/1.
 header.site { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
 header.site a { color: var(--fg); text-decoration: none; }
 header.site .home { margin-right: auto; display: inline-flex; align-items: center; gap: 10px; }
+.home .name { display: flex; flex-direction: column; }
+.home .tagline { font: 400 13px/1.35 var(--sans); color: var(--muted); }
 header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: contain; display: block; }
 .menu { display: flex; flex-wrap: wrap; gap: 4px 16px; font-weight: normal; }
 .menu a { color: var(--muted); }
@@ -35,41 +37,89 @@ header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: con
 footer.site { font-weight: normal; color: var(--muted); border-top: 1px solid var(--line); margin-top: 3em; }
 footer.site a { color: var(--muted); }
 main { margin: 0 auto; padding: 0 20px 4em; }
-.banner img { display: block; width: 100%; max-height: 280px; object-fit: cover; }
+/* The banner as in the app: 300px tall, fading out at the bottom. */
+.banner img { display: block; width: 100%; height: 300px; object-fit: cover; -webkit-mask-image: linear-gradient(to bottom, black 25%, transparent); mask-image: linear-gradient(to bottom, black 25%, transparent); }
+@media (max-width: 640px) { .banner img { height: 100px; } }
 h1, h2, h3, h4, h5, h6 { color: var(--heading, var(--fg)); line-height: 1.25; margin: 1.6em 0 0.6em; }
 h1 { font-size: 2em; margin-top: 0.6em; }
 .meta { color: var(--muted); font: 14px/1.5 var(--sans); display: flex; flex-wrap: wrap; gap: 6px 12px; margin: -0.4em 0 1.4em; }
 .tag { --t: var(--f6, var(--accent)); display: inline-block; padding: 0 0.6em; border-radius: 999px; font-size: 0.95em; background: color-mix(in srgb, var(--t) 16%, var(--bg)); color: color-mix(in srgb, var(--t) 75%, var(--fg)); }
 /* Tag colors are the theme's rainbow, as in the app. */
 .tag-0 { --t: var(--f1); } .tag-1 { --t: var(--f2); } .tag-2 { --t: var(--f3); } .tag-3 { --t: var(--f4); } .tag-4 { --t: var(--f5); } .tag-5 { --t: var(--f6); } .tag-6 { --t: var(--f7); }
-.props { margin: 0 0 1.4em; border: 1px solid var(--line); border-radius: 12px; background: var(--panel, var(--card)); font: 15px/1.45 var(--sans); }
-.props summary { cursor: pointer; padding: 8px 14px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.props dl { margin: 0; padding: 0 14px 10px; }
-.props dl > div { display: grid; grid-template-columns: minmax(7rem, 30%) 1fr; gap: 12px; padding: 5px 0; border-top: 1px solid var(--line); }
-.props dt { color: var(--muted); overflow-wrap: anywhere; }
-.props dd { margin: 0; overflow-wrap: anywhere; }
-.props .pill { display: inline-block; margin: 1px 0; padding: 0 0.6em; border-radius: 999px; background: color-mix(in srgb, var(--f6, var(--accent)) 14%, var(--bg)); }
-.props input { margin: 0; vertical-align: -2px; }
+/* The Properties box, drawn as the app draws it (.md-props in src/style.css). */
+.props { margin: 0 0 1.4em; padding: 4px 10px 6px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel, var(--card)); font: 0.78em/1.6 var(--sans); }
+.props summary { cursor: pointer; display: flex; align-items: center; min-height: 2em; font-weight: 600; color: var(--muted); list-style: none; }
+.props summary::-webkit-details-marker { display: none; }
+.props[open] summary::before { content: "▾ "; white-space: pre; }
+.props[open] .count { display: none; }
+/* Folded, it's the app's small Properties pill at the right. */
+.props:not([open]) { padding: 0; border: 0; background: none; display: flex; justify-content: flex-end; }
+.props:not([open]) summary { min-height: 0; padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font: 11px/1.6 var(--sans); letter-spacing: 0.04em; }
+.props:not([open]) summary:hover { color: var(--accent); border-color: var(--accent); }
+.props-body { display: flex; gap: 14px; align-items: flex-start; }
+.props-body.cover-right { flex-direction: row-reverse; }
+.props-body.cover-top { flex-direction: column; }
+.props-body.cover-bottom { flex-direction: column-reverse; }
+.props dl { flex: 1; min-width: 0; margin: 0; display: grid; grid-template-columns: minmax(7em, max-content) minmax(0, 1fr); column-gap: 12px; align-items: start; overflow-wrap: anywhere; }
+.props dl > div { display: contents; }
+.props dt { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 0; color: var(--muted); }
+.props dt .icon { flex: none; width: 1.6em; text-align: center; font: 600 0.8em var(--mono); opacity: 0.7; }
+.props dd { margin: 0; min-height: 2em; padding: 3px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.props .pill { display: inline-block; padding: 0 0.6em; border-radius: 999px; font: 500 0.95em/1.6 var(--sans); background: color-mix(in srgb, var(--t, var(--f6)) 16%, var(--bg)); color: color-mix(in srgb, var(--t, var(--f6)) 75%, var(--fg)); }
+.props .pill a { color: inherit; }
+.props input { width: 1.05em; height: 1.05em; margin: 0 0 0 2px; accent-color: var(--accent); }
+.props .cover { display: block; flex: none; font-size: 0; line-height: 0; padding: 4px 0; }
+.props .cover:is(.left, .right) { width: min(var(--cover-w, 200px), 40%); }
+.props .cover img { display: block; width: 100%; height: auto; max-height: 500px; object-fit: cover; border-radius: 6px; }
+.props .cover:is(.vertical-cover, .vertical-contain) img { aspect-ratio: 0.63; object-position: top; }
+.props .cover:is(.horizontal-cover, .horizontal-contain) img { aspect-ratio: 4 / 3; }
+.props .cover:is(.square, .circle) img { aspect-ratio: 1; }
+.props .cover.circle img { border-radius: 50%; }
+.props .cover:is(.vertical-contain, .horizontal-contain) img { object-fit: contain; }
+.props .cover:is(.top, .bottom) { padding: 6px 0; }
+.props .cover:is(.top, .bottom) img { max-height: 400px; width: auto; max-width: 100%; }
+@media (max-width: 640px) {
+	.props-body { flex-direction: column; }
+	.props .cover:is(.left, .right) { width: auto; }
+	.props .cover img { max-height: 200px; width: auto; max-width: 100%; }
+}
 img { max-width: 100%; height: auto; }
 img.cover { display: block; max-width: min(240px, 60%); border-radius: 6px; margin: 0 0 1.4em; }
+/* Outside logs the cover is as wide as the text when it's big enough, never stretched (.md-cover-wide in the app). */
+img.cover.wide { max-width: 100%; }
 audio, video { display: block; width: 100%; margin: 1em 0; }
-blockquote { margin: 1em 0; padding: 0 0 0 1em; border-left: 3px solid var(--line); color: var(--muted); }
+blockquote { margin: 1em 0 1em 1.6em; padding: 4px 10px 4px 18px; border-left: 4px solid var(--muted); color: var(--muted); }
 mark { background: var(--hl); color: inherit; }
-code { font: 0.85em var(--mono); background: var(--code-bg); border-radius: 3px; padding: 0.1em 0.3em; }
-pre { background: var(--code-bg); padding: 0.8em 1em; border-radius: 8px; overflow-x: auto; }
+code { font: 0.88em var(--mono); background: var(--code-bg); border-radius: 3px; padding: 0.1em 0.3em; }
+pre { background: var(--code-bg); padding: 0.8em 1em; border-radius: 6px; overflow-x: auto; font-size: 0.82em; }
+pre code { font-size: 1em; }
 pre code { background: none; padding: 0; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
 table { border-collapse: collapse; display: block; overflow-x: auto; margin: 1em 0; font-size: 0.9em; }
 th, td { border: 1px solid var(--line); padding: 0.35em 0.7em; text-align: left; vertical-align: top; }
 li:has(> input[type=checkbox]) { list-style: none; margin-left: -1.3em; }
-li > input[type=checkbox] { margin: 0 0.5em 0 0; }
-.callout { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--card); border-radius: 8px; padding: 0.6em 1em; margin: 1em 0; }
-.callout > :last-child { margin-bottom: 0; }
-.callout-title { font: 600 0.9em/1.4 var(--sans); margin: 0.2em 0 0.4em; }
-.callout-warning, .callout-caution, .callout-attention { border-left-color: var(--f2); }
-.callout-danger, .callout-error, .callout-bug, .callout-failure { border-left-color: var(--bad); }
-.callout-tip, .callout-success, .callout-check, .callout-done { border-left-color: var(--f4); }
-.callout-quote, .callout-cite { border-left-color: var(--muted); }
+li > input[type=checkbox] { margin: 0 0.5em 0 0; width: 1.05em; height: 1.05em; vertical-align: -0.12em; accent-color: var(--accent); }
+/* Done tasks struck through, as in the app. */
+li:has(> input[type=checkbox]:checked) { color: var(--muted); text-decoration: line-through; }
+/* The note's own text, sized and colored as in the notebook: headings,
+   pictures, list bullets in their depth's rainbow color, #tags as pills. */
+.note h1 { font-size: 1.6em; margin-top: 1.2em; }
+.note h2 { font-size: 1.35em; }
+.note h3 { font-size: 1.15em; }
+.note img { border-radius: 6px; }
+.note .tag { font: 500 0.8em/1.6 var(--sans); padding: 0.05em 0.55em; }
+.note li::marker { color: var(--f1); font-weight: 600; }
+.note :is(ul, ol) :is(ul, ol) > li::marker { color: var(--f2); }
+.note :is(ul, ol) :is(ul, ol) :is(ul, ol) > li::marker { color: var(--f3); }
+.note :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) > li::marker { color: var(--f4); }
+.note :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) > li::marker { color: var(--f5); }
+/* Callouts in the app's colors (blocks.js / .md-callout), each type's icon before its title. */
+.callout { --co: #448aff; background: color-mix(in srgb, var(--co) 10%, var(--bg)); border-left: 4px solid color-mix(in srgb, var(--co) 70%, #000); border-radius: 0 6px 6px 0; padding: 4px 10px 4px 14px; margin: 1em 0 1em 1.6em; }
+.callout > *, blockquote > * { margin-top: 0.4em; margin-bottom: 0.4em; }
+.callout-title { color: var(--co); font-weight: 700; margin: 0.4em 0; }
+.callout-title svg { width: 1.05em; height: 1.05em; vertical-align: -0.16em; margin-right: 0.4em; }
+.co-cyan { --co: #00b8d4; } .co-green { --co: #08b94e; } .co-yellow { --co: #e0a800; } .co-orange { --co: #f57c00; } .co-red { --co: #e5484d; }
+.co-purple { --co: #7c4dff; } .co-gray { --co: #9e9e9e; } .co-violet { --co: #7439ac; } .co-sapphire { --co: #1a7da4; }
 .footnotes { font-size: 0.85em; color: var(--muted); }
 .footnotes-sep { border: 0; border-top: 1px solid var(--line); width: 30%; margin: 3em 0 1em; }
 .contents h2.folder, .contents.archive h2 { font: 600 13px/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 2em 0 0.4em; }
@@ -121,6 +171,9 @@ li > input[type=checkbox] { margin: 0 0.5em 0 0; }
 /* The notebook layout's folders. */
 .tree { font: 15px/1.45 var(--sans); margin: 0 0 1.5em; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 .tree ul { list-style: none; margin: 0; padding: 0; }
+.tree > .home { display: flex; align-items: center; gap: 10px; padding: 6px 6px 10px; margin: 0 0 6px; background: none; border-radius: 0; border-bottom: 1px solid var(--line); color: var(--fg); text-decoration: none; font-weight: 600; }
+.tree > .home .logo { height: 36px; width: auto; max-width: 100%; object-fit: contain; display: block; }
+body.layout-notebook main { padding-top: 20px; }
 .tree ul ul { padding-left: 14px; border-left: 1px solid var(--line); margin-left: 6px; }
 .tree .tree-top { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
 .tree a, .tree summary { display: block; padding: 4px 6px; border-radius: 6px; color: var(--fg); text-decoration: none; cursor: pointer; }
