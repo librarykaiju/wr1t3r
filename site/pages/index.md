@@ -1,6 +1,6 @@
 ---
 title: wr1t3r: write, publish and keep your notes in your own Dropbox
-description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, day planner, thirteen color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox as plain files.
+description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, day planner, twelve color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox as plain files.
 buy:
 ---
 
@@ -83,7 +83,7 @@ The globe lights up when the note you're on is published. Click it to publish or
 
 --- themes
 
-## Thirteen color themes, light and dark
+## Twelve color themes, light and dark
 
 Pick the colors you like writing in. Each theme sets the page, the folders in the sidebar and your tag colors, and follows your system's light or dark mode if you want it to.
 
@@ -99,7 +99,6 @@ Pick the colors you like writing in. Each theme sets the page, the folders in th
 - ![wr1t3r in the Monokai theme](/shots/theme-monokai-dark.webp) Monokai
 - ![wr1t3r in the SynthWave '84 theme](/shots/theme-synthwave-dark.webp) SynthWave '84
 - ![wr1t3r in the Bubblegum theme](/shots/theme-bubblegum-light.webp) Bubblegum
-- ![wr1t3r in the Sakura theme](/shots/theme-sakura-light.webp) Sakura
 
 ### Your website wears it too
 

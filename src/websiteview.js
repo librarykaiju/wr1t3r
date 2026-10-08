@@ -18,10 +18,10 @@
 
 import appCss from "./style.css?raw";
 import { buildSite, themeCss, SITE_FILES } from "./website.js";
-import { FAMILIES, themeVariants } from "./theme.js";
+import { FAMILIES, familyOf, themeVariants } from "./theme.js";
 import { publishToGitHub } from "./githubpublish.js";
 
-const FAMILY_NAMES = { default: "Default", sepia: "Sepia", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", sakura: "Sakura", mixtape: "Mixtape" };
+const FAMILY_NAMES = { default: "Default", sepia: "Sepia", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", mixtape: "Mixtape" };
 
 const KEY = "wr1t3r-website";
 let open = null;
@@ -81,7 +81,7 @@ export function openWebsite(host) {
 	const logoOnly = check("Show only the logo, not the title beside it", saved.logoOnly);
 	const now = host.theme();
 	const family = document.createElement("select");
-	for (const f of FAMILIES) family.append(new Option(FAMILY_NAMES[f] + (f === now.family ? " (the notebook's)" : ""), f, false, f === (saved.family || now.family)));
+	for (const f of FAMILIES) family.append(new Option(FAMILY_NAMES[f] + (f === now.family ? " (the notebook's)" : ""), f, false, f === (familyOf(saved.family) || now.family)));
 	field("Theme", family);
 	const mode = document.createElement("select");
 	for (const [v, label] of [["auto", "Auto: light or dark, as each visitor's device is set"], ["light", "Light"], ["dark", "Dark"]]) mode.append(new Option(label, v, false, v === (saved.mode || now.mode)));
