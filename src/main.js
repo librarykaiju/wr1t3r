@@ -94,6 +94,7 @@ import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js
 import { setupToolbar } from "./toolbar.js";
 import * as versions from "./history.js";
 import { INBOX, captureEntry, appendCapture, stamp } from "./capture.js";
+import { bookmarklet } from "./clippayload.js";
 import { recordVoice } from "./recorder.js";
 import { remindersIn, dueReminders } from "./reminders.js";
 import { openHistory } from "./historyview.js";
@@ -4273,18 +4274,38 @@ async function clipPage(url) {
 	url = (url || "").trim();
 	if (!url) return;
 	if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+	// Only the Worker can fetch another site's page; the bookmarklet carries it.
+	if (onDropbox) return toast("Clip pages with the Clip to wr1t3r bookmarklet in Settings > Sync and files.", 8000);
 	if (!navigator.onLine) return toast("Clipping needs a connection.");
 	toast("Clipping…", 60000);
 	try {
-		const [{ clip }, { noteName }] = await Promise.all([import("./clip.js"), import("./convert-text.js")]);
-		const c = await clip(url);
-		const path = await addNote(ownFolder("clippings"), noteName(c.title), c.text);
-		toast(`Clipped “${name(path)}” to ${folderLabel(ownFolder("clippings"))}.`);
-		showAdded(ownFolder("clippings"), path);
+		const { clip } = await import("./clip.js");
+		await saveClip(await clip(url));
 	} catch (e) {
 		if (e instanceof AuthError) return signOut(SIGNED_OUT);
 		toast("Couldn't clip that: " + e.message, 8000);
 	}
+}
+
+// A page the bookmarklet brought in (#clip-page=). Anyone can make such a
+// link, so it's only saved once you say so.
+async function clipCarried(payload) {
+	try {
+		const [{ readPayload }, { clipHtml }] = await Promise.all([import("./clippayload.js"), import("./clip.js")]);
+		const page = await readPayload(payload);
+		const c = clipHtml(page.html, page.url, { selection: page.selection });
+		if (!confirm(`Save “${c.title}”${page.selection ? " (the selected part)" : ""} from ${new URL(page.url).hostname} to ${folderLabel(ownFolder("clippings"))}?`)) return;
+		await saveClip(c);
+	} catch (e) {
+		toast("Couldn't clip that: " + e.message, 8000);
+	}
+}
+
+async function saveClip(c) {
+	const { noteName } = await import("./convert-text.js");
+	const path = await addNote(ownFolder("clippings"), noteName(c.title), c.text);
+	toast(`Clipped “${name(path)}” to ${folderLabel(ownFolder("clippings"))}.`);
+	showAdded(ownFolder("clippings"), path);
 }
 
 // Media notes (src/media.js, worker/media.js): the kinds this Worker can look
@@ -4386,12 +4407,14 @@ async function newMediaNote(k, kind = null) {
 	}
 }
 
-// The bookmarklet (see the Aa panel) opens wr1t3r at #clip=<page address>.
+// The bookmarklet (Settings > Sync and files) opens wr1t3r at
+// #clip-page=<the page>. Older ones on the Worker build send #clip=<address>.
 function clipFromHash() {
-	const m = location.hash.match(/^#clip=(.+)$/);
+	const m = location.hash.match(/^#clip(-page)?=(.+)$/);
 	if (!m) return false;
 	history.replaceState(null, "", location.pathname);
-	clipPage(decodeURIComponent(m[1]));
+	if (m[1]) clipCarried(m[2]);
+	else clipPage(decodeURIComponent(m[2]));
 	return true;
 }
 
@@ -6255,10 +6278,13 @@ async function start() {
 	// imported, because Safari only opens the picker straight from the tap.
 	$("upload-input").accept = ".md,.markdown,.txt,.html,.htm,.docx,.pdf";
 	$("upload").addEventListener("click", () => $("upload-input").click());
-	// Clipping fetches the page through the Worker.
-	if (onDropbox) { const p = $("bookmarklet").closest("p"); for (const el of [$("clip"), p, p.previousElementSibling]) el.hidden = true; }
+	// Clip asks for an address, which only the Worker can fetch; the
+	// bookmarklet carries the page itself, so it works on every build.
+	if (onDropbox) $("clip").hidden = true;
 	$("clip").addEventListener("click", () => clipPage(prompt("Web page to clip:") || ""));
-	$("bookmarklet").href = `javascript:location.href=${JSON.stringify(location.origin + "/#clip=")}+encodeURIComponent(location.href)`;
+	$("bookmarklet").href = bookmarklet(location.origin);
+	$("bookmarklet").addEventListener("click", (e) => { e.preventDefault(); toast("Drag it to your bookmarks bar, or tap Copy."); });
+	$("copyBookmarklet").addEventListener("click", () => navigator.clipboard.writeText(bookmarklet(location.origin)).then(() => toast("Copied. Bookmark any page, then edit the bookmark and paste this over its address."), () => toast("Couldn't copy it.")));
 	$("upload-input").addEventListener("change", (e) => {
 		const files = [...e.target.files];
 		e.target.value = "";

@@ -14,7 +14,7 @@ export const USES = [
 	{ id: "planner", label: "Journal and day planner", detail: "A note for each day, tasks, reminders and a calendar", areas: ["daily", "calendar", "reminders"] },
 	{ id: "health", label: "Health and food", detail: "Log meals, recipes and nutrition from the day planner", areas: ["health", "daily"] },
 	{ id: "media", label: "Books, films and other media", detail: "Notes for what you read, watch, play and listen to", areas: ["media", "boards"] },
-	{ id: "research", label: "Research and clipping", detail: "Clip web pages, capture ideas, search the text in pictures and recordings", here: ["Research and capture", "Capture ideas to an Inbox and search the text in pictures and PDFs"], areas: ["capture", "ocr", "audio"] },
+	{ id: "research", label: "Research and clipping", detail: "Clip web pages, capture ideas, search the text in pictures and recordings", here: ["Research and clipping", "Clip web pages, capture ideas to an Inbox, and search the text in pictures and PDFs"], areas: ["capture", "ocr", "audio"] },
 ];
 
 export const DEFAULT_USES = ["writing"];
@@ -32,7 +32,7 @@ const has = (uses, id) => uses.includes(id);
 
 // The getting-started note, written for the areas that are on (features: the
 // map from featuresFor or the Settings note). worker: false for the Dropbox
-// build, which has no Clip button, transcripts or voice memos. story: the
+// build, which has no Clip button (only the bookmarklet), transcripts or voice memos. story: the
 // sample manuscript is there to point at.
 export function guideText(features, { worker = true, story = false } = {}) {
 	const on = (id) => features[id] !== false;
@@ -114,7 +114,7 @@ export function guideText(features, { worker = true, story = false } = {}) {
 		"",
 		"## Capture",
 		"",
-		(worker ? "The Clip button saves a web page as a note, and " : "") + "Commands > Capture to the Inbox jots a thought into your Inbox note without leaving what you're on.",
+		"The Clip to wr1t3r bookmarklet in Settings > Sync and files saves the page you're reading as a note in your clippings" + (worker ? " (so does the Clip button, from an address)" : "") + ", and Commands > Capture to the Inbox jots a thought into your Inbox note without leaving what you're on.",
 	);
 	if (on("ocr")) lines.push(
 		"",

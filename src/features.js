@@ -30,7 +30,7 @@ export const FEATURE_AREAS = [
 	{ id: "calendar", label: "Calendar", detail: "The agenda, the month calendar and calendar events in the timeline" },
 	{ id: "audio", label: "Transcripts and voice memos", detail: "Transcribe video and audio files, and record voice memos" },
 	{ id: "ocr", label: "Searchable pictures and PDFs", detail: "Read the text in pictures and PDFs so search finds them" },
-	{ id: "capture", label: "Capture and clipping", detail: "The Inbox, quick capture and the web clipper", here: ["Capture", "The Inbox and quick capture"] },
+	{ id: "capture", label: "Capture and clipping", detail: "The Inbox, quick capture and the web clipper", },
 	{ id: "reminders", label: "Reminders", detail: "Notifications for tasks with a time" },
 ];
 
