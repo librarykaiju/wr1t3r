@@ -18,7 +18,7 @@ It's ordinary Markdown, plus a few habits the build turns into the page's layout
   - A paragraph of nothing but links becomes buttons; the first is the colored one. Link to `buy` (`[Buy for $20](buy)`) for a Buy button.
   - A `##` or `###` heading whose text ends with a picture puts the picture beside the text, alternating sides. Two pictures sit side by side; pictures with `phone` in the file name are drawn as phones.
   - A picture on its own elsewhere spans the page.
-  - A list of pictures with a word after each (`- ![alt](/shots/x.webp) Sepia`) becomes the grid of themes with captions.
+  - A list of pictures with a word after each (`- ![alt](/shots/x.webp) Gruvbox`) becomes the grid of themes with captions.
   - A paragraph starting with a bold price (`**$20** once`) starts the price box; everything after it in the section goes inside the box.
 - **Pictures** go in `site/public/shots/` and are written `![what the picture shows](/shots/name.webp)`. The text in brackets is read aloud to people who can't see it.
 - **HTML works** where Markdown has nothing for it, like `<br>` for a line break in a heading or `<kbd>/</kbd>` for a key.

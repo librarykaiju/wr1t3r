@@ -4474,9 +4474,9 @@ function applyTheme() {
 	rerunDataview();
 	$("themeFamilies").value = family;
 	document.querySelectorAll("#themes button").forEach((b) => {
-		// Sepia is light only, Monokai and SynthWave '84 dark only, Mixtape
-		// whatever its background is.
-		const oneMode = family === "sepia" || family === "monokai" || family === "synthwave" || family === "mixtape";
+		// Monokai and SynthWave '84 are dark only, Mixtape whatever its
+		// background is.
+		const oneMode = family === "monokai" || family === "synthwave" || family === "mixtape";
 		b.setAttribute("aria-pressed", String(!oneMode && b.dataset.theme === mode));
 		b.disabled = oneMode;
 	});
@@ -4723,7 +4723,7 @@ function setupSettings() {
 			storeRaw("wr1t3rMixtape", JSON.stringify({ bg: now("--bg", "bg"), fg: now("--fg", "fg"), accent: now("--accent", "accent"), second: now("--f2", "second") }));
 		}
 		storeRaw("wr1t3rThemeFamily", family === "default" ? null : family);
-		storeRaw("wr1t3rTheme", mode === "auto" ? null : mode); // drops an old "sepia"
+		storeRaw("wr1t3rTheme", mode === "auto" ? null : mode);
 		applyTheme();
 	});
 	$("mixtapeBox").addEventListener("input", (e) => {

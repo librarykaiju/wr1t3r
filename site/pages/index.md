@@ -88,7 +88,7 @@ The globe lights up when the note you're on is published. Click it to publish or
 Pick the colors you like writing in. Each theme sets the page, the folders in the sidebar and your tag colors, and follows your system's light or dark mode if you want it to.
 
 - ![wr1t3r in the Default theme](/shots/theme-default-light.webp) Default
-- ![wr1t3r in the Sepia theme](/shots/theme-sepia-light.webp) Sepia
+- ![wr1t3r in the Gruvbox theme](/shots/theme-gruvbox-light.webp) Gruvbox
 - ![wr1t3r in the Dracula theme](/shots/theme-dracula-dark.webp) Dracula
 - ![wr1t3r in the Rosé Pine Dawn theme](/shots/theme-rosepine-light.webp) Rosé Pine
 - ![wr1t3r in the Tokyo Night theme](/shots/theme-tokyonight-dark.webp) Tokyo Night

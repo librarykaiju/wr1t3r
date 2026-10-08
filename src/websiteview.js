@@ -21,7 +21,7 @@ import { buildSite, themeCss, SITE_FILES } from "./website.js";
 import { FAMILIES, familyOf, themeVariants } from "./theme.js";
 import { publishToGitHub } from "./githubpublish.js";
 
-const FAMILY_NAMES = { default: "Default", sepia: "Sepia", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", mixtape: "Mixtape" };
+const FAMILY_NAMES = { default: "Default", gruvbox: "Gruvbox", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", mixtape: "Mixtape" };
 
 const KEY = "wr1t3r-website";
 let open = null;

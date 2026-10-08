@@ -1,14 +1,14 @@
-// Themes: a family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night,
+// Themes: a family (Default, Gruvbox, Dracula, Rosé Pine, Tokyo Night,
 // Catppuccin, Kanagawa, Everforest, Nord, Monokai, SynthWave '84, Bubblegum,
 // Mixtape) and a mode (Auto, Light, Dark). themeAttr() gives the data-theme value set on <html>; the
 // colors are in src/style.css. public/theme.js repeats this before the page
 // draws, so keep the two in step.
 
-export const FAMILIES = ["default", "sepia", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave", "bubblegum", "mixtape"];
+export const FAMILIES = ["default", "gruvbox", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave", "bubblegum", "mixtape"];
 
 const VARIANTS = {
 	default: { light: "light", dark: "dark" },
-	sepia: { light: "sepia", dark: "sepia" }, // light only
+	gruvbox: { light: "gruvbox-light", dark: "gruvbox" },
 	dracula: { light: "dracula-light", dark: "dracula" },
 	rosepine: { light: "rosepine-dawn", dark: "rosepine" },
 	tokyonight: { light: "tokyonight-day", dark: "tokyonight" },
@@ -30,12 +30,11 @@ export function familyOf(raw) {
 	return FAMILIES.includes(f) ? f : null;
 }
 
-// Saved values -> { family, mode }. Before families, wr1t3rTheme held
-// "light", "dark" or "sepia" on its own.
+// Saved values -> { family, mode }. A family no longer listed (Sepia, say)
+// opens as Default.
 export function readTheme(familyRaw, modeRaw) {
 	let family = familyOf(familyRaw) || "default";
 	let mode = modeRaw === "light" || modeRaw === "dark" ? modeRaw : "auto";
-	if (modeRaw === "sepia" && !familyOf(familyRaw)) family = "sepia";
 	return { family, mode };
 }
 
