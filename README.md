@@ -435,27 +435,27 @@ When the first sync finds the notebook empty, wr1t3r asks what it's for: writing
 
 ## License key (product build)
 
-A build with `VITE_LS_STORE_ID` set asks for a [Lemon Squeezy](https://lemonsqueezy.com) license key. Without it (the personal build) nothing here applies and there's no License tab.
+A build with `VITE_POLAR_ORG_ID` set asks for a [Polar](https://polar.sh) license key. Without it (the personal build) nothing here applies and there's no License tab.
 
-Each device gets a 14-day free trial from the day it's first opened. After that a window asks for the key; the notes stay in the user's own storage throughout. Activating a key registers the device with Lemon Squeezy (named like "wr1t3r on iPhone"), so the product's activation limit caps devices, and Settings > License can remove a device to free its place. Keys are checked again about once a week while online; a refunded or disabled key, or a removed device, goes back to asking. Being offline never does. The check runs in the page (`src/license.js`), so it keeps honest people honest and no more.
+Each device gets a 14-day free trial from the day it's first opened. After that a window asks for the key; the notes stay in the user's own storage throughout. Activating a key registers the device with Polar as an activation (labelled like "wr1t3r on iPhone"), so the license key benefit's activation limit caps devices, and Settings > License can remove a device to free its place. Keys are checked again about once a week while online; a revoked or disabled key (Polar revokes it on a refund), or a removed device, goes back to asking. Being offline never does. The check runs in the page (`src/license.js`), so it keeps honest people honest and no more.
 
-1. In Lemon Squeezy, make the product with **Generate license keys** on and an activation limit (5 devices, say).
-2. Note the store's ID (Settings > Stores) and the product's ID, and copy the product's checkout link.
-3. Build with them: `VITE_LS_STORE_ID=<store id> VITE_LS_PRODUCT_ID=<product id> VITE_BUY_URL=<checkout link> npm run build`. The product ID is optional; without it any product in the store is accepted.
+1. In Polar, make a **License Keys** benefit with an activation limit (5 devices, say), and a one-time-purchase product that grants it.
+2. Note the organization ID (Settings > General) and the benefit's ID (Benefits, open the license key benefit), and copy the product's checkout link.
+3. Build with them: `VITE_POLAR_ORG_ID=<organization id> VITE_POLAR_BENEFIT_ID=<benefit id> VITE_BUY_URL=<checkout link> npm run build`. The benefit ID is optional; without it any license key from the organization is accepted.
 
-`VITE_LICENSE_API` points the checks somewhere other than `https://api.lemonsqueezy.com/v1/licenses` (a proxy, if a browser can't reach it directly); add that host to `connect-src` in `public/_headers` too.
+The checks use Polar's customer-portal license key endpoints (`activate`, `validate`, `deactivate`), which need no token and accept calls from any site. `VITE_LICENSE_API` points them somewhere other than `https://api.polar.sh/v1/customer-portal/license-keys`, such as `https://sandbox-api.polar.sh/v1/customer-portal/license-keys` to test against Polar's sandbox (already allowed in `connect-src` in `public/_headers`; add any other host there too).
 
 ## The product build (my.wr1t3r.app) and wr1t3r.app
 
-The version sold to other people is the same code built without the Worker: the page alone, served from https://my.wr1t3r.app, with each person's notes in their own Dropbox and a Lemon Squeezy license key. `site/` is the page at https://wr1t3r.app that describes it and links to the checkout.
+The version sold to other people is the same code built without the Worker: the page alone, served from https://my.wr1t3r.app, with each person's notes in their own Dropbox and a Polar license key. `site/` is the page at https://wr1t3r.app that describes it and links to the checkout.
 
 1. Make the Dropbox app (above), with `https://my.wr1t3r.app/` as its Redirect URI.
-2. Make the Lemon Squeezy product (above).
+2. Make the Polar product (above).
 3. Create `.env.product.local` (not in git) with the IDs:
    ```
    VITE_DROPBOX_APP_KEY=<app key>
-   VITE_LS_STORE_ID=<store id>
-   VITE_LS_PRODUCT_ID=<product id>
+   VITE_POLAR_ORG_ID=<organization id>
+   VITE_POLAR_BENEFIT_ID=<benefit id>
    VITE_BUY_URL=<checkout link>
    ```
    `.env.product` already sets `VITE_DROPBOX_ONLY=1`, which makes the sign-in screen offer only Dropbox.
