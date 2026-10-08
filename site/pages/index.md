@@ -207,4 +207,4 @@ Try it free first. If it isn't working out after you buy, ask within 30 days for
 
 --- footer
 
-wr1t3r · [Help](/help.html) · [Terms, privacy and refunds](/legal.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
+wr1t3r · [Help](/help.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)

@@ -130,4 +130,4 @@ You can also upload the unzipped folder to a Cloudflare Pages project by hand, t
 
 --- footer
 
-[wr1t3r](/) · [Terms, privacy and refunds](/legal.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
+[wr1t3r](/) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
