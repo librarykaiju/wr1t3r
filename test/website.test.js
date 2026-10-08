@@ -233,3 +233,13 @@ test("#tags become pills, but not headings, links or code", () => {
 	assert.match(md, new RegExp(`<span class="tag tag-${tagHue("one")}">#one</span>`));
 	assert.ok(md.includes("`#two`") && !md.includes("#three<") && !md.includes(">#Part"));
 });
+
+test("the notebook layout puts the site's title and logo atop the folders, with no header", () => {
+	const notes = [{ path: "Essays/A.md", text: note("publish: true", "A") }];
+	const att = ["logo.png"];
+	const page = buildSite(notes, att, { title: "Garden", layout: "notebook", logo: "logo.png" }).files.get("essays/a.html");
+	assert.doesNotMatch(page, /<header class="site">/);
+	assert.match(page, /<nav class="tree" aria-label="Notes"><a class="home" href="..\/index.html"><img class="logo" src="..\/files\/logo.png" alt=""><span>Garden<\/span><\/a><ul class="tree-top">/);
+	const top = buildSite(notes, att, { title: "Garden", logo: "logo.png" }).files.get("essays/a.html");
+	assert.match(top, /<header class="site"><a class="home" href="..\/index.html"><img class="logo"/);
+});

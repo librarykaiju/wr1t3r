@@ -516,7 +516,7 @@ export function buildSite(notes, attachments, opts = {}) {
 			return `<ul>${items.join("")}</ul>`;
 		};
 		const top = [`<li><a href="${esc(relativeURL(site, SITE_FILES.index))}"${site === SITE_FILES.index ? ' aria-current="page"' : ""}>Home</a></li>`, ...(months.length ? [`<li><a href="${esc(relativeURL(site, SITE_FILES.archive))}"${site.startsWith("archive/") ? ' aria-current="page"' : ""}>Archive</a></li>`] : [])];
-		return `<nav class="tree" aria-label="Notes"><ul class="tree-top">${top.join("")}</ul>${draw(root, "")}</nav>\n`;
+		return `<ul class="tree-top">${top.join("")}</ul>${draw(root, "")}`;
 	};
 	const pagerFor = (site) => {
 		const pn = pagerOf.get(site);
@@ -714,6 +714,9 @@ function supportBox(s) {
 
 function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
+	const brand = `<a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}</a>`;
+	// The notebook layout has no header: the title and logo top the folders, as in the app's sidebar.
+	if (tree) tree = `<nav class="tree" aria-label="Notes">${brand}${tree}</nav>\n`;
 	return `<!doctype html>
 <html lang="en">
 <head>
@@ -725,8 +728,7 @@ ${description ? `<meta name="description" content="${esc(description)}">\n` : ""
 ${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 </head>
 <body class="${tree ? "layout-notebook" : "layout-top"}${side ? " has-side" : ""}">
-<header class="site"><a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}</a>${menu || ""}</header>
-${banner ? `<div class="banner"><img src="${esc(banner)}" alt="" style="object-position: center ${bannerPosition}%"></div>\n` : ""}<main>
+${tree ? "" : `<header class="site">${brand}${menu || ""}</header>\n`}${banner ? `<div class="banner"><img src="${esc(banner)}" alt="" style="object-position: center ${bannerPosition}%"></div>\n` : ""}<main>
 ${tree || ""}<article>
 <h1>${esc(title)}</h1>
 ${(date || tags.length) && !(props && open) ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`).join("")}</p>\n` : ""}${props ? propsBox(props, { open, cover, shape: coverShape, position: coverPosition }) : cover ? `<img class="cover" src="${esc(cover)}" alt="">\n` : ""}${body}
@@ -891,6 +893,9 @@ li:has(> input[type=checkbox]:checked) { color: var(--muted); text-decoration: l
 /* The notebook layout's folders. */
 .tree { font: 15px/1.45 var(--sans); margin: 0 0 1.5em; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 .tree ul { list-style: none; margin: 0; padding: 0; }
+.tree > .home { display: flex; align-items: center; gap: 10px; padding: 6px 6px 10px; margin: 0 0 6px; background: none; border-radius: 0; border-bottom: 1px solid var(--line); color: var(--fg); text-decoration: none; font-weight: 600; }
+.tree > .home .logo { height: 36px; width: auto; max-width: 100%; object-fit: contain; display: block; }
+body.layout-notebook main { padding-top: 20px; }
 .tree ul ul { padding-left: 14px; border-left: 1px solid var(--line); margin-left: 6px; }
 .tree .tree-top { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
 .tree a, .tree summary { display: block; padding: 4px 6px; border-radius: 6px; color: var(--fg); text-decoration: none; cursor: pointer; }
