@@ -31,6 +31,9 @@ import { isPublished } from "./published.js";
 import { cleanNote } from "./compile.js";
 import { resolveNote } from "./links.js";
 import { resolveAttachment, attachmentKind } from "./attachments.js";
+import { calloutLook } from "./blocks.js";
+import { COVER_SHAPES, COVER_POSITIONS, COVER_WIDTHS } from "./pretty.js";
+import { SHOWN_FOLDERS } from "./frontmatter.js";
 
 export { isPublished };
 
@@ -146,7 +149,8 @@ function parser(ctx) {
 			const type = m[1].toLowerCase();
 			const open = tokens[i], title = (m[2] || type[0].toUpperCase() + type.slice(1)).trim();
 			open.tag = "div";
-			open.attrSet("class", `callout callout-${slug(type, "note")}`);
+			const look = calloutLook(type);
+			open.attrSet("class", `callout callout-${slug(type, "note")} co-${look.color}`);
 			for (let d = 0, j = i + 1; j < tokens.length; j++) {
 				if (tokens[j].type === "blockquote_open") d++;
 				else if (tokens[j].type === "blockquote_close") { if (d-- === 0) { tokens[j].tag = "div"; break; } }
@@ -154,7 +158,7 @@ function parser(ctx) {
 			// The title line comes out of the first paragraph.
 			const cut = inline.children.findIndex((c) => c.type === "softbreak" || c.type === "hardbreak");
 			const head = new state.Token("html_block", "", 0);
-			head.content = `<p class="callout-title">${esc(title)}</p>\n`;
+			head.content = `<p class="callout-title">${look.svg}${esc(title)}</p>\n`;
 			if (cut < 0) {
 				tokens.splice(i + 1, 3, head); // the paragraph was only the title
 			} else {
@@ -225,37 +229,62 @@ function webLine(line, ctx) {
 	});
 	t = t
 		.replace(/^(\s*(?:[-*+]|\d+[.)])\s+)\[( |x|X)\]\s/, (_, lead, x) => `${lead}<input type="checkbox" disabled${x === " " ? "" : " checked"}> `)
-		.replace(/==([^=\n]+)==/g, "<mark>$1</mark>");
+		.replace(/==([^=\n]+)==/g, "<mark>$1</mark>")
+		// #tags in the text, as pills colored like the same tag in the properties (the app's hashtags).
+		.replace(/(?<=^|\s)#([\p{L}_][\p{L}\p{N}_\/-]*)/gu, (_, tag) => `<span class="tag tag-${tagHue(tag)}">#${tag}</span>`);
 	return t.replace(/\u0000(\d+)\u0000/g, (_, n) => codes[n]);
 }
 
-// What one page shows: { title, date, tags, cover, banner, description }.
+// What one page shows: { title, date, tags, cover, banner, description,
+// props, open }. open: the properties box starts open, as in the app (logs,
+// sketchbooks and catalog notes); it then holds the date and tags too, the
+// way the notebook shows them, instead of the line under the title.
 export function pageInfo(path, text) {
 	const p = parseFrontmatter(text);
 	const s = (v) => { const x = first(v); return x == null ? "" : String(x).trim(); };
 	const date = /^(\d{4}-\d{2}-\d{2})/.exec(s(p.date) || s(p.created) || s(p.finished))?.[1] || "";
-	const tags = (Array.isArray(p.tags) ? p.tags : s(p.tags) ? s(p.tags).split(/[,\s]+/) : []).map((x) => String(x ?? "").replace(/^#/, "").trim()).filter(Boolean);
+	const tags = tagList(p.tags);
 	return {
 		title: s(p.title) || sitePath(path).split("/").pop(),
 		date,
 		tags,
 		cover: s(p.cover) || s(p.coverImage) || s(p.image) || s(p.thumbnail),
+		coverShape: COVER_SHAPES.includes(s(p.cover_shape)) ? s(p.cover_shape) : "initial",
+		coverPosition: COVER_POSITIONS.includes(s(p.cover_position)) ? s(p.cover_position) : "left",
 		banner: s(p.banner),
+		bannerPosition: /^\d+(\.\d+)?$/.test(s(p.banner_position)) ? Math.min(100, Number(s(p.banner_position))) : 50,
 		description: s(p.description) || s(p.summary),
 		bluesky: blueskyPost(s(p.bluesky)),
-		props: propRows(p),
+		props: propRows(p, SHOWN_FOLDERS.test(path)),
+		open: SHOWN_FOLDERS.test(path),
 	};
 }
 
 // Properties the page already shows elsewhere, or that only steer wr1t3r or
-// the site: left out of the page's Properties box.
+// the site: left out of the page's Properties box. The date and tags are in
+// it when it starts open (DATE_KEYS), as in the app.
+const DATE_KEYS = new Set(["tags", "tag", "date", "created"]);
 const OWN_KEYS = new Set(["title", "publish", "draft", "tags", "tag", "date", "created", "cover", "coverimage", "image", "thumbnail", "banner", "banner_position", "banner_y", "cover_shape", "cover_position", "description", "summary", "bluesky", "cssclasses", "cssclass", "aliases", "alias", "compile", "sticky", "eyebrow", "permalink", "layout", "eleventyexcludefromcollections", "position"]);
 
 // The note's other properties, in their order: [[key, value]], empty values
-// left out.
-function propRows(p) {
+// left out. open: with the date and tags.
+function propRows(p, open = false) {
 	const empty = (v) => v == null || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && !v.some((x) => !empty(x)));
-	return Object.entries(p).filter(([k, v]) => !OWN_KEYS.has(k.toLowerCase()) && !empty(v));
+	return Object.entries(p).filter(([k, v]) => (!OWN_KEYS.has(k.toLowerCase()) || (open && DATE_KEYS.has(k.toLowerCase()))) && !empty(v));
+}
+
+// A property's type icon, as the app's box shows it (ICONS in src/frontmatter.js).
+function propIcon(k, v) {
+	if (/^tags?$/i.test(k)) return "#";
+	if (Array.isArray(v)) return "☰";
+	if (typeof v === "boolean") return "☑";
+	if (typeof v === "number") return "12";
+	if (v && typeof v === "object") return "{}";
+	const t = String(v ?? "").trim();
+	if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return "▦";
+	if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(t)) return "◷";
+	if (/^-?(\d+\.?\d*|\.\d+)$/.test(t)) return "12";
+	return "Aa";
 }
 
 // The same color as a tag's pill in the app (tagHue in src/frontmatter.js): 0-6.
@@ -265,8 +294,8 @@ export function tagHue(tag) {
 	return h % 7;
 }
 
-// One property value as HTML: lists as pills, yes/no as a checkbox, dates
-// written out, web addresses as links, [[links]] as their words.
+// One property value as HTML: lists as pills in the tag colors, yes/no as a
+// checkbox, dates written out, web addresses as links, [[links]] as their words.
 function propValue(v) {
 	const words = (x) => String(x).replace(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/, (_, a, b) => b || a.split("/").pop());
 	const one = (x) => {
@@ -276,13 +305,22 @@ function propValue(v) {
 		if (/^https?:\/\/\S+$/i.test(t)) return `<a href="${esc(t)}" rel="noopener">${esc(t.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, ""))}</a>`;
 		return esc(t);
 	};
-	if (Array.isArray(v)) return v.filter((x) => x != null && String(x).trim() !== "").map((x) => `<span class="pill">${one(x)}</span>`).join(" ");
+	if (Array.isArray(v)) return v.filter((x) => x != null && String(x).trim() !== "").map((x) => `<span class="pill tag-${tagHue(words(x))}">${one(x)}</span>`).join(" ");
 	return one(v);
 }
 
-function propsBox(rows) {
-	if (!rows?.length) return "";
-	return `<details class="props" open>\n<summary>Properties</summary>\n<dl>\n${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${propValue(v)}</dd></div>`).join("\n")}\n</dl>\n</details>\n`;
+const tagList = (v) => (Array.isArray(v) ? v : String(v ?? "").split(/[,\s]+/)).map((t) => String(t ?? "").replace(/^#/, "").trim()).filter(Boolean);
+
+// The Properties box as the notebook draws it: the cover beside the rows (or
+// above or below them, by cover_position), each row its type's icon, name
+// and value. Open in logs, sketchbooks and catalog notes; elsewhere folded to
+// a small "Properties" button, with the cover inside it, as in the app.
+function propsBox(rows, { open = true, cover = null, shape = "initial", position = "left" } = {}) {
+	rows = rows || [];
+	if (!rows.length && !cover) return "";
+	const pic = cover ? `<span class="cover ${shape} ${position}"><img src="${esc(cover)}" alt=""></span>\n` : "";
+	const dl = rows.length ? `<dl>\n${rows.map(([k, v]) => `<div><dt><span class="icon">${propIcon(k, v)}</span>${esc(k)}</dt><dd>${propValue(/^tags?$/i.test(k) ? tagList(v) : v)}</dd></div>`).join("\n")}\n</dl>\n` : "";
+	return `<details class="props"${open ? " open" : ""}>\n<summary>Properties${rows.length ? `<span class="count">&nbsp;· ${rows.length}</span>` : ""}</summary>\n<div class="props-body cover-${position}" style="--cover-w: ${COVER_WIDTHS[shape] || 200}px">\n${pic}${dl}</div>\n</details>\n`;
 }
 
 const IMG_REF = /^!?\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]$|^!?\[[^\]]*\]\(<?([^)>]+)>?\)$/;
@@ -308,6 +346,7 @@ export function allowedKind(kind, { media = false } = {}) {
 // attachments: every vault file's path. opts: { title, css, footer, media }.
 export function buildSite(notes, attachments, opts = {}) {
 	const title = String(opts.title || "").trim() || "My notebook";
+	const tagline = String(opts.tagline || "").trim();
 	const allPaths = notes.map((n) => n.path);
 	const published = notes.filter((n) => isPublished(n.path, n.text));
 	const files = pageFiles(published.map((n) => n.path));
@@ -368,7 +407,7 @@ export function buildSite(notes, attachments, opts = {}) {
 		// The note's own # title would repeat the page's.
 		const h1 = md.match(/^#[ \t]+(.+?)[ \t#]*$/m);
 		if (h1 && h1[1].trim() === info.title && !md.slice(0, h1.index).trim()) md = md.slice(h1.index + h1[0].length).replace(/^\n+/, "");
-		return { info: { ...info, cover: pictureURL(info.cover, ctx), banner: pictureURL(info.banner, ctx) }, body: parser(ctx).render(md) };
+		return { info: { ...info, cover: pictureURL(info.cover, ctx), banner: pictureURL(info.banner, ctx) }, body: `<div class="note">\n${parser(ctx).render(md)}</div>\n` };
 	};
 
 	for (const n of published) {
@@ -413,7 +452,7 @@ export function buildSite(notes, attachments, opts = {}) {
 		const ps = pages.filter((p) => p.folder === f).sort(newest);
 		ps.forEach((p, i) => pagerOf.set(p.file, { prev: ps[i - 1], next: ps[i + 1] }));
 	}
-	page(SITE_FILES.index, front?.path ?? "", { title: lead?.info.title || title, tags: [], date: "", cover: lead?.info.cover, banner: lead?.info.banner, description: lead?.info.description }, (lead?.body || "") + (pages.length ? `<nav class="contents" aria-label="Pages">\n${list}\n</nav>` : `<p class="empty">Nothing published yet.</p>`));
+	page(SITE_FILES.index, front?.path ?? "", { title: lead?.info.title || title, tags: [], date: "", cover: lead?.info.cover, banner: lead?.info.banner, bannerPosition: lead?.info.bannerPosition, description: lead?.info.description }, (lead?.body || "") + (pages.length ? `<nav class="contents" aria-label="Pages">\n${list}\n</nav>` : `<p class="empty">Nothing published yet.</p>`));
 	if (front) pages.unshift({ path: front.path, file: SITE_FILES.index, title: lead.info.title, date: lead.info.date, folder: "" });
 	page(SITE_FILES.missing, "", { title: "Page not found", tags: [], date: "" }, `<p>There's no page here. It may have been moved or taken down.</p>\n<p><a href="/">Go to the front page</a></p>`);
 
@@ -478,7 +517,7 @@ export function buildSite(notes, attachments, opts = {}) {
 			return `<ul>${items.join("")}</ul>`;
 		};
 		const top = [`<li><a href="${esc(relativeURL(site, SITE_FILES.index))}"${site === SITE_FILES.index ? ' aria-current="page"' : ""}>Home</a></li>`, ...(months.length ? [`<li><a href="${esc(relativeURL(site, SITE_FILES.archive))}"${site.startsWith("archive/") ? ' aria-current="page"' : ""}>Archive</a></li>`] : [])];
-		return `<nav class="tree" aria-label="Notes"><ul class="tree-top">${top.join("")}</ul>${draw(root, "")}</nav>\n`;
+		return `<ul class="tree-top">${top.join("")}</ul>${draw(root, "")}`;
 	};
 	const pagerFor = (site) => {
 		const pn = pagerOf.get(site);
@@ -490,7 +529,7 @@ export function buildSite(notes, attachments, opts = {}) {
 		const side = opts.sidebar === false ? "" : calendarFor(site, info) + support + social;
 		const tree = notebook ? treeFor(site) : "";
 		const post = pages.some((p) => p.file === site && site !== SITE_FILES.index);
-		out.set(site, html({ ...info, props: opts.properties === false ? null : info.props, body: body + (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+		out.set(site, html({ ...info, props: opts.properties === false ? null : info.props, body: body + (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
 	out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
@@ -674,24 +713,26 @@ function supportBox(s) {
 	return `<section class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</section>\n`;
 }
 
-function html({ title, date, tags, props, cover, banner, description, body, siteTitle, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
+function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
+	const brand = `<a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly && !tagline ? "" : `<span class="name">${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}${tagline ? `<span class="tagline">${esc(tagline)}</span>` : ""}</span>`}</a>`;
+	// The notebook layout has no header: the title and logo top the folders, as in the app's sidebar.
+	if (tree) tree = `<nav class="tree" aria-label="Notes">${brand}${tree}</nav>\n`;
 	return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(pageTitle)}</title>
-${description ? `<meta name="description" content="${esc(description)}">\n` : ""}<meta property="og:title" content="${esc(title)}">
+${description || (isIndex && tagline) ? `<meta name="description" content="${esc(description || tagline)}">\n` : ""}<meta property="og:title" content="${esc(title)}">
 <link rel="stylesheet" href="${esc(css)}">
 ${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 </head>
 <body class="${tree ? "layout-notebook" : "layout-top"}${side ? " has-side" : ""}">
-<header class="site"><a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}</a>${menu || ""}</header>
-${banner ? `<div class="banner"><img src="${esc(banner)}" alt=""></div>\n` : ""}<main>
+${tree ? "" : `<header class="site">${brand}${menu || ""}</header>\n`}${banner ? `<div class="banner"><img src="${esc(banner)}" alt="" style="object-position: center ${bannerPosition}%"></div>\n` : ""}<main>
 ${tree || ""}<article>
 <h1>${esc(title)}</h1>
-${date || tags.length ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`).join("")}</p>\n` : ""}${props ? propsBox(props) : ""}${cover ? `<img class="cover" src="${esc(cover)}" alt="">\n` : ""}${body}
+${(date || tags.length) && !(props && open) ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`).join("")}</p>\n` : ""}${props ? propsBox(props, { open, cover, shape: coverShape, position: coverPosition }) : cover ? `<img class="cover" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
 ${side ? `<aside class="side">\n${side}</aside>\n` : ""}</main>
 ${footer ? `<footer class="site">Made with <a href="https://wr1t3r.app">wr1t3r</a></footer>\n` : ""}</body>
@@ -709,6 +750,8 @@ header.site, footer.site { margin: 0 auto; padding: 18px 20px; font: 600 15px/1.
 header.site { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
 header.site a { color: var(--fg); text-decoration: none; }
 header.site .home { margin-right: auto; display: inline-flex; align-items: center; gap: 10px; }
+.home .name { display: flex; flex-direction: column; }
+.home .tagline { font: 400 13px/1.35 var(--sans); color: var(--muted); }
 header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: contain; display: block; }
 .menu { display: flex; flex-wrap: wrap; gap: 4px 16px; font-weight: normal; }
 .menu a { color: var(--muted); }
@@ -721,41 +764,87 @@ header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: con
 footer.site { font-weight: normal; color: var(--muted); border-top: 1px solid var(--line); margin-top: 3em; }
 footer.site a { color: var(--muted); }
 main { margin: 0 auto; padding: 0 20px 4em; }
-.banner img { display: block; width: 100%; max-height: 280px; object-fit: cover; }
+/* The banner as in the app: 300px tall, fading out at the bottom. */
+.banner img { display: block; width: 100%; height: 300px; object-fit: cover; -webkit-mask-image: linear-gradient(to bottom, black 25%, transparent); mask-image: linear-gradient(to bottom, black 25%, transparent); }
+@media (max-width: 640px) { .banner img { height: 100px; } }
 h1, h2, h3, h4, h5, h6 { color: var(--heading, var(--fg)); line-height: 1.25; margin: 1.6em 0 0.6em; }
 h1 { font-size: 2em; margin-top: 0.6em; }
 .meta { color: var(--muted); font: 14px/1.5 var(--sans); display: flex; flex-wrap: wrap; gap: 6px 12px; margin: -0.4em 0 1.4em; }
 .tag { --t: var(--f6, var(--accent)); display: inline-block; padding: 0 0.6em; border-radius: 999px; font-size: 0.95em; background: color-mix(in srgb, var(--t) 16%, var(--bg)); color: color-mix(in srgb, var(--t) 75%, var(--fg)); }
 /* Tag colors are the theme's rainbow, as in the app. */
 .tag-0 { --t: var(--f1); } .tag-1 { --t: var(--f2); } .tag-2 { --t: var(--f3); } .tag-3 { --t: var(--f4); } .tag-4 { --t: var(--f5); } .tag-5 { --t: var(--f6); } .tag-6 { --t: var(--f7); }
-.props { margin: 0 0 1.4em; border: 1px solid var(--line); border-radius: 12px; background: var(--panel, var(--card)); font: 15px/1.45 var(--sans); }
-.props summary { cursor: pointer; padding: 8px 14px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.props dl { margin: 0; padding: 0 14px 10px; }
-.props dl > div { display: grid; grid-template-columns: minmax(7rem, 30%) 1fr; gap: 12px; padding: 5px 0; border-top: 1px solid var(--line); }
-.props dt { color: var(--muted); overflow-wrap: anywhere; }
-.props dd { margin: 0; overflow-wrap: anywhere; }
-.props .pill { display: inline-block; margin: 1px 0; padding: 0 0.6em; border-radius: 999px; background: color-mix(in srgb, var(--f6, var(--accent)) 14%, var(--bg)); }
-.props input { margin: 0; vertical-align: -2px; }
+/* The Properties box, drawn as the app draws it (.md-props in src/style.css). */
+.props { margin: 0 0 1.4em; padding: 4px 10px 6px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel, var(--card)); font: 0.78em/1.6 var(--sans); }
+.props summary { cursor: pointer; display: flex; align-items: center; min-height: 2em; font-weight: 600; color: var(--muted); list-style: none; }
+.props summary::-webkit-details-marker { display: none; }
+.props[open] summary::before { content: "▾ "; white-space: pre; }
+.props[open] .count { display: none; }
+/* Folded, it's the app's small Properties pill at the right. */
+.props:not([open]) { padding: 0; border: 0; background: none; display: flex; justify-content: flex-end; }
+.props:not([open]) summary { min-height: 0; padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font: 11px/1.6 var(--sans); letter-spacing: 0.04em; }
+.props:not([open]) summary:hover { color: var(--accent); border-color: var(--accent); }
+.props-body { display: flex; gap: 14px; align-items: flex-start; }
+.props-body.cover-right { flex-direction: row-reverse; }
+.props-body.cover-top { flex-direction: column; }
+.props-body.cover-bottom { flex-direction: column-reverse; }
+.props dl { flex: 1; min-width: 0; margin: 0; display: grid; grid-template-columns: minmax(7em, max-content) minmax(0, 1fr); column-gap: 12px; align-items: start; overflow-wrap: anywhere; }
+.props dl > div { display: contents; }
+.props dt { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 0; color: var(--muted); }
+.props dt .icon { flex: none; width: 1.6em; text-align: center; font: 600 0.8em var(--mono); opacity: 0.7; }
+.props dd { margin: 0; min-height: 2em; padding: 3px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.props .pill { display: inline-block; padding: 0 0.6em; border-radius: 999px; font: 500 0.95em/1.6 var(--sans); background: color-mix(in srgb, var(--t, var(--f6)) 16%, var(--bg)); color: color-mix(in srgb, var(--t, var(--f6)) 75%, var(--fg)); }
+.props .pill a { color: inherit; }
+.props input { width: 1.05em; height: 1.05em; margin: 0 0 0 2px; accent-color: var(--accent); }
+.props .cover { display: block; flex: none; font-size: 0; line-height: 0; padding: 4px 0; }
+.props .cover:is(.left, .right) { width: min(var(--cover-w, 200px), 40%); }
+.props .cover img { display: block; width: 100%; height: auto; max-height: 500px; object-fit: cover; border-radius: 6px; }
+.props .cover:is(.vertical-cover, .vertical-contain) img { aspect-ratio: 0.63; object-position: top; }
+.props .cover:is(.horizontal-cover, .horizontal-contain) img { aspect-ratio: 4 / 3; }
+.props .cover:is(.square, .circle) img { aspect-ratio: 1; }
+.props .cover.circle img { border-radius: 50%; }
+.props .cover:is(.vertical-contain, .horizontal-contain) img { object-fit: contain; }
+.props .cover:is(.top, .bottom) { padding: 6px 0; }
+.props .cover:is(.top, .bottom) img { max-height: 400px; width: auto; max-width: 100%; }
+@media (max-width: 640px) {
+	.props-body { flex-direction: column; }
+	.props .cover:is(.left, .right) { width: auto; }
+	.props .cover img { max-height: 200px; width: auto; max-width: 100%; }
+}
 img { max-width: 100%; height: auto; }
 img.cover { display: block; max-width: min(240px, 60%); border-radius: 6px; margin: 0 0 1.4em; }
 audio, video { display: block; width: 100%; margin: 1em 0; }
-blockquote { margin: 1em 0; padding: 0 0 0 1em; border-left: 3px solid var(--line); color: var(--muted); }
+blockquote { margin: 1em 0 1em 1.6em; padding: 4px 10px 4px 18px; border-left: 4px solid var(--muted); color: var(--muted); }
 mark { background: var(--hl); color: inherit; }
-code { font: 0.85em var(--mono); background: var(--code-bg); border-radius: 3px; padding: 0.1em 0.3em; }
-pre { background: var(--code-bg); padding: 0.8em 1em; border-radius: 8px; overflow-x: auto; }
+code { font: 0.88em var(--mono); background: var(--code-bg); border-radius: 3px; padding: 0.1em 0.3em; }
+pre { background: var(--code-bg); padding: 0.8em 1em; border-radius: 6px; overflow-x: auto; font-size: 0.82em; }
+pre code { font-size: 1em; }
 pre code { background: none; padding: 0; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
 table { border-collapse: collapse; display: block; overflow-x: auto; margin: 1em 0; font-size: 0.9em; }
 th, td { border: 1px solid var(--line); padding: 0.35em 0.7em; text-align: left; vertical-align: top; }
 li:has(> input[type=checkbox]) { list-style: none; margin-left: -1.3em; }
-li > input[type=checkbox] { margin: 0 0.5em 0 0; }
-.callout { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--card); border-radius: 8px; padding: 0.6em 1em; margin: 1em 0; }
-.callout > :last-child { margin-bottom: 0; }
-.callout-title { font: 600 0.9em/1.4 var(--sans); margin: 0.2em 0 0.4em; }
-.callout-warning, .callout-caution, .callout-attention { border-left-color: var(--f2); }
-.callout-danger, .callout-error, .callout-bug, .callout-failure { border-left-color: var(--bad); }
-.callout-tip, .callout-success, .callout-check, .callout-done { border-left-color: var(--f4); }
-.callout-quote, .callout-cite { border-left-color: var(--muted); }
+li > input[type=checkbox] { margin: 0 0.5em 0 0; width: 1.05em; height: 1.05em; vertical-align: -0.12em; accent-color: var(--accent); }
+/* Done tasks struck through, as in the app. */
+li:has(> input[type=checkbox]:checked) { color: var(--muted); text-decoration: line-through; }
+/* The note's own text, sized and colored as in the notebook: headings,
+   pictures, list bullets in their depth's rainbow color, #tags as pills. */
+.note h1 { font-size: 1.6em; margin-top: 1.2em; }
+.note h2 { font-size: 1.35em; }
+.note h3 { font-size: 1.15em; }
+.note img { border-radius: 6px; }
+.note .tag { font: 500 0.8em/1.6 var(--sans); padding: 0.05em 0.55em; }
+.note li::marker { color: var(--f1); font-weight: 600; }
+.note :is(ul, ol) :is(ul, ol) > li::marker { color: var(--f2); }
+.note :is(ul, ol) :is(ul, ol) :is(ul, ol) > li::marker { color: var(--f3); }
+.note :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) > li::marker { color: var(--f4); }
+.note :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) > li::marker { color: var(--f5); }
+/* Callouts in the app's colors (blocks.js / .md-callout), each type's icon before its title. */
+.callout { --co: #448aff; background: color-mix(in srgb, var(--co) 10%, var(--bg)); border-left: 4px solid color-mix(in srgb, var(--co) 70%, #000); border-radius: 0 6px 6px 0; padding: 4px 10px 4px 14px; margin: 1em 0 1em 1.6em; }
+.callout > *, blockquote > * { margin-top: 0.4em; margin-bottom: 0.4em; }
+.callout-title { color: var(--co); font-weight: 700; margin: 0.4em 0; }
+.callout-title svg { width: 1.05em; height: 1.05em; vertical-align: -0.16em; margin-right: 0.4em; }
+.co-cyan { --co: #00b8d4; } .co-green { --co: #08b94e; } .co-yellow { --co: #e0a800; } .co-orange { --co: #f57c00; } .co-red { --co: #e5484d; }
+.co-purple { --co: #7c4dff; } .co-gray { --co: #9e9e9e; } .co-violet { --co: #7439ac; } .co-sapphire { --co: #1a7da4; }
 .footnotes { font-size: 0.85em; color: var(--muted); }
 .footnotes-sep { border: 0; border-top: 1px solid var(--line); width: 30%; margin: 3em 0 1em; }
 .contents h2.folder, .contents.archive h2 { font: 600 13px/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 2em 0 0.4em; }
@@ -807,6 +896,9 @@ li > input[type=checkbox] { margin: 0 0.5em 0 0; }
 /* The notebook layout's folders. */
 .tree { font: 15px/1.45 var(--sans); margin: 0 0 1.5em; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 .tree ul { list-style: none; margin: 0; padding: 0; }
+.tree > .home { display: flex; align-items: center; gap: 10px; padding: 6px 6px 10px; margin: 0 0 6px; background: none; border-radius: 0; border-bottom: 1px solid var(--line); color: var(--fg); text-decoration: none; font-weight: 600; }
+.tree > .home .logo { height: 36px; width: auto; max-width: 100%; object-fit: contain; display: block; }
+body.layout-notebook main { padding-top: 20px; }
 .tree ul ul { padding-left: 14px; border-left: 1px solid var(--line); margin-left: 6px; }
 .tree .tree-top { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
 .tree a, .tree summary { display: block; padding: 4px 6px; border-radius: 6px; color: var(--fg); text-decoration: none; cursor: pointer; }

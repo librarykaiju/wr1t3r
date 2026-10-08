@@ -73,6 +73,7 @@ export function openWebsite(host) {
 	const count = Object.assign(document.createElement("p"), { className: "hint" });
 	form.append(count);
 	const title = field("Site title", text(saved.title, "My notebook"));
+	const tagline = field("Tagline (a line under the title)", text(saved.tagline, "Notes from the garden"));
 	const logo = document.createElement("select");
 	logo.append(new Option("No logo", ""));
 	for (const p of host.attachments().filter((p) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(p)).sort()) logo.append(new Option(p.split("/").pop(), p, false, p === saved.logo));
@@ -141,13 +142,13 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), title: title.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value });
+	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
 	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font() }) + (family.value === "synthwave" ? GLOW : "");
 	const build = () => {
 		const s = settings();
-		return buildSite(host.notes(), host.attachments(), { title: s.title, css: css(), footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
+		return buildSite(host.notes(), host.attachments(), { title: s.title, tagline: s.tagline, css: css(), footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
 	};
 
 	let site = null, timer;
