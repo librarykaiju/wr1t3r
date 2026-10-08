@@ -4,3 +4,6 @@ dist/
 .dev.vars
 dist-product/
 .env*.local
+site/public/index.html
+site/public/help.html
+site/public/legal.html
