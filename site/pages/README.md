@@ -9,7 +9,7 @@ Don't edit `site/public/index.html`, `help.html` or `legal.html`: they're rebuil
 It's ordinary Markdown, plus a few habits the build turns into the page's layout.
 
 - **The top of the file** (between the first two `---` lines) holds the page's title in the browser tab and search results (`title:`), the summary search engines show (`description:`), and on the front page `buy:`, the checkout link. While `buy:` is empty, the Buy buttons go to the Pricing section.
-- **`--- name` starts a section.** The name is the section's address (`#pricing` links to `--- pricing`) and, for some names, its look: `publish` lays its list out in two columns, `more` its list in columns, `own` keeps its paragraph plain, `faq` draws lines between questions, `contents` spaces out the Help page's list. Keep those names as they are; new sections can have any name.
+- **`--- name` starts a section.** The name is the section's address (`#pricing` links to `--- pricing`) and, for some names, its look: `publish` and `planner` lay their lists out in two columns, `more` its list in columns, `own` keeps its paragraph plain, `faq` draws lines between questions, `contents` spaces out the Help page's list. Keep those names as they are; new sections can have any name.
 - **`--- menu`** is the list of links at the top right. **`--- footer`** is the line at the bottom.
 - **`_A paragraph in italics_`** becomes small grey print.
 - **A heading ending in `?`** (`### Can I get a refund?`) folds its answer away until it's clicked.

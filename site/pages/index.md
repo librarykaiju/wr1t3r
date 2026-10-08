@@ -1,12 +1,13 @@
 ---
 title: wr1t3r: write, publish and keep your notes in your own Dropbox
-description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, day planner, twelve color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox as plain files.
+description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, a day planner with habit, health and medication tracking, twelve color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox as plain files.
 buy:
 ---
 
 --- menu
 
 - [Features](#features)
+- [Planner](#planner)
 - [Publishing](#publish)
 - [Themes](#themes)
 - [Pricing](#pricing)
@@ -45,18 +46,55 @@ Markdown with a formatting toolbar, a <kbd>/</kbd> menu for headings, lists, tab
 
 ![The editor with a scene open and the formatting toolbar above it](/shots/editor.webp)
 
-## A day planner next to the writing
-
-The Today button opens a note for the day with your tasks, a timeline and the calendar. Tasks with a time remind you. The calendar lives in your notes too, so it syncs with everything else.
-
-![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
-
 ## On your phone too
 
 Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your Dropbox, so the scene you wrote on the train is on your laptop when you get home.
 
 ![The storyboard on a phone](/shots/phone-corkboard.webp)
 ![The editor on a phone](/shots/phone-editor.webp)
+
+--- planner
+
+## A day planner that fits your days
+
+The Today button opens a note for the day: your tasks, a timeline of the day, the calendar, and a row of buttons for the things you track. It's a bullet journal and habit tracker in the same notebook as your writing, and you decide how much of it you want.
+
+### Set it up once, your way
+
+The first daily note asks a few questions: which buttons you want, your daily targets and your medications. Pick only what you'll use. Change your mind later from the planner's menu, or turn the whole health side off in Settings > Features and keep just the tasks and timeline.
+
+![The day planner with a setup card above a row of buttons for food, water, meds, exercise and mood, a timeline and two task lists](/shots/planner-setup.webp)
+
+### Track the habits you care about
+
+One tap logs a glass of water, a walk, your mood, last night's sleep or this morning's weight. Medications get a list of their own with the times you take each one, a Take button for every dose, and, while wr1t3r is open, a reminder when one is due. Each log is a line in the day's health note, and the day's totals are saved as properties, so a board can line your days up side by side.
+
+![The Meds button open: today's doses with times, Take buttons, a Take all due now button and as-needed medicines](/shots/planner-meds.webp)
+
+### Targets worked out for you
+
+Give your height, weight, activity and goal, and wr1t3r works out daily targets for calories, water, steps and sleep, with protein, fat and carbs if you want them. Every button shows how far along you are. Log a new weight and it offers to update the targets.
+
+![The targets step of the planner setup: units, age, height, weight, activity and goal, with the calories, water, steps and sleep targets worked out](/shots/planner-targets.webp)
+
+### Tasks that don't get lost
+
+Keep your Critical Tasks and To Do's as master lists, or write a task in any note. Each day shows the tasks due that day, and anything unticked from earlier days stays on today's list as overdue until it's done. Add a time to a task and wr1t3r reminds you while it's open in a tab.
+
+![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
+
+### Stats for your logs
+
+Book, film, TV and game logs add up on their own: how many you finished each year, pages read, average rating, what you're on now and what's next, in bar, line and pie charts. Pin the numbers to your Home screen as tiles.
+
+![Stats for a books log: 51 books read, 21,775 pages, a 4.1 average rating, and a chart of books read per year](/shots/stats-books.webp)
+
+### Also on the planner
+
+- **Food and recipes.** Log meals from a built-in table of about 7,800 common foods, or from your own recipes, with calories and nutrition added up for the day.
+- **Moods and exercises your way.** Change the choices on the Mood and Exercise buttons to your own.
+- **A timeline for the day.** Block out your hours, and add events from your calendar.
+- **Everything is a note.** Your planner, health log and medication list are plain Markdown files in your Dropbox like the rest of your notes.
 
 --- publish
 
