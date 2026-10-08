@@ -1756,8 +1756,15 @@ function tileMenu(i, x, y, store = homeStore) {
 			.filter(([v]) => v !== (k.kind === "view" ? k.view : "corkboard"))
 			.map(([v, label]) => [label, () => set({ link: v === "corkboard" ? folderLink(k.folder) : viewLink(v, k.folder) })])
 		: [];
+	// A stats tile draws its months as bars or a line, or its top genres as a pie.
+	const charts = k.kind === "view" && k.view === "stats"
+		? [["bars", "Show months as bars"], ["line", "Show months as a line"], ["pie", "Show top genres as a pie"]]
+			.filter(([c]) => c !== (pin.chart || "bars"))
+			.map(([c, label]) => [label, () => set({ chart: c === "bars" ? null : c })])
+		: [];
 	showMenu([
 		...views,
+		...charts,
 		...(views.length ? [["Show in the notes list", () => revealFolder(k.folder)]] : []),
 		["Color…", () => colorMenu(pin, set, x, y)],
 		["Cover…", () => pickCover(pin, set)],
@@ -2248,6 +2255,7 @@ const viewOf = (folder) => {
 // ---- stats: a folder of logs as charts (src/mediastats.js) --------------------
 
 const STATS_YEAR_KEY = "wr1t3r-stats-year";
+const STATS_CHART_KEY = "wr1t3r-stats-charts"; // { folder: { chart: "bars"|"line"|"pie" } }
 // Each note read once per version of its text.
 const logCache = new Map();
 const logOf = (n) => {
@@ -2269,6 +2277,8 @@ function statsHost(folder) {
 		logs: () => folderLogs(folder),
 		year: () => readJSON(STATS_YEAR_KEY, {})[folder] || "all",
 		setYear: (y) => writeJSON(STATS_YEAR_KEY, { ...readJSON(STATS_YEAR_KEY, {}), [folder]: y }),
+		chart: (key) => readJSON(STATS_CHART_KEY, {})[folder]?.[key],
+		setChart: (key, kind) => { const all = readJSON(STATS_CHART_KEY, {}); writeJSON(STATS_CHART_KEY, { ...all, [folder]: { ...all[folder], [key]: kind } }); },
 		open: (p) => openNote(p),
 	};
 }

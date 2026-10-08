@@ -116,3 +116,16 @@ test("finished: is stamped when a log moves to a done shelf", () => {
 	const scene = "---\nsynopsis: x\nstatus: draft\n---\n";
 	assert.equal(stampFinished(scene, scene.replace("draft", "done"), "2026-10-07"), null, "not a log");
 });
+
+test("pie slices and line points", async () => {
+	const { slices, linePoints } = await import("../src/charts.js");
+	assert.deepEqual(slices([1, 1, 2]), [[0, 0.25], [0.25, 0.5], [0.5, 1]]);
+	assert.deepEqual(slices([0, 0]), [[0, 0], [0, 0]]);
+	assert.deepEqual(linePoints([0, 5, 10], 100, 50, 0), [[0, 50], [50, 25], [100, 0]]);
+	const f = stats([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => readLog(`b/${n}.md`, book("B" + n, { genre: ["G" + n] }))), "book").fields.find((x) => x.key === "genre");
+	assert.equal(f.top.length, 8);
+	assert.equal(f.others, 2, "the two genres past the top eight");
+	const g = glance([1, 2, 3, 4, 5, 6, 7].map((n) => readLog(`b/${n}.md`, book("B" + n, { genre: ["G" + n] }))), "2026-10-01");
+	assert.deepEqual(g.pie.items.map((i) => i.label), ["G1", "G2", "G3", "G4", "G5", "Other"]);
+	assert.equal(g.pie.items.at(-1).value, 2);
+});
