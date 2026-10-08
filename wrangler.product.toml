@@ -1,5 +1,5 @@
 # The product build: the page, and no data. Each person's notes are in their
-# own Dropbox; the page talks to Dropbox (and Lemon Squeezy for license keys)
+# own Dropbox; the page talks to Dropbox (and Polar for license keys)
 # directly. The only Worker code is Google sign-in's token swap
 # (worker/product.js), which keeps nothing. Deploy with `npm run deploy:product`.
 #

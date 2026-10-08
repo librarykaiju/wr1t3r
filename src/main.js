@@ -1098,12 +1098,12 @@ async function openGuide() {
 
 // ---- The license key (src/license.js) -----------------------------------------
 //
-// Only a build with VITE_LS_STORE_ID asks for one. A trial per device, then
+// Only a build with VITE_POLAR_ORG_ID asks for one. A trial per device, then
 // the key window until a key is activated; Settings > License shows it.
 
 const env = import.meta.env || {};
-const LICENSE = { store: env.VITE_LS_STORE_ID || "", product: env.VITE_LS_PRODUCT_ID || "", api: env.VITE_LICENSE_API || DEFAULT_API, buy: env.VITE_BUY_URL || "" };
-const licensing = !!LICENSE.store;
+const LICENSE = { org: env.VITE_POLAR_ORG_ID || "", benefit: env.VITE_POLAR_BENEFIT_ID || "", api: env.VITE_LICENSE_API || DEFAULT_API, buy: env.VITE_BUY_URL || "" };
+const licensing = !!LICENSE.org;
 const LICENSE_KEY = "wr1t3r-license", TRIAL_KEY = "wr1t3r-trial-start";
 const savedLicense = () => readJSON(LICENSE_KEY, null);
 const licenseNow = () => licenseState(savedLicense(), Number(readRaw(TRIAL_KEY)) || null);
@@ -1135,8 +1135,8 @@ function setupLicense() {
 function showLicense(required = false) {
 	$("licenseTitle").textContent = required ? "Your free trial has ended" : "Enter your license key";
 	$("licenseHint").textContent = required
-		? "Your notes are safe in your own storage. To keep writing in wr1t3r, enter the license key from your purchase email."
-		: "It's in the email from your purchase.";
+		? "Your notes are safe in your own storage. To keep writing in wr1t3r, enter your license key. It's on your Polar purchases page, linked from your receipt email."
+		: "It's on your Polar purchases page, linked from your receipt email.";
 	$("licenseLater").hidden = required;
 	$("licenseOut").hidden = !required;
 	$("licenseError").hidden = true;
@@ -1157,7 +1157,7 @@ async function enterLicense() {
 		toast(lic.name ? `Thanks, ${lic.name}. wr1t3r is yours.` : "Thanks. wr1t3r is yours.");
 		renderLicenseSettings();
 	} catch (e) {
-		err.textContent = e instanceof TypeError ? "Couldn't reach Lemon Squeezy. Check the connection and try again." : e.message;
+		err.textContent = e instanceof TypeError ? "Couldn't reach Polar. Check the connection and try again." : e.message;
 		err.hidden = false;
 	} finally {
 		go.disabled = false;
@@ -1198,7 +1198,7 @@ function renderLicenseSettings() {
 				renderLicenseSettings();
 				if (licenseNow().status === "ended") showLicense(true);
 			} catch (err) {
-				toast(err instanceof TypeError ? "Couldn't reach Lemon Squeezy." : err.message);
+				toast(err instanceof TypeError ? "Couldn't reach Polar." : err.message);
 				e.target.disabled = false;
 			}
 		}));

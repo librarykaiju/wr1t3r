@@ -175,7 +175,7 @@ wr1t3r has no server holding your notes and no account to make. You sign in with
 
 [Buy wr1t3r](buy) [Start the free trial](https://my.wr1t3r.app/)
 
-_After you buy, your license key arrives by email. Paste it into Settings > License. Payments are handled by Lemon Squeezy._
+_After you buy, your license key is on your Polar purchases page, linked from your receipt email. Paste it into Settings > License. Payments are handled by Polar._
 
 --- faq
 
