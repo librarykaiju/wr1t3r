@@ -21,7 +21,7 @@
 import { StateField } from "@codemirror/state";
 import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
-import { frontmatterLines, propertiesFolded, showImageProps, imagePropsShown, boxCover, focusProperty } from "./frontmatter.js";
+import { frontmatterLines, propertiesFolded, showImageProps, imagePropsShown, boxCover, focusProperty, SHOWN_FOLDERS } from "./frontmatter.js";
 import { attachmentKind } from "./attachments.js";
 
 export const BANNER_KEY = "banner";
@@ -293,6 +293,27 @@ class CoverWidget extends WidgetType {
 	ignoreEvent() { return true; }
 }
 
+// Outside logs, sketchbooks and catalog (whose covers sit beside the
+// properties), a cover is a wide picture under the properties: as wide as
+// the text when it's big enough, never stretched past its own size.
+const wideCover = (state) => !SHOWN_FOLDERS.test(state.facet(notePath) || "");
+
+class WideCoverWidget extends WidgetType {
+	constructor(src) { super(); this.src = src; }
+	eq(o) { return sameSrc(o.src, this.src); }
+	toDOM(view) {
+		const wrap = document.createElement("div");
+		wrap.className = "md-cover-wide";
+		const img = imageEl(view, this.src, () => { wrap.classList.add("gone"); view.requestMeasure(); });
+		img.title = "Click to show the cover's properties";
+		img.addEventListener("mousedown", (e) => e.preventDefault());
+		img.addEventListener("click", () => toggleImageProps(view));
+		wrap.append(img);
+		return wrap;
+	}
+	ignoreEvent() { return true; }
+}
+
 function build(state) {
 	const out = [];
 	const b = { add: (from, to, d) => out.push(d.range(from, to)), finish: () => Decoration.set(out, true) };
@@ -301,6 +322,12 @@ function build(state) {
 	if (banner) {
 		const src = resolve(state, banner.ref);
 		if (src) b.add(0, 0, Decoration.widget({ widget: new BannerWidget(src, banner.position), block: true, side: -1 }));
+	}
+	if (cover && fm && wideCover(state)) {
+		const src = resolve(state, cover.ref);
+		// Just under the properties (the box replaces their lines).
+		const at = fm.close < state.doc.lines ? state.doc.line(fm.close + 1).from : state.doc.line(fm.close).to;
+		if (src) b.add(at, at, Decoration.widget({ widget: new WideCoverWidget(src), block: true, side: fm.close < state.doc.lines ? -1 : 1 }));
 	}
 	return b.finish();
 }
@@ -311,7 +338,7 @@ function build(state) {
 const cover = boxCover.of({
 	info(state) {
 		const { cover } = prettyOf(state.doc);
-		const src = cover && !propertiesFolded(state) && resolve(state, cover.ref);
+		const src = cover && !propertiesFolded(state) && !wideCover(state) && resolve(state, cover.ref);
 		return src ? { src, shape: cover.shape, position: cover.position, width: COVER_WIDTHS[cover.shape] } : null;
 	},
 	dom: (view, c) => new CoverWidget(c.src, c.shape, c.position).toDOM(view),

@@ -314,7 +314,8 @@ const tagList = (v) => (Array.isArray(v) ? v : String(v ?? "").split(/[,\s]+/)).
 // The Properties box as the notebook draws it: the cover beside the rows (or
 // above or below them, by cover_position), each row its type's icon, name
 // and value. Open in logs, sketchbooks and catalog notes; elsewhere folded to
-// a small "Properties" button, with the cover inside it, as in the app.
+// a small "Properties" button, as in the app, and the cover (see html) is a
+// wide picture under it.
 function propsBox(rows, { open = true, cover = null, shape = "initial", position = "left" } = {}) {
 	rows = rows || [];
 	if (!rows.length && !cover) return "";
@@ -732,7 +733,7 @@ ${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 ${tree ? "" : `<header class="site">${brand}${menu || ""}</header>\n`}${banner ? `<div class="banner"><img src="${esc(banner)}" alt="" style="object-position: center ${bannerPosition}%"></div>\n` : ""}<main>
 ${tree || ""}<article>
 <h1>${esc(title)}</h1>
-${(date || tags.length) && !(props && open) ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`).join("")}</p>\n` : ""}${props ? propsBox(props, { open, cover, shape: coverShape, position: coverPosition }) : cover ? `<img class="cover" src="${esc(cover)}" alt="">\n` : ""}${body}
+${(date || tags.length) && !(props && open) ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`).join("")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !props) ? `<img class="cover${open ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
 ${side ? `<aside class="side">\n${side}</aside>\n` : ""}</main>
 ${footer ? `<footer class="site">Made with <a href="https://wr1t3r.app">wr1t3r</a></footer>\n` : ""}</body>
@@ -812,6 +813,8 @@ h1 { font-size: 2em; margin-top: 0.6em; }
 }
 img { max-width: 100%; height: auto; }
 img.cover { display: block; max-width: min(240px, 60%); border-radius: 6px; margin: 0 0 1.4em; }
+/* Outside logs the cover is as wide as the text when it's big enough, never stretched (.md-cover-wide in the app). */
+img.cover.wide { max-width: 100%; }
 audio, video { display: block; width: 100%; margin: 1em 0; }
 blockquote { margin: 1em 0 1em 1.6em; padding: 4px 10px 4px 18px; border-left: 4px solid var(--muted); color: var(--muted); }
 mark { background: var(--hl); color: inherit; }

@@ -919,7 +919,10 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-cover { cursor: pointer; }
 :is(#editor, #refView) .md-fm-images { margin-left: 14px; font-weight: 400; color: var(--muted); }
 :is(#editor, #refView) .md-fm-images:hover { color: var(--fg); }
-:is(#editor, #refView) .md-banner.gone, :is(#editor, #refView) .md-cover.gone { display: none; }
+:is(#editor, #refView) .md-banner.gone, :is(#editor, #refView) .md-cover.gone, :is(#editor, #refView) .md-cover-wide.gone { display: none; }
+/* A note's cover outside logs: the text's width at most, never stretched. */
+:is(#editor, #refView) .md-cover-wide { padding: 4px 0 12px; }
+:is(#editor, #refView) .md-cover-wide img { display: block; max-width: 100%; height: auto; border-radius: 6px; cursor: pointer; }
 :is(#editor, #refView) .md-cover { display: block; width: var(--cover-w); max-width: 100%; font-size: 0; line-height: 0; }
 :is(#editor, #refView) .md-cover img { display: block; width: 100%; height: auto; max-height: 500px; object-fit: cover; border-radius: 6px; }
 :is(#editor, #refView) .md-cover.vertical-cover img, :is(#editor, #refView) .md-cover.vertical-contain img { aspect-ratio: 0.63; object-position: top; }

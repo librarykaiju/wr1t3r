@@ -251,3 +251,11 @@ test("a tagline sits under the site's title, and describes the front page", () =
 	assert.match(site.files.get("index.html"), /<meta name="description" content="Notes &amp; walks">/);
 	assert.doesNotMatch(buildSite(notes, [], { title: "Garden" }).files.get("essays/a.html"), /tagline/);
 });
+
+test("outside logs a cover is a wide picture under the properties, not inside the box", () => {
+	const notes = [{ path: "Essays/A.md", text: note("publish: true\ncoverImage: \"[[pic.jpg]]\"\nstatus: draft", "A") }];
+	const page = buildSite(notes, ["pic.jpg"], { title: "S" }).files.get("essays/a.html");
+	assert.doesNotMatch(page, /<span class="cover /);
+	assert.ok(page.indexOf('<img class="cover wide" src="../files/pic.jpg" alt="">') > page.indexOf('<details class="props">'));
+	assert.match(buildSite(notes, ["pic.jpg"], { title: "S", properties: false }).files.get("essays/a.html"), /<img class="cover wide"/);
+});
