@@ -71,8 +71,50 @@ function draggable(el, i, grid, host, header = false) {
 	});
 }
 
+// A stats tile's face: this year's count, two totals and a bar per month,
+// from glance() in src/mediastats.js.
+function glanceFace(g) {
+	const box = document.createElement("span");
+	box.className = "tile-glance";
+	const n = document.createElement("span");
+	n.className = "tile-glance-n";
+	n.textContent = Number(g.done).toLocaleString();
+	const l = document.createElement("span");
+	l.className = "tile-glance-l";
+	l.textContent = g.label;
+	box.append(n, l);
+	if (g.extras.length) {
+		const row = document.createElement("span");
+		row.className = "tile-glance-row";
+		for (const x of g.extras) {
+			const e = document.createElement("span");
+			const b = document.createElement("b");
+			b.textContent = typeof x.n === "number" ? x.n.toLocaleString() : x.n;
+			e.append(b, x.label ? " " + x.label : "");
+			if (x.title) e.title = x.title;
+			row.append(e);
+		}
+		box.append(row);
+	}
+	if (g.bars.length) {
+		const bars = document.createElement("span");
+		bars.className = "tile-glance-bars";
+		bars.setAttribute("aria-hidden", "true");
+		const top = Math.max(1, ...g.bars.map((b) => b.count));
+		for (const b of g.bars) {
+			const bar = document.createElement("span");
+			bar.style.height = `${Math.max(b.count ? 12 : 4, Math.round((b.count / top) * 100))}%`;
+			bar.title = `${b.label}: ${b.count}`;
+			bars.append(bar);
+		}
+		box.append(bars);
+	}
+	return box;
+}
+
 // host: { pins, homeFile, paths, text(path), image(ref, from) -> Promise<src>|null,
-//         open(pin, path), menu(index, x, y), add()?, reorder(from, to), emptyLabel? }
+//         open(pin, path), menu(index, x, y), add()?, reorder(from, to), emptyLabel?,
+//         glance(folder)? -> glance(...) | null, for stats tiles }
 export function drawHome(grid, host) {
 	grid.replaceChildren();
 	const { pins, homeFile, paths } = host;
@@ -119,7 +161,11 @@ export function drawHome(grid, host) {
 			tile.classList.add("has-cover");
 			tile.append(img);
 		}
-		tile.append(icon(kind), label);
+		const g = k.kind === "view" && k.view === "stats" && host.glance ? host.glance(k.folder) : null;
+		if (g) {
+			tile.classList.add("has-glance");
+			tile.append(label, glanceFace(g));
+		} else tile.append(icon(kind), label);
 		tile.addEventListener("click", () => host.open(pin, path));
 		onMenu(tile, (x, y) => host.menu(i, x, y));
 		draggable(tile, i, grid, host);

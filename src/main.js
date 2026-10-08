@@ -4,7 +4,7 @@
 
 import { createEditor } from "./editor.js";
 import { setupKeyboardBar } from "./kbbar.js";
-import { readLog, looksLikeLogs, stampFinished } from "./mediastats.js";
+import { readLog, looksLikeLogs, stampFinished, glance } from "./mediastats.js";
 import { drawStats as drawLogStats } from "./mediastatsview.js";
 import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js";
 import { builtinTemplate, writingTemplates } from "./builtintemplates.js";
@@ -1479,7 +1479,12 @@ function renderHome(force = false) {
 	// Redraw only when something a tile shows changed (a sync redraws the
 	// sidebar often; the pictures would flicker).
 	const banner = homeBanner();
-	const key = JSON.stringify([list, banner, paths.length, attachments.length, list.map((p) => { const q = pinPath(p, paths, file); return q && notes.get(q)?.text?.slice(0, 1500); })]);
+	const key = JSON.stringify([list, banner, paths.length, attachments.length, list.map((p) => {
+		const k = pinKind(p.link);
+		if (k.kind === "view" && k.view === "stats") return tileGlance(k.folder);
+		const q = pinPath(p, paths, file);
+		return q && notes.get(q)?.text?.slice(0, 1500);
+	})]);
 	if (!force && key === homeKey) return;
 	homeKey = key;
 	drawHomeBanner(banner, file);
@@ -1490,6 +1495,7 @@ function renderHome(force = false) {
 		open: openPin,
 		menu: tileMenu,
 		add: addTile,
+		glance: tileGlance,
 		reorder: (from, to) => {
 			const next = pins();
 			const [moved] = next.splice(from, 1);
@@ -1774,6 +1780,7 @@ setCardsHost({
 	open: (pin, path) => openPin(pin, path),
 	menu: (store, i, x, y) => tileMenu(i, x, y, store),
 	add: (store) => addTile(store),
+	glance: (folder) => tileGlance(folder),
 });
 
 // Planner blocks: the day's health note (made the way Today makes it, from
@@ -2254,6 +2261,8 @@ const folderLogs = (folder) => visible()
 	.filter((n) => !n.binary && /\.md$/i.test(n.path) && n.path.toLowerCase().startsWith(folder.toLowerCase()) && !isAppFile(n.path) && !isTemplatePath(n.path))
 	.map(logOf);
 const isLogFolder = (folder) => featureOn("media") && looksLikeLogs(folderLogs(folder));
+// A stats tile's numbers, on Home or in a cards block.
+const tileGlance = (folder) => (featureOn("media") ? glance(folderLogs(folder), isoDate(new Date())) : null);
 function statsHost(folder) {
 	return {
 		folder,

@@ -1360,6 +1360,28 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 	position: relative; width: 100%; padding: 22px 12px 10px; color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
 	background: linear-gradient(to top, color-mix(in srgb, var(--tc) 45%, rgb(0 0 0 / 0.78)) 0%, color-mix(in srgb, var(--tc) 30%, rgb(0 0 0 / 0.55)) 60%, transparent 100%);
 }
+/* A stats tile: its name on top, this year's numbers and a bar per month below. */
+.tile.has-glance { gap: 4px; }
+.tile.has-glance .tile-name { -webkit-line-clamp: 1; flex-shrink: 0; font-size: 13px; }
+.tile-glance { display: flex; flex-direction: column; width: 100%; min-width: 0; gap: 1px; font-weight: 400; }
+.tile-glance-n { font: 700 28px/1 var(--sans); font-variant-numeric: tabular-nums; }
+.tile-glance-l, .tile-glance-row { font-size: 11.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-glance-l { color: color-mix(in srgb, var(--fg) 75%, var(--tc)); }
+.tile-glance-row { display: flex; gap: 10px; }
+.tile-glance-row b { font-weight: 700; }
+.tile-glance-bars { display: flex; align-items: flex-end; gap: 2px; height: 18px; margin-top: 4px; }
+@media (max-width: 480px) {
+	.tile.has-glance { padding: 10px; gap: 2px; }
+	.tile-glance-n { font-size: 22px; }
+	.tile-glance-bars { height: 12px; margin-top: 3px; }
+}
+.tile-glance-bars span { flex: 1; min-height: 2px; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--tc) 75%, var(--fg)); }
+.tile.has-glance.has-cover { padding: 12px; justify-content: space-between; color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / 0.6); }
+.tile.has-glance.has-cover .tile-cover { filter: brightness(0.42); }
+.tile.has-glance.has-cover .tile-name { padding: 0; background: none; }
+.tile.has-glance.has-cover .tile-glance { position: relative; }
+.tile.has-glance.has-cover .tile-glance-l { color: rgb(255 255 255 / 0.85); }
+.tile.has-glance.has-cover .tile-glance-bars span { background: rgb(255 255 255 / 0.8); }
 .tile.missing { opacity: 0.55; }
 .tile.missing .tile-name::after { content: " (missing)"; font-weight: 400; }
 .tile.dragging { opacity: 0.4; }

@@ -181,6 +181,32 @@ export function stats(logs, kind, year = "all") {
 	};
 }
 
+// The few numbers a stats tile shows at a glance (src/homeview.js): what's
+// finished this year (all time when nothing is yet), a couple of totals, and
+// finished per month up to this one (per year for all time, the last 12).
+// today: "2026-10-08".
+export function glance(logs, today) {
+	if (!logs.length) return null;
+	const thisYear = today.slice(0, 4), month = Number(today.slice(5, 7));
+	const kind = kindOf(logs);
+	const year = yearsOf(logs).includes(thisYear) ? thisYear : "all";
+	const s = stats(logs, kind, year);
+	const L = s.labels;
+	const extras = [];
+	if (s.amount) extras.push({ n: s.amount, label: L.amount.noun });
+	if (s.average != null) extras.push({ n: s.average.toFixed(1) + "★", label: "", title: `Average rating out of 5, from ${s.rated} rated` });
+	if (s.current.length) extras.push({ n: s.current.length, label: L.current.toLowerCase() });
+	const bars = (year === "all" ? s.timeline.slice(-12) : s.timeline.slice(0, month))
+		.map((t) => ({ label: t.label, count: t.count }));
+	return {
+		kind, year,
+		done: s.done,
+		label: `${s.done === 1 ? L.noun[0] : L.noun[1]} ${L.done.toLowerCase()} ${year === "all" ? "all time" : "in " + year}`,
+		extras: extras.slice(0, 2),
+		bars: bars.length > 1 ? bars : [],
+	};
+}
+
 // The note's new text with finished: set to today, when this edit moved its
 // shelf/status to a done value and it has no finished: yet; else null. Only
 // for logs (notes with a rating: property), so a story scene's "done" status
