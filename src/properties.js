@@ -10,6 +10,8 @@
 // to that name in every note (types: { key: type }); without one, the type is
 // read from the value.
 
+import { closes } from "./dvpage.js";
+
 export const TYPES = ["text", "list", "number", "checkbox", "date", "datetime"];
 export const TYPE_LABELS = { text: "Text", list: "List", number: "Number", checkbox: "Checkbox", date: "Date", datetime: "Date & time", tags: "Tags", yaml: "YAML" };
 
@@ -74,13 +76,19 @@ export function readRows(doc, fm, types = {}) {
 		if (!m) continue;
 		const key = m[1], raw = m[2] || "";
 		let last = n;
+		// A quoted string that runs on over more lines, unindented ones too: up to its closing quote.
+		const q = raw.trim()[0];
+		if ((q === '"' || q === "'") && !closes(raw.trim().slice(1), q)) {
+			while (last + 1 < fm.close && !closes(doc.line(last + 1).text, q)) last++;
+			if (last + 1 < fm.close) last++;
+		}
 		while (last + 1 < fm.close && (/^\s/.test(doc.line(last + 1).text) || /^-(\s|$)/.test(doc.line(last + 1).text) || !doc.line(last + 1).text.trim())) last++;
 		while (last > n && !doc.line(last).text.trim()) last--;
 		const kids = [];
 		for (let i = n + 1; i <= last; i++) kids.push(doc.line(i).text);
 		const row = { key, first: n, last, from: line.from, to: doc.line(last).to, raw, kind: "scalar", value: "", quote: "", items: [], form: null, indent: "  " };
 		const tags = isTagsKey(key);
-		if (raw.includes("<%") || kids.some((k) => k.includes("<%"))) row.kind = "yaml";
+		if (raw.includes("<%") || kids.some((k) => k.includes("<%")) || last > n && (q === '"' || q === "'")) row.kind = "yaml";
 		else if (kids.length) {
 			const items = kids.filter((k) => k.trim()).map((k) => k.match(/^(\s*)-(?:\s+(.*))?$/));
 			if (!raw && items.every(Boolean)) {

@@ -21,7 +21,9 @@ export function parseFrontmatter(text) {
 	const out = {};
 	if (!m) return out;
 	let list = null;
-	for (const line of m[1].split(/\r?\n/)) {
+	const lines = m[1].split(/\r?\n/);
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
 		const item = line.match(/^\s+-\s*(.*)$|^-\s+(.*)$/);
 		if (item && list) { (out[list] ??= []).push(scalar(item[1] ?? item[2])); continue; }
 		const kv = line.match(/^([^\s#:][^:]*):(?:\s+(.*)|\s*)$/);
@@ -29,10 +31,59 @@ export function parseFrontmatter(text) {
 		const key = kv[1].trim();
 		if (kv[2] == null || kv[2].trim() === "") { out[key] = null; list = key; continue; }
 		list = null;
+		const raw = kv[2].trim();
+		// A quoted string that runs on over more lines, up to its closing quote.
+		const q = raw[0];
+		if ((q === '"' || q === "'") && !closes(raw.slice(1), q)) {
+			const parts = [raw.slice(1)];
+			while (i + 1 < lines.length) {
+				const next = lines[++i];
+				const end = closes(next, q);
+				if (end) { parts.push(next.slice(0, end.index)); break; }
+				parts.push(next);
+			}
+			const text = fold(parts);
+			out[key] = q === "'" ? text.replace(/''/g, "'") : unescape(text);
+			continue;
+		}
+		// A block string (| keeps line breaks, > folds them): the indented lines under it.
+		if (/^[|>][+-]?\d?[+-]?$/.test(raw)) {
+			const body = [];
+			while (i + 1 < lines.length && (/^\s/.test(lines[i + 1]) || !lines[i + 1].trim())) body.push(lines[++i]);
+			while (body.length && !body[body.length - 1].trim()) body.pop();
+			const indent = Math.min(...body.filter((b) => b.trim()).map((b) => b.match(/^\s*/)[0].length));
+			const rows = body.map((b) => b.slice(indent));
+			out[key] = raw[0] === "|" ? rows.join("\n") : fold(rows);
+			continue;
+		}
 		out[key] = scalar(kv[2]);
 	}
 	return out;
 }
+
+// Where a quoted string's closing quote is in a line (a doubled '' or an
+// escaped \" doesn't close it), or null.
+export function closes(text, q) {
+	for (let i = 0; i < text.length; i++) {
+		if (q === '"' && text[i] === "\\") i++;
+		else if (text[i] === q) { if (q === "'" && text[i + 1] === "'") i++; else return { index: i }; }
+	}
+	return null;
+}
+
+// Lines of a multi-line YAML string joined the way YAML folds them: a line
+// break is a space, and each blank line is a line break.
+function fold(lines) {
+	let out = "", blanks = 0;
+	for (const [i, l] of lines.map((x) => x.trim()).entries()) {
+		if (!l) { if (i) blanks++; continue; }
+		out += out ? (blanks ? "\n".repeat(blanks) : " ") + l : l;
+		blanks = 0;
+	}
+	return out;
+}
+
+const unescape = (t) => { try { return JSON.parse('"' + t.replace(/\t/g, "\\t").replace(/\n/g, "\\n") + '"'); } catch { return t; } };
 
 // "- text" and "1. text" items (not in code or frontmatter), with the heading
 // they sit under as section.subpath, like Dataview's file.lists.

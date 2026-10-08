@@ -1026,10 +1026,10 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 :is(#editor, #refView) .md-props-cover-bottom { flex-direction: column-reverse; }
 :is(#editor, #refView) .md-props-body > .md-cover:is(.left, .right) { flex: none; width: min(var(--cover-w, 200px), 40%); padding: 4px 0; }
 @media (max-width: 640px) { :is(#editor, #refView) .md-props-body { flex-direction: column; } }
-:is(#editor, #refView) .md-props-rows { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(7em, max-content) minmax(0, 1fr); column-gap: 12px; align-items: start; }
+:is(#editor, #refView) .md-props-rows { flex: 1; min-width: 0; display: grid; grid-template-columns: fit-content(max(7em, 40%)) minmax(0, 1fr); column-gap: 12px; align-items: start; }
 :is(#editor, #refView) .md-prop { display: contents; }
 :is(#editor, #refView) .md-prop-key {
-	display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 0; padding: 3px 6px; margin: 1px 0 1px -6px; border: 0; border-radius: 6px;
+	display: flex; align-items: center; gap: 6px; min-width: calc(7em + 6px); min-height: 0; padding: 3px 6px; margin: 1px 0 1px -6px; border: 0; border-radius: 6px;
 	background: none; font: inherit; color: var(--muted); text-align: left; cursor: pointer; overflow: hidden;
 }
 :is(#editor, #refView) button.md-prop-key:hover { background: var(--sel); color: var(--fg); }

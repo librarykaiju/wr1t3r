@@ -788,9 +788,9 @@ h1 { font-size: 2em; margin-top: 0.6em; }
 .props-body.cover-right { flex-direction: row-reverse; }
 .props-body.cover-top { flex-direction: column; }
 .props-body.cover-bottom { flex-direction: column-reverse; }
-.props dl { flex: 1; min-width: 0; margin: 0; display: grid; grid-template-columns: minmax(7em, max-content) minmax(0, 1fr); column-gap: 12px; align-items: start; overflow-wrap: anywhere; }
+.props dl { flex: 1; min-width: 0; margin: 0; display: grid; grid-template-columns: fit-content(max(7em, 40%)) minmax(0, 1fr); column-gap: 12px; align-items: start; overflow-wrap: anywhere; }
 .props dl > div { display: contents; }
-.props dt { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 0; color: var(--muted); }
+.props dt { display: flex; align-items: center; gap: 6px; min-width: 7em; padding: 3px 0; color: var(--muted); }
 .props dt .icon { flex: none; width: 1.6em; text-align: center; font: 600 0.8em var(--mono); opacity: 0.7; }
 .props dd { margin: 0; min-height: 2em; padding: 3px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .props .pill { display: inline-block; padding: 0 0.6em; border-radius: 999px; font: 500 0.95em/1.6 var(--sans); background: color-mix(in srgb, var(--t, var(--f6)) 16%, var(--bg)); color: color-mix(in srgb, var(--t, var(--f6)) 75%, var(--fg)); }
