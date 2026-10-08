@@ -12,7 +12,9 @@
     "food-data": "node scripts/food-data.js",
     "build:product": "vite build --mode product --outDir dist-product",
     "deploy:product": "npm run build:product && wrangler deploy -c wrangler.product.toml",
-    "deploy:site": "wrangler deploy -c site/wrangler.toml"
+    "build:site": "node scripts/build-site.js",
+    "preview:site": "node scripts/build-site.js && wrangler dev -c site/wrangler.toml",
+    "deploy:site": "node scripts/build-site.js && wrangler deploy -c site/wrangler.toml"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

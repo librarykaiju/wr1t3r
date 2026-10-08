@@ -411,7 +411,7 @@ To put it online: unzip, then drag the files and folders into the Neocities dash
 
 **Publish to GitHub** (src/githubpublish.js) sends the same files straight to a GitHub repo from the page, as one commit through GitHub's API (which takes calls from browsers, so it needs no Worker and works on both builds). The person makes a fine-grained token for that repo with Contents and Pages set to Read and write; it's kept on the device only if they tick "Remember the token". Files whose git blob id already matches aren't sent again, files the last publish to that repo put there and the site no longer has are deleted, anything else in the repo is left alone, and `.nojekyll` is added. An empty repo gets a first commit; GitHub Pages is turned on for the branch if it isn't already. `https://api.github.com` is in the page's `connect-src` (public/_headers). Cloudflare Pages can watch the same repo.
 
-Step-by-step guides with screenshots live on the product site at `site/public/help.html` (setup, publishing, Neocities, GitHub Pages, Cloudflare); Settings > Help links to them.
+Step-by-step guides with screenshots live on the product site's Help page, written in `site/pages/help.md` (setup, publishing, Neocities, GitHub Pages, Cloudflare); Settings > Help links to them.
 
 ## Writing stats, goals and fonts
 
@@ -462,7 +462,9 @@ The version sold to other people is the same code built without the Worker: the 
    ```
    `.env.product` already sets `VITE_DROPBOX_ONLY=1`, which makes the sign-in screen offer only Dropbox.
 4. `npm run deploy:product` builds into `dist-product/` and deploys it as the `wr1t3r-user` Worker (`wrangler.product.toml`: static files only, on the `my.wr1t3r.app` custom domain).
-5. Put the checkout link in `site/public/index.html` (the `buy-url` meta tag), then `npm run deploy:site` deploys `site/public/` as the `wr1t3r-site` Worker on `wr1t3r.app` and `www.wr1t3r.app`.
+5. Put the checkout link in `site/pages/index.md` (the `buy:` line at the top), then `npm run deploy:site` builds the pages and deploys `site/public/` as the `wr1t3r-site` Worker on `wr1t3r.app` and `www.wr1t3r.app`.
+
+The site's words are Markdown files in `site/pages/` (`index.md`, `help.md`, `legal.md`). `scripts/build-site.js` turns each into `site/public/<name>.html`, which git ignores; `site/pages/README.md` has the layout rules. `npm run preview:site` serves the built site locally.
 
 Both custom domains are created by the deploy, since wr1t3r.app is a zone on the same Cloudflare account. The personal build (`npm run deploy`) is unaffected.
 
