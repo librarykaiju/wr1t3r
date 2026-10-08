@@ -20,7 +20,7 @@ wr1t3r is a notebook app that runs in your browser at my.wr1t3r.app. I make it o
 
 - Your notes and pictures go only between your browser and the storage you sign in with: your Dropbox or your Google Drive. I have no server that stores, reads or copies them.
 - **A copy in your browser.** Each device keeps a copy of your notes in the browser's own storage so the app works offline. Signing out on that device clears it.
-- **A local folder, if you choose one** (Chrome and Edge, in Settings). wr1t3r keeps your whole notebook as plain files in a folder you pick on your computer, in step both ways while the app is open. Those files are yours: signing out, or Stop in Settings, leaves them where they are, and only you can delete them. They go nowhere except into your Dropbox or Google Drive notebook, like any note you write.
+- **A local folder, if you choose one** (Chrome and Edge). wr1t3r keeps your whole notebook as plain files in a folder you pick on your computer, in step both ways while the app is open. Those files are yours: signing out, or Stop in Settings, leaves them where they are, and only you can delete them. They go nowhere except into your Dropbox or Google Drive notebook, like any note you write.
 - **Dropbox** access is limited to wr1t3r's own app folder (`Apps/wr1t3r`). You can remove it any time in your Dropbox settings.
 
 ## Google user data
