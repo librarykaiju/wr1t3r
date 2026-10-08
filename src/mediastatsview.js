@@ -4,9 +4,14 @@
 // progress and what got five stars. Plain HTML bars, so it follows the theme
 // and works offline.
 //
-// host: { folder, logs() -> [readLog(...)], year(), setYear(y), open(path) }
+// Each chart can be switched between bars and a line (over time) or bars and
+// a pie (ratings and properties); the choice is kept per folder.
+//
+// host: { folder, logs() -> [readLog(...)], year(), setYear(y), open(path),
+//         chart(key) -> "bars"|"line"|"pie"|undefined, setChart(key, kind) }
 
 import { stats, yearsOf, kindOf } from "./mediastats.js";
+import { lineChart, pieChart } from "./charts.js";
 
 const el = (tag, className, text) => {
 	const e = document.createElement(tag);
@@ -64,28 +69,66 @@ export function drawStats(body, host) {
 	page.append(tiles);
 
 	const grid = el("div", "stats-grid");
-	const card = (title, wide) => {
+	// A card with a title and, given kinds, a switch between chart kinds;
+	// draw(box, kind) fills it.
+	const card = (title, wide, key, kinds, draw) => {
 		const c = el("section", "stats-card" + (wide ? " wide" : ""));
-		c.append(el("h3", null, title));
+		const head = el("div", "stats-card-head");
+		head.append(el("h3", null, title));
+		c.append(head);
 		grid.append(c);
+		if (!kinds) return c;
+		const box = el("div", "stats-chart");
+		let kind = kinds.includes(host.chart?.(key)) ? host.chart(key) : kinds[0];
+		const sw = el("div", "seg stats-kind");
+		sw.setAttribute("role", "group");
+		sw.setAttribute("aria-label", `Show ${title.toLowerCase()} as`);
+		const show = () => {
+			for (const b of sw.children) b.setAttribute("aria-pressed", String(b.dataset.kind === kind));
+			box.replaceChildren();
+			draw(box, kind);
+		};
+		for (const k of kinds) {
+			const b = el("button", null, cap(k));
+			b.type = "button";
+			b.dataset.kind = k;
+			b.addEventListener("click", () => { kind = k; host.setChart?.(key, k); show(); });
+			sw.append(b);
+		}
+		head.append(sw);
+		c.append(box);
+		show();
 		return c;
 	};
 
 	// Finished over time.
 	if (s.timeline.length) {
 		const per = year === "all" ? "per year" : "per month";
-		columns(card(`${cap(L.noun[1])} ${L.done.toLowerCase()} ${per}`, true), s.timeline.map((t) => ({ label: t.label, value: t.count, title: `${t.count} ${plural(L.noun, t.count)}` })), 6);
-		if (s.amount) columns(card(`${cap(L.amount.noun)} ${per}`, true), s.timeline.map((t) => ({ label: t.label, value: t.amount, title: `${fmt(t.amount)} ${L.amount.noun}` })), 2);
+		const over = (box, kind, items, color) => (kind === "line" ? box.append(lineChart(items, `var(--f${color})`)) : columns(box, items, color));
+		const counts = s.timeline.map((t) => ({ label: t.label, value: t.count, title: `${t.count} ${plural(L.noun, t.count)}` }));
+		card(`${cap(L.noun[1])} ${L.done.toLowerCase()} ${per}`, true, "timeline", ["bars", "line"], (box, kind) => over(box, kind, counts, 6));
+		if (s.amount) {
+			const amounts = s.timeline.map((t) => ({ label: t.label, value: t.amount, title: `${fmt(t.amount)} ${L.amount.noun}` }));
+			card(`${cap(L.amount.noun)} ${per}`, true, "amount", ["bars", "line"], (box, kind) => over(box, kind, amounts, 2));
+		}
 	}
 
 	// Ratings, five stars at the top.
-	if (s.rated) bars(card("Ratings"), [...s.ratings].reverse().map((r) => ({ label: "★".repeat(r.stars), value: r.count })), 3, "stars");
+	if (s.rated) {
+		const items = [...s.ratings].reverse().map((r) => ({ label: "★".repeat(r.stars), value: r.count }));
+		card("Ratings", false, "ratings", ["bars", "pie"], (box, kind) => (kind === "pie" ? box.append(pieChart(items.filter((i) => i.value))) : bars(box, items, 3, "stars")));
+	}
 
 	// The properties that come up most.
 	s.fields.forEach((f, i) => {
-		const c = card(f.label);
-		bars(c, f.top.map((t) => ({ label: t.value, value: t.count })), (i % 7) + 1);
-		if (f.total > f.top.length) c.append(el("p", "stats-more", `and ${f.total - f.top.length} more`));
+		const items = f.top.map((t) => ({ label: t.value, value: t.count }));
+		card(f.label, false, "field:" + f.label, ["bars", "pie"], (box, kind) => {
+			if (kind === "pie") box.append(pieChart(f.others ? [...items, { label: "Other", value: f.others, other: true }] : items));
+			else {
+				bars(box, items, (i % 7) + 1);
+				if (f.total > f.top.length) box.append(el("p", "stats-more", `and ${f.total - f.top.length} more`));
+			}
+		});
 	});
 	page.append(grid);
 

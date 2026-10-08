@@ -4,7 +4,7 @@
 
 import { createEditor } from "./editor.js";
 import { setupKeyboardBar } from "./kbbar.js";
-import { readLog, looksLikeLogs, stampFinished } from "./mediastats.js";
+import { readLog, looksLikeLogs, stampFinished, glance } from "./mediastats.js";
 import { drawStats as drawLogStats } from "./mediastatsview.js";
 import { DAILY_FOLDER, isoDate, renderTemplate, findTemplate } from "./daily.js";
 import { builtinTemplate, writingTemplates } from "./builtintemplates.js";
@@ -1479,7 +1479,12 @@ function renderHome(force = false) {
 	// Redraw only when something a tile shows changed (a sync redraws the
 	// sidebar often; the pictures would flicker).
 	const banner = homeBanner();
-	const key = JSON.stringify([list, banner, paths.length, attachments.length, list.map((p) => { const q = pinPath(p, paths, file); return q && notes.get(q)?.text?.slice(0, 1500); })]);
+	const key = JSON.stringify([list, banner, paths.length, attachments.length, list.map((p) => {
+		const k = pinKind(p.link);
+		if (k.kind === "view" && k.view === "stats") return tileGlance(k.folder);
+		const q = pinPath(p, paths, file);
+		return q && notes.get(q)?.text?.slice(0, 1500);
+	})]);
 	if (!force && key === homeKey) return;
 	homeKey = key;
 	drawHomeBanner(banner, file);
@@ -1490,6 +1495,7 @@ function renderHome(force = false) {
 		open: openPin,
 		menu: tileMenu,
 		add: addTile,
+		glance: tileGlance,
 		reorder: (from, to) => {
 			const next = pins();
 			const [moved] = next.splice(from, 1);
@@ -1750,8 +1756,15 @@ function tileMenu(i, x, y, store = homeStore) {
 			.filter(([v]) => v !== (k.kind === "view" ? k.view : "corkboard"))
 			.map(([v, label]) => [label, () => set({ link: v === "corkboard" ? folderLink(k.folder) : viewLink(v, k.folder) })])
 		: [];
+	// A stats tile draws its months as bars or a line, or its top genres as a pie.
+	const charts = k.kind === "view" && k.view === "stats"
+		? [["bars", "Show months as bars"], ["line", "Show months as a line"], ["pie", "Show top genres as a pie"]]
+			.filter(([c]) => c !== (pin.chart || "bars"))
+			.map(([c, label]) => [label, () => set({ chart: c === "bars" ? null : c })])
+		: [];
 	showMenu([
 		...views,
+		...charts,
 		...(views.length ? [["Show in the notes list", () => revealFolder(k.folder)]] : []),
 		["Color…", () => colorMenu(pin, set, x, y)],
 		["Cover…", () => pickCover(pin, set)],
@@ -1774,6 +1787,7 @@ setCardsHost({
 	open: (pin, path) => openPin(pin, path),
 	menu: (store, i, x, y) => tileMenu(i, x, y, store),
 	add: (store) => addTile(store),
+	glance: (folder) => tileGlance(folder),
 });
 
 // Planner blocks: the day's health note (made the way Today makes it, from
@@ -2241,6 +2255,7 @@ const viewOf = (folder) => {
 // ---- stats: a folder of logs as charts (src/mediastats.js) --------------------
 
 const STATS_YEAR_KEY = "wr1t3r-stats-year";
+const STATS_CHART_KEY = "wr1t3r-stats-charts"; // { folder: { chart: "bars"|"line"|"pie" } }
 // Each note read once per version of its text.
 const logCache = new Map();
 const logOf = (n) => {
@@ -2254,12 +2269,16 @@ const folderLogs = (folder) => visible()
 	.filter((n) => !n.binary && /\.md$/i.test(n.path) && n.path.toLowerCase().startsWith(folder.toLowerCase()) && !isAppFile(n.path) && !isTemplatePath(n.path))
 	.map(logOf);
 const isLogFolder = (folder) => featureOn("media") && looksLikeLogs(folderLogs(folder));
+// A stats tile's numbers, on Home or in a cards block.
+const tileGlance = (folder) => (featureOn("media") ? glance(folderLogs(folder), isoDate(new Date())) : null);
 function statsHost(folder) {
 	return {
 		folder,
 		logs: () => folderLogs(folder),
 		year: () => readJSON(STATS_YEAR_KEY, {})[folder] || "all",
 		setYear: (y) => writeJSON(STATS_YEAR_KEY, { ...readJSON(STATS_YEAR_KEY, {}), [folder]: y }),
+		chart: (key) => readJSON(STATS_CHART_KEY, {})[folder]?.[key],
+		setChart: (key, kind) => { const all = readJSON(STATS_CHART_KEY, {}); writeJSON(STATS_CHART_KEY, { ...all, [folder]: { ...all[folder], [key]: kind } }); },
 		open: (p) => openNote(p),
 	};
 }

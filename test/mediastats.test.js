@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, ratingOf, valuesOf, readLog, kindOf, looksLikeLogs, yearsOf, stats, stampFinished } from "../src/mediastats.js";
+import { stateOf, ratingOf, valuesOf, readLog, kindOf, looksLikeLogs, yearsOf, stats, stampFinished, glance } from "../src/mediastats.js";
 
 const book = (title, { shelf = "Finished", rating = "⭐⭐⭐⭐", date = "2026-03-04", finished = null, pages = null, genre = ["Fantasy"], format = "📘 Book" } = {}) =>
 	["---", `title: ${title}`, ...(pages ? [`pages: ${pages}`] : []), "author:", "  - Someone", `format: ${format}`, "genre:", ...genre.map((g) => `  - ${g}`), "shelf:", `  - ${shelf}`, "rating:", ...(rating ? [`  - ${rating}`] : []), ...(finished ? [`finished: ${finished}`] : []), `date: ${date}`, "---", "", "## Notes", ""].join("\n");
@@ -88,6 +88,24 @@ test("stats for a year and for all time", () => {
 	assert.deepEqual(moods.filter((f) => f.key === "vibesAndThemes").map((f) => [f.label, f.top[0].value]), [["Moods", "Cozy"], ["Pace", "Fast-paced"]]);
 });
 
+test("a stats tile's numbers at a glance", () => {
+	const logs = [
+		book("A", { finished: "2026-01-05", pages: 100, rating: "⭐⭐⭐⭐⭐" }),
+		book("B", { finished: "2026-03-20", pages: 200, rating: "⭐⭐⭐" }),
+		book("C", { date: "2025-06-01", pages: 50 }),
+		book("D", { shelf: "Currently Reading", rating: null }),
+	].map((t, i) => readLog(`logs/books/${i}.md`, t));
+	const g = glance(logs, "2026-04-02");
+	assert.equal(g.done, 2);
+	assert.equal(g.label, "books read in 2026");
+	assert.deepEqual(g.extras.map((x) => [x.n, x.label]), [[300, "pages"], ["4.0★", ""]]);
+	assert.deepEqual(g.bars.map((b) => b.count), [1, 0, 1, 0], "January to this month");
+	const old = glance(logs.slice(2), "2027-02-01");
+	assert.equal(old.label, "book read all time", "nothing this year: all time");
+	assert.deepEqual(old.extras.map((x) => x.label), ["pages", ""], "two at most");
+	assert.equal(glance([], "2026-01-01"), null);
+});
+
 test("finished: is stamped when a log moves to a done shelf", () => {
 	const before = book("A", { shelf: "Currently Reading" });
 	const after = before.replace("Currently Reading", "Finished");
@@ -97,4 +115,17 @@ test("finished: is stamped when a log moves to a done shelf", () => {
 	assert.equal(stampFinished(before, book("A", { finished: "2026-01-01" }), "2026-10-07"), null, "has a finished date");
 	const scene = "---\nsynopsis: x\nstatus: draft\n---\n";
 	assert.equal(stampFinished(scene, scene.replace("draft", "done"), "2026-10-07"), null, "not a log");
+});
+
+test("pie slices and line points", async () => {
+	const { slices, linePoints } = await import("../src/charts.js");
+	assert.deepEqual(slices([1, 1, 2]), [[0, 0.25], [0.25, 0.5], [0.5, 1]]);
+	assert.deepEqual(slices([0, 0]), [[0, 0], [0, 0]]);
+	assert.deepEqual(linePoints([0, 5, 10], 100, 50, 0), [[0, 50], [50, 25], [100, 0]]);
+	const f = stats([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => readLog(`b/${n}.md`, book("B" + n, { genre: ["G" + n] }))), "book").fields.find((x) => x.key === "genre");
+	assert.equal(f.top.length, 8);
+	assert.equal(f.others, 2, "the two genres past the top eight");
+	const g = glance([1, 2, 3, 4, 5, 6, 7].map((n) => readLog(`b/${n}.md`, book("B" + n, { genre: ["G" + n] }))), "2026-10-01");
+	assert.deepEqual(g.pie.items.map((i) => i.label), ["G1", "G2", "G3", "G4", "G5", "Other"]);
+	assert.equal(g.pie.items.at(-1).value, 2);
 });

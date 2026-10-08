@@ -6,6 +6,7 @@
 
 import { isBoardPath } from "./paths.js";
 import { pinKind, pinPath, pinTitle, pinColor, pinCover, isSection, tileOrdinals } from "./home.js";
+import { linePoints, pieChart } from "./charts.js";
 
 const ICONS = {
 	note: '<path d="M7 3.5h7l4 4v13H7z"/><path d="M14 3.5v4h4M9.5 12h6M9.5 15.5h6"/>',
@@ -71,8 +72,72 @@ function draggable(el, i, grid, host, header = false) {
 	});
 }
 
+// A stats tile's face: this year's count, two totals and a bar per month (or
+// a line, or a pie of its top genres: the pin's chart:), from glance() in
+// src/mediastats.js.
+function glanceFace(g, chart) {
+	const box = document.createElement("span");
+	box.className = "tile-glance";
+	const n = document.createElement("span");
+	n.className = "tile-glance-n";
+	n.textContent = Number(g.done).toLocaleString();
+	const l = document.createElement("span");
+	l.className = "tile-glance-l";
+	l.textContent = g.label;
+	box.append(n, l);
+	if (g.extras.length) {
+		const row = document.createElement("span");
+		row.className = "tile-glance-row";
+		for (const x of g.extras) {
+			const e = document.createElement("span");
+			const b = document.createElement("b");
+			b.textContent = typeof x.n === "number" ? x.n.toLocaleString() : x.n;
+			e.append(b, x.label ? " " + x.label : "");
+			if (x.title) e.title = x.title;
+			row.append(e);
+		}
+		box.append(row);
+	}
+	if (chart === "pie" && g.pie) {
+		const row = document.createElement("span");
+		row.className = "tile-glance-pie";
+		row.append(pieChart(g.pie.items, { bare: true, size: 34 }));
+		const top = g.pie.items[0];
+		const share = document.createElement("span");
+		const total = g.pie.items.reduce((n, i) => n + i.value, 0);
+		share.textContent = `${top.label} ${Math.round((top.value / total) * 100)}%`;
+		share.title = g.pie.items.map((i) => `${i.label}: ${i.value}`).join("\n");
+		row.append(share);
+		box.append(row);
+	} else if (chart === "line" && g.bars.length) {
+		const W = 100, H = 18;
+		const pts = linePoints(g.bars.map((b) => b.count), W, H, 1.5);
+		const d = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
+		const line = document.createElement("span");
+		line.className = "tile-glance-line";
+		line.setAttribute("aria-hidden", "true");
+		line.title = g.bars.map((b) => `${b.label}: ${b.count}`).join("\n");
+		line.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${d}L${pts.at(-1)[0]},${H}L${pts[0][0]},${H}Z" class="area"/><path d="${d}" class="stroke" vector-effect="non-scaling-stroke"/></svg>`;
+		box.append(line);
+	} else if (g.bars.length) {
+		const bars = document.createElement("span");
+		bars.className = "tile-glance-bars";
+		bars.setAttribute("aria-hidden", "true");
+		const top = Math.max(1, ...g.bars.map((b) => b.count));
+		for (const b of g.bars) {
+			const bar = document.createElement("span");
+			bar.style.height = `${Math.max(b.count ? 12 : 4, Math.round((b.count / top) * 100))}%`;
+			bar.title = `${b.label}: ${b.count}`;
+			bars.append(bar);
+		}
+		box.append(bars);
+	}
+	return box;
+}
+
 // host: { pins, homeFile, paths, text(path), image(ref, from) -> Promise<src>|null,
-//         open(pin, path), menu(index, x, y), add()?, reorder(from, to), emptyLabel? }
+//         open(pin, path), menu(index, x, y), add()?, reorder(from, to), emptyLabel?,
+//         glance(folder)? -> glance(...) | null, for stats tiles }
 export function drawHome(grid, host) {
 	grid.replaceChildren();
 	const { pins, homeFile, paths } = host;
@@ -119,7 +184,11 @@ export function drawHome(grid, host) {
 			tile.classList.add("has-cover");
 			tile.append(img);
 		}
-		tile.append(icon(kind), label);
+		const g = k.kind === "view" && k.view === "stats" && host.glance ? host.glance(k.folder) : null;
+		if (g) {
+			tile.classList.add("has-glance");
+			tile.append(label, glanceFace(g, pin.chart));
+		} else tile.append(icon(kind), label);
 		tile.addEventListener("click", () => host.open(pin, path));
 		onMenu(tile, (x, y) => host.menu(i, x, y));
 		draggable(tile, i, grid, host);

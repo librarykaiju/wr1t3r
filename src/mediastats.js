@@ -162,8 +162,11 @@ export function stats(logs, kind, year = "all") {
 		// Show each value the way it's first written.
 		const spelled = new Map();
 		for (const l of done) for (const v of vals(l)) if (!spelled.has(v.toLowerCase())) spelled.set(v.toLowerCase(), v);
-		const top = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8).map(([v, n]) => ({ value: spelled.get(v), count: n }));
-		return { key, label, top, total: counts.size };
+		const ranked = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+		const top = ranked.slice(0, 8).map(([v, n]) => ({ value: spelled.get(v), count: n }));
+		// What the rest add up to, for a pie's "Other" slice.
+		const others = ranked.slice(8).reduce((sum, [, n]) => sum + n, 0);
+		return { key, label, top, total: counts.size, others };
 	}).filter((f) => f.top.length);
 
 	const current = logs.filter((l) => l.state === "current");
@@ -178,6 +181,38 @@ export function stats(logs, kind, year = "all") {
 		planned: logs.filter((l) => l.state === "planned").length,
 		dropped: logs.filter((l) => l.state === "dropped" && inRange(l)).length,
 		timeline, ratings, fields,
+	};
+}
+
+// The few numbers a stats tile shows at a glance (src/homeview.js): what's
+// finished this year (all time when nothing is yet), a couple of totals, and
+// finished per month up to this one (per year for all time, the last 12).
+// today: "2026-10-08".
+export function glance(logs, today) {
+	if (!logs.length) return null;
+	const thisYear = today.slice(0, 4), month = Number(today.slice(5, 7));
+	const kind = kindOf(logs);
+	const year = yearsOf(logs).includes(thisYear) ? thisYear : "all";
+	const s = stats(logs, kind, year);
+	const L = s.labels;
+	const extras = [];
+	if (s.amount) extras.push({ n: s.amount, label: L.amount.noun });
+	if (s.average != null) extras.push({ n: s.average.toFixed(1) + "★", label: "", title: `Average rating out of 5, from ${s.rated} rated` });
+	if (s.current.length) extras.push({ n: s.current.length, label: L.current.toLowerCase() });
+	const bars = (year === "all" ? s.timeline.slice(-12) : s.timeline.slice(0, month))
+		.map((t) => ({ label: t.label, count: t.count }));
+	// The first property that has values (genres, mostly), for a pie tile.
+	const f = s.fields[0];
+	const pie = f ? { label: f.label, items: [...f.top.slice(0, 5).map((t) => ({ label: t.value, value: t.count })), ...(() => {
+		const rest = f.top.slice(5).reduce((n, t) => n + t.count, 0) + f.others;
+		return rest ? [{ label: "Other", value: rest, other: true }] : [];
+	})()] } : null;
+	return {
+		kind, year, pie,
+		done: s.done,
+		label: `${s.done === 1 ? L.noun[0] : L.noun[1]} ${L.done.toLowerCase()} ${year === "all" ? "all time" : "in " + year}`,
+		extras: extras.slice(0, 2),
+		bars: bars.length > 1 ? bars : [],
 	};
 }
 
