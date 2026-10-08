@@ -97,7 +97,7 @@ test("a logo from the notebook beside the title, and as the tab icon", () => {
 	const notes = [{ path: "Essays/A.md", text: note("publish: true", "a") }];
 	const site = buildSite(notes, ["art/Logo.png"], { title: "Mine", logo: "art/Logo.png" });
 	const a = site.files.get("essays/a.html");
-	assert.ok(a.includes('<img class="logo" src="../files/logo.png" alt=""><span>Mine</span>') && a.includes('<link rel="icon" href="../files/logo.png">'));
+	assert.ok(a.includes('<img class="logo" src="../files/logo.png" alt=""><span class="name"><span>Mine</span></span>') && a.includes('<link rel="icon" href="../files/logo.png">'));
 	assert.deepEqual(site.files.get("files/logo.png"), { attachment: "art/Logo.png" });
 	const only = buildSite(notes, ["art/Logo.png"], { title: "Mine", logo: "art/Logo.png", logoOnly: true }).files.get("index.html");
 	assert.ok(only.includes('<img class="logo" src="files/logo.png" alt="Mine"></a>'));
@@ -239,7 +239,15 @@ test("the notebook layout puts the site's title and logo atop the folders, with 
 	const att = ["logo.png"];
 	const page = buildSite(notes, att, { title: "Garden", layout: "notebook", logo: "logo.png" }).files.get("essays/a.html");
 	assert.doesNotMatch(page, /<header class="site">/);
-	assert.match(page, /<nav class="tree" aria-label="Notes"><a class="home" href="..\/index.html"><img class="logo" src="..\/files\/logo.png" alt=""><span>Garden<\/span><\/a><ul class="tree-top">/);
+	assert.match(page, /<nav class="tree" aria-label="Notes"><a class="home" href="..\/index.html"><img class="logo" src="..\/files\/logo.png" alt=""><span class="name"><span>Garden<\/span><\/span><\/a><ul class="tree-top">/);
 	const top = buildSite(notes, att, { title: "Garden", logo: "logo.png" }).files.get("essays/a.html");
 	assert.match(top, /<header class="site"><a class="home" href="..\/index.html"><img class="logo"/);
+});
+
+test("a tagline sits under the site's title, and describes the front page", () => {
+	const notes = [{ path: "Essays/A.md", text: note("publish: true", "A") }];
+	const site = buildSite(notes, [], { title: "Garden", tagline: "Notes & walks", layout: "notebook" });
+	assert.match(site.files.get("essays/a.html"), /<span class="name"><span>Garden<\/span><span class="tagline">Notes &amp; walks<\/span><\/span>/);
+	assert.match(site.files.get("index.html"), /<meta name="description" content="Notes &amp; walks">/);
+	assert.doesNotMatch(buildSite(notes, [], { title: "Garden" }).files.get("essays/a.html"), /tagline/);
 });

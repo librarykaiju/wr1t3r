@@ -346,6 +346,7 @@ export function allowedKind(kind, { media = false } = {}) {
 // attachments: every vault file's path. opts: { title, css, footer, media }.
 export function buildSite(notes, attachments, opts = {}) {
 	const title = String(opts.title || "").trim() || "My notebook";
+	const tagline = String(opts.tagline || "").trim();
 	const allPaths = notes.map((n) => n.path);
 	const published = notes.filter((n) => isPublished(n.path, n.text));
 	const files = pageFiles(published.map((n) => n.path));
@@ -528,7 +529,7 @@ export function buildSite(notes, attachments, opts = {}) {
 		const side = opts.sidebar === false ? "" : calendarFor(site, info) + support + social;
 		const tree = notebook ? treeFor(site) : "";
 		const post = pages.some((p) => p.file === site && site !== SITE_FILES.index);
-		out.set(site, html({ ...info, props: opts.properties === false ? null : info.props, body: body + (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+		out.set(site, html({ ...info, props: opts.properties === false ? null : info.props, body: body + (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
 	out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
@@ -712,9 +713,9 @@ function supportBox(s) {
 	return `<section class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</section>\n`;
 }
 
-function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
+function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
-	const brand = `<a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}</a>`;
+	const brand = `<a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly && !tagline ? "" : `<span class="name">${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}${tagline ? `<span class="tagline">${esc(tagline)}</span>` : ""}</span>`}</a>`;
 	// The notebook layout has no header: the title and logo top the folders, as in the app's sidebar.
 	if (tree) tree = `<nav class="tree" aria-label="Notes">${brand}${tree}</nav>\n`;
 	return `<!doctype html>
@@ -723,7 +724,7 @@ function html({ title, date, tags, props, open, cover, coverShape, coverPosition
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(pageTitle)}</title>
-${description ? `<meta name="description" content="${esc(description)}">\n` : ""}<meta property="og:title" content="${esc(title)}">
+${description || (isIndex && tagline) ? `<meta name="description" content="${esc(description || tagline)}">\n` : ""}<meta property="og:title" content="${esc(title)}">
 <link rel="stylesheet" href="${esc(css)}">
 ${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 </head>
@@ -749,6 +750,8 @@ header.site, footer.site { margin: 0 auto; padding: 18px 20px; font: 600 15px/1.
 header.site { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; }
 header.site a { color: var(--fg); text-decoration: none; }
 header.site .home { margin-right: auto; display: inline-flex; align-items: center; gap: 10px; }
+.home .name { display: flex; flex-direction: column; }
+.home .tagline { font: 400 13px/1.35 var(--sans); color: var(--muted); }
 header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: contain; display: block; }
 .menu { display: flex; flex-wrap: wrap; gap: 4px 16px; font-weight: normal; }
 .menu a { color: var(--muted); }
