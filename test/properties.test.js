@@ -95,3 +95,9 @@ test("ratings and book formats map to their set choices", async () => {
 	assert.equal(toChoices("---\nrating:\n  - ⭐⭐⭐\nformat: []\n---\n"), null, "already done");
 	assert.equal(toChoices("No frontmatter"), null);
 });
+
+test("a quoted string over several lines is one YAML row, not a property per line", () => {
+	const s = '---\nsummary: "One.\n\nEveryone has an agenda: graduate or die."\nsticky: false\n---\n';
+	assert.deepEqual(rows(s).map((r) => [r.key, r.type]), [["summary", "yaml"], ["sticky", "checkbox"]]);
+	assert.equal(row(s, "summary").last, 4);
+});

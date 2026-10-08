@@ -11,6 +11,12 @@ test("frontmatter values come out typed, as Dataview reads them", () => {
 	assert.deepEqual(fm, { title: "Daily Timeline", publish: false, date: "2026-09-28", meds: null, fiber_g: 0, steps_health: 5234, tags: ["a", "b"], aliases: ["One", "Two"] });
 });
 
+test("frontmatter strings over several lines stay one value", () => {
+	// A book summary pasted with its line breaks: unindented lines, one with a colon in it.
+	const fm = parseFrontmatter('---\nsummary: "First line.\n\n But second.\nEveryone has an agenda: graduate or die."\nsticky: false\nquip: \'it\'\'s\n  fine\'\nkept: |\n  a\n  b\nfolded: >-\n  c\n  d\n\n  e\npages: 528\n---\n');
+	assert.deepEqual(fm, { summary: "First line.\nBut second. Everyone has an agenda: graduate or die.", sticky: false, quip: "it's fine", kept: "a\nb", folded: "c d\ne", pages: 528 });
+});
+
 test("list items carry the heading they sit under, skipping code and frontmatter", () => {
 	const items = listItems("---\na: 1\n---\n## Hydration Log\n### 💧 Water\n- 2 bottles\n- \n```js\n- not a list\n```\n### 👟 Steps\n- [x] 4200\n-\n---\n");
 	assert.deepEqual(items.map((i) => [i.text, i.section?.subpath, i.task]), [["2 bottles", "💧 Water", false], ["", "💧 Water", false], ["4200", "👟 Steps", true], ["", "👟 Steps", false]]);
