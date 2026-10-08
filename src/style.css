@@ -1539,6 +1539,34 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .planner-pick .planner-check { flex: 1; }
 .planner-arrow { width: 30px; padding: 2px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); cursor: pointer; }
 .planner-arrow:disabled { opacity: 0.35; cursor: default; }
+/* The Habits card (src/plannerview.js habitsCard) and a habit's stats panel. */
+.planner-habit { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 5px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.planner-habit:last-child { border-bottom: 0; }
+.planner-habit-check { flex: none; width: 24px; height: 24px; padding: 0; border: 2px solid color-mix(in srgb, var(--f4) 70%, var(--line)); border-radius: 50%; background: var(--bg); color: var(--bg); font: 700 13px/1 var(--sans); cursor: pointer; }
+.planner-habit-check:disabled { cursor: default; opacity: 1; color: var(--muted); font-size: 11px; }
+.planner-habit.done .planner-habit-check:disabled { color: var(--bg); font-size: 13px; }
+.planner-habit.done .planner-habit-check { border-color: var(--f4); background: var(--f4); color: var(--bg); }
+.planner-habit-name { flex: 1 1 8em; min-width: 0; padding: 0; border: 0; background: none; color: var(--fg); font: inherit; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.planner-habit-name:hover:not(:disabled) { color: var(--accent); }
+.planner-habit.off .planner-habit-name { color: var(--muted); }
+.planner-habit-meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.planner-habit-streak { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.planner-habit-bar { flex: 0 0 calc(100% - 32px); height: 4px; margin: 0 0 1px 32px; border-radius: 2px; background: color-mix(in srgb, var(--f4) 15%, transparent); }
+.planner-habit-bar > span { display: block; height: 100%; border-radius: 2px; background: var(--f4); transition: width 0.4s ease; }
+.planner-habit-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.planner-habit-nums > div { display: flex; flex-direction: column; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.planner-habit-nums b { font-size: 20px; line-height: 1.2; }
+.planner-habit-nums span { color: var(--muted); font-size: 12px; }
+.planner-habit-grid { display: grid; grid-template-rows: repeat(7, 13px); grid-auto-flow: column; grid-auto-columns: 13px; gap: 3px; }
+.planner-habit-grid > span, .planner-habit-key span > span { display: inline-block; width: 13px; height: 13px; border-radius: 3px; }
+.hg-done { background: var(--f4); }
+.hg-missed { background: color-mix(in srgb, var(--muted) 22%, var(--bg)); }
+.hg-off { border: 1px dashed color-mix(in srgb, var(--muted) 40%, transparent); }
+.hg-today { border: 2px solid var(--f4); }
+.hg-future { visibility: hidden; }
+.hg-before { background: color-mix(in srgb, var(--muted) 7%, var(--bg)); }
+.planner-habit-key { display: flex; gap: 12px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+.planner-habit-key > span { display: inline-flex; align-items: center; gap: 4px; }
 .planner-setup { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 12px; background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
 .planner-setup-text { flex: 1 1 220px; font-weight: 600; }
 .planner-setup .planner-log-btn { padding: 6px 16px; }

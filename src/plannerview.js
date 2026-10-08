@@ -17,8 +17,9 @@ import {
 	PLANNER, readPlanner, writePlanner, setEntryColor, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
 	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
 	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine, cardColor, editPlannerBlock,
-	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine,
+	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine, HABITS, untick,
 } from "./planner.js";
+import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn } from "./habits.js";
 import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText } from "./meds.js";
 import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES } from "./targets.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
@@ -90,6 +91,29 @@ function medsList(state, cfg) {
 	return medsCache;
 }
 
+// Every health note's habit log (Map "YYYY-MM-DD" -> src/habits.js dayOf),
+// each note read again only when its text changes, for streaks.
+const habitCache = new Map();
+function habitHistory(vault) {
+	const days = new Map();
+	for (const p of vault.paths()) {
+		const day = healthDayOf(p);
+		if (!day) continue;
+		const text = vault.text(p);
+		let c = habitCache.get(p);
+		if (!c || c.text !== text) { c = { text, d: healthDay(text, []).habits }; habitCache.set(p, c); }
+		days.set(day, c.d);
+	}
+	return days;
+}
+
+// The Habits card's rows for a day: [{ h, p (progress), s (streak), due }].
+function habitRows(vault, habits, day) {
+	if (!day || !habits.length) return [];
+	const hist = habitHistory(vault);
+	return habits.map((h) => ({ h, p: progress(h, hist.get(day)), s: streak(h, hist, day, { weeks: 1 }), due: dueOn(h, day) }));
+}
+
 // Rewrites the nth planner block's settings (the timeline lives there too).
 function saveBlock(view, n, cfg) {
 	const b = dataviewBlocks(view.state, PLANNER)[n];
@@ -147,7 +171,8 @@ class PlannerWidget extends WidgetType {
 		const h = p.health;
 		this.meds ??= { path: null, meds: [] };
 		this.doses ??= [];
-		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, this.meds.path, this.meds.meds, this.doses, p.day && p.day === isoDay(new Date()) ? new Date().getHours() : 0, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
+		this.habits ??= [];
+		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, this.meds.path, this.meds.meds, this.doses, this.habits.map((r) => [r.h, r.p, r.s.current, r.s.best, r.due]), p.day && p.day === isoDay(new Date()) ? new Date().getHours() : 0, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
 	}
 	eq(o) { return o.key === this.key; }
 
@@ -191,6 +216,7 @@ class PlannerWidget extends WidgetType {
 				["Choose buttons…", () => this.buttonsPanel(view, anchor)],
 				["Set my targets…", () => this.targetsPanel(view, anchor)],
 				["Medications…", () => this.medsPanel(view, anchor, { edit: !medsList(view.state, this.cfg).meds.length })],
+				["Habits…", () => this.habitsPanel(view, anchor)],
 				null,
 				["Set up the planner…", () => this.setupPanel(view, anchor)],
 			], r.left, r.bottom + 6);
@@ -314,7 +340,7 @@ class PlannerWidget extends WidgetType {
 				if (!path) return;
 				const { foods } = nutrition(view.state, this.cfg);
 				const doses = this.dosesNow(view);
-				await vault.write(path, (t) => syncHealth(fn(t), foods, this.cfg, doses));
+				await vault.write(path, (t) => syncHealth(fn(t), foods, this.cfg, doses, this.day));
 				redrawPanel(this.panelKey);
 			} catch (e) {
 				host.toast?.("Couldn't write to the health note: " + (e?.message || e));
@@ -920,27 +946,28 @@ class PlannerWidget extends WidgetType {
 
 	setupCard(view) {
 		const card = el("div", "planner-setup");
-		card.append(el("div", "planner-setup-text", "Set up your planner: pick your buttons, targets and medications."));
+		card.append(el("div", "planner-setup-text", "Set up your planner: pick your buttons, habits, targets and medications."));
 		const start = panelButton("planner-log-btn", "Start", () => this.setupPanel(view, start));
 		card.append(start, panelButton("planner-link", "Not now", () => this.saveShared(view, { setup: "done" })));
 		return card;
 	}
 
 	setupPanel(view, anchor) {
-		const st = { step: 0, buttons: this.buttonList(), targets: this.targetsState(), meds: { edit: true, form: null }, tasks: this.cfg.tasks.join(", ") };
-		const steps = () => ["buttons", "targets", ...(st.buttons.some((b) => b.id === "meds" && b.on) ? ["meds"] : []), "tasks"];
+		const st = { step: 0, buttons: this.buttonList(), targets: this.targetsState(), meds: { edit: true, form: null }, habits: { list: [...this.cfg.habits], form: null }, tasks: this.cfg.tasks.join(", ") };
+		const steps = () => ["buttons", "targets", ...(st.buttons.some((b) => b.id === "meds" && b.on) ? ["meds"] : []), "habits", "tasks"];
 		const redraw = () => redrawPanel(this.panelKey);
 		const save = {
 			buttons: () => this.saveShared(view, { buttons: st.buttons.filter((b) => b.on).map((b) => b.id) }),
 			targets: () => this.saveShared(view, this.targetValues(st.targets)),
 			meds: () => {},
+			habits: () => {},
 			tasks: () => this.saveShared(view, { tasks: st.tasks.split(/[\s,]+/).map((t) => t.replace(/^#/, "").trim()).filter(Boolean) }),
 		};
 		openPanel(this.panelKey, "setup", anchor, (box) => {
 			box.classList.add("planner-panel");
 			const list = steps();
 			const i = Math.min(st.step, list.length - 1), step = list[i];
-			box.append(el("div", "planner-panel-title", ["Your buttons", "Your targets", "Your medications", "Task lists and calendar"][["buttons", "targets", "meds", "tasks"].indexOf(step)]));
+			box.append(el("div", "planner-panel-title", ["Your buttons", "Your targets", "Your medications", "Your habits", "Task lists and calendar"][["buttons", "targets", "meds", "habits", "tasks"].indexOf(step)]));
 			box.append(el("div", "planner-panel-sub", `Step ${i + 1} of ${list.length}`));
 			if (step === "buttons") {
 				box.append(el("p", "planner-panel-hint", "Tick the buttons you want on every daily note."));
@@ -949,6 +976,8 @@ class PlannerWidget extends WidgetType {
 				this.targetsForm(box, st.targets, redraw);
 			} else if (step === "meds") {
 				this.medsEditor(view, box, st.meds);
+			} else if (step === "habits") {
+				this.habitsEditor(view, box, st.habits);
 			} else {
 				const wrap = el("label", "planner-field planner-field-wide");
 				const input = el("input");
@@ -959,7 +988,7 @@ class PlannerWidget extends WidgetType {
 				box.append(wrap, el("p", "planner-panel-hint", "To fill the timeline from a calendar, pick one under Settings > Tasks and daily note."));
 				box.append(panelButton("planner-link", "Open that setting", () => { closePanel(); host.settings?.("tasks"); }));
 			}
-			if (st.meds.form && step === "meds") return;
+			if ((st.meds.form && step === "meds") || (st.habits.form && step === "habits")) return;
 			const foot = el("div", "planner-panel-foot");
 			if (i > 0) foot.append(panelButton("planner-link", "Back", () => { st.step = i - 1; redraw(); }));
 			foot.append(panelButton("planner-link", "Skip", () => {
@@ -978,6 +1007,203 @@ class PlannerWidget extends WidgetType {
 		});
 	}
 
+	// ---- Habits -------------------------------------------------------------
+
+	// The Habits card: each habit with a check, how far along it is today and
+	// its streak. A tap ticks it (a second tap on a once-a-day habit unticks
+	// it); a words habit ticks itself from the words written (main.js). The
+	// name opens its stats.
+	habitsCard(view, ro) {
+		const card = el("div", "md-tl planner-habits");
+		const off = ro || !host || !this.day;
+		const head = el("div", "md-tl-head");
+		const due = this.habits.filter((r) => r.due);
+		head.append(el("span", "md-tl-title", "Habits"), el("span", "md-tl-count", `${due.filter((r) => r.p.done).length}/${due.length}`));
+		const tools = el("span", "md-tl-tools");
+		if (!off) {
+			const edit = panelButton("md-tl-btn", "Edit", () => this.habitsPanel(view, edit));
+			edit.title = "Add, change or remove habits";
+			tools.append(edit);
+		}
+		head.append(tools);
+		card.append(head);
+		const list = el("ul", "md-tl-list planner-habit-list");
+		for (const { h, p, s, due: isDue } of this.habits) {
+			const li = el("li", "planner-habit" + (p.done ? " done" : "") + (isDue ? "" : " off"));
+			const check = el("button", "planner-habit-check", p.done ? "✓" : h.words ? "✍" : "");
+			check.type = "button";
+			check.disabled = off || h.words;
+			check.setAttribute("aria-pressed", String(p.done));
+			check.setAttribute("aria-label", (p.done ? "Done: " : "Tick: ") + h.name);
+			check.title = h.words ? `Ticks itself once you've written ${fmt(h.goal)} words today` : h.goal > 1 ? `Add one (${p.n} of ${h.goal})` : p.done ? "Done. Tap to untick" : "Tick it off";
+			check.addEventListener("mousedown", (e) => e.preventDefault());
+			check.addEventListener("click", () => {
+				check.classList.remove("planner-pop");
+				void check.offsetWidth;
+				check.classList.add("planner-pop");
+				this.health$(view, (t) => (h.goal === 1 && p.done ? untick(t, h.name) : addUnder(t, HABITS.heading, habitTickLine(h.name))));
+			});
+			const name = el("button", "planner-habit-name", h.name);
+			name.type = "button";
+			name.title = "See its streak and history";
+			name.disabled = !this.day || !host;
+			name.addEventListener("mousedown", (e) => e.preventDefault());
+			name.addEventListener("click", () => this.habitStats(view, name, h));
+			const meta = el("span", "planner-habit-meta", h.words ? `${fmt(p.n)} / ${fmt(h.goal)} words` : h.goal > 1 ? `${p.n} / ${h.goal}` : isDue ? "" : "not today");
+			li.append(check, name, meta);
+			if (s.current) {
+				const fire = el("span", "planner-habit-streak", `🔥 ${s.current}`);
+				fire.title = `${s.current} day${s.current === 1 ? "" : "s"} in a row (best ${s.best})`;
+				li.append(fire);
+			}
+			if (h.goal > 1 && !h.words) {
+				const bar = el("span", "planner-habit-bar");
+				const fill = el("span");
+				fill.style.width = Math.min(100, (p.n / h.goal) * 100) + "%";
+				bar.append(fill);
+				li.append(bar);
+			}
+			if (!off) onMenu(li, (x, y) => menu([
+				...(p.n && !h.words ? [["Take one off", () => this.health$(view, (t) => untick(t, h.name))]] : []),
+				["Streak and history…", () => this.habitStats(view, name, h)],
+				["Edit habits…", () => this.habitsPanel(view, name)],
+			], x, y));
+			list.append(li);
+		}
+		card.append(list);
+		return card;
+	}
+
+	// One habit's record: its streak, best run, the last 30 days and a grid of
+	// the last 16 weeks, read from the health notes.
+	habitStats(view, anchor, h) {
+		openPanel(this.panelKey, "habit", anchor, (box) => {
+			box.classList.add("planner-panel", "planner-habit-stats");
+			const hist = habitHistory(view.state.facet(vaultHost));
+			const s = streak(h, hist, this.day, { weeks: 16 });
+			box.append(el("div", "planner-panel-title", h.name));
+			const when = [h.words ? `${fmt(h.goal)} words a day` : h.goal > 1 ? `${h.goal} times a day` : "Once a day", daysText(h.days)].filter(Boolean).join(" · ");
+			box.append(el("div", "planner-panel-sub", when));
+			const nums = el("div", "planner-habit-nums");
+			const num = (n, label) => { const d = el("div"); d.append(el("b", null, n), el("span", null, label)); nums.append(d); };
+			num(`🔥 ${s.current}`, s.current === 1 ? "day in a row" : "days in a row");
+			num(String(s.best), "best run");
+			num(s.due ? Math.round((s.done / s.due) * 100) + "%" : "–", `last 30 days (${s.done} of ${s.due})`);
+			box.append(nums);
+			const grid = el("div", "planner-habit-grid");
+			grid.setAttribute("role", "img");
+			grid.setAttribute("aria-label", `The last 16 weeks: ${s.grid.filter((g) => g.state === "done").length} days done`);
+			for (const g of s.grid) {
+				const c = el("span", "hg-" + g.state);
+				c.title = new Date(g.day + "T12:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + ": " + { done: "done", missed: "missed", off: "not due", today: "not yet", before: "before you started", future: "" }[g.state];
+				grid.append(c);
+			}
+			box.append(grid);
+			const key = el("div", "planner-habit-key");
+			for (const [cls, label] of [["done", "Done"], ["missed", "Missed"], ["off", "Not due"]]) {
+				const k = el("span");
+				k.append(el("span", "hg-" + cls), " " + label);
+				key.append(k);
+			}
+			box.append(key);
+		});
+	}
+
+	habitsPanel(view, anchor) {
+		const st = { list: [...this.cfg.habits], form: null };
+		openPanel(this.panelKey, "habits", anchor, (box) => {
+			box.classList.add("planner-panel");
+			box.append(el("div", "planner-panel-title", "Your habits"));
+			this.habitsEditor(view, box, st);
+		});
+	}
+
+	// The habit list with Edit and × on each, arrows to order them, an Add
+	// button, and the form (st.form) for one. Saved to the Daily template's
+	// planner block, so every day has them. st.list: the habit lines.
+	habitsEditor(view, box, st) {
+		const redraw = () => redrawPanel(this.panelKey);
+		const save = (list) => { st.list = list; this.saveShared(view, { habits: list }); redraw(); };
+		const habits = st.list.map(parseHabit).filter(Boolean);
+		if (st.form) {
+			const f = st.form;
+			const name = el("label", "planner-field planner-field-wide");
+			const ni = el("input");
+			Object.assign(ni, { type: "text", placeholder: "🧘 Stretch", value: f.name });
+			ni.dataset.focus = "habit-name";
+			ni.addEventListener("input", () => { f.name = ni.value; });
+			name.append(el("span", null, "Habit"), ni);
+			box.append(name);
+			const row = el("div", "planner-food-opts");
+			const kind = el("select");
+			for (const [v, label] of [["tick", "Once a day"], ["count", "A number of times"], ["words", "Words written"]]) kind.append(new Option(label, v));
+			kind.value = f.kind;
+			kind.addEventListener("change", () => { f.kind = kind.value; if (f.kind === "words" && Number(f.goal) < 50) f.goal = "500"; if (f.kind === "count" && Number(f.goal) > 99) f.goal = "3"; redraw(); });
+			row.append(kind);
+			if (f.kind !== "tick") {
+				const g = el("label", "planner-servings");
+				const gi = el("input");
+				Object.assign(gi, { type: "number", min: "1", step: "1", value: f.goal });
+				gi.dataset.focus = "habit-goal";
+				gi.addEventListener("input", () => { f.goal = gi.value; });
+				g.append(gi, f.kind === "words" ? " words a day" : " times a day");
+				row.append(g);
+			}
+			box.append(row);
+			if (f.kind === "words") box.append(el("p", "planner-panel-hint", "Counts what you write in any note that day, on every device, and ticks itself at the goal."));
+			const days = el("div", "planner-days");
+			for (const d of [1, 2, 3, 4, 5, 6, 0]) {
+				const b = panelButton("planner-day", ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d], () => { f.days.has(d) ? f.days.delete(d) : f.days.add(d); redraw(); });
+				b.setAttribute("aria-pressed", String(f.days.has(d)));
+				days.append(b);
+			}
+			box.append(days);
+			if (f.error) box.append(el("p", "planner-panel-error", f.error));
+			const foot = el("div", "planner-panel-foot");
+			foot.append(panelButton("planner-link", "Cancel", () => { st.form = null; redraw(); }), panelButton("planner-log-btn", f.at == null ? "Add" : "Save", () => {
+				const n = f.name.trim(), goal = Math.round(Number(f.goal));
+				const clash = habits.some((h, i) => i !== f.at && h.name.trim().toLowerCase() === n.toLowerCase());
+				if (!n) f.error = "Give it a name.";
+				else if (clash) f.error = "There's a habit with that name already.";
+				else if (f.kind !== "tick" && !(goal >= 1)) f.error = "The goal is a number, 1 or more.";
+				else if (!f.days.size) f.error = "Pick at least one day.";
+				else {
+					const line = habitLine({ name: n, goal: f.kind === "tick" ? 1 : goal, words: f.kind === "words", days: f.days.size === 7 ? null : [...f.days].sort() });
+					const list = [...st.list];
+					if (f.at == null) list.push(line); else list[f.at] = line;
+					st.form = null;
+					return save(list);
+				}
+				redraw();
+			}));
+			box.append(foot);
+			setTimeout(() => { if (!box.contains(document.activeElement)) ni.focus(); });
+			return;
+		}
+		const open = (h, at) => {
+			st.form = h
+				? { at, name: h.name, kind: h.words ? "words" : h.goal > 1 ? "count" : "tick", goal: String(h.goal), days: new Set(h.days || [0, 1, 2, 3, 4, 5, 6]), error: "" }
+				: { at: null, name: "", kind: "tick", goal: "1", days: new Set([0, 1, 2, 3, 4, 5, 6]), error: "" };
+			redraw();
+		};
+		if (!habits.length) box.append(el("p", "planner-panel-empty", "Nothing yet. Add the things you mean to do each day, and the Habits card on the daily note keeps count and keeps your streaks."));
+		habits.forEach((h, i) => {
+			const row = el("div", "planner-log");
+			const when = [h.words ? `${fmt(h.goal)} words` : h.goal > 1 ? `${h.goal}× a day` : "", daysText(h.days)].filter(Boolean).join(" · ");
+			row.append(el("span", "planner-log-text", h.name), el("span", "planner-log-meta", when));
+			const move = (d) => { const j = i + d; if (j < 0 || j >= st.list.length) return; const list = [...st.list]; [list[i], list[j]] = [list[j], list[i]]; save(list); };
+			const up = panelButton("planner-arrow", "↑", () => move(-1));
+			up.title = "Move up";
+			up.disabled = i === 0;
+			row.append(up, panelButton("planner-link", "Edit", () => open(h, i)));
+			const x = panelButton("planner-log-x", "×", () => { if (confirm(`Stop tracking ${h.name}? What's already logged stays in the health notes.`)) save(st.list.filter((_, j) => j !== i)); });
+			x.title = "Remove it";
+			row.append(x);
+			box.append(row);
+		});
+		box.append(panelButton("planner-log-btn", "Add a habit", () => open(null)));
+	}
+
 	// A logged line in a panel, with × to take it out of the health note.
 	logRow(view, text, meta, it) {
 		const row = el("div", "planner-log");
@@ -994,10 +1220,12 @@ class PlannerWidget extends WidgetType {
 	// ---- Timeline and tasks --------------------------------------------------
 
 	columns(view, ro) {
-		const cols = el("div", "planner-cols" + (this.tasks.length ? "" : " planner-one"));
+		const habits = this.habits.length ? this.colored(view, ro, this.habitsCard(view, ro), "habits") : null;
+		const cols = el("div", "planner-cols" + (this.tasks.length || habits ? "" : " planner-one"));
 		cols.append(this.timeline(view, ro));
-		if (this.tasks.length) {
+		if (this.tasks.length || habits) {
 			const right = el("div", "planner-tasks");
+			if (habits) right.append(habits);
 			for (const t of this.tasks) right.append(this.colored(view, ro, new TaskListWidget(t.cfg, t.result, null, this.from, this.path).toDOM(view), t.cfg.lists.join("+")));
 			cols.append(right);
 		}
@@ -1235,12 +1463,13 @@ function build(state) {
 		const health = healthDay(day ? vault.text(healthPathFor(path)) : null, foods);
 		const meds = medsList(state, cfg);
 		const doses = day ? dosesOn(meds.meds, day) : [];
+		const habits = habitRows(vault, readHabits(cfg.habits), day);
 		if (cfg.tasks.length && !notes) notes = allNotes(state);
 		const tasks = cfg.tasks.map((tag) => {
 			const tcfg = readConfig(`list: ${tag}`);
 			return { cfg: tcfg, result: taskList(notes, tcfg, { path, today }) };
 		});
-		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: shared.colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks, meds: { path: meds.path, meds: meds.meds }, doses }), block: true }));
+		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: shared.colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks, meds: { path: meds.path, meds: meds.meds }, doses, habits }), block: true }));
 	});
 	return b.finish();
 }

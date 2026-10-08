@@ -26,7 +26,7 @@ export const CARDS = "wr1t3r-cards";
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 
 // Set by main.js: { paths(), text(path), image(ref, from), open(pin, path),
-// menu(store, index, x, y), add(store), glance(folder) }.
+// menu(store, index, x, y), add(store), glance(folder), habits() }.
 let host = null;
 export const setCardsHost = (h) => { host = h; };
 
@@ -61,7 +61,7 @@ class CardsWidget extends WidgetType {
 		if (host) {
 			drawHome(grid, {
 				pins: readCards(this.code), homeFile: this.path, paths: host.paths(),
-				text: host.text, image: host.image, open: host.open, glance: host.glance,
+				text: host.text, image: host.image, open: host.open, glance: host.glance, habits: host.habits,
 				menu: (i, x, y) => (ro ? null : host.menu(store(), i, x, y)),
 				add: ro ? null : () => host.add(store()),
 				emptyLabel: "Add cards: notes, folders, commands and web pages",

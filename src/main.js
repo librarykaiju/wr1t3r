@@ -74,7 +74,9 @@ import { setCardsHost } from "./cardsblock.js";
 import { setPlannerHost, importEvents } from "./plannerview.js";
 import { openPropertyCleanup } from "./propcleanview.js";
 import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
-import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder } from "./planner.js";
+import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder, setWords, healthDay, healthDayOf } from "./planner.js";
+import { readHabits, habitProps, habitsGlance } from "./habits.js";
+import { proseWords, countsTowardWords, addWords } from "./wordlog.js";
 import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE } from "./meds.js";
 import { openFoodPanel } from "./plannerview.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
@@ -1482,6 +1484,7 @@ function renderHome(force = false) {
 	const key = JSON.stringify([list, banner, paths.length, attachments.length, list.map((p) => {
 		const k = pinKind(p.link);
 		if (k.kind === "view" && k.view === "stats") return tileGlance(k.folder);
+		if (k.kind === "habits") return habitsTileGlance();
 		const q = pinPath(p, paths, file);
 		return q && notes.get(q)?.text?.slice(0, 1500);
 	})]);
@@ -1496,6 +1499,7 @@ function renderHome(force = false) {
 		menu: tileMenu,
 		add: addTile,
 		glance: tileGlance,
+		habits: habitsTileGlance,
 		reorder: (from, to) => {
 			const next = pins();
 			const [moved] = next.splice(from, 1);
@@ -1703,6 +1707,7 @@ function openPin(pin, path) {
 	if (k.kind === "note") return path ? openNote(path) : toast(`There's no note at “${k.target}” any more.`);
 	// A pinned folder opens as a corkboard; an outliner: or scrivenings: pin as that.
 	if (k.kind === "folder" || k.kind === "view") return openFolderView(k.folder, k.kind === "view" ? k.view : "corkboard");
+	if (k.kind === "habits") return void openDaily();
 	const want = k.command.toLowerCase() === "open corkboard" ? "open storyboard" : k.command.toLowerCase(); // its old name
 	const c = allCommands().find((x) => x.label.toLowerCase() === want);
 	if (!c) return toast(`There's no command called “${k.command}”.`);
@@ -1757,7 +1762,9 @@ function tileMenu(i, x, y, store = homeStore) {
 			.map(([v, label]) => [label, () => set({ link: v === "corkboard" ? folderLink(k.folder) : viewLink(v, k.folder) })])
 		: [];
 	// A stats tile draws its months as bars or a line, or its top genres as a pie.
-	const charts = k.kind === "view" && k.view === "stats"
+	const charts = k.kind === "habits"
+		? [["bars", "Show days as bars"], ["line", "Show days as a line"]].filter(([c]) => c !== (pin.chart || "bars")).map(([c, label]) => [label, () => set({ chart: c === "bars" ? null : c })])
+		: k.kind === "view" && k.view === "stats"
 		? [["bars", "Show months as bars"], ["line", "Show months as a line"], ["pie", "Show top genres as a pie"]]
 			.filter(([c]) => c !== (pin.chart || "bars"))
 			.map(([c, label]) => [label, () => set({ chart: c === "bars" ? null : c })])
@@ -1788,11 +1795,12 @@ setCardsHost({
 	menu: (store, i, x, y) => tileMenu(i, x, y, store),
 	add: (store) => addTile(store),
 	glance: (folder) => tileGlance(folder),
+	habits: () => habitsTileGlance(),
 });
 
 // Planner blocks: the day's health note (made the way Today makes it, from
 // _templates/Daily Health.md, when it isn't there yet) and calendar events.
-setPlannerHost({
+const plannerHost = {
 	async healthNote(dailyPath) {
 		const path = healthPathFor(dailyPath);
 		const have = visible().find((n) => n.path.toLowerCase() === path.toLowerCase());
@@ -1848,7 +1856,85 @@ setPlannerHost({
 		if (onDropbox) return here();
 		try { return await api.usdaSearch(q); } catch (e) { if (e.body?.setup) return here(); throw e; }
 	},
-});
+};
+setPlannerHost(plannerHost);
+
+// ---- Words written, for a words habit (src/habits.js, src/wordlog.js) -------
+// Each note's text when an edit starts; a few seconds after typing stops the
+// change in its prose words goes into today's tally on this device, and the
+// tally into today's health note (one line per device), when a habit counts
+// words. The tally is kept per device so it survives a reload.
+const WORDS_KEY = "wr1t3r-words-today", DEVICE_KEY = "wr1t3r-device-id";
+const wordBase = new Map();
+let wordTimer = null, wordsSaved = null;
+
+function deviceId() {
+	let id = readRaw(DEVICE_KEY);
+	if (!id) { id = Math.random().toString(36).slice(2, 8); storeRaw(DEVICE_KEY, id); }
+	return id;
+}
+
+// The habits every day shares (the Daily template's planner block).
+function sharedHabits() {
+	const t = templateFor();
+	const code = t && String(t.text).match(/```wr1t3r-planner[ \t]*\r?\n([\s\S]*?)\r?\n?```/)?.[1];
+	return code != null ? readHabits(readPlanner(code).habits) : [];
+}
+
+// before: the note's text ahead of this edit, after: with it. Kept here
+// rather than read back later, so a note renamed meanwhile still counts.
+function noteWords(path, before, after) {
+	if (!featureOn("daily") || !countsTowardWords(path)) return;
+	const w = wordBase.get(path);
+	if (w) w.after = after;
+	else wordBase.set(path, { before: before ?? "", after });
+	clearTimeout(wordTimer);
+	wordTimer = setTimeout(tallyWords, 4000);
+}
+
+async function tallyWords() {
+	const today = isoDate(new Date());
+	let tally = readJSON(WORDS_KEY, null);
+	for (const { before, after } of wordBase.values()) tally = addWords(tally, today, proseWords(after) - proseWords(before));
+	wordBase.clear();
+	if (!tally) return;
+	writeJSON(WORDS_KEY, tally);
+	if (JSON.stringify(tally) === wordsSaved) return;
+	const habits = sharedHabits();
+	if (!habits.some((h) => h.words)) return;
+	const tmpl = templateFor();
+	if (!tmpl) return;
+	const want = (tmpl.root + DAILY_FOLDER + today + ".md").toLowerCase();
+	const daily = visible().find((n) => n.path.toLowerCase() === want)?.path || tmpl.root + DAILY_FOLDER + today + ".md";
+	try {
+		const path = await plannerHost.healthNote(daily);
+		await dataviewVault.write(path, (t) => {
+			let out = setWords(t, deviceId(), tally.n);
+			const d = healthDay(out, []).habits;
+			for (const [k, v] of Object.entries(habitProps(habits, d, today))) out = setProperty(out, k, v);
+			return out;
+		});
+		wordsSaved = JSON.stringify(tally);
+	} catch (e) {
+		console.warn("Couldn't save words written", e);
+	}
+}
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && wordBase.size) { clearTimeout(wordTimer); tallyWords(); } });
+
+// The Habits tile on Home (a "habits:" pin): today's count, the longest
+// streak and the last two weeks, from every health note.
+function habitsTileGlance() {
+	if (!featureOn("daily")) return null;
+	const habits = sharedHabits();
+	if (!habits.length) return null;
+	const days = new Map();
+	for (const n of visible()) {
+		const day = healthDayOf(n.path);
+		if (day && !n.binary) days.set(day, healthDay(n.text, []).habits);
+	}
+	return habitsGlance(habits, days, isoDate(new Date()));
+}
 
 // Drops keys set to nothing, so they come out of the file.
 const clean = (p) => Object.fromEntries(Object.entries(p).filter(([, v]) => v != null && v !== ""));
@@ -1928,6 +2014,7 @@ function addTile(store = homeStore) {
 	};
 	const items = [
 		{ label: "Web page…", detail: "link", keywords: "url https website", run: () => { const u = prompt("Web page address:"); if (u) webLink(u); } },
+		...(featureOn("daily") && !have.some((p) => pinKind(p.link).kind === "habits") ? [{ label: "Habits", detail: "today's habits and streaks", keywords: "habit streak tracker stats", run: () => addPin({ link: "habits:", title: "Habits" }, "Habits") }] : []),
 		{ label: "Section header…", detail: "a label over the tiles after it", keywords: "section header heading group label divider", run: () => { const t = askSection(); if (t) { store.save([...store.list(), { section: t }]); toast(`Added the section “${t}”; tiles added after it go under it.`); } } },
 		...order.filter((p) => !pinned(p)).map((p) => ({ label: name(p), detail: folderOf(p) || "note", keywords: folderOf(p), run: () => pinItem(p) })),
 		...[...folders].filter((f) => f !== home && f.startsWith(home) && !pinned(f) && !isAppFile(f)).sort()
@@ -3451,6 +3538,7 @@ function onEdit(path, text) {
 	if (!note || note.binary) return;
 	const wasDirty = note.dirty;
 	typed = true;
+	noteWords(path, note.text, text);
 	notes.set(path, { ...note, text, dirty: true });
 	change(path, (cur) => (cur ? { ...cur, text, dirty: true, deleted: false } : { path, text, base: null, dirty: true, deleted: false }));
 	if (/^---/.test(text)) watchFinished(path, note.text);
