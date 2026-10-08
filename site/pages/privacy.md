@@ -14,7 +14,7 @@ page: legal
 
 _Last updated October 8, 2026._
 
-wr1t3r is a notebook app that runs in your browser at my.wr1t3r.app. I make it on my own, and this page covers everything the app sees and where it goes. The short version: your notes stay between your browser and the storage you pick, I have no server that keeps them, and I never sell, share or look at your data.
+wr1t3r is a notebook app that runs in your browser at my.wr1t3r.app. I make it on my own, and this page covers everything the app sees and where it goes. The short version: your notes stay between your browser and the storage you choose. I have no server that keeps them, and I never sell, share or look at your data.
 
 ## Your notes
 
