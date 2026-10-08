@@ -4,8 +4,9 @@
 // settings are kept on this device. After a download it says how to put the
 // site online, and lists pages the last download had that this one doesn't,
 // since re-uploading a folder doesn't delete what's already on the host.
-// Or it publishes the site to a GitHub repo (src/githubpublish.js); the token
-// stays on this device, and only if the person asks.
+// Or it publishes the site to a GitHub repo (src/githubpublish.js), and from
+// there to Neocities if asked; the token stays on this device, and only if the
+// person asks.
 //
 // host: {
 //   notes()        [{ path, text }] for every note
@@ -113,12 +114,17 @@ export function openWebsite(host) {
 	const ghHelp = document.createElement("p");
 	ghHelp.className = "hint";
 	const tokenLink = Object.assign(document.createElement("a"), { href: "https://github.com/settings/personal-access-tokens/new", target: "_blank", rel: "noopener", textContent: "Make a token on GitHub" });
-	ghHelp.append("Puts the site in a GitHub repo and turns on GitHub Pages, so it's online at you.github.io. Make an empty repo first. ", tokenLink, " for just that repo, with Contents and Pages set to Read and write. Want Cloudflare? Connect a Cloudflare Pages project to the same repo and it updates every time you publish here. ", helpLink("github", "Step-by-step help"), ".");
+	ghHelp.append("Puts the site in a GitHub repo and turns on GitHub Pages, so it's online at you.github.io. Make an empty repo first. ", tokenLink, " for just that repo, with Contents and Pages set to Read and write. Want Cloudflare Pages, Netlify or Porkbun? Connect it to the same repo and it updates every time you publish here. ", helpLink("github", "Step-by-step help"), ".");
 	form.append(ghHelp);
 	const ghRepo = field("Repo", text(saved.ghRepo, "you/my-site"));
 	const ghBranch = field("Branch", text(saved.ghBranch, "main"));
 	const ghToken = field("Token", Object.assign(text(readToken(), "github_pat_…"), { type: "password", autocomplete: "off" }));
 	const ghKeep = check("Remember the token on this device", !!readToken());
+	const ghNeo = check("Also send it to Neocities each time", saved.ghNeocities);
+	const neoHelp = document.createElement("p");
+	neoHelp.className = "hint";
+	neoHelp.append("Adds a step to the repo that uploads the site to your Neocities site after GitHub gets it. Give the token Workflows: Read and write too, and put your Neocities API key in the repo's secrets as NEOCITIES_API_TOKEN. ", helpLink("neocities-github", "How"), ".");
+	form.append(neoHelp);
 	const actions = document.createElement("div");
 	actions.className = "compile-actions";
 	const go = Object.assign(document.createElement("button"), { type: "button", textContent: "Download website (.zip)" });
@@ -145,7 +151,7 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value, tones: tones.value });
+	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value, tones: tones.value });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
 	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font(), tones: tones.value, mixtape: family.value === "mixtape" ? now.mixtape : null }) + (family.value === "synthwave" ? GLOW : "");
@@ -227,13 +233,14 @@ export function openWebsite(host) {
 			keepToken(ghKeep.checked ? ghToken.value.trim() : "");
 			const lasts = saved.ghLast || {};
 			const key = s.ghRepo.toLowerCase();
-			const r = await publishToGitHub({ token: ghToken.value, repo: s.ghRepo, branch: s.ghBranch, files: site.files, read: host.blob, last: lasts[key] || [], progress: (t) => (ghGo.textContent = t) });
+			const r = await publishToGitHub({ token: ghToken.value, repo: s.ghRepo, branch: s.ghBranch, files: site.files, read: host.blob, last: lasts[key] || [], neocities: s.ghNeocities ? { supporter: s.media } : null, progress: (t) => (ghGo.textContent = t) });
 			Object.assign(saved, s, { ghLast: { ...lasts, [key]: r.paths } });
 			save(saved);
 			const a = Object.assign(document.createElement("a"), { href: r.url, target: "_blank", rel: "noopener", textContent: r.url });
 			const first = p("");
 			first.append(r.changed || r.deleted ? `Published to GitHub (${r.changed} file${r.changed === 1 ? "" : "s"} changed${r.deleted ? `, ${r.deleted} removed` : ""}). Your site: ` : "Nothing had changed since the last publish. Your site: ", a, r.changed || r.deleted ? ". GitHub takes a minute or two to update it." : "");
-			after.replaceChildren(first, ...(r.pagesNote ? [p(r.pagesNote)] : []), ...(r.missing.length ? [p("These files couldn't be read on this device, so they weren't sent:"), list(r.missing)] : []));
+			const neo = s.ghNeocities && (r.changed || r.deleted) ? [p("Neocities gets it a minute or two after GitHub. If it doesn't, open the repo's Actions tab on github.com to see why; usually the NEOCITIES_API_TOKEN secret is missing.")] : [];
+			after.replaceChildren(first, ...neo, ...(r.pagesNote ? [p(r.pagesNote)] : []), ...(r.missing.length ? [p("These files couldn't be read on this device, so they weren't sent:"), list(r.missing)] : []));
 		} catch (e) {
 			after.replaceChildren(p("Couldn't publish to GitHub: " + e.message));
 		} finally {
