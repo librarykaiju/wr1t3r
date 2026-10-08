@@ -941,18 +941,27 @@ header.site, footer.site, main { max-width: var(--page); }
 
 // The theme's colors as plain CSS for the site: the chosen variant's :root
 // variables from the app's stylesheet, and for Auto, the dark variant under
-// prefers-color-scheme. appCss: src/style.css's text; font: the editor font.
-export function themeCss(appCss, { light, dark = null, font = "" } = {}) {
-	const block = (variant) => {
-		const sel = variant ? `:root[data-theme=${variant}]` : ":root";
+// prefers-color-scheme. appCss: src/style.css's text; font: the editor font;
+// tones: "rainbow", "two" or "one" (src/theme.js TONES); mixtape: the
+// reader's four colors as --mx-* variables (src/theme.js mixtapeVars), for
+// the Mixtape theme.
+export function themeCss(appCss, { light, dark = null, font = "", tones = "rainbow", mixtape = null } = {}) {
+	const rule = (sel) => {
 		const at = appCss.indexOf(sel + " {");
 		if (at < 0) return null;
 		return appCss.slice(at + sel.length + 2, appCss.indexOf("}", at)).trim();
 	};
+	const block = (variant) => rule(variant ? `:root[data-theme=${variant}]` : ":root");
 	const base = block(null) || "";
 	const lightVars = light ? block(light) : null;
-	let css = `:root {\n\t${base}\n${lightVars ? `\t${lightVars}\n` : ""}${font ? `\t--editor-font: ${font};\n` : ""}}\n`;
+	const mx = mixtape ? Object.entries(mixtape).map(([k, v]) => `${k}: ${v};`).join(" ") : "";
+	let css = `:root {\n\t${base}\n${mx ? `\t${mx}\n` : ""}${lightVars ? `\t${lightVars}\n` : ""}${font ? `\t--editor-font: ${font};\n` : ""}}\n`;
 	const darkVars = dark ? block(dark) : null;
 	if (darkVars) css += `@media (prefers-color-scheme: dark) {\n\t:root {\n\t\t${darkVars}\n\t}\n}\n`;
+	// Two-tone or one-tone, after the dark colors so they win there too.
+	if (tones === "two" || tones === "one") {
+		const toneVars = [rule(`:root[data-colors=${tones}]`), tones === "two" && mixtape ? rule(":root[data-theme=mixtape][data-colors=two]") : null].filter(Boolean);
+		if (toneVars.length) css += `:root {\n\t${toneVars.join("\n\t")}\n}\n`;
+	}
 	return css;
 }

@@ -11,7 +11,7 @@
 //   notes()        [{ path, text }] for every note
 //   attachments()  every vault file's path
 //   blob(path)     a vault file as a Blob
-//   theme()        the notebook's { family, mode } (src/theme.js readTheme)
+//   theme()        the notebook's { family, mode, tones, mixtape } (src/theme.js)
 //   font()         the editor font, as CSS
 //   toast(text)
 // }
@@ -21,7 +21,7 @@ import { buildSite, themeCss, SITE_FILES } from "./website.js";
 import { FAMILIES, themeVariants } from "./theme.js";
 import { publishToGitHub } from "./githubpublish.js";
 
-const FAMILY_NAMES = { default: "Default", sepia: "Sepia", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", sakura: "Sakura" };
+const FAMILY_NAMES = { default: "Default", sepia: "Sepia", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", sakura: "Sakura", mixtape: "Mixtape" };
 
 const KEY = "wr1t3r-website";
 let open = null;
@@ -86,6 +86,9 @@ export function openWebsite(host) {
 	const mode = document.createElement("select");
 	for (const [v, label] of [["auto", "Auto: light or dark, as each visitor's device is set"], ["light", "Light"], ["dark", "Dark"]]) mode.append(new Option(label, v, false, v === (saved.mode || now.mode)));
 	field("Light or dark", mode);
+	const tones = document.createElement("select");
+	for (const [v, label] of [["rainbow", "Rainbow"], ["two", "Two-tone"], ["one", "One-tone"]]) tones.append(new Option(label + (v === now.tones ? " (the notebook's)" : ""), v, false, v === (saved.tones || now.tones)));
+	field("Colors for folders and tags", tones);
 	const layout = document.createElement("select");
 	layout.append(new Option("Top menu: a link per folder across the top", "top", false, saved.layout !== "notebook"), new Option("Notebook: folders down the left, as in the app", "notebook", false, saved.layout === "notebook"));
 	field("Layout", layout);
@@ -142,10 +145,10 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value });
+	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value, tones: tones.value });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
-	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font() }) + (family.value === "synthwave" ? GLOW : "");
+	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font(), tones: tones.value, mixtape: family.value === "mixtape" ? now.mixtape : null }) + (family.value === "synthwave" ? GLOW : "");
 	const build = () => {
 		const s = settings();
 		return buildSite(host.notes(), host.attachments(), { title: s.title, tagline: s.tagline, css: css(), footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });

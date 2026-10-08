@@ -52,7 +52,7 @@ import { timelineChanges, eventsOn } from "./timeline.js";
 import { newNoteFrontmatter, withTitleHeading } from "./frontmatter.js";
 import { readTypes, writeTypes, listKeys, propertyUsage, CHOICE_TYPES, toChoices } from "./properties.js";
 import { quoteFor } from "./quotes.js";
-import { readTheme, themeAttr } from "./theme.js";
+import { readTheme, themeAttr, readTones, readMixtape, mixtapeVars, toHex, contrast, MIXTAPE_KEYS, MIXTAPE_DEFAULT } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
 import { makeMediaNote, coverDialog } from "./media.js";
 import { coverQuery } from "./medianote.js";
@@ -4461,11 +4461,22 @@ function applyTheme() {
 	const { family, mode } = readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme"));
 	const attr = themeAttr(family, mode, matchMedia("(prefers-color-scheme: dark)").matches);
 	if (attr) root.setAttribute("data-theme", attr); else root.removeAttribute("data-theme");
+	const tones = readTones(readRaw("wr1t3rColors"));
+	if (tones === "rainbow") root.removeAttribute("data-colors"); else root.setAttribute("data-colors", tones);
+	const mx = readMixtape(readRaw("wr1t3rMixtape"));
+	for (const [k, v] of Object.entries(mixtapeVars(mx))) family === "mixtape" ? root.style.setProperty(k, v) : root.style.removeProperty(k);
+	$("mixtapeBox").hidden = family !== "mixtape";
+	for (const k of MIXTAPE_KEYS) $("mx-" + k).value = mx[k];
+	const ratio = contrast(mx.bg, mx.fg);
+	$("mxWarn").hidden = ratio >= 4.5;
+	$("mxWarn").textContent = `The text is hard to read on this background (contrast ${ratio.toFixed(1)} to 1; aim for 4.5 or more).`;
+	document.querySelectorAll("#colorTones button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tones === tones)));
 	rerunDataview();
 	$("themeFamilies").value = family;
 	document.querySelectorAll("#themes button").forEach((b) => {
-		// Sepia is light only, Monokai and SynthWave '84 dark only.
-		const oneMode = family === "sepia" || family === "monokai" || family === "synthwave";
+		// Sepia is light only, Monokai and SynthWave '84 dark only, Mixtape
+		// whatever its background is.
+		const oneMode = family === "sepia" || family === "monokai" || family === "synthwave" || family === "mixtape";
 		b.setAttribute("aria-pressed", String(!oneMode && b.dataset.theme === mode));
 		b.disabled = oneMode;
 	});
@@ -4705,8 +4716,26 @@ function setupSettings() {
 	$("themeFamilies").addEventListener("change", (e) => {
 		const family = e.target.value;
 		const { mode } = readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme"));
+		// Mixtape's first time starts from the theme on screen.
+		if (family === "mixtape" && !readRaw("wr1t3rMixtape")) {
+			const cs = getComputedStyle(document.documentElement);
+			const now = (name, k) => toHex(cs.getPropertyValue(name)) || MIXTAPE_DEFAULT[k];
+			storeRaw("wr1t3rMixtape", JSON.stringify({ bg: now("--bg", "bg"), fg: now("--fg", "fg"), accent: now("--accent", "accent"), second: now("--f2", "second") }));
+		}
 		storeRaw("wr1t3rThemeFamily", family === "default" ? null : family);
 		storeRaw("wr1t3rTheme", mode === "auto" ? null : mode); // drops an old "sepia"
+		applyTheme();
+	});
+	$("mixtapeBox").addEventListener("input", (e) => {
+		const k = e.target.id?.replace(/^mx-/, "");
+		if (!MIXTAPE_KEYS.includes(k)) return;
+		storeRaw("wr1t3rMixtape", JSON.stringify({ ...readMixtape(readRaw("wr1t3rMixtape")), [k]: e.target.value }));
+		applyTheme();
+	});
+	$("colorTones").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b) return;
+		storeRaw("wr1t3rColors", b.dataset.tones === "rainbow" ? null : b.dataset.tones);
 		applyTheme();
 	});
 	$("settingsBtn").addEventListener("click", (e) => { e.stopPropagation(); openSettings($("settings").hidden); });
@@ -6025,7 +6054,7 @@ async function exportWebsite() {
 			if (!file) throw new Error("not found");
 			return attachmentBlob(file, (p) => remote.attachment(p));
 		},
-		theme: () => readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme")),
+		theme: () => ({ ...readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme")), tones: readTones(readRaw("wr1t3rColors")), mixtape: mixtapeVars(readMixtape(readRaw("wr1t3rMixtape"))) }),
 		font: () => FONTS[fontName] && fontName !== "serif" ? FONTS[fontName] : "",
 		toast,
 	});

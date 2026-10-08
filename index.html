@@ -183,12 +183,27 @@
 							<option value="synthwave">SynthWave '84</option>
 							<option value="bubblegum">Bubblegum</option>
 							<option value="sakura">Sakura</option>
+							<option value="mixtape">Mixtape: your own colors</option>
 						</select>
+						<div id="mixtapeBox" class="mixtape" hidden>
+							<label><input type="color" id="mx-bg"> Background</label>
+							<label><input type="color" id="mx-fg"> Text</label>
+							<label><input type="color" id="mx-accent"> Accent</label>
+							<label><input type="color" id="mx-second"> Second color</label>
+							<p id="mxWarn" class="hint" hidden></p>
+						</div>
 						<div class="seg" id="themes">
 							<button type="button" data-theme="auto">Auto</button>
 							<button type="button" data-theme="light">Light</button>
 							<button type="button" data-theme="dark">Dark</button>
 						</div>
+						<h2>Colors</h2>
+						<div class="seg" id="colorTones">
+							<button type="button" data-tones="rainbow">Rainbow</button>
+							<button type="button" data-tones="two">Two-tone</button>
+							<button type="button" data-tones="one">One-tone</button>
+						</div>
+						<p class="hint">For folders, tags, bullets and the planner. Folders you gave a color keep it.</p>
 						<h2 class="set-type">Text size</h2>
 						<div class="seg set-type">
 							<button id="smaller" type="button" aria-label="Smaller text">A&minus;</button>

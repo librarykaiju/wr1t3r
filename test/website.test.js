@@ -159,6 +159,18 @@ test("theme colors come from the app's stylesheet", () => {
 	assert.ok(plain.includes("--bg: #fbfaf7") && plain.includes("--bg: #141414"));
 });
 
+test("the site carries Two-tone, One-tone and Mixtape colors", () => {
+	const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
+	const two = themeCss(css, { light: "dracula-light", dark: "dracula", tones: "two" });
+	assert.ok(two.lastIndexOf("--f1: var(--accent)") > two.indexOf("@media (prefers-color-scheme: dark)"), "tones come after the dark colors");
+	assert.ok(two.includes("--f4: var(--f2)") && !two.includes("--mx-second"));
+	assert.ok(themeCss(css, { light: null, tones: "one" }).includes("--f7: var(--accent)"));
+	assert.ok(!themeCss(css, { light: null }).includes("var(--accent);"), "rainbow adds nothing");
+	const mx = { "--mx-bg": "#101820", "--mx-fg": "#f2aa4c", "--mx-accent": "#f2aa4c", "--mx-second": "#7fd6d9", "--mx-scheme": "dark" };
+	const tape = themeCss(css, { light: "mixtape", tones: "two", mixtape: mx });
+	assert.ok(tape.includes("--mx-bg: #101820;") && tape.includes("--bg: var(--mx-bg") && tape.includes("--f2: var(--mx-second"));
+});
+
 test("the toolbar's published check matches the site's, and says why not", async () => {
 	const { isPublished: own, notPublishedWhy } = await import("../src/published.js");
 	assert.equal(own("Posts/A.md", "---\npublish: true\n---\n"), true);

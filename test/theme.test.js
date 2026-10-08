@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readTheme, themeAttr } from "../src/theme.js";
+import { readTheme, themeAttr, readTones, readMixtape, mixtapeVars, toHex, contrast, themeVariants, MIXTAPE_DEFAULT } from "../src/theme.js";
 
 test("old saved themes still load", () => {
 	assert.deepEqual(readTheme(null, "sepia"), { family: "sepia", mode: "auto" });
@@ -28,4 +28,31 @@ test("families pick their light or dark variant, Auto follows the system", () =>
 	assert.equal(themeAttr("bubblegum", "auto", true), "bubblegum-night");
 	assert.equal(themeAttr("sakura", "auto", false), "sakura");
 	assert.equal(themeAttr("sakura", "dark", false), "sakura-night");
+});
+
+test("Mixtape is one mode, whatever Auto or the system say", () => {
+	assert.equal(readTheme("mixtape", "dark").family, "mixtape");
+	assert.equal(themeAttr("mixtape", "auto", true), "mixtape");
+	assert.equal(themeAttr("mixtape", "light", true), "mixtape");
+	assert.deepEqual(themeVariants("mixtape", "auto"), { light: "mixtape", dark: null });
+});
+
+test("Colors: rainbow unless two-tone or one-tone was saved", () => {
+	assert.equal(readTones(null), "rainbow");
+	assert.equal(readTones("two"), "two");
+	assert.equal(readTones("one"), "one");
+	assert.equal(readTones("plaid"), "rainbow");
+});
+
+test("Mixtape colors: bad or missing ones fall back, dark backgrounds make a dark page", () => {
+	assert.deepEqual(readMixtape(null), MIXTAPE_DEFAULT);
+	assert.deepEqual(readMixtape("not json"), MIXTAPE_DEFAULT);
+	const mx = readMixtape(JSON.stringify({ bg: "#101820", fg: "#F2AA4C", accent: "red", second: "#7fd6d9" }));
+	assert.deepEqual(mx, { bg: "#101820", fg: "#f2aa4c", accent: MIXTAPE_DEFAULT.accent, second: "#7fd6d9" });
+	assert.equal(mixtapeVars(mx)["--mx-scheme"], "dark");
+	assert.equal(mixtapeVars(MIXTAPE_DEFAULT)["--mx-scheme"], "light");
+	assert.equal(toHex(" #ABC "), "#aabbcc");
+	assert.equal(toHex("rgb(0,0,0)"), null);
+	assert.equal(Math.round(contrast("#000000", "#ffffff")), 21);
+	assert.ok(contrast("#fbfaf7", "#f0f0f0") < 4.5);
 });
