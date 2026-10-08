@@ -19,7 +19,7 @@ A license key for the wr1t3r web app at my.wr1t3r.app, for your own use on up to
 
 ## Payments
 
-Orders are processed by Lemon Squeezy, which acts as the merchant of record and handles payment, sales tax and receipts. Their terms apply to the purchase.
+Orders are processed by Polar, which acts as the merchant of record and handles payment, sales tax and receipts. Their terms apply to the purchase.
 
 ## Refunds
 

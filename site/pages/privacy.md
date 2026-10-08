@@ -44,7 +44,7 @@ wr1t3r's use and transfer of information received from Google APIs adheres to th
 
 ## Other things the app sends
 
-- **License checks** send your license key and a device name (like "wr1t3r on iPhone") to the store that sold it, about once a week. Your purchase details (name, email) are held by that store and used only for your license and receipts.
+- **License checks** send your license key and a device name (like "wr1t3r on iPhone") to Polar, the store that sells it, about once a week. Your purchase details (name, email) are held by Polar and used only for your license and receipts.
 - **Lookups you ask for** (a book or film title, a word's definition) send that search text to the public service that answers it, such as Open Library or Wikidata.
 - **Publishing**, if you use it, sends the notes you choose to your own GitHub repo. The GitHub token you paste stays in your browser.
 - No analytics, no ads, no tracking cookies.
