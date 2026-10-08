@@ -1,6 +1,7 @@
 /* Colors, fonts and themes follow Reader's (librarykaiju/reader). A theme is a
    family (Default, Sepia, Dracula, Rosé Pine, Tokyo Night, Catppuccin,
-   Kanagawa, Everforest, Nord, Monokai, SynthWave '84, Bubblegum, Sakura) and a mode (Auto, Light, Dark);
+   Kanagawa, Everforest, Nord, Monokai, SynthWave '84, Bubblegum, Sakura,
+   Mixtape) and a mode (Auto, Light, Dark);
    src/theme.js and public/theme.js set data-theme on <html>. Default + Auto
    sets none, and this sheet follows the system. --f1 to --f7 are each theme's
    rainbow, for the sidebar's folders, from its official palette where it has
@@ -210,6 +211,34 @@
 	color-scheme: dark;
 }
 
+/* Mixtape: the reader's own four colors (Settings > Appearance), which
+   src/theme.js and public/theme.js put on <html> as --mx-bg, --mx-fg,
+   --mx-accent and --mx-second. Everything else is mixed from them: borders
+   and panels lean from the background toward the text, and the rainbow is
+   a set of mid-tone hues pulled toward the text so it reads on light or dark. */
+:root[data-theme=mixtape] {
+	--bg: var(--mx-bg, #fbfaf7); --fg: var(--mx-fg, #1d1c1a); --accent: var(--mx-accent, #2f5fd0);
+	--muted: color-mix(in srgb, var(--fg) 62%, var(--bg)); --line: color-mix(in srgb, var(--fg) 14%, var(--bg));
+	--card: color-mix(in srgb, var(--fg) 3%, var(--bg)); --sel: color-mix(in srgb, var(--accent) 18%, var(--bg));
+	--bad: color-mix(in srgb, #d93a2f 78%, var(--fg)); --hl: color-mix(in srgb, var(--mx-second, #c2650f) 30%, var(--bg));
+	--panel: color-mix(in srgb, var(--fg) 5%, var(--bg)); --mark: color-mix(in srgb, var(--fg) 42%, var(--bg)); --code-bg: color-mix(in srgb, var(--fg) 8%, var(--bg));
+	--f1: color-mix(in srgb, #e5534b 72%, var(--fg)); --f2: color-mix(in srgb, #e8853a 72%, var(--fg)); --f3: color-mix(in srgb, #d4b02a 72%, var(--fg)); --f4: color-mix(in srgb, #4fae5c 72%, var(--fg)); --f5: color-mix(in srgb, #2fa8ad 72%, var(--fg)); --f6: color-mix(in srgb, #4a7fe0 72%, var(--fg)); --f7: color-mix(in srgb, #a35fd6 72%, var(--fg));
+	color-scheme: var(--mx-scheme, light);
+}
+/* Colors (Settings > Appearance): Two-tone gives the rainbow's odd colors to
+   the accent and its even ones to the second color (the theme's --f2, or
+   Mixtape's own), One-tone gives all seven to the accent. These come after
+   every theme so they win; src/website.js copies them for the site. */
+:root[data-colors=two] {
+	--f1: var(--accent); --f3: var(--accent); --f5: var(--accent); --f7: var(--accent); --f4: var(--f2); --f6: var(--f2);
+}
+:root[data-colors=one] {
+	--f1: var(--accent); --f2: var(--accent); --f3: var(--accent); --f4: var(--accent); --f5: var(--accent); --f6: var(--accent); --f7: var(--accent);
+}
+:root[data-theme=mixtape][data-colors=two] {
+	--f2: var(--mx-second, #c2650f);
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
@@ -387,6 +416,11 @@ body:has(.settings-win:not([hidden])) #notices #status { display: none; }
 .seg button[aria-pressed=true] { background: var(--sel); font-weight: 600; }
 /* Seven theme families, three to a row. */
 #themeFamilies, #fontPick, #dailyCal { display: block; width: 100%; margin: 0 0 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: 14px var(--sans); }
+/* Mixtape's four color pickers, two to a row. */
+.mixtape { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin: 0 0 10px; }
+.mixtape label { display: flex; align-items: center; gap: 8px; font: 14px var(--sans); }
+.mixtape input[type=color] { width: 36px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
+.mixtape .hint { grid-column: 1 / -1; color: var(--bad); margin: 2px 0 0; }
 .seg .val {
 	flex: 0 0 56px; display: grid; place-items: center; font-variant-numeric: tabular-nums;
 	border-left: 1px solid var(--line); border-right: 1px solid var(--line); font-size: 14px;
