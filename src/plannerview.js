@@ -695,7 +695,7 @@ class PlannerWidget extends WidgetType {
 		cb.checked = this.cfg.med_reminders;
 		cb.addEventListener("change", () => { this.cfg = { ...this.cfg, med_reminders: cb.checked }; this.saveShared(view, { med_reminders: cb.checked }); });
 		rem.append(cb, " Remind me at each dose's time");
-		box.append(rem, el("p", "planner-panel-hint", "Reminders need reminders turned on under Settings (on the paid app they show while wr1t3r is open)."));
+		box.append(rem, el("p", "planner-panel-hint", "Reminders need reminders turned on under Settings. On the paid app they show while wr1t3r is open, or with it closed through Google Calendar (Settings > Reminders)."));
 	}
 
 	// ---- Sleep and weight -----------------------------------------------------

@@ -201,6 +201,11 @@ export function eventBody(b) {
 	}
 	if (b.location) out.location = String(b.location).slice(0, 1000);
 	if (b.description) out.description = String(b.description).slice(0, 8000);
+	// A reminder's event (src/calreminders.js) brings its own id, so a second
+	// device sending the same reminder can't make a second event, and is
+	// marked free so it doesn't block the time.
+	if (typeof b.id === "string" && /^[0-9a-v]{5,1024}$/.test(b.id)) out.id = b.id;
+	if (b.transparent === true) out.transparency = "transparent";
 	if (b.reminder === "none") out.reminders = { useDefault: false, overrides: [] };
 	else if (Number.isInteger(b.reminder) && b.reminder >= 0 && b.reminder <= 40320) {
 		out.reminders = { useDefault: false, overrides: [{ method: "popup", minutes: b.reminder }] };
