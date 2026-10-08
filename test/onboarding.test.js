@@ -60,7 +60,8 @@ test("the guide covers what's on, and only what this build can do", () => {
 
 	const all = featuresFor([]);
 	const worker = guideText(all), dropbox = guideText(all, { worker: false });
-	assert.match(worker, /The Clip button/);
+	assert.match(worker, /the Clip button/);
+	assert.match(dropbox, /Clip to wr1t3r bookmarklet/);
 	assert.match(worker, /## Recordings/);
 	assert.match(worker, /even with wr1t3r closed/);
 	assert.doesNotMatch(dropbox, /Clip button|## Recordings|even with wr1t3r closed/);
