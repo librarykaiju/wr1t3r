@@ -111,6 +111,7 @@ Click the globe on any note to publish it. Export as website turns every publish
 - **Find me on.** Links to Bluesky, Mastodon, Instagram and the rest, plus an email link written so spam bots have a harder time reading your address.
 - **Share and reply.** A share button on every post. Link a post to Bluesky and its likes and replies show on your page.
 - **Made for Neocities.** Plain pages with links that work on any host, and a preview before you download.
+- **Or bring your own look.** Export plain HTML pages that link your `main.css`, so they match a site you already have.
 
 ### One button, right in the toolbar
 

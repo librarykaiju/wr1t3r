@@ -1772,6 +1772,7 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .website .compile-form h3 { margin: 6px 0 -4px; font-size: 13px; font-weight: 600; color: var(--fg); }
 .website .compile-form label.check { flex-direction: row; align-items: flex-start; gap: 6px; color: var(--fg); }
 .website .compile-form label.check input { margin-top: 2px; }
+.website .compile-form label.off { opacity: 0.5; }
 .website .compile-actions { grid-template-columns: 1fr; }
 .website-after:empty { display: none; }
 .website-after { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
