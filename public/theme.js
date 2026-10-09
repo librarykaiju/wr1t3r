@@ -6,7 +6,7 @@
 	var root = document.documentElement;
 	try {
 		var fam = localStorage.getItem("wr1t3rThemeFamily"), mode = localStorage.getItem("wr1t3rTheme");
-		var families = { default: ["light", "dark"], gruvbox: ["gruvbox-light", "gruvbox"], dracula: ["dracula-light", "dracula"], rosepine: ["rosepine-dawn", "rosepine"], tokyonight: ["tokyonight-day", "tokyonight"], catppuccin: ["catppuccin-latte", "catppuccin"], kanagawa: ["kanagawa-lotus", "kanagawa"], everforest: ["everforest-light", "everforest"], nord: ["nord-light", "nord"], monokai: ["monokai", "monokai"], synthwave: ["synthwave", "synthwave"], bubblegum: ["bubblegum", "bubblegum-night"], mixtape: ["mixtape", "mixtape"] };
+		var families = { default: ["light", "dark"], gruvbox: ["gruvbox-light", "gruvbox"], dracula: ["dracula-light", "dracula"], rosepine: ["rosepine-dawn", "rosepine"], tokyonight: ["tokyonight-day", "tokyonight"], catppuccin: ["catppuccin-latte", "catppuccin"], kanagawa: ["kanagawa-lotus", "kanagawa"], everforest: ["everforest-light", "everforest"], nord: ["nord-light", "nord"], monokai: ["monokai", "monokai"], synthwave: ["synthwave", "synthwave"], bubblegum: ["bubblegum", "bubblegum-night"], shire: ["shire", "shire-night"], mixtape: ["mixtape", "mixtape"] };
 		if (fam === "sakura") fam = "bubblegum"; // retired, see src/theme.js RETIRED
 		if (!families[fam]) fam = "default";
 		if (mode !== "light" && mode !== "dark") mode = "auto";

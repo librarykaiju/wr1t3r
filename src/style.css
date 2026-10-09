@@ -1,7 +1,7 @@
 /* Colors, fonts and themes follow Reader's (librarykaiju/reader). A theme is a
    family (Default, Gruvbox, Dracula, Rosé Pine, Tokyo Night, Catppuccin,
    Kanagawa, Everforest, Nord, Monokai, SynthWave '84, Bubblegum,
-   Mixtape) and a mode (Auto, Light, Dark);
+   Shire, Mixtape) and a mode (Auto, Light, Dark);
    src/theme.js and public/theme.js set data-theme on <html>. Default + Auto
    sets none, and this sheet follows the system. --f1 to --f7 are each theme's
    rainbow, for the sidebar's folders, from its official palette where it has
@@ -201,6 +201,23 @@
 	--accent: #ff6fb5; --bad: #ff8a80; --hl: #6b2a55; --heading: #ff8fc8;
 	--panel: #1c0f1a; --mark: #8a6380; --code-bg: #331d2f;
 	--f1: #ff6fb5; --f2: #ff9a62; --f3: #ffd166; --f4: #6ee7a8; --f5: #5fd4e8; --f6: #a99bff; --f7: #e08cff;
+	color-scheme: dark;
+}
+/* Shire, wr1t3r's own: earth tones (brown, red, yellow, orange, green) on
+   a creamy parchment page, and Shire Night, warm dark brown. Green buttons
+   like a round front door, russet headings in light, amber in dark. */
+:root[data-theme=shire] {
+	--bg: #f4e8c8; --fg: #3a2716; --muted: #6b4f30; --line: #dcc69a; --card: #f9f0d8; --sel: #e6d2a2;
+	--accent: #3f6a25; --bad: #9c2618; --hl: #f0cf6e; --heading: #8a3414;
+	--panel: #e9d8ae; --mark: #9a7b52; --code-bg: #ecdcb6;
+	--f1: #a3301f; --f2: #9a4510; --f3: #7d5c00; --f4: #476a20; --f5: #2b6142; --f6: #6e3f1c; --f7: #7d5e27;
+	color-scheme: light;
+}
+:root[data-theme=shire-night] {
+	--bg: #241a12; --fg: #ecdcb8; --muted: #b9a27e; --line: #3d2e20; --card: #2d2117; --sel: #4a3826;
+	--accent: #9cbf5f; --bad: #e8705a; --hl: #5a4420; --heading: #e8a25a;
+	--panel: #1c140d; --mark: #7d6a50; --code-bg: #30241a;
+	--f1: #e8705a; --f2: #e8924a; --f3: #e6c35c; --f4: #a3c063; --f5: #74b383; --f6: #c48c5c; --f7: #d4ad72;
 	color-scheme: dark;
 }
 /* Mixtape: the reader's own four colors (Settings > Appearance), which

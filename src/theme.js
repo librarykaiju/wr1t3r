@@ -1,10 +1,10 @@
 // Themes: a family (Default, Gruvbox, Dracula, Rosé Pine, Tokyo Night,
 // Catppuccin, Kanagawa, Everforest, Nord, Monokai, SynthWave '84, Bubblegum,
-// Mixtape) and a mode (Auto, Light, Dark). themeAttr() gives the data-theme value set on <html>; the
+// Shire, Mixtape) and a mode (Auto, Light, Dark). themeAttr() gives the data-theme value set on <html>; the
 // colors are in src/style.css. public/theme.js repeats this before the page
 // draws, so keep the two in step.
 
-export const FAMILIES = ["default", "gruvbox", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave", "bubblegum", "mixtape"];
+export const FAMILIES = ["default", "gruvbox", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave", "bubblegum", "shire", "mixtape"];
 
 const VARIANTS = {
 	default: { light: "light", dark: "dark" },
@@ -19,6 +19,7 @@ const VARIANTS = {
 	monokai: { light: "monokai", dark: "monokai" }, // dark only
 	synthwave: { light: "synthwave", dark: "synthwave" }, // dark only
 	bubblegum: { light: "bubblegum", dark: "bubblegum-night" },
+	shire: { light: "shire", dark: "shire-night" },
 	mixtape: { light: "mixtape", dark: "mixtape" }, // the reader's own colors, one mode
 };
 
