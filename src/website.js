@@ -939,13 +939,17 @@ header.site, footer.site, main { max-width: var(--page); }
 @media (max-width: 600px) { body { font-size: 17px; } h1 { font-size: 1.6em; } }
 `;
 
+// Headings by level (src/theme.js HEADINGS), as .md-h1 to .md-h6 are in the
+// app: H1 to H6 take the rainbow's --f1 to --f6.
+const HEADING_LEVELS = [1, 2, 3, 4, 5, 6].map((n) => `article h${n} { color: var(--f${n}); }`).join("\n") + "\n";
+
 // The theme's colors as plain CSS for the site: the chosen variant's :root
 // variables from the app's stylesheet, and for Auto, the dark variant under
 // prefers-color-scheme. appCss: src/style.css's text; font: the editor font;
 // tones: "rainbow", "two" or "one" (src/theme.js TONES); mixtape: the
 // reader's four colors as --mx-* variables (src/theme.js mixtapeVars), for
-// the Mixtape theme.
-export function themeCss(appCss, { light, dark = null, font = "", tones = "rainbow", mixtape = null } = {}) {
+// the Mixtape theme; headings: "one" or "level" (src/theme.js HEADINGS).
+export function themeCss(appCss, { light, dark = null, font = "", tones = "rainbow", mixtape = null, headings = "one" } = {}) {
 	const rule = (sel) => {
 		const at = appCss.indexOf(sel + " {");
 		if (at < 0) return null;
@@ -963,5 +967,6 @@ export function themeCss(appCss, { light, dark = null, font = "", tones = "rainb
 		const toneVars = [rule(`:root[data-colors=${tones}]`), tones === "two" && mixtape ? rule(":root[data-theme=mixtape][data-colors=two]") : null].filter(Boolean);
 		if (toneVars.length) css += `:root {\n\t${toneVars.join("\n\t")}\n}\n`;
 	}
+	if (headings === "level") css += HEADING_LEVELS;
 	return css;
 }

@@ -54,7 +54,11 @@ const fromSync = Annotation.define();
 const style = HighlightStyle.define([
 	{ tag: t.heading1, class: "md-h1" },
 	{ tag: t.heading2, class: "md-h2" },
-	{ tag: [t.heading3, t.heading4, t.heading5, t.heading6], class: "md-h3" },
+	{ tag: t.heading3, class: "md-h3" },
+	// H4 to H6 look like H3, with their own class for By level colors.
+	{ tag: t.heading4, class: "md-h3 md-h4" },
+	{ tag: t.heading5, class: "md-h3 md-h5" },
+	{ tag: t.heading6, class: "md-h3 md-h6" },
 	{ tag: t.strong, fontWeight: "700" },
 	{ tag: t.emphasis, fontStyle: "italic" },
 	{ tag: t.strikethrough, textDecoration: "line-through" },

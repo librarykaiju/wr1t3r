@@ -69,6 +69,14 @@ export function readTones(raw) {
 	return TONES.includes(raw) ? raw : "rainbow";
 }
 
+// Headings (Settings > Appearance): one color (the theme's heading color),
+// or by level, H1 to H6 taking the rainbow's --f1 to --f6. Saved as
+// wr1t3rHeadings; set on <html> as data-headings="level".
+export const HEADINGS = ["one", "level"];
+export function readHeadings(raw) {
+	return HEADINGS.includes(raw) ? raw : "one";
+}
+
 // Mixtape: the reader's own background, text, accent and second color, saved
 // as JSON in wr1t3rMixtape and set on <html> as --mx-bg, --mx-fg, --mx-accent
 // and --mx-second. src/style.css mixes the other colors from those four.
