@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { blueskyPost, buildSite, isPublished, pageFiles, relativeURL, slug, socialLinks, supportLinks, tagHue, themeCss, webMarkdown } from "../src/website.js";
+import { blueskyPost, buildSite, isPublished, ownStylesheet, pageFiles, relativeURL, slug, socialLinks, supportLinks, tagHue, themeCss, webMarkdown } from "../src/website.js";
 
 const note = (props, body) => `---\n${props}\n---\n${body}`;
 
@@ -86,7 +86,7 @@ test("a menu of top folders, each with its list, and previous/next within a fold
 	const site = buildSite(notes, []);
 	const one = site.files.get("essays/one.html");
 	assert.ok(one.includes('<nav class="menu" aria-label="Sections"><a href="index.html" style="--fc: var(--f1)" aria-current="page">Essays</a><a href="../recipes/index.html" style="--fc: var(--f2)">Recipes</a></nav>'));
-	assert.ok(one.includes('class="prev" href="two.html"><span>Previous</span>Two</a>') && one.includes('<span class="next"></span>') === false);
+	assert.ok(one.includes('class="prev" href="two.html"><span>Previous</span> Two</a>') && one.includes('<span class="next"></span>') === false);
 	assert.ok(site.files.get("essays/two.html").includes('<span class="prev"></span>'));
 	const list = site.files.get("essays/index.html");
 	assert.ok(list.includes('href="old/three.html"') && list.includes('<h2 class="folder">Old</h2>') && list.includes('href="index-2.html"'));
@@ -270,4 +270,28 @@ test("outside logs a cover is a wide picture under the properties, not inside th
 	assert.doesNotMatch(page, /<span class="cover /);
 	assert.ok(page.indexOf('<img class="cover wide" src="../files/pic.jpg" alt="">') > page.indexOf('<details class="props">'));
 	assert.match(buildSite(notes, ["pic.jpg"], { title: "S", properties: false }).files.get("essays/a.html"), /<img class="cover wide"/);
+});
+
+test("the person's own stylesheet: linked from every page, no theme, plain pages", () => {
+	const notes = [
+		{ path: "Home.md", text: note("publish: true", "Hello.") },
+		{ path: "Essays/Walking.md", text: note("publish: true\ndate: 2026-03-04\nbluesky: https://bsky.app/profile/a.bsky.social/post/3abc\nrating: 4", "A walk.") },
+		{ path: "Essays/Running.md", text: note("publish: true\ndate: 2026-03-05", "A run.") },
+	];
+	const opts = { title: "Mine", layout: "notebook", calendar: true, support: { kofi: "me" }, social: "https://bsky.app/profile/me" };
+	for (const [address, fromEssay] of [["/css/main.css", "/css/main.css"], ["https://example.com/s.css?v=2", "https://example.com/s.css?v=2"], ["css/main.css", "../css/main.css"], ["main.css", "../main.css"]]) {
+		const site = buildSite(notes, [], { ...opts, css: ":root { --bg: red; }", stylesheet: ` ${address} ` });
+		const walk = site.files.get("essays/walking.html");
+		assert.ok(walk.includes(`<link rel="stylesheet" href="${fromEssay.replace(/&/g, "&amp;")}">`), address);
+		assert.ok(!site.files.has("style.css"), "no theme file");
+		assert.ok(walk.includes('<header class="site">') && !walk.includes('class="tree"'), "a menu across the top, not the folders");
+		assert.ok(!walk.includes('class="side"') && !walk.includes("ko-fi") && !walk.includes('class="props"') && !walk.includes('class="share') && !walk.includes("bsky.app/profile/a.bsky.social"));
+		assert.ok(walk.includes('class="pager"'), "previous and next stay");
+		assert.ok(site.files.get("index.html").includes(`href="${address.replace(/&/g, "&amp;")}"`), "the front page links it as given");
+	}
+	assert.equal(ownStylesheet(""), null);
+	assert.equal(ownStylesheet("my style.css"), null);
+	assert.equal(ownStylesheet('x.css" onload="y'), null);
+	assert.equal(ownStylesheet("javascript:alert(1)"), null);
+	assert.ok(buildSite(notes, [], { ...opts, stylesheet: "  " }).files.has("style.css"), "empty means a theme");
 });

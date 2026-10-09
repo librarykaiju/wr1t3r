@@ -18,7 +18,7 @@
 // }
 
 import appCss from "./style.css?raw";
-import { buildSite, themeCss, SITE_FILES } from "./website.js";
+import { buildSite, ownStylesheet, themeCss, SITE_FILES } from "./website.js";
 import { FAMILIES, familyOf, themeVariants } from "./theme.js";
 import { publishToGitHub } from "./githubpublish.js";
 
@@ -80,6 +80,10 @@ export function openWebsite(host) {
 	for (const p of host.attachments().filter((p) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(p)).sort()) logo.append(new Option(p.split("/").pop(), p, false, p === saved.logo));
 	field("Logo (a picture in the notebook)", logo);
 	const logoOnly = check("Show only the logo, not the title beside it", saved.logoOnly);
+	const plain = check("Plain HTML pages that use your own stylesheet, not a theme", saved.plain);
+	const plainHint = Object.assign(document.createElement("p"), { className: "hint", textContent: "For a site that already has its look: every page links main.css at the top of the site (or the address below), so put your stylesheet there and the pages match. The theme, sidebar, share buttons and Properties box are left out. The preview shows the pages without your stylesheet." });
+	form.append(plainHint);
+	const stylesheet = field("Your stylesheet's address", text(saved.stylesheet || "main.css", "main.css"), "main.css or css/main.css from the top of the site, /main.css from the host's root, or a full https:// address");
 	const now = host.theme();
 	const family = document.createElement("select");
 	for (const f of FAMILIES) family.append(new Option(FAMILY_NAMES[f] + (f === now.family ? " (the notebook's)" : ""), f, false, f === (familyOf(saved.family) || now.family)));
@@ -107,6 +111,8 @@ export function openWebsite(host) {
 	const social = document.createElement("textarea");
 	Object.assign(social, { rows: 3, value: saved.social || "", placeholder: "https://bsky.app/profile/you\n@you@mastodon.social\nyou@example.com" });
 	field("Find me on: one link or email address per line", social);
+	// What plain pages leave out.
+	const themed = [family, mode, tones, layout, share, properties, sidebar, kofi, patreon, label, url, note, social];
 	sub("Files");
 	const media = check("Include audio and video (a free Neocities site won't take them)", saved.media);
 	const footer = check("Say “Made with wr1t3r” at the bottom", saved.footer);
@@ -151,17 +157,24 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value, tones: tones.value });
+	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), family: family.value, mode: mode.value, tones: tones.value });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
 	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font(), tones: tones.value, mixtape: family.value === "mixtape" ? now.mixtape : null }) + (family.value === "synthwave" ? GLOW : "");
 	const build = () => {
 		const s = settings();
-		return buildSite(host.notes(), host.attachments(), { title: s.title, tagline: s.tagline, css: css(), footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
+		return buildSite(host.notes(), host.attachments(), { title: s.title, tagline: s.tagline, css: css(), stylesheet: s.plain ? ownStylesheet(s.stylesheet) || "main.css" : "", footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
 	};
 
 	let site = null, timer;
 	function refresh() {
+		const own = plain.checked;
+		stylesheet.disabled = !own;
+		stylesheet.closest("label").classList.toggle("off", !own);
+		for (const el of themed) {
+			el.disabled = own;
+			el.closest("label")?.classList.toggle("off", own);
+		}
 		site = build();
 		const n = site.pages.length;
 		count.textContent = n ? `${n} published note${n === 1 ? "" : "s"}${site.skipped.length ? ` · ${site.skipped.length} audio or video file${site.skipped.length === 1 ? "" : "s"} left out` : ""}` : "No notes are published yet. Set a note's publish property to true to put it on the site.";
@@ -173,8 +186,10 @@ export function openWebsite(host) {
 	const blobs = new Map(); // vault path -> data: URL, for the preview's pictures (a sandboxed frame can't read blob: URLs)
 	async function show() {
 		// The page with its stylesheet inlined and its pictures from this device.
+		// The person's own stylesheet is left off: the app's security policy
+		// won't load another site's styles, even in the preview.
 		const file = pick.value, dir = file.split("/").slice(0, -1);
-		let page = (site.files.get(file) || "").replace(/<link rel="stylesheet" href="[^"]*">/, () => `<style>${site.files.get(SITE_FILES.style)}</style>`);
+		let page = (site.files.get(file) || "").replace(/<link rel="stylesheet" href="[^"]*">/, () => (site.files.has(SITE_FILES.style) ? `<style>${site.files.get(SITE_FILES.style)}</style>` : ""));
 		const srcs = [...new Set([...page.matchAll(/src="([^"]+)"/g)].map((m) => m[1]))];
 		for (const src of srcs) {
 			const parts = [...dir];

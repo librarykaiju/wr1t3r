@@ -55,6 +55,8 @@ wr1t3r builds a website from the notes you choose, as plain web pages you can pu
 
 2.  **Set up the site.** In the globe menu, choose _Export as website…_. Give the site a title, pick a theme, light or dark, and a layout (a menu across the top, or folders down the left as in the app). Add Ko-fi, Patreon or your own link, and where else to find you. The preview on the right shows any page as visitors will see it.
 
+    Already have a site with its own look? Tick _Plain HTML pages that use your own stylesheet_. The pages come without a theme and link `main.css` at the top of the site (or another address you give), so put your stylesheet there and they match the rest of your site. The sidebar, share buttons and Properties box are left out.
+
     ![The Export as website window: site title, logo, theme, light or dark, layout and other settings on the left, and a preview of the front page on the right](/shots/help-export.webp)
 
 3.  **Put it online.** Download it as a .zip for [Neocities](#neocities) (or any host that takes a folder of web pages), or send it straight to [GitHub Pages](#github). Both are free.
