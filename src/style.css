@@ -610,6 +610,15 @@ main:not(.has-note) #panes { display: none; }
 .md-h1 { font-size: 1.6em; font-weight: 700; }
 .md-h2 { font-size: 1.35em; font-weight: 700; }
 .md-h3 { font-size: 1.15em; font-weight: 700; }
+/* Headings: By level (Settings > Appearance) gives each level a rainbow
+   color, so it follows the theme and the Colors switch. src/website.js
+   (HEADING_LEVELS) does the same for the site. */
+:root[data-headings=level] .md-h1 { color: var(--f1); }
+:root[data-headings=level] .md-h2 { color: var(--f2); }
+:root[data-headings=level] .md-h3 { color: var(--f3); }
+:root[data-headings=level] .md-h4 { color: var(--f4); }
+:root[data-headings=level] .md-h5 { color: var(--f5); }
+:root[data-headings=level] .md-h6 { color: var(--f6); }
 .md-mark { color: var(--mark); }
 .md-link { color: var(--link, var(--accent)); }
 .md-wikilink { color: var(--link, var(--accent)); }
