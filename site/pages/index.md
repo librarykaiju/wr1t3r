@@ -1,6 +1,6 @@
 ---
-title: wr1t3r: write, publish and keep your notes in your own Dropbox
-description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, a day planner with habit, health and medication tracking, twelve color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox as plain files.
+title: wr1t3r: write, publish and keep your notes in your own Dropbox or Google Drive
+description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, a day planner with habit, health and medication tracking, thirteen color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox or Google Drive as plain files.
 buy:
 ---
 
@@ -18,7 +18,7 @@ buy:
 
 # Write the thing.<br>Publish it. Keep it yours.
 
-wr1t3r is a writing app for stories, books, journals and notes. Plan scenes on a storyboard, read the whole draft as one document, keep a day planner next to it, and turn the notes you choose into a website you can put on Neocities. Every note is a plain Markdown file in your Dropbox, so nothing is locked in and nobody else holds your work.
+wr1t3r is a writing app for stories, books, journals and notes. Plan scenes on a storyboard, read the whole draft as one document, keep a day planner next to it, and turn the notes you choose into a website you can put on Neocities. Every note is a plain Markdown file in your Dropbox or Google Drive, so nothing is locked in and nobody else holds your work.
 
 [Try it free for 14 days](https://my.wr1t3r.app/) [Buy for $20](buy)
 
@@ -93,7 +93,7 @@ Book, film, TV and game logs add up on their own: how many you finished each yea
 - **Food and recipes.** Log meals from a built-in table of about 7,800 common foods, or from your own recipes, with calories and nutrition added up for the day.
 - **Moods and exercises your way.** Change the choices on the Mood and Exercise buttons to your own.
 - **A timeline for the day.** Block out your hours, and add events from your calendar.
-- **Everything is a note.** Your planner, health log and medication list are plain Markdown files in your Dropbox like the rest of your notes.
+- **Everything is a note.** Your planner, health log and medication list are plain Markdown files in your Dropbox or Google Drive like the rest of your notes.
 
 --- publish
 
@@ -103,7 +103,7 @@ Click the globe on any note to publish it. Export as website turns every publish
 
 ![An exported site: a notebook-style folder menu on the left, an essay in the middle, and a sidebar with a calendar of posts, Ko-fi and Patreon buttons and social links](/shots/site-notebook.webp)
 
-- **Only what you choose.** Notes go on the site when you publish them. Everything else stays private in your Dropbox.
+- **Only what you choose.** Notes go on the site when you publish them. Everything else stays private in your Dropbox or Google Drive.
 - **Two layouts.** A menu across the top, or a notebook-style sidebar with folders that open and close.
 - **Your name and logo.** A site title, a logo from your notes, and a footer line.
 - **Get paid for your work.** Ko-fi and Patreon buttons in the sidebar, or a link to any shop or tip jar.
@@ -120,7 +120,7 @@ The globe lights up when the note you're on is published. Click it to publish or
 
 --- themes
 
-## Twelve color themes, light and dark
+## Thirteen color themes, light and dark
 
 Pick the colors you like writing in. Each theme sets the page, the folders in the sidebar and your tag colors, and follows your system's light or dark mode if you want it to.
 
@@ -136,6 +136,7 @@ Pick the colors you like writing in. Each theme sets the page, the folders in th
 - ![wr1t3r in the Monokai theme](/shots/theme-monokai-dark.webp) Monokai
 - ![wr1t3r in the SynthWave '84 theme](/shots/theme-synthwave-dark.webp) SynthWave '84
 - ![wr1t3r in the Bubblegum theme](/shots/theme-bubblegum-light.webp) Bubblegum
+- ![wr1t3r in the Shire theme: earth tones on a parchment page](/shots/theme-shire-light.webp) Shire
 
 ### Your website wears it too
 
@@ -180,7 +181,7 @@ _After you buy, your license key is on your Polar purchases page, linked from yo
 
 ## Questions
 
-### Do I need a Dropbox account?
+### Do I need a Dropbox or Google account?
 
 You need Dropbox or Google Drive to keep your notes in, and a free account of either is plenty for text notes. In Dropbox, wr1t3r only gets access to its own app folder, not the rest of your Dropbox.
 

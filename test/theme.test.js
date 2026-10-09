@@ -26,6 +26,8 @@ test("families pick their light or dark variant, Auto follows the system", () =>
 	assert.equal(themeAttr("synthwave", "light", false), "synthwave");
 	assert.equal(themeAttr("bubblegum", "light", true), "bubblegum");
 	assert.equal(themeAttr("bubblegum", "auto", true), "bubblegum-night");
+	assert.equal(themeAttr("shire", "light", true), "shire");
+	assert.equal(themeAttr("shire", "auto", true), "shire-night");
 });
 
 test("A saved Sakura, since dropped, opens as Bubblegum", () => {
