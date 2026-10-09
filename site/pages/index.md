@@ -16,7 +16,7 @@ buy:
 
 --- hero
 
-# Write the long thing.<br>Publish it. Keep it yours.
+# Write the thing.<br>Publish it. Keep it yours.
 
 wr1t3r is a writing app for stories, books, journals and notes. Plan scenes on a storyboard, read the whole draft as one document, keep a day planner next to it, and turn the notes you choose into a website you can put on Neocities. Every note is a plain Markdown file in your Dropbox, so nothing is locked in and nobody else holds your work.
 
@@ -36,7 +36,7 @@ Start a short story, novel, essay or script with one button and its folder comes
 
 ## Read the whole draft as one document
 
-The Draft view stitches a folder of scenes into one long page you can read and edit straight through. When it's done, compile it to a single Markdown, Word, HTML or PDF file, formatted as a manuscript.
+The Draft view stitches a folder of scenes into one document you can read and edit straight through. When it's done, compile it to a single Markdown, Word, HTML or PDF file, formatted as a manuscript.
 
 ![Draft view showing several scenes joined into one continuous document](/shots/draft.webp)
 
@@ -48,7 +48,7 @@ Markdown with a formatting toolbar, a <kbd>/</kbd> menu for headings, lists, tab
 
 ## On your phone too
 
-Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your Dropbox, so the scene you wrote on the train is on your laptop when you get home.
+Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your Dropbox or Google Drive, so the scene you wrote on the train is on your laptop when you get home.
 
 ![The storyboard on a phone](/shots/phone-corkboard.webp)
 ![The editor on a phone](/shots/phone-editor.webp)
@@ -79,8 +79,7 @@ Give your height, weight, activity and goal, and wr1t3r works out daily targets 
 
 ### Tasks that don't get lost
 
-Keep your Critical Tasks and To Do's as master lists, or write a task in any note. Each day shows the tasks due that day, and anything unticked from earlier days stays on today's list as overdue until it's done. Add a time to a task and wr1t3r reminds you while it's open, or, with Google Calendar connected, through the Calendar app when it's closed.
-
+Keep your Critical Tasks and To Do's as master lists, or write a task in any note. Each day shows the tasks due that day, and anything unticked from earlier days stays on today's list as overdue until it's done. Add a time to a task and wr1t3r reminds you while it's open on your commputer. Connect your Google Calendar, and those reminders will roll to the app.
 ![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
 
 ### Stats for your logs
@@ -140,7 +139,7 @@ Pick the colors you like writing in. Each theme sets the page, the folders in th
 
 ### Your website wears it too
 
-Export as website starts with your theme, or pick another one for the site. Light and dark switch with each visitor's settings.
+wr1t3r's theme will automatically style your new website. Light and dark switch with each visitor's settings.
 
 ![An exported site in the Catppuccin theme](/shots/site-catppuccin.webp)
 ![An exported site in the SynthWave '84 theme, with glowing headings](/shots/site-synthwave.webp)
@@ -150,7 +149,7 @@ Export as website starts with your theme, or pick another one for the site. Ligh
 ## Also in the box
 
 - **Boards** for tracking anything in columns, with totals.
-- **Book, film and TV logs** that look up the title and fill in the details, with charts of what you've finished and a StoryGraph import.
+- **Book, film and TV logs** that look up the title and fill in the details, with charts of what you've finished and a StoryGraph import to bring your data over.
 - **Templates** for new notes, daily notes and logs.
 - **Version history** for every note, with a side-by-side compare.
 - **Search inside pictures and PDFs**, read on your device.
@@ -160,7 +159,7 @@ Export as website starts with your theme, or pick another one for the site. Ligh
 
 ## Your notes are yours
 
-wr1t3r has no server holding your notes and no account to make. You sign in with Dropbox, and wr1t3r reads and writes only its own folder there (`Apps/wr1t3r`). The files are ordinary Markdown: open them in any text editor, back them up however you like, or stop using wr1t3r tomorrow and keep everything.
+wr1t3r runs local in your browser so there's no account to make and no server holding your notes. You sign in with Dropbox or Google Drive, and wr1t3r reads and writes only its own folder there. The files are ordinary Markdown: open them in any text editor, back them up however you like, or stop using wr1t3r tomorrow and keep everything.
 
 --- pricing
 
