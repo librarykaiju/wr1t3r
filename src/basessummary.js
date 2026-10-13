@@ -5,6 +5,7 @@
 //     note.done: Checked
 
 import { BDate, toDate, show, showDate } from "./bases.js";
+import { readCell } from "./formula.js";
 
 // Name -> what the menu calls it.
 export const SUMMARIES = [
@@ -18,7 +19,8 @@ const blank = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
 const num = (v) => {
 	if (Array.isArray(v)) v = v[0];
 	if (typeof v === "number") return v;
-	if (typeof v === "string" && /^\s*-?[\d,]*\.?\d+\s*$/.test(v)) return Number(v.replace(/,/g, ""));
+	// Written the way a person writes money: "$1,200.50", "-3", "15%".
+	if (typeof v === "string") { const n = readCell(v).v; return typeof n === "number" ? n : null; }
 	return null;
 };
 const round = (n) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));

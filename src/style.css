@@ -1919,6 +1919,7 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 
 /* Board column totals */
 .md-base-totals td { border-bottom: 0; border-top: 2px solid var(--line); color: var(--muted); font-size: 0.85em; white-space: nowrap; }
+.md-base-subtotal td { border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85em; white-space: nowrap; }
 .md-base-totals td.pick { cursor: pointer; }
 .md-base-totals td.pick:hover { background: var(--hover, rgba(127,127,127,.08)); }
 .md-base-total { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
