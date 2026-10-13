@@ -100,3 +100,18 @@ test("targets from a goal", () => {
 	assert.equal(needsRecalc(g, 207), false);
 	assert.equal(needsRecalc({ ...g, units: "kg", weight: 90 }, 87), true);
 });
+
+test("a medicine line keeps its pill photo", async () => {
+	const { photoTarget } = await import("../src/meds.js");
+	assert.equal(photoTarget("![[Lisinopril pill.jpg]]"), "Lisinopril pill.jpg");
+	assert.equal(photoTarget("![](Lisinopril%20pill.jpg)"), "Lisinopril pill.jpg");
+	assert.equal(photoTarget("10 mg"), null);
+	const m = parseMed("Lisinopril | 10 mg | 08:00 | Mon | ![[Lisinopril pill.jpg]]");
+	assert.deepEqual(m, { name: "Lisinopril", dose: "10 mg", times: ["08:00"], asNeeded: false, days: [1], photo: "![[Lisinopril pill.jpg]]" });
+	assert.equal(medLine(m), "Lisinopril | 10 mg | 08:00 | Mon | ![[Lisinopril pill.jpg]]");
+	assert.equal(parseMed("Ibuprofen | 200 mg | ![[Ibuprofen pill.jpg]] | as needed").photo, "![[Ibuprofen pill.jpg]]");
+	assert.equal(parseMed("Ibuprofen | 200 mg | ![[Ibuprofen pill.jpg]] | as needed").asNeeded, true);
+	assert.equal(medLine({ name: "Ibuprofen", dose: "200 mg", photo: "![[Ibuprofen pill.jpg]]" }), "Ibuprofen | 200 mg | as needed | ![[Ibuprofen pill.jpg]]");
+	assert.equal(medLine({ name: "Ibuprofen", dose: "200 mg", photo: "" }), "Ibuprofen | 200 mg | as needed");
+	assert.equal(dosesOn([m], "2026-10-12")[0].photo, "![[Lisinopril pill.jpg]]");
+});

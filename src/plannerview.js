@@ -21,6 +21,8 @@ import {
 } from "./planner.js";
 import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn, addDays } from "./habits.js";
 import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText } from "./meds.js";
+import { searchMeds, strengthDose, dailyMedLink } from "./rxterms.js";
+import { choosePhoto, shrinkPhoto } from "./photo.js";
 import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES, ADULT } from "./targets.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
@@ -175,6 +177,23 @@ export function importEvents(view, events) {
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const fmt = (n) => Math.round(n).toLocaleString();
+
+// A medicine's pill photo (its line's picture embed, from the list note at
+// listPath) as a small button that opens it full size; null without one.
+function pillThumb(embed, listPath) {
+	const path = embed && listPath && host?.picturePath?.(embed, listPath);
+	if (!path) return null;
+	const b = el("button", "planner-pill");
+	b.type = "button";
+	b.title = "See the photo";
+	b.setAttribute("aria-label", "See the photo of the pill");
+	const img = el("img");
+	img.alt = "";
+	b.append(img);
+	host.pictureURL(path).then((u) => { img.src = u; }).catch(() => b.remove());
+	b.addEventListener("click", (e) => { e.stopPropagation(); host.openPicture(path); });
+	return b;
+}
 
 // "2026-09-30" -> "Tuesday, September 30, 2026".
 const dayTitle = (day) => new Date(day + "T12:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -631,7 +650,10 @@ class PlannerWidget extends WidgetType {
 				box.append(el("div", "planner-panel-sub", `Today · ${status.done} of ${status.due} taken`));
 				for (const d of status.doses) {
 					const row = el("div", "planner-dose" + (d.taken ? " taken" : late.has(d) ? " late" : ""));
-					row.append(el("span", "planner-dose-time", timeText(d.time)), el("span", "planner-log-text", d.name + (d.dose ? ` · ${d.dose}` : "")));
+					row.append(el("span", "planner-dose-time", timeText(d.time)));
+					const pic = pillThumb(d.photo, path);
+					if (pic) row.append(pic);
+					row.append(el("span", "planner-log-text", d.name + (d.dose ? ` · ${d.dose}` : "")));
 					if (d.taken) {
 						row.append(el("span", "planner-log-meta", `✓ ${d.taken.time ? timeText(d.taken.time) : "taken"}`));
 						const x = panelButton("planner-log-x", "×", () => this.health$(view, (t) => removeLine(t, d.taken.line, d.taken.text)));
@@ -649,6 +671,8 @@ class PlannerWidget extends WidgetType {
 				box.append(el("div", "planner-panel-sub", "As needed"));
 				for (const m of prn) {
 					const row = el("div", "planner-dose");
+					const pic = pillThumb(m.photo, path);
+					if (pic) row.append(pic);
 					row.append(el("span", "planner-log-text", m.name + (m.dose ? ` · ${m.dose}` : "")), panelButton("planner-take", "Take", () => take(m, null)));
 					box.append(row);
 				}
@@ -690,8 +714,79 @@ class PlannerWidget extends WidgetType {
 				return wrap;
 			};
 			const row = el("div", "planner-food-opts");
-			row.append(field("name", "Medicine", "Lisinopril"), field("dose", "Dose", "10 mg"));
+			const nameField = field("name", "Medicine", "Lisinopril");
+			const nameInput = nameField.querySelector("input");
+			nameInput.autocomplete = "off";
+			row.append(nameField, field("dose", "Dose", "10 mg"));
 			box.append(row);
+			// Names and strengths from the National Library of Medicine's
+			// RxTerms (src/rxterms.js) as the name is typed; a pick fills the
+			// name and offers its strengths for the dose.
+			const picks = el("div", "planner-med-picks");
+			const showPicks = (into) => {
+				into.replaceChildren();
+				if (f.found?.length) {
+					const list = el("div", "planner-results");
+					for (const r of f.found) {
+						const b = el("button", "planner-result");
+						b.type = "button";
+						b.append(el("span", null, r.label), el("span", "planner-result-meta", r.strengths.length ? `${r.strengths.length} strength${r.strengths.length === 1 ? "" : "s"}` : ""));
+						b.addEventListener("click", () => {
+							Object.assign(f, { name: r.name, strengths: r.strengths, found: null });
+							if (!f.dose.trim() && r.strengths.length === 1) f.dose = strengthDose(r.strengths[0]);
+							redraw();
+						});
+						list.append(b);
+					}
+					into.append(list);
+				}
+				if (f.searchError) into.append(el("p", "planner-panel-hint", f.searchError));
+			};
+			showPicks(picks);
+			box.append(picks);
+			nameInput.addEventListener("input", () => {
+				clearTimeout(st.timer);
+				const q = f.name.trim();
+				const update = () => { const into = box.querySelector(".planner-med-picks"); if (into && st.form === f) showPicks(into); };
+				if (q.length < 3) { f.found = null; f.searchError = ""; update(); return; }
+				st.timer = setTimeout(async () => {
+					try {
+						const found = await searchMeds(q);
+						if (f.name.trim() !== q) return;
+						Object.assign(f, { found, searchError: found.length ? "" : "No medicines by that name. You can still add it as typed." });
+					} catch {
+						Object.assign(f, { found: null, searchError: "Couldn't reach the medicine list. Type the name and dose yourself." });
+					}
+					update();
+				}, 300);
+			});
+			if (f.strengths?.length) {
+				const chips = el("div", "planner-med-strengths");
+				for (const s of f.strengths) {
+					const b = panelButton("planner-day", s, () => { f.dose = strengthDose(s); redraw(); });
+					b.setAttribute("aria-pressed", String(f.dose.trim() === strengthDose(s)));
+					chips.append(b);
+				}
+				box.append(chips);
+			}
+			// A photo of the pill, so it's easy to tell which one is which.
+			const photoRow = el("div", "planner-med-photo");
+			const shown = pillThumb(f.photo, path);
+			if (shown) photoRow.append(shown);
+			if (f.photoBusy) photoRow.append(el("span", "planner-panel-hint", "Saving the photo…"));
+			else {
+				photoRow.append(panelButton("planner-link", f.photo ? "Retake the photo" : "📷 Photo of the pill", async () => {
+					const shot = await choosePhoto();
+					if (!shot) return;
+					f.photoBusy = true;
+					redraw();
+					try { f.photo = await host.medPhoto(await shrinkPhoto(shot), f.name.trim()); } catch {}
+					f.photoBusy = false;
+					redraw();
+				}));
+				if (f.photo) photoRow.append(panelButton("planner-link", "Remove", () => { f.photo = ""; redraw(); }));
+			}
+			box.append(photoRow);
 			const prn = el("label", "planner-check");
 			const cb = el("input");
 			cb.type = "checkbox";
@@ -711,7 +806,8 @@ class PlannerWidget extends WidgetType {
 			}
 			if (f.error) box.append(el("p", "planner-panel-error", f.error));
 			const foot = el("div", "planner-panel-foot");
-			foot.append(panelButton("planner-link", "Cancel", () => { st.form = null; redraw(); }), panelButton("planner-log-btn", f.line == null ? "Add" : "Save", async () => {
+			foot.append(panelButton("planner-link", "Cancel", () => { clearTimeout(st.timer); st.form = null; redraw(); }), panelButton("planner-log-btn", f.line == null ? "Add" : "Save", async () => {
+				clearTimeout(st.timer);
 				const name = f.name.trim();
 				const parts = f.times.split(/\s*,\s*/).filter(Boolean);
 				const times = f.asNeeded ? [] : parts.map(parseTime);
@@ -720,7 +816,7 @@ class PlannerWidget extends WidgetType {
 				else if (!f.asNeeded && !f.days.size) f.error = "Pick at least one day.";
 				else {
 					st.form = null;
-					await write((t) => putMed(t, { name, dose: f.dose.trim(), times: [...new Set(times)].sort(), days: f.days.size === 7 ? null : [...f.days].sort() }, f.line));
+					await write((t) => putMed(t, { name, dose: f.dose.trim(), times: [...new Set(times)].sort(), days: f.days.size === 7 ? null : [...f.days].sort(), photo: f.photo }, f.line));
 				}
 				redraw();
 			}));
@@ -730,16 +826,20 @@ class PlannerWidget extends WidgetType {
 		}
 		const open = (m) => {
 			st.form = m
-				? { line: m.line, name: m.name, dose: m.dose, times: m.times.map(timeText).join(", "), asNeeded: m.asNeeded, days: new Set(m.days || [0, 1, 2, 3, 4, 5, 6]), error: "" }
-				: { line: null, name: "", dose: "", times: "", asNeeded: false, days: new Set([0, 1, 2, 3, 4, 5, 6]), error: "" };
+				? { line: m.line, name: m.name, dose: m.dose, times: m.times.map(timeText).join(", "), asNeeded: m.asNeeded, days: new Set(m.days || [0, 1, 2, 3, 4, 5, 6]), photo: m.photo || "", error: "" }
+				: { line: null, name: "", dose: "", times: "", asNeeded: false, days: new Set([0, 1, 2, 3, 4, 5, 6]), photo: "", error: "" };
 			redraw();
 		};
 		if (!meds.length) box.append(el("p", "planner-panel-empty", "Nothing listed yet. Add each medicine with its dose and when you take it, and the Meds button counts the day's doses."));
 		for (const m of meds) {
 			const row = el("div", "planner-log");
+			const pic = pillThumb(m.photo, path);
+			if (pic) row.append(pic);
 			const when = m.asNeeded ? "as needed" : m.times.map(timeText).join(", ") + (m.days ? ` · ${daysText(m.days)}` : "");
 			row.append(el("span", "planner-log-text", m.name + (m.dose ? ` · ${m.dose}` : "")), el("span", "planner-log-meta", when));
-			row.append(panelButton("planner-link", "Edit", () => open(m)));
+			const label = el("a", "planner-link", "Label");
+			Object.assign(label, { href: dailyMedLink(m.name), target: "_blank", rel: "noopener noreferrer", title: `${m.name}'s prescribing information on DailyMed` });
+			row.append(label, panelButton("planner-link", "Edit", () => open(m)));
 			const x = panelButton("planner-log-x", "×", () => { if (confirm(`Take ${m.name} off the list?`)) write((t) => removeMed(t, m.line)); });
 			x.title = "Take it off the list";
 			row.append(x);

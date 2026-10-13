@@ -9,24 +9,11 @@
 // food is saved. On a phone, the file picker offers the camera.
 
 import { parseLabel, addsUp } from "./label.js";
+import { choosePhoto } from "./photo.js";
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 export const GROUPS = ["Produce", "Grain", "Protein", "Dairy", "Dairy Alternative", "Legume", "Fat/Oil", "Fat/Protein", "Sweetener", "Beverage", "Condiment", "Spice", "Snack", "Other"];
-
-function choosePhoto() {
-	return new Promise((resolve) => {
-		// In the page while it's open: Safari ignores a click on a detached
-		// input, and a phone can let one go while the camera is up.
-		const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/*", hidden: true });
-		input.setAttribute("capture", "environment");
-		document.body.append(input);
-		input.addEventListener("change", () => { resolve(input.files[0] || null); input.remove(); }, { once: true });
-		input.addEventListener("cancel", () => { resolve(null); input.remove(); }, { once: true });
-		window.addEventListener("focus", () => setTimeout(() => { if (!input.files?.length) input.remove(); }, 1000), { once: true });
-		input.click();
-	});
-}
 
 // known(barcode) -> the Nutrition Database's food with that barcode as an
 // alias, or null.
