@@ -4682,8 +4682,6 @@ function applyTheme() {
 		b.setAttribute("aria-pressed", String(!oneMode && b.dataset.theme === mode));
 		b.disabled = oneMode;
 	});
-	const meta = document.querySelector("meta[name=theme-color]");
-	if (meta) meta.content = getComputedStyle(root).getPropertyValue("--bg").trim();
 }
 
 // The editor's font (Settings > Appearance), per device.

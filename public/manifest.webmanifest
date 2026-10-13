@@ -3,8 +3,8 @@
 	"short_name": "wr1t3r",
 	"start_url": "/",
 	"display": "standalone",
-	"background_color": "#f7f6f2",
-	"theme_color": "#f7f6f2",
+	"background_color": "#2f6f5e",
+	"theme_color": "#2f6f5e",
 	"icons": [
 		{
 			"src": "/icon.svg",
