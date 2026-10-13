@@ -152,3 +152,30 @@ test("people's medicines live in their own folder", async () => {
 	assert.deepEqual(r.map((x) => x.title), ["💊 Mom: Lisinopril 10 mg"]);
 	assert.notEqual(r[0].id, medReminders(meds, { from: new Date(2026, 9, 13, 9).getTime(), days: 1 })[0].id);
 });
+
+test("a course with dates, a purpose and a note, and its chart", async () => {
+	const { parseDate, activeOn, scheduleText, medChart } = await import("../src/meds.js");
+	assert.equal(parseDate("10/20/26"), "2026-10-20");
+	assert.equal(parseDate("2026-10-24"), "2026-10-24");
+	assert.equal(parseDate("2/30/26"), null);
+	const m = parseMed("Ondansetron | 8 mg | 6am, 3pm, 10pm | from 10/20/26 | until 2026-10-24 | purpose: Prevents nausea | note: Then as needed every 8 h");
+	assert.deepEqual([m.from, m.until, m.purpose, m.note, m.dose, m.times], ["2026-10-20", "2026-10-24", "Prevents nausea", "Then as needed every 8 h", "8 mg", ["06:00", "15:00", "22:00"]]);
+	assert.equal(medLine(m), "Ondansetron | 8 mg | 06:00, 15:00, 22:00 | from 2026-10-20 | until 2026-10-24 | purpose: Prevents nausea | note: Then as needed every 8 h");
+	assert.deepEqual(parseMed(medLine(m)), m);
+	assert.equal(activeOn(m, "2026-10-19"), false);
+	assert.equal(activeOn(m, "2026-10-24"), true);
+	assert.equal(dosesOn([m], "2026-10-25").length, 0);
+	assert.equal(dosesOn([m], "2026-10-21").length, 3);
+	assert.match(scheduleText(m), /^8 mg, 3 times a day · Start Oct 20(, 2026)? · Last dose Oct 24(, 2026)? · Then as needed every 8 h$/);
+	const bactrim = parseMed("Bactrim DS | 1 tab | 11am | Mon, Wed, Fri | from 2026-11-19");
+	assert.match(scheduleText(bactrim), /^1 tab, once a day, Mon, Wed, Fri · Start Nov 19/);
+	const prn = parseMed("Ibuprofen | 200 mg | as needed");
+	const chart = medChart([m, bactrim, prn], "2026-10-21", [medEntry("06:05 | Ondansetron | 8 mg | for 06:00 | by Sam"), medEntry("13:00 | Ibuprofen | 200 mg")]);
+	assert.deepEqual(chart.times, ["06:00", "11:00", "15:00", "22:00"]);
+	assert.equal(chart.rows[0].cells["06:00"].given.by, "Sam");
+	assert.equal(chart.rows[0].cells["15:00"].due, true);
+	assert.equal(chart.rows[0].cells["15:00"].given, null);
+	assert.equal(chart.rows[1].active, false);
+	assert.equal(chart.rows[1].cells["11:00"].due, false);
+	assert.equal(chart.rows[2].given.length, 1);
+});

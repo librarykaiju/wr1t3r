@@ -20,9 +20,10 @@ import {
 	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine, HABITS, untick, LABEL_TARGETS, itemsUnder, syncMedsLog,
 } from "./planner.js";
 import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn, addDays } from "./habits.js";
-import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText, medEntry, alreadyGiven, personMedsPath, personLogPath, personFolder, cleanPerson, newMedsNote, newMedsLog } from "./meds.js";
+import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText, medEntry, alreadyGiven, personMedsPath, personLogPath, personFolder, cleanPerson, newMedsNote, newMedsLog, activeOn, parseDate, shortDate } from "./meds.js";
 import { searchMeds, strengthDose, dailyMedLink } from "./rxterms.js";
 import { choosePhoto, shrinkPhoto } from "./photo.js";
+import { openMedChart } from "./medchartview.js";
 import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES, ADULT } from "./targets.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
@@ -365,6 +366,7 @@ class PlannerWidget extends WidgetType {
 				}
 				healthMenu(b, [
 					[meds.length ? "Medications…" : "Set up medications…", () => this.medsPanel(view, b, { edit: !meds.length })],
+					...(meds.length ? [["Medication chart", () => this.medsChart(view)], ["Blank chart to print", () => this.medsChart(view, null, { blank: true })]] : []),
 					...(path ? [["Open the medications list", () => host.open(path)]] : []),
 				]);
 			},
@@ -404,6 +406,7 @@ class PlannerWidget extends WidgetType {
 			} else b = tile("meds", "💊", p.who, p.meds.length ? (p.taken.length ? `${p.taken.length} given` : "As needed") : "Set up", open);
 			if (!off) onMenu(b, (x, y) => menu([
 				[`${p.who}'s medications…`, () => this.medsPanel(view, b, { who: p.who, edit: true })],
+				...(p.meds.length ? [["Medication chart", () => this.medsChart(view, p.who)], ["Blank chart to print", () => this.medsChart(view, p.who, { blank: true })]] : []),
 				...(p.path ? [["Open the medications list", () => host.open(p.path)]] : []),
 				...(this.day ? [["Open today's log", () => host.open(personLogPath(p.who, this.day))]] : []),
 			], x, y));
@@ -705,6 +708,20 @@ class PlannerWidget extends WidgetType {
 		return healthWrites;
 	}
 
+	// The medication chart (src/medchartview.js) for you or a person.
+	medsChart(view, who = null, { blank = false } = {}) {
+		const vault = view.state.facet(vaultHost);
+		const { meds, path } = this.medsScope(view, who);
+		const day = this.day || isoDay(new Date());
+		const logOn = (d) => who ? personLogPath(who, d) : healthPathFor(this.day ? this.path.replace(this.day, d) : this.path);
+		closePanel();
+		openMedChart({
+			title: who ? `${who}'s medicines` : "My medicines", meds, day, blank,
+			takenOn: (d) => itemsUnder(vault.text(logOn(d)) ?? "", MEDS.heading).map((it) => ({ ...it, ...medEntry(it.text) })),
+			pill: (m) => pillThumb(m.photo, path),
+		});
+	}
+
 	// Today's doses with a Take button each, then the as-needed ones; or,
 	// with edit (or no list yet), the list itself to add to and change. who:
 	// a person from the planner's people:, or null for your own.
@@ -778,7 +795,7 @@ class PlannerWidget extends WidgetType {
 					box.append(all);
 				}
 			}
-			const prn = meds.filter((m) => m.asNeeded);
+			const prn = meds.filter((m) => m.asNeeded && (!this.day || activeOn(m, this.day)));
 			if (prn.length) {
 				box.append(el("div", "planner-panel-sub", "As needed"));
 				for (const m of prn) {
@@ -794,6 +811,7 @@ class PlannerWidget extends WidgetType {
 				for (const it of status.extra) box.append(this.logRow(view, `${it.time ? timeText(it.time) + " · " : ""}${it.name}`, [it.dose, it.by && `by ${it.by}`].filter(Boolean).join(" · "), it, sc.write));
 			}
 			const foot = el("div", "planner-panel-foot");
+			foot.append(panelButton("planner-link", "Chart", () => this.medsChart(view, who)));
 			foot.append(panelButton("planner-link", "Edit the list", () => { st.edit = true; redraw(); }));
 			if (path) foot.append(panelButton("planner-link", "Open the list note", () => { closePanel(); host.open(path); }));
 			if (host?.setMyName) {
@@ -825,10 +843,10 @@ class PlannerWidget extends WidgetType {
 		};
 		if (st.form) {
 			const f = st.form;
-			const field = (key, label, placeholder) => {
+			const field = (key, label, placeholder, type = "text") => {
 				const wrap = el("label", "planner-field");
 				const input = el("input");
-				Object.assign(input, { type: "text", placeholder, value: f[key] });
+				Object.assign(input, { type, placeholder, value: f[key] });
 				input.dataset.focus = "med-" + key;
 				input.addEventListener("input", () => { f[key] = input.value; });
 				wrap.append(el("span", null, label), input);
@@ -925,6 +943,11 @@ class PlannerWidget extends WidgetType {
 				}
 				box.append(days);
 			}
+			// For the chart, and a course with a first and last day.
+			box.append(field("purpose", "Purpose (optional)", "Prevents nausea"), field("note", "Notes (optional)", "Avoid dairy 2 h before and after"));
+			const dates = el("div", "planner-food-opts");
+			dates.append(field("from", "First day (optional)", "", "date"), field("until", "Last day (optional)", "", "date"));
+			box.append(dates);
 			if (f.error) box.append(el("p", "planner-panel-error", f.error));
 			const foot = el("div", "planner-panel-foot");
 			foot.append(panelButton("planner-link", "Cancel", () => { clearTimeout(st.timer); st.form = null; redraw(); }), panelButton("planner-log-btn", f.line == null ? "Add" : "Save", async () => {
@@ -935,9 +958,10 @@ class PlannerWidget extends WidgetType {
 				if (!name) f.error = "Give it a name.";
 				else if (!f.asNeeded && (!times.length || times.some((t) => !t))) f.error = "Times look like 8am, 8:30pm or 20:00.";
 				else if (!f.asNeeded && !f.days.size) f.error = "Pick at least one day.";
+				else if (parseDate(f.from) && parseDate(f.until) && parseDate(f.until) < parseDate(f.from)) f.error = "The last day is before the first.";
 				else {
 					st.form = null;
-					await write((t) => putMed(t, { name, dose: f.dose.trim(), times: [...new Set(times)].sort(), days: f.days.size === 7 ? null : [...f.days].sort(), photo: f.photo }, f.line));
+					await write((t) => putMed(t, { name, dose: f.dose.trim(), times: [...new Set(times)].sort(), days: f.days.size === 7 ? null : [...f.days].sort(), photo: f.photo, purpose: f.purpose, note: f.note, from: f.from, until: f.until }, f.line));
 				}
 				redraw();
 			}));
@@ -947,8 +971,8 @@ class PlannerWidget extends WidgetType {
 		}
 		const open = (m) => {
 			st.form = m
-				? { line: m.line, name: m.name, dose: m.dose, times: m.times.map(timeText).join(", "), asNeeded: m.asNeeded, days: new Set(m.days || [0, 1, 2, 3, 4, 5, 6]), photo: m.photo || "", error: "" }
-				: { line: null, name: "", dose: "", times: "", asNeeded: false, days: new Set([0, 1, 2, 3, 4, 5, 6]), photo: "", error: "" };
+				? { line: m.line, name: m.name, dose: m.dose, times: m.times.map(timeText).join(", "), asNeeded: m.asNeeded, days: new Set(m.days || [0, 1, 2, 3, 4, 5, 6]), photo: m.photo || "", purpose: m.purpose || "", note: m.note || "", from: m.from || "", until: m.until || "", error: "" }
+				: { line: null, name: "", dose: "", times: "", asNeeded: false, days: new Set([0, 1, 2, 3, 4, 5, 6]), photo: "", purpose: "", note: "", from: "", until: "", error: "" };
 			redraw();
 		};
 		if (!meds.length) box.append(el("p", "planner-panel-empty", "Nothing listed yet. Add each medicine with its dose and when you take it, and the Meds button counts the day's doses."));
@@ -956,7 +980,7 @@ class PlannerWidget extends WidgetType {
 			const row = el("div", "planner-log");
 			const pic = pillThumb(m.photo, path);
 			if (pic) row.append(pic);
-			const when = m.asNeeded ? "as needed" : m.times.map(timeText).join(", ") + (m.days ? ` · ${daysText(m.days)}` : "");
+			const when = (m.asNeeded ? "as needed" : m.times.map(timeText).join(", ") + (m.days ? ` · ${daysText(m.days)}` : "")) + (m.from || m.until ? ` · ${m.from ? shortDate(m.from) : ""}–${m.until ? shortDate(m.until) : ""}` : "");
 			row.append(el("span", "planner-log-text", m.name + (m.dose ? ` · ${m.dose}` : "")), el("span", "planner-log-meta", when));
 			const label = el("a", "planner-link", "Label");
 			Object.assign(label, { href: dailyMedLink(m.name), target: "_blank", rel: "noopener noreferrer", title: `${m.name}'s prescribing information on DailyMed` });

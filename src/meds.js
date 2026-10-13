@@ -86,34 +86,74 @@ export function photoTarget(part) {
 	try { return decodeURIComponent(md[1].trim()); } catch { return md[1].trim(); }
 }
 
+// "2026-10-20", "10/20/26", "10/20/2026" -> "2026-10-20", or null.
+export function parseDate(s) {
+	const t = String(s ?? "").trim();
+	let y, m, d;
+	const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
+	const us = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(t);
+	if (iso) [y, m, d] = iso.slice(1).map(Number);
+	else if (us) { [m, d, y] = us.slice(1).map(Number); if (y < 100) y += 2000; }
+	else return null;
+	const dt = new Date(y, m - 1, d);
+	return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d ? `${y}-${pad(m)}-${pad(d)}` : null;
+}
+
+// The parts a line can carry anywhere after the name: "from 2026-10-20" (the
+// first day), "until 2026-10-24" (the last), "purpose: Prevents nausea" and
+// "note: Avoid dairy 2 h before and after".
+const EXTRA = [
+	["from", /^from\s+(.+)$/i, parseDate],
+	["until", /^until\s+(.+)$/i, parseDate],
+	["purpose", /^purpose:\s*(.+)$/i, (v) => v.trim()],
+	["note", /^notes?:\s*(.+)$/i, (v) => v.trim()],
+];
+
 // "Lisinopril | 10 mg | 08:00 | ![[Lisinopril pill.jpg]]" -> { name, dose,
-// times, asNeeded, days, photo }, or null when it isn't a medicine line.
-// photo, the embed as written, is there only when the line has one, wherever
-// it sits.
+// times, asNeeded, days, photo, from, until, purpose, note }, or null when it
+// isn't a medicine line. photo and the EXTRA parts are there only when the
+// line has them, wherever they sit.
 export function parseMed(text) {
 	const all = String(text).split("|").map((s) => s.trim());
 	const at = all.findIndex((p, i) => i > 0 && photoTarget(p));
 	const photo = at < 0 ? "" : all.splice(at, 1)[0];
-	const parts = all;
+	const extra = {};
+	const parts = all.filter((p, i) => {
+		if (i === 0) return true;
+		for (const [key, re, read] of EXTRA) {
+			const m = re.exec(p);
+			const v = m && read(m[1]);
+			if (v) { extra[key] = v; return false; }
+		}
+		return true;
+	});
 	const name = parts.shift();
 	if (!name) return null;
 	let k = parts.findIndex((p) => parseTimes(p) != null);
 	const times = k < 0 ? [] : parseTimes(parts[k]);
 	const dose = (k < 0 ? parts : parts.slice(0, k)).filter(Boolean).join(" ");
 	const days = k < 0 ? null : parseDays(parts.slice(k + 1).join(", "));
-	return { name, dose, times, asNeeded: !times.length, days, ...(photo ? { photo } : {}) };
+	return { name, dose, times, asNeeded: !times.length, days, ...(photo ? { photo } : {}), ...extra };
 }
 
-export function medLine({ name, dose, times = [], days = null, photo = "" }) {
+export function medLine({ name, dose, times = [], days = null, photo = "", from = null, until = null, purpose = "", note = "" }) {
 	const clean = (s) => String(s ?? "").replace(/\s*[|\n]\s*/g, " ").trim();
 	const parts = [clean(name)];
 	if (clean(dose)) parts.push(clean(dose));
 	parts.push(times.length ? times.join(", ") : "as needed");
 	const d = times.length ? daysText(days) : "";
 	if (d) parts.push(d);
+	if (parseDate(from)) parts.push(`from ${parseDate(from)}`);
+	if (parseDate(until)) parts.push(`until ${parseDate(until)}`);
+	if (clean(purpose)) parts.push(`purpose: ${clean(purpose)}`);
+	if (clean(note)) parts.push(`note: ${clean(note)}`);
 	if (photoTarget(photo)) parts.push(clean(photo));
 	return parts.join(" | ");
 }
+
+// Whether a medicine is taken on day ("2026-10-20"): between its from and
+// until, when it has them.
+export const activeOn = (m, day) => (!m.from || day >= m.from) && (!m.until || day <= m.until);
 
 // The list note's medicines: [{ line, name, dose, times, asNeeded, days }].
 // Tasks, empty "- " lines, and anything in front matter or code are skipped.
@@ -185,7 +225,7 @@ export function dosesOn(meds, day) {
 	const wd = weekday(day);
 	const out = [];
 	for (const m of meds) {
-		if (m.asNeeded || (m.days && !m.days.includes(wd))) continue;
+		if (m.asNeeded || (m.days && !m.days.includes(wd)) || !activeOn(m, day)) continue;
 		for (const time of m.times) out.push({ name: m.name, dose: m.dose, time, ...(m.photo ? { photo: m.photo } : {}) });
 	}
 	return out.sort((a, b) => a.time.localeCompare(b.time) || a.name.localeCompare(b.name));
@@ -291,4 +331,45 @@ export function medReminders(meds, { from = Date.now(), days = 7, takenOn = () =
 		}
 	}
 	return out;
+}
+
+// ---- The chart --------------------------------------------------------------
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export const shortDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return `${MONTHS[m - 1]} ${d}${y !== new Date().getFullYear() ? `, ${y}` : ""}`; };
+
+// "8 mg, twice daily · Start Oct 20 · Last dose Oct 24 · Avoid dairy".
+export function scheduleText(m) {
+	const n = m.times.length;
+	const often = m.asNeeded ? "as needed" : n === 1 ? (m.days ? "once a day" : "once daily") : n === 2 ? "twice daily" : `${n} times a day`;
+	const when = m.days && !m.asNeeded ? `${often}, ${daysText(m.days)}` : often;
+	return [
+		m.dose ? `${m.dose}, ${when}` : when[0].toUpperCase() + when.slice(1),
+		m.from && `Start ${shortDate(m.from)}`,
+		m.until && `Last dose ${shortDate(m.until)}`,
+		m.note,
+	].filter(Boolean).join(" · ");
+}
+
+// The list as a chart for day, like the paper ones a clinic hands out: a row
+// per medicine, a column per time any of them is taken (and "As needed").
+// taken: the day's log entries. -> { times, rows: [{ med, schedule, active,
+// cells: { "08:00": { due, given } }, given (as-needed entries) }] }.
+// A cell with due is a dose on day (given: its log entry, or null); a time
+// the medicine has on other days only shows as not due.
+export function medChart(meds, day, taken = []) {
+	const times = [...new Set(meds.flatMap((m) => m.times))].sort();
+	const st = doseStatus(dosesOn(meds, day), taken);
+	const key = (s) => String(s).trim().toLowerCase();
+	const rows = meds.map((m) => {
+		const active = activeOn(m, day);
+		const cells = {};
+		for (const t of m.times) {
+			const d = st.doses.find((x) => x.time === t && key(x.name) === key(m.name));
+			cells[t] = { due: !!d, given: d?.taken || null };
+		}
+		const given = m.asNeeded && active ? st.extra.filter((e) => key(e.name) === key(m.name)) : [];
+		return { med: m, schedule: scheduleText(m), active, cells, given };
+	});
+	return { times, rows };
 }
