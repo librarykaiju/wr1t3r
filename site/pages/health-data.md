@@ -14,6 +14,8 @@ page: legal
 
 _Last updated October 13, 2026._
 
+Want to add your own foods or recipes? [Skip to that part](#foods).
+
 wr1t3r's planner can work out daily targets for calories, water, protein, fat, carbs, fiber and steps, and add up the calories and nutrients in what you eat. This page lists every source behind those numbers. Each one is a government nutrition reference, a professional society's position statement, or a peer-reviewed study or review.
 
 **These numbers are estimates, not medical advice.** The formulas describe the average healthy adult. Your own needs can be different, especially if you're pregnant or breastfeeding, have a health condition (kidney, heart or liver disease, diabetes, an eating disorder), take medication that affects appetite or fluids, or are under a doctor's care. If a doctor or dietitian has given you different numbers, use theirs.
@@ -64,9 +66,63 @@ The ranges, the protein allowance, the carb minimum and the fiber figure all com
 
 - **Built in:** USDA's _SR Legacy_ food table, about 7,800 common foods (no brands), shipped with the app and searched on your device. U.S. Department of Agriculture, Agricultural Research Service, FoodData Central, 2018. It's public domain.
 - **Search USDA:** where it's set up, the Food button also searches all of USDA FoodData Central, which includes branded foods with their label serving sizes.
-- **Your own Nutrition Database:** every food you log comes from a table in a note called _Nutrition Database_, in your own Dropbox or Google Drive. Picking a USDA result adds it there. You can also type in your own foods as new rows, or use _Sync to Nutrition Database_ on a recipe note to add the recipe with its nutrition worked out per serving. Each row is a food, a serving, then calories, fat, carbs, protein and fiber.
 
 Calorie counts on food labels and in databases are averages. Real food varies, and US labels are allowed to be off by up to 20%.
+
+--- foods
+
+## Adding foods to your Nutrition Database
+
+Every food you log comes from a table in a note called _Nutrition Database_, in your own Dropbox or Google Drive. Each row is one food: its name, a serving, then calories, fat, carbs, protein and fiber for that serving, a food group and any other names you call it by. If you don't have the note yet, the Food button's _Make one_ makes it.
+
+There are four ways to fill it.
+
+### From a USDA search
+
+On the Food button, type a food and press _Search USDA_. Picking a result adds it to the table and logs it.
+
+### By hand
+
+Open the Nutrition Database note and add a row to the table, one cell per column. Put other names in the _Aliases_ cell, separated by commas, and the Food button finds the food by those too.
+
+### From a spreadsheet
+
+Commands > _Import foods into the Nutrition Database_ takes a CSV file: Excel, Numbers and Google Sheets all save one, and many food trackers can export one. The first row has to name the columns. Their order doesn't matter, and columns it doesn't know are skipped.
+
+| Column | Also matches | |
+| --- | --- | --- |
+| Food | Name, Food Name, Description, Item | needed |
+| Calories | Energy (kcal), kcal, Energy | needed |
+| Serving Size | Serving, Amount, Portion | "1 serving" if it's missing |
+| Fat | Total Fat | grams; 0 if it's missing |
+| Carbs | Carbohydrates, Total Carbs | grams |
+| Protein | | grams |
+| Fiber | Fibre, Dietary Fiber | grams |
+| Food Group | Group, Category | "Other" if it's missing |
+| Aliases | | other names, separated by commas |
+
+Units in brackets, like _Fat (g)_, are fine. A food already in your table (same name) stays as it is, so importing the same file twice doesn't add anything twice. If a file lists a food more than once, the first one wins.
+
+### From your recipes
+
+A recipe note gives you one row for a whole dish, per serving. Give the note a _yield_ property with the number of servings it makes, then list what goes in under an _Ingredients_ heading:
+
+```
+## Ingredients
+- Ground beef, 2
+- Kidney beans, 1.5
+- Onion, 1 (diced)
+- Chili powder, 0.5
+
+## Instructions
+...
+```
+
+- **yield** is how many servings the recipe makes. Leave it out and the whole dish counts as one serving.
+- **Each ingredient** is a food from your Nutrition Database, a comma, and how many of _its_ servings go in. If the database says _Kidney beans_ is 1 cup, then _Kidney beans, 1.5_ means one and a half cups. Anything after the number, like _(diced)_, is ignored.
+- **Add any missing ingredients first.** wr1t3r tells you how many it couldn't find, and leaves them out of the numbers.
+
+With the note open, Commands > _Add this recipe to the Nutrition Database_ adds it as a row named after the note (or its _title_ property), in the _Recipe_ food group. Change the recipe and run it again to update the row. Recipe notes made from the Obsidian Recipe template also have a _Sync to Nutrition Database_ button that does the same thing.
 
 --- footer
 

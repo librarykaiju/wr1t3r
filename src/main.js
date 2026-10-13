@@ -1890,6 +1890,9 @@ const plannerHost = {
 		scheduleSync();
 		return path;
 	},
+	// The Nutrition Database, made beside the medicine list (or in the notes'
+	// folder) when it isn't there.
+	nutritionNote: () => nutritionNote(),
 	// The Daily template, saved from the built-in one when the vault has none,
 	// so the planner's shared settings have somewhere to live.
 	async dailyTemplate() {
@@ -3302,6 +3305,8 @@ function allCommands() {
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
 		["Log food", logFood, "eat meal nutrition calories health usda planner"],
+		["Import foods into the Nutrition Database", importFoods, "csv spreadsheet foods nutrition database calories import cronometer"],
+		["Add this recipe to the Nutrition Database", syncRecipe, "recipe ingredients nutrition database calories per serving sync"],
 		...(featureOn("daily") ? [["Mood, sleep and weight", moodTrends, "trends chart graph health stats tracker mood sleep weight history"]] : []),
 		["Write this week's review", () => writeReview("week"), "weekly review reflect journal recap"],
 		["Write this month's review", () => writeReview("month"), "monthly review reflect journal recap"],
@@ -4109,6 +4114,63 @@ async function renameNote(from, input) {
 	await followPins(new Map([[from, to]]), paths);
 	openNote(to);
 	scheduleSync(0);
+}
+
+// ---- Nutrition Database (src/foodimport.js, src/recipe.js) ---------------------------
+
+function nutritionNotePath() {
+	return visible().map((n) => n.path).filter((p) => /(^|\/)Nutrition Database\.md$/i.test(p)).sort((a, b) => a.length - b.length)[0] || null;
+}
+
+async function nutritionNote() {
+	const have = nutritionNotePath();
+	if (have) return have;
+	const fi = await import("./foodimport.js");
+	const meds = medsNotePath();
+	const path = (meds ? meds.slice(0, meds.lastIndexOf("/") + 1) : commonFolder(visible())) + fi.NUTRITION_NOTE;
+	await change(path, (cur) => ({ path, text: fi.newNutritionNote(), base: cur?.base ?? null, dirty: true, deleted: false }));
+	renderTree();
+	scheduleSync();
+	return path;
+}
+
+async function importFoods() {
+	const file = await chooseFile(".csv,text/csv");
+	if (!file) return;
+	const fi = await import("./foodimport.js");
+	let read;
+	try { read = fi.readFoodCsv(await file.text()); } catch (e) { return toast(e.message, 8000); }
+	if (!read.foods.length) return toast("That file has no foods with a name and calories.");
+	if (!confirm(`Add ${read.foods.length} food${read.foods.length === 1 ? "" : "s"} to the Nutrition Database?\n\nFoods already in it (same name) stay as they are.` +
+		(read.skipped ? ` ${read.skipped} row${read.skipped === 1 ? "" : "s"} with no name or calories will be left out.` : ""))) return;
+	const path = await nutritionNote();
+	let r = { added: 0, already: 0 };
+	await dataviewVault.write(path, (t) => { r = fi.addFoods(t, read.foods); return r.text; });
+	scheduleSync();
+	toast(`Added ${r.added} food${r.added === 1 ? "" : "s"}` + (r.already ? `; ${r.already} ${r.already === 1 ? "was" : "were"} already there.` : "."), 6000);
+}
+
+// The open note as a recipe: its "## Ingredients" list, matched against the
+// database, per serving of its yield: property.
+async function syncRecipe() {
+	const path = editor.path;
+	if (!path || !editor.view) return toast("Open a recipe note first.");
+	const { recipeSync, upsertRecipeRow } = await import("./recipe.js");
+	const text = editor.view.state.doc.toString();
+	const db = nutritionNotePath();
+	const info = recipeSync(text, path, db ? notes.get(db)?.text || "" : "");
+	if (!info.ingredients) return toast("This note has no list under an \"## Ingredients\" heading.", 6000);
+	const dbPath = db || await nutritionNote();
+	let r = null;
+	await dataviewVault.write(dbPath, (t) => {
+		const fresh = recipeSync(text, path, t);
+		r = upsertRecipeRow(t, fresh.name, fresh.row);
+		return r.text;
+	});
+	scheduleSync();
+	if (r?.error) return toast(r.error, 8000);
+	toast(`${r?.action || "Kept"} “${info.name}”: ${info.per.calories} cal per serving` +
+		(info.unmatched ? `. ${info.unmatched} ingredient${info.unmatched === 1 ? " isn't" : "s aren't"} in the database, so ${info.unmatched === 1 ? "it's" : "they're"} left out.` : "."), 8000);
 }
 
 // ---- StoryGraph import (src/storygraph.js) -----------------------------------------

@@ -22,9 +22,6 @@ import {
 import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn, addDays } from "./habits.js";
 import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText } from "./meds.js";
 import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES, ADULT } from "./targets.js";
-
-// Where the targets' numbers come from.
-const HEALTH_DATA = "https://wr1t3r.app/health-data.html";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
 import { isoDay } from "./tasks.js";
@@ -42,8 +39,12 @@ import { lineChart, sliceColor } from "./charts.js";
 
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 
+// Where the targets' numbers come from.
+const HEALTH_DATA = "https://wr1t3r.app/health-data.html";
+
 // Set by main.js: { healthNote(dailyPath) -> Promise<path> (made from the
-// template if needed), medsNote() -> Promise<path> (made if needed),
+// template if needed), medsNote() and nutritionNote() -> Promise<path> (made
+// if needed),
 // dailyTemplate() -> Promise<path|null> (the built-in one saved to the vault
 // if it isn't there), settings(tab), events(day) -> Promise<events|null>,
 // image(ref, from), open(path), toast(text), usda(query) -> Promise<foods>
@@ -404,7 +405,8 @@ class PlannerWidget extends WidgetType {
 			const { foods, path: dbPath } = nutrition(view.state, this.cfg);
 			box.append(el("div", "planner-panel-title", "Log food"));
 			if (!dbPath) {
-				box.append(el("p", "planner-panel-empty", this.cfg.nutrition ? `Couldn't find ${this.cfg.nutrition}.` : "There's no Nutrition Database.md in the vault."));
+				box.append(el("p", "planner-panel-empty", this.cfg.nutrition ? `Couldn't find ${this.cfg.nutrition}.` : "Foods are logged from a Nutrition Database note, and there isn't one yet."));
+				if (!this.cfg.nutrition && host?.nutritionNote) box.append(panelButton("planner-log-btn", "Make one", async () => { await host.nutritionNote(); redrawPanel(this.panelKey); }));
 				return;
 			}
 			const row = el("div", "planner-food-opts");
