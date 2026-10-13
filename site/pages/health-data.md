@@ -1,6 +1,6 @@
 ---
 title: "wr1t3r: where the health numbers come from"
-description: "The published guidelines and studies behind wr1t3r's calorie, water, protein, fiber, step and sleep targets, and the USDA food data behind its calorie counts."
+description: "The published guidelines and studies behind wr1t3r's calorie, water, protein, fiber, step and sleep targets, the USDA food data behind its calorie counts, and how to add your own foods and recipes."
 page: legal
 ---
 
@@ -64,7 +64,9 @@ The ranges, the protein allowance, the carb minimum and the fiber figure all com
 
 ## Calories in food
 
-- **Built in:** USDA's _SR Legacy_ food table, about 7,800 common foods (no brands), shipped with the app and searched on your device. U.S. Department of Agriculture, Agricultural Research Service, FoodData Central, 2018. It's public domain.
+- **Built in, foods as people eat them:** USDA's _Food and Nutrient Database for Dietary Studies_ (FNDDS), about 5,000 foods and drinks the way Americans actually eat them, from "Pizza, cheese, from restaurant" to "Latte, whole milk". It's the database behind the national food survey (What We Eat in America), and USDA updates it every two years. U.S. Department of Agriculture, Agricultural Research Service, FoodData Central. Public domain.
+- **Built in, ingredients:** USDA's _SR Legacy_ table, about 7,800 basic foods like "Onions, raw" and "Wheat flour, white, all-purpose", which recipes need. U.S. Department of Agriculture, Agricultural Research Service, FoodData Central, 2018. Public domain.
+- Both are shipped with the app and searched on your device. FNDDS matches are listed first.
 - **Search USDA:** where it's set up, the Food button also searches all of USDA FoodData Central, which includes branded foods with their label serving sizes.
 
 Calorie counts on food labels and in databases are averages. Real food varies, and US labels are allowed to be off by up to 20%.
@@ -120,9 +122,9 @@ A recipe note gives you one row for a whole dish, per serving. Give the note a _
 
 - **yield** is how many servings the recipe makes. Leave it out and the whole dish counts as one serving.
 - **Each ingredient** is a food from your Nutrition Database, a comma, and how many of _its_ servings go in. If the database says _Kidney beans_ is 1 cup, then _Kidney beans, 1.5_ means one and a half cups. Anything after the number, like _(diced)_, is ignored.
-- **Add any missing ingredients first.** wr1t3r tells you how many it couldn't find, and leaves them out of the numbers.
+- **Missing ingredients get looked up for you.** When an ingredient isn't in your database, wr1t3r finds the closest USDA foods and lets you pick one (or skip it) before it works out the numbers. Each pick is added to your database with the ingredient's name as another name for it, so next time it matches straight away. Check the serving size it shows, because your amount counts in that serving.
 
-With the note open, Commands > _Add this recipe to the Nutrition Database_ adds it as a row named after the note (or its _title_ property), in the _Recipe_ food group. Change the recipe and run it again to update the row. Recipe notes made from the Obsidian Recipe template also have a _Sync to Nutrition Database_ button that does the same thing.
+With the note open, Commands > _Add this recipe to the Nutrition Database_ adds it as a row named after the note (or its _title_ property), in the _Recipe_ food group. Change the recipe and run it again to update the row. Recipe notes made from the Obsidian Recipe template also have a _Sync to Nutrition Database_ button that does the same thing, with a _Find them in USDA foods_ link when ingredients are missing.
 
 --- footer
 

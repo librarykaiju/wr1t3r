@@ -43,7 +43,32 @@ export class RecipeSyncWidget extends WidgetType {
 				: info.existing ? `“${info.name}” is in the database with older numbers. Sync to update it.`
 				: `“${info.name}” isn't in the database yet.`;
 			status.append(el("div", null, numbers), el("div", null, state));
-			if (info.unmatched) status.append(el("div", "md-recipe-sync-warn", `${info.unmatched} ingredient${info.unmatched === 1 ? "" : "s"} not in the database; the numbers leave ${info.unmatched === 1 ? "it" : "them"} out.`));
+			if (info.unmatched) {
+				const warn = el("div", "md-recipe-sync-warn", `${info.unmatched} ingredient${info.unmatched === 1 ? "" : "s"} not in the database; the numbers leave ${info.unmatched === 1 ? "it" : "them"} out. `);
+				const find = el("button", "md-recipe-find", "Find them in USDA foods");
+				find.type = "button";
+				find.disabled = view.state.readOnly;
+				find.addEventListener("mousedown", (e) => e.preventDefault());
+				find.addEventListener("click", async () => {
+					const host = view.state.facet(vaultHost);
+					if (!host?.write || !this.dbPath) return;
+					find.disabled = true;
+					try {
+						const { pickIngredientFoods } = await import("./ingredientview.js");
+						const { addFoods } = await import("./foodimport.js");
+						const picked = await pickIngredientFoods(view.state.doc.toString(), host.text(this.dbPath) || "");
+						if (picked?.foods.length) {
+							await host.write(this.dbPath, (t) => addFoods(t, picked.foods).text);
+							status.replaceChildren(el("div", null, `Added ${picked.foods.length} food${picked.foods.length === 1 ? "" : "s"} to the database. Sync to update the recipe.`));
+						}
+					} catch (e) {
+						status.append(el("div", "md-recipe-sync-warn", String(e?.message || e)));
+					}
+					find.disabled = false;
+				});
+				warn.append(find);
+				status.append(warn);
+			}
 			button.disabled = view.state.readOnly || !info.ingredients || info.upToDate;
 			if (info.upToDate) button.textContent = "Synced";
 		}

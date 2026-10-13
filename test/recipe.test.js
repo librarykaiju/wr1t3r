@@ -61,3 +61,24 @@ test("the template's sync block is recognized, with its database path", () => {
 	assert.deepEqual(ingredientEntry("Butter, 8 tbsp (1 stick unsalted, room temp)", known), { name: "Butter", servings: 8 });
 	assert.deepEqual(ingredientEntry("Chicken Pieces (bone-in, skin-on, raw), 2", known), { name: "Chicken Pieces (bone-in, skin-on, raw)", servings: 2 });
 });
+
+test("missing ingredients and their closest foods", async () => {
+	const { missingIngredients, closestFood, closestFoods, matchIngredients, asIngredient } = await import("../src/recipe.js");
+	assert.deepEqual(missingIngredients(RECIPE, DB), ["Unicorn dust"]);
+	const foods = [
+		["Onion rings, breaded, par fried, frozen", "1 cup"], ["Onions, raw", "1 cup, chopped"], ["Beef, ground, 80% lean meat / 20% fat, raw", "4 oz"],
+		["Fast foods, nachos, with cheese, beans, ground beef, and tomatoes", "1 serving"], ["Sugar-apples, (sweetsop), raw", "1 cup"], ["Sugars, granulated", "1 tsp"],
+		["Spices, paprika", "1 tsp"],
+	].map(([name, serving]) => ({ name, serving, calories: 1, aliases: [] }));
+	assert.equal(closestFood(foods, "onions").name, "Onions, raw");
+	assert.equal(closestFood(foods, "Ground beef").name, "Beef, ground, 80% lean meat / 20% fat, raw");
+	assert.equal(closestFood(foods, "sugar").name, "Sugars, granulated");
+	assert.equal(closestFood(foods, "smoked paprika powder").name, "Spices, paprika");
+	assert.equal(closestFood(foods, "Unicorn dust"), null);
+	assert.equal(closestFoods(foods, "onion").length, 2);
+	const m = matchIngredients(["Onion", "Unicorn dust"], foods);
+	assert.deepEqual(m.map((x) => x.options.length), [2, 0]);
+	// Added with the ingredient as an alias, the recipe finds it.
+	const withOnion = DB.replace("| Scrambled Eggs |", `| ${asIngredient(m[0].options[0], "Onion").name} | 1 cup | 64 | 0.2 | 15 | 1.8 | 2.7 | Produce | Onion | |\n| Scrambled Eggs |`);
+	assert.deepEqual(missingIngredients(RECIPE.replace("- Unicorn dust, 1", "- Onion, 1"), withOnion), []);
+});

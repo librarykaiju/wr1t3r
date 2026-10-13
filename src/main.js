@@ -1917,7 +1917,7 @@ const plannerHost = {
 	open: (path) => openNote(path),
 	toast: (text) => toast(text),
 	// Live USDA search through the Worker; with no Worker or no USDA key, the
-	// SR Legacy table shipped with the app (src/foodtable.js).
+	// USDA tables shipped with the app (src/foodtable.js).
 	async usda(q) {
 		const here = () => import("./foodtable.js").then((t) => t.searchBundled(q));
 		if (onDropbox) return here();
@@ -4158,9 +4158,17 @@ async function syncRecipe() {
 	const { recipeSync, upsertRecipeRow } = await import("./recipe.js");
 	const text = editor.view.state.doc.toString();
 	const db = nutritionNotePath();
-	const info = recipeSync(text, path, db ? notes.get(db)?.text || "" : "");
-	if (!info.ingredients) return toast("This note has no list under an \"## Ingredients\" heading.", 6000);
+	if (!recipeSync(text, path, db ? notes.get(db)?.text || "" : "").ingredients) return toast("This note has no list under an \"## Ingredients\" heading.", 6000);
 	const dbPath = db || await nutritionNote();
+	// Ingredients the database doesn't have: the closest USDA foods, picked
+	// in a dialog, go in first.
+	const { pickIngredientFoods } = await import("./ingredientview.js");
+	const { addFoods } = await import("./foodimport.js");
+	let picked;
+	try { picked = await pickIngredientFoods(text, notes.get(dbPath)?.text || ""); } catch (e) { return toast(e.message, 8000); }
+	if (!picked) return;
+	if (picked.foods.length) await dataviewVault.write(dbPath, (t) => addFoods(t, picked.foods).text);
+	const info = recipeSync(text, path, notes.get(dbPath)?.text || "");
 	let r = null;
 	await dataviewVault.write(dbPath, (t) => {
 		const fresh = recipeSync(text, path, t);
