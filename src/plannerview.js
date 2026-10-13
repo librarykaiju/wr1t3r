@@ -495,6 +495,8 @@ class PlannerWidget extends WidgetType {
 			photo.title = "Add a food from a photo of its barcode or Nutrition Facts label. The photo is read on this device, and you check the numbers before it's saved.";
 			photo.setAttribute("aria-label", "Add a food from a photo of its barcode or label");
 			photo.addEventListener("click", async () => {
+				// Out of the way of the photo's dialog, which opens under panels.
+				closePanel();
 				const { foodFromLabel } = await import("./labelview.js");
 				const f = await foodFromLabel({ known: (code) => foods.find((x) => x.aliases.includes(code)) || null });
 				if (f) await addAndLog(f);

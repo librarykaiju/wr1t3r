@@ -16,10 +16,14 @@ export const GROUPS = ["Produce", "Grain", "Protein", "Dairy", "Dairy Alternativ
 
 function choosePhoto() {
 	return new Promise((resolve) => {
-		const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/*" });
+		// In the page while it's open: Safari ignores a click on a detached
+		// input, and a phone can let one go while the camera is up.
+		const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/*", hidden: true });
 		input.setAttribute("capture", "environment");
-		input.addEventListener("change", () => resolve(input.files[0] || null), { once: true });
-		input.addEventListener("cancel", () => resolve(null), { once: true });
+		document.body.append(input);
+		input.addEventListener("change", () => { resolve(input.files[0] || null); input.remove(); }, { once: true });
+		input.addEventListener("cancel", () => { resolve(null); input.remove(); }, { once: true });
+		window.addEventListener("focus", () => setTimeout(() => { if (!input.files?.length) input.remove(); }, 1000), { once: true });
 		input.click();
 	});
 }
