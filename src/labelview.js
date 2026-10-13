@@ -1,8 +1,12 @@
-// A food from a photo of its Nutrition Facts label: the photo is read on this
-// device (src/localocr.js, Tesseract; it never leaves the device), the numbers
-// picked out (src/label.js), and a form shows them beside the photo to check
-// and name before the food is saved. On a phone, the file picker offers the
-// camera.
+// A food from a photo of its package: its barcode or its Nutrition Facts
+// label. The photo is read on this device and never leaves it. A barcode
+// (src/barcode.js) is looked for first: a food already in the Nutrition
+// Database under that barcode comes straight back; otherwise Open Food Facts
+// is asked for it (src/openfoodfacts.js; only the digits are sent). With no
+// barcode, or one Open Food Facts doesn't know, the label's text is read
+// (src/localocr.js, Tesseract) and its numbers picked out (src/label.js).
+// Either way a form shows them beside the photo to check and name before the
+// food is saved. On a phone, the file picker offers the camera.
 
 import { parseLabel, addsUp } from "./label.js";
 
@@ -12,22 +16,51 @@ export const GROUPS = ["Produce", "Grain", "Protein", "Dairy", "Dairy Alternativ
 
 function choosePhoto() {
 	return new Promise((resolve) => {
-		const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/*" });
+		// In the page while it's open: Safari ignores a click on a detached
+		// input, and a phone can let one go while the camera is up.
+		const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/*", hidden: true });
 		input.setAttribute("capture", "environment");
-		input.addEventListener("change", () => resolve(input.files[0] || null), { once: true });
-		input.addEventListener("cancel", () => resolve(null), { once: true });
+		document.body.append(input);
+		input.addEventListener("change", () => { resolve(input.files[0] || null); input.remove(); }, { once: true });
+		input.addEventListener("cancel", () => { resolve(null); input.remove(); }, { once: true });
+		window.addEventListener("focus", () => setTimeout(() => { if (!input.files?.length) input.remove(); }, 1000), { once: true });
 		input.click();
 	});
 }
 
+// known(barcode) -> the Nutrition Database's food with that barcode as an
+// alias, or null.
 // -> a food ({ name, serving, calories, fat, carbs, protein, fiber, group,
 // aliases }) or null when cancelled.
-export async function foodFromLabel() {
+export async function foodFromLabel({ known = () => null } = {}) {
 	const photo = await choosePhoto();
 	if (!photo) return null;
 	const url = URL.createObjectURL(photo);
 	const ui = dialog(url);
 	try {
+		let code = null;
+		try {
+			const { readBarcode } = await import("./barcode.js");
+			code = await readBarcode(photo);
+		} catch { /* no barcode reader here: read the label */ }
+		if (code) {
+			const mine = known(code);
+			// Unless the dialog was closed while the photo was read.
+			if (mine) return ui.close() ? mine : null;
+			ui.status(`Barcode ${code}: looking it up in Open Food Facts…`);
+			try {
+				const { lookupBarcode } = await import("./openfoodfacts.js");
+				const { food, found } = await lookupBarcode(code);
+				if (food) return await ui.form(food, "Found by its barcode in Open Food Facts. Check the numbers against the package, then save.");
+				ui.note(found ? `Open Food Facts knows barcode ${code} but has no nutrition for it.` : `Barcode ${code} isn't in Open Food Facts.`);
+			} catch (e) {
+				ui.note(`Couldn't look up barcode ${code} (${e?.message || e}).`);
+			}
+			ui.status("Reading the photo for a Nutrition Facts label…");
+		} else {
+			ui.note("No barcode in the photo, so it's read as a Nutrition Facts label.");
+			ui.status("Reading the label…");
+		}
 		let found = {};
 		try {
 			const { readText } = await import("./localocr.js");
@@ -35,7 +68,9 @@ export async function foodFromLabel() {
 		} catch (e) {
 			ui.note(`Couldn't read the photo (${e?.message || e}). Type the numbers in instead.`);
 		}
-		return await ui.form(found);
+		// The barcode as an alias, so the next scan finds this food.
+		if (code) found.aliases = [code];
+		return await ui.form(found, code ? "Or take a photo of the Nutrition Facts label instead." : "");
 	} finally {
 		URL.revokeObjectURL(url);
 	}
@@ -45,13 +80,13 @@ function dialog(photoUrl) {
 	document.querySelector(".palette")?.remove();
 	const wrap = el("div", "palette");
 	wrap.setAttribute("role", "dialog");
-	wrap.setAttribute("aria-label", "Food from a label");
+	wrap.setAttribute("aria-label", "Food from a photo");
 	const box = el("div", "palette-box label-box");
 	wrap.append(box);
-	const img = Object.assign(el("img", "label-photo"), { src: photoUrl, alt: "The label photo" });
-	const status = el("p", "label-status", "Reading the label on this device…");
+	const img = Object.assign(el("img", "label-photo"), { src: photoUrl, alt: "The photo" });
+	const status = el("p", "label-status", "Reading the photo on this device…");
 	const body = el("div", "label-body");
-	box.append(el("div", "ingredient-title", "Food from a label"), img, status, body);
+	box.append(el("div", "ingredient-title", "Food from a photo"), img, status, body);
 	document.body.append(wrap);
 	const back = document.activeElement;
 	let finish = () => {}, closed = false;
@@ -62,12 +97,16 @@ function dialog(photoUrl) {
 	let notes = [];
 	return {
 		note: (t) => { notes.push(t); },
-		form: (found) => new Promise((resolve) => {
+		status: (t) => { status.textContent = [...notes, t].join(" "); },
+		// -> whether it was still open.
+		close: () => { if (closed) return false; close(null); return true; },
+		form: (found, tip = "") => new Promise((resolve) => {
 			// Closed while the photo was being read.
 			if (closed) return resolve(null);
 			finish = resolve;
 			const got = ["calories", "fat", "carbs", "protein", "fiber"].filter((k) => found[k] != null).length;
-			status.textContent = [...notes, got ? `Found ${got} of 5 numbers. Check them against the photo, then name the food.` : "Couldn't make out the numbers. Type them in from the photo."].join(" ");
+			const named = !!found.name;
+			status.textContent = [...notes, named ? tip : got ? `Found ${got} of 5 numbers. Check them against the photo, then name the food.` : `Couldn't make out the numbers. Type them in from the photo. ${tip}`.trim()].join(" ");
 			const field = (key, label, type = "number", value = found[key] ?? "") => {
 				const wrapF = el("label", "label-field");
 				const input = Object.assign(el("input"), { type, value, name: key });
@@ -75,7 +114,7 @@ function dialog(photoUrl) {
 				wrapF.append(el("span", null, label), input);
 				return { wrapF, input };
 			};
-			const name = field("name", "Food", "text", "");
+			const name = field("name", "Food", "text", found.name || "");
 			name.input.placeholder = "What is it? (e.g. Granola, maple almond)";
 			name.input.required = true;
 			const serving = field("serving", "Serving size", "text", found.serving || "");
@@ -83,7 +122,7 @@ function dialog(photoUrl) {
 			const groupWrap = el("label", "label-field");
 			const group = el("select");
 			for (const g of GROUPS) group.append(new Option(g, g));
-			group.value = "Other";
+			group.value = GROUPS.includes(found.group) ? found.group : "Other";
 			groupWrap.append(el("span", null, "Food group"), group);
 			const grid = el("div", "label-grid");
 			grid.append(...nums.map((f) => f.wrapF), groupWrap);
@@ -104,12 +143,12 @@ function dialog(photoUrl) {
 				if (!n) return name.input.focus();
 				if (cal === "") return nums[0].input.focus();
 				const v = (i) => { const x = Number(nums[i].input.value); return Number.isFinite(x) && x >= 0 ? x : 0; };
-				close({ name: n, serving: serving.input.value.trim() || "1 serving", calories: v(0), fat: v(1), carbs: v(2), protein: v(3), fiber: v(4), group: group.value, aliases: [] });
+				close({ name: n, serving: serving.input.value.trim() || "1 serving", calories: v(0), fat: v(1), carbs: v(2), protein: v(3), fiber: v(4), group: group.value, aliases: found.aliases || [] });
 			});
 			cancel.addEventListener("click", () => close(null));
 			buttons.append(cancel, save);
 			body.append(name.wrapF, serving.wrapF, grid, warn, buttons);
-			name.input.focus();
+			(named ? save : name.input).focus();
 		}),
 	};
 }
