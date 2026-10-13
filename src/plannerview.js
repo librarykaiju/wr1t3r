@@ -488,19 +488,23 @@ class PlannerWidget extends WidgetType {
 					list.append(b);
 				}
 			};
-			// A food from a photo of its Nutrition Facts label (src/labelview.js).
-			const photo = el("button", "planner-link planner-label-photo", "📷 Add a food from its label");
+			// A food from a photo of its barcode or Nutrition Facts label
+			// (src/labelview.js), from the camera button at the search box's end.
+			const photo = el("button", "planner-search-camera", "📷");
 			photo.type = "button";
-			photo.title = "Take or pick a photo of a Nutrition Facts label. It's read on this device, and you check the numbers before it's saved.";
+			photo.title = "Add a food from a photo of its barcode or Nutrition Facts label. The photo is read on this device, and you check the numbers before it's saved.";
+			photo.setAttribute("aria-label", "Add a food from a photo of its barcode or label");
 			photo.addEventListener("click", async () => {
 				const { foodFromLabel } = await import("./labelview.js");
-				const f = await foodFromLabel();
+				const f = await foodFromLabel({ known: (code) => foods.find((x) => x.aliases.includes(code)) || null });
 				if (f) await addAndLog(f);
 			});
+			const searchRow = el("div", "planner-search-wrap");
+			searchRow.append(q, photo);
 			q.addEventListener("input", () => { st.q = q.value; st.usda = null; fill(); });
 			q.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); list.querySelector("button")?.click(); } });
 			fill();
-			box.append(q, row, list, photo);
+			box.append(searchRow, row, list);
 
 			const day = this.now(view);
 			const logged = day.meals.filter((m) => m.items.length);

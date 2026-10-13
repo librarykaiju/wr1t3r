@@ -67,10 +67,19 @@ export function menu(entries, x, y) {
 	box.querySelector("button")?.focus();
 }
 
+// Kept inside the part of the window that's showing: on a phone that's the
+// visual viewport, which the on-screen keyboard and the browser's bars make
+// shorter than innerHeight. A box taller than that gets a max-height and
+// scrolls inside its own frame.
 function place(box, x, y) {
+	const vv = globalThis.visualViewport;
+	const top0 = vv ? vv.offsetTop : 0, height = vv ? vv.height : innerHeight;
+	box.style.maxHeight = "";
+	const css = parseFloat(getComputedStyle(box).maxHeight) || Infinity;
+	box.style.maxHeight = Math.min(css, height - 16) + "px";
 	const r = box.getBoundingClientRect();
 	box.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
-	box.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+	box.style.top = Math.max(top0 + 8, Math.min(y, top0 + height - r.height - 8)) + "px";
 }
 
 // ---- Panels -----------------------------------------------------------------
@@ -98,9 +107,13 @@ export function openPanel(key, kind, anchor, render) {
 		closePanel();
 	};
 	const esc = (e) => { if (e.key === "Escape" && panel?.box === box) { e.stopPropagation(); closePanel(); } };
+	// The keyboard opening or closing moves the space there is.
+	const fit = () => { if (panel?.box === box) place(box, panel.x, panel.y); };
+	globalThis.visualViewport?.addEventListener("resize", fit);
 	panel.off = () => {
 		document.removeEventListener("pointerdown", away, true);
 		document.removeEventListener("keydown", esc, true);
+		globalThis.visualViewport?.removeEventListener("resize", fit);
 	};
 	setTimeout(() => {
 		document.addEventListener("pointerdown", away, true);
