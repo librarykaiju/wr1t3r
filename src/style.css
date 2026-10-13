@@ -251,6 +251,14 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
+/* The app doesn't zoom or scroll sideways. With the viewport tag in index.html
+   (whose maximum-scale also stops iOS zooming in on a focused field): no pinch
+   or double-tap zoom, and nothing wider than the screen widens the page. Wide
+   things (tables, boards) scroll inside their own box. */
+/* iOS reads touch-action on the element touched, not the page, so every
+   element gets it; ones that need their own (drag grips) still set it. */
+html, body, body * { touch-action: pan-x pan-y; }
+html, body { overflow-x: clip; }
 body { background: var(--bg); color: var(--fg); font: 15px/1.4 var(--sans); }
 button, input { font: inherit; color: inherit; }
 button {
@@ -324,6 +332,7 @@ header {
 	padding-top: max(8px, env(safe-area-inset-top));
 }
 #menu { display: none; }
+#delete svg { display: none; }
 .spacer { flex: 1; }
 /* The open note, as a tab: its name (click to rename or move; the full path
    shows while editing) and a close button. */
@@ -876,6 +885,9 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 	#tab { flex: 1 1 auto; max-width: none; min-width: 0; }
 	#tab #path { flex: 1; }
 	header .spacer { display: none; }
+	/* Tighter, so a note's buttons and the open-notes count fit a 320px screen. */
+	header { gap: 2px; padding-left: 6px; padding-right: 6px; }
+	header > button.quiet { padding-left: 7px; padding-right: 7px; }
 	/* Notices sit above the floating menu button. */
 	#notices { bottom: calc(max(2px, env(safe-area-inset-bottom)) + 104px); }
 }
@@ -897,7 +909,10 @@ main:not(.has-note) #tocBtn { visibility: hidden; }
 	:is(#editor, #refView) .cm-scroller { padding: 16px 16px 40vh; }
 	#delete { display: none; }
 	#calNext { display: none; }
-	main.has-note #delete { display: inline-block; }
+	main.has-note #delete { display: inline-flex; }
+	#delete { padding: 4px 6px; line-height: 0; }
+	#delete svg { display: block; }
+	#delete span { display: none; }
 }
 
 /* Blocks (src/blocks.js): consecutive lines share a background, so a run of
