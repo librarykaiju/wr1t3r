@@ -20,6 +20,7 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 - [Putting the site on GitHub Pages](#github)
 - [Sending it on to Neocities from GitHub](#neocities-github)
 - [Cloudflare Pages, Netlify or Porkbun, from the same GitHub repo](#cloudflare)
+- [Hosting your own copy of wr1t3r for free](/self-host.html)
 
 --- setup
 

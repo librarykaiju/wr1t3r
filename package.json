@@ -1,6 +1,7 @@
 {
   "name": "wr1t3r",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite build && wrangler dev",
@@ -12,6 +13,8 @@
     "food-data": "node scripts/food-data.js",
     "build:product": "vite build --mode product --outDir dist-product",
     "deploy:product": "npm run build:product && wrangler deploy -c wrangler.product.toml",
+    "build:selfhost": "vite build --mode selfhost --outDir dist-selfhost",
+    "deploy:selfhost": "npm run build:selfhost && wrangler deploy -c wrangler.selfhost.toml",
     "build:site": "node scripts/build-site.js",
     "preview:site": "node scripts/build-site.js && wrangler dev -c site/wrangler.toml",
     "deploy:site": "node scripts/build-site.js && wrangler deploy -c site/wrangler.toml"

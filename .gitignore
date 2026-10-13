@@ -3,8 +3,10 @@ dist/
 .wrangler/
 .dev.vars
 dist-product/
+dist-selfhost/
 .env*.local
 site/public/index.html
 site/public/help.html
 site/public/legal.html
 site/public/privacy.html
+site/public/self-host.html

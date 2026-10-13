@@ -1,0 +1,15 @@
+# The self-host build on Cloudflare: your own free copy of wr1t3r, with notes
+# in your own Dropbox. Cloudflare builds and deploys it from your fork of this
+# repo; the deploy command is `npm run deploy:selfhost`. Step by step:
+# https://wr1t3r.app/self-host.html
+#
+# The name must match the Worker's name in the Cloudflare dashboard.
+name = "wr1t3r"
+main = "worker/product.js"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./dist-selfhost"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]

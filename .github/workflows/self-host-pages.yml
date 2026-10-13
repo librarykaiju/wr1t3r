@@ -1,0 +1,49 @@
+# Your own free copy of wr1t3r on GitHub Pages, with notes in your own Dropbox.
+# Runs in a fork of librarykaiju/wr1t3r (never in the original), every time
+# the fork's main branch changes, or by hand from the Actions tab.
+# Step by step: https://wr1t3r.app/self-host.html#github
+#
+# It needs one repository variable, DROPBOX_APP_KEY (Settings > Secrets and
+# variables > Actions > Variables), and Settings > Pages > Source set to
+# GitHub Actions. The page expects to be at the top of its address, so name
+# the fork yourname.github.io.
+name: Self-host on GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.repository != 'librarykaiju/wr1t3r'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build:selfhost
+        env:
+          VITE_DROPBOX_APP_KEY: ${{ vars.DROPBOX_APP_KEY }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-selfhost
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -34,6 +34,9 @@ export default defineConfig(({ mode }) => {
 	// The product build (`npm run deploy:product`, .env.product) is no use
 	// without a Dropbox app key: there's no Worker to sign in to instead.
 	if (mode === "product" && !loadEnv(mode, process.cwd()).VITE_DROPBOX_APP_KEY) throw new Error("Set VITE_DROPBOX_APP_KEY in .env.product.local (see README, \"The product build\")");
+	// The self-host build (`npm run build:selfhost`) gets its key from the
+	// host's build settings; loadEnv also reads the shell's VITE_ variables.
+	if (mode === "selfhost" && !loadEnv(mode, process.cwd()).VITE_DROPBOX_APP_KEY) throw new Error("Add a build variable called VITE_DROPBOX_APP_KEY with your Dropbox app's App key (see https://wr1t3r.app/self-host.html, step 2)");
 	return config;
 });
 
