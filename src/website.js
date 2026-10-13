@@ -23,6 +23,12 @@
 // buttons (Ko-fi, Patreon, one link of the user's own) and links to the
 // user's social accounts. On phones the sidebars go above and below the text. They're plain
 // links in the site's colors: no embed scripts, so nothing third-party loads.
+//
+// Or the pages wear a stylesheet the person's site already has (opts.stylesheet,
+// its address): then there's no style.css and no theme, and the pages are plain
+// header, nav, main, article and footer, without the parts that need wr1t3r's
+// own styles (the sidebar, the folders down the left, share buttons, the
+// Properties box, Bluesky replies).
 
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
@@ -158,7 +164,7 @@ function parser(ctx) {
 			// The title line comes out of the first paragraph.
 			const cut = inline.children.findIndex((c) => c.type === "softbreak" || c.type === "hardbreak");
 			const head = new state.Token("html_block", "", 0);
-			head.content = `<p class="callout-title">${look.svg}${esc(title)}</p>\n`;
+			head.content = `<p class="callout-title">${look.svg.replace("<svg ", '<svg width="20" height="20" ')}${esc(title)}</p>\n`;
 			if (cut < 0) {
 				tokens.splice(i + 1, 3, head); // the paragraph was only the title
 			} else {
@@ -344,7 +350,8 @@ export function allowedKind(kind, { media = false } = {}) {
 // The whole site as a plan: { files: Map(sitePath -> string | { attachment:
 // vaultPath }), pages: [{ path, file, title }], skipped: [vaultPath] }.
 // notes: [{ path, text }] (every note; only published ones get pages),
-// attachments: every vault file's path. opts: { title, css, footer, media }.
+// attachments: every vault file's path. opts: { title, css, footer, media },
+// or { stylesheet } in place of css.
 export function buildSite(notes, attachments, opts = {}) {
 	const title = String(opts.title || "").trim() || "My notebook";
 	const tagline = String(opts.tagline || "").trim();
@@ -372,7 +379,8 @@ export function buildSite(notes, attachments, opts = {}) {
 	const pages = [];
 	const support = supportBox(opts.support);
 	const social = socialBox(opts.social);
-	const notebook = opts.layout === "notebook";
+	const own = ownStylesheet(opts.stylesheet);
+	const notebook = !own && opts.layout === "notebook";
 	// Pages are written last, once every page's date is known for the calendar.
 	const pending = [];
 	const page = (site, from, info, body) => pending.push({ site, info, body });
@@ -523,18 +531,28 @@ export function buildSite(notes, attachments, opts = {}) {
 	const pagerFor = (site) => {
 		const pn = pagerOf.get(site);
 		if (!pn || (!pn.prev && !pn.next)) return "";
-		const a = (p, cls, word) => (p ? `<a class="${cls}" href="${esc(relativeURL(site, p.file))}"><span>${word}</span>${esc(p.title)}</a>` : `<span class="${cls}"></span>`);
+		const a = (p, cls, word) => (p ? `<a class="${cls}" href="${esc(relativeURL(site, p.file))}"><span>${word}</span> ${esc(p.title)}</a>` : `<span class="${cls}"></span>`);
 		return `<nav class="pager" aria-label="More in this folder">${a(pn.prev, "prev", "Previous")}${a(pn.next, "next", "Next")}</nav>\n`;
 	};
 	for (const { site, info, body } of pending) {
-		const side = opts.sidebar === false ? "" : calendarFor(site, info) + support + social;
+		const side = own || opts.sidebar === false ? "" : calendarFor(site, info) + support + social;
 		const tree = notebook ? treeFor(site) : "";
 		const post = pages.some((p) => p.file === site && site !== SITE_FILES.index);
-		out.set(site, html({ ...info, props: opts.properties === false ? null : info.props, body: body + (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "") + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css: relativeURL(site, SITE_FILES.style), footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+		const extras = own ? "" : (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "");
+		const css = !own ? relativeURL(site, SITE_FILES.style) : /^(https?:)?\/\/|^\//i.test(own) ? own : "../".repeat(site.split("/").length - 1) + own;
+		out.set(site, html({ ...info, props: own || opts.properties === false ? null : info.props, body: body + extras + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css, footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
-	out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
+	if (!own) out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
 	return { files: out, pages, skipped: [...skipped].sort(), title };
+}
+
+// The address of the person's own stylesheet, or null: a web address, a path
+// from the web host's root ("/css/main.css"), or one from the site's top
+// folder ("css/main.css"). Nothing with spaces or quotes in it.
+export function ownStylesheet(v) {
+	const s = String(v ?? "").trim();
+	return s && /^[^\s"'<>]+$/.test(s) && !/^(javascript|data):/i.test(s) ? s : null;
 }
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -733,7 +751,7 @@ ${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 ${tree ? "" : `<header class="site">${brand}${menu || ""}</header>\n`}${banner ? `<div class="banner"><img src="${esc(banner)}" alt="" style="object-position: center ${bannerPosition}%"></div>\n` : ""}<main>
 ${tree || ""}<article>
 <h1>${esc(title)}</h1>
-${(date || tags.length) && !(props && open) ? `<p class="meta">${date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : ""}${tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`).join("")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !props) ? `<img class="cover${open ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
+${(date || tags.length) && !(props && open) ? `<p class="meta">${[date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : "", ...tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`)].filter(Boolean).join(" ")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !props) ? `<img class="cover${open ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
 ${side ? `<aside class="side">\n${side}</aside>\n` : ""}</main>
 ${footer ? `<footer class="site">Made with <a href="https://wr1t3r.app">wr1t3r</a></footer>\n` : ""}</body>
