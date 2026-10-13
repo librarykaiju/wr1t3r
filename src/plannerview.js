@@ -17,10 +17,10 @@ import {
 	PLANNER, readPlanner, writePlanner, setEntryColor, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
 	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
 	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine, cardColor, editPlannerBlock,
-	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine, HABITS, untick, LABEL_TARGETS,
+	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine, HABITS, untick, LABEL_TARGETS, itemsUnder, syncMedsLog,
 } from "./planner.js";
 import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn, addDays } from "./habits.js";
-import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText } from "./meds.js";
+import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText, medEntry, alreadyGiven, personMedsPath, personLogPath, personFolder, cleanPerson, newMedsNote, newMedsLog } from "./meds.js";
 import { searchMeds, strengthDose, dailyMedLink } from "./rxterms.js";
 import { choosePhoto, shrinkPhoto } from "./photo.js";
 import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES, ADULT } from "./targets.js";
@@ -92,6 +92,21 @@ function sharedColors(vault) {
 // Medications.md. -> { path (null when there's none), meds }.
 let medsCache = { text: undefined, path: undefined, meds: [] };
 const MEDS_PATH = /(^|\/)Medications\.md$/i;
+// A person's medicines (from the planner's people:): { who, path (their list,
+// null when there's none yet), meds, doses (on day), taken (day's log
+// entries) }.
+function personMeds(vault, who, day) {
+	const list = personMedsPath(who);
+	const text = vault.text(list);
+	const meds = text == null ? [] : parseMeds(text);
+	const log = day ? vault.text(personLogPath(who, day)) : null;
+	return {
+		who, path: text == null ? null : list, meds,
+		doses: day ? dosesOn(meds, day) : [],
+		taken: log == null ? [] : itemsUnder(log, MEDS.heading).map((it) => ({ ...it, ...medEntry(it.text) })),
+	};
+}
+
 function medsList(state, cfg) {
 	const vault = state.facet(vaultHost), paths = vault.paths();
 	const path = (cfg.medications
@@ -231,7 +246,8 @@ class PlannerWidget extends WidgetType {
 		this.meds ??= { path: null, meds: [] };
 		this.doses ??= [];
 		this.habits ??= [];
-		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, this.meds.path, this.meds.meds, this.doses, this.habits.map((r) => [r.h, r.p, r.s.current, r.s.best, r.due]), (this.lookback || []).map((e) => [e.path, e.title, e.snippet, e.years]), p.day && p.day === isoDay(new Date()) ? new Date().getHours() : 0, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
+		this.people ??= [];
+		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, this.meds.path, this.meds.meds, this.doses, this.people.map((x) => [x.who, x.path, x.meds, x.taken.map((e) => e.text)]), this.habits.map((r) => [r.h, r.p, r.s.current, r.s.best, r.due]), (this.lookback || []).map((e) => [e.path, e.title, e.snippet, e.years]), p.day && p.day === isoDay(new Date()) ? new Date().getHours() : 0, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
 	}
 	eq(o) { return o.key === this.key; }
 
@@ -275,6 +291,7 @@ class PlannerWidget extends WidgetType {
 				["Choose buttons…", () => this.buttonsPanel(view, anchor)],
 				["Set my targets…", () => this.targetsPanel(view, anchor)],
 				["Medications…", () => this.medsPanel(view, anchor, { edit: !medsList(view.state, this.cfg).meds.length })],
+				["Someone else's medicines…", () => this.addPerson(view, anchor)],
 				["Habits…", () => this.habitsPanel(view, anchor)],
 				["Mood, sleep and weight…", () => openTrends(view, anchor, this.day)],
 				null,
@@ -375,6 +392,22 @@ class PlannerWidget extends WidgetType {
 			},
 		};
 		for (const id of cfg.buttons) draw[id]?.();
+		// A Meds button for each person you give medicines to.
+		for (const p of this.people) {
+			const st = p.doses.length ? doseStatus(p.doses, p.taken) : null;
+			const open = (b) => this.medsPanel(view, b, { who: p.who, edit: !p.meds.length });
+			let b;
+			if (st) {
+				const late = overdue(st, this.day);
+				b = tile("meds", "💊", p.who, st.done === st.due ? "All given ✓" : `${st.done} of ${st.due}`, open, { pressed: st.done === st.due, pct: (st.done / st.due) * 100 });
+				if (late.length) { b.classList.add("planner-late"); b.title = `Not given yet: ${late.map((d) => `${d.name} (${timeText(d.time)})`).join(", ")}`; }
+			} else b = tile("meds", "💊", p.who, p.meds.length ? (p.taken.length ? `${p.taken.length} given` : "As needed") : "Set up", open);
+			if (!off) onMenu(b, (x, y) => menu([
+				[`${p.who}'s medications…`, () => this.medsPanel(view, b, { who: p.who, edit: true })],
+				...(p.path ? [["Open the medications list", () => host.open(p.path)]] : []),
+				...(this.day ? [["Open today's log", () => host.open(personLogPath(p.who, this.day))]] : []),
+			], x, y));
+		}
 		grid.style.setProperty("--n", Math.max(1, grid.children.length));
 		const n = grid.children.length;
 		grid.style.setProperty("--n-phone", n <= 3 ? Math.max(1, n) : n === 4 ? 2 : n <= 6 ? 3 : 4);
@@ -626,28 +659,105 @@ class PlannerWidget extends WidgetType {
 
 	// ---- Medications --------------------------------------------------------
 
+	// Adds a person to the planner's people: (shared by every day), with a
+	// Meds button of their own, and opens their list to fill in.
+	addPerson(view, anchor) {
+		const name = cleanPerson(prompt("Who do you give medicines to? Their name (or what you call them) gets its own Meds button, and their list and logs go in a People folder.") || "");
+		if (!name) return;
+		if (!this.cfg.people.some((p) => p.toLowerCase() === name.toLowerCase())) {
+			const people = [...this.cfg.people, name];
+			this.cfg = { ...this.cfg, people };
+			this.saveShared(view, { people });
+		}
+		this.medsPanel(view, anchor, { who: name, edit: true });
+	}
+
+	// Whose medicines a panel shows: yours (who null: the medicine list and
+	// the day's health note) or a person's from the planner's people: (their
+	// list and day's log in People/<who>/). -> { who, meds, path, doses, taken,
+	// write(fn) (to the day's log), listNote() (the list's path, made if
+	// needed) }.
+	medsScope(view, who = null) {
+		if (!who) {
+			const { meds, path } = medsList(view.state, this.cfg);
+			return { who: null, meds, path, doses: this.dosesNow(view), taken: this.now(view).medsTaken, write: (fn) => this.health$(view, fn), listNote: async () => path || host.medsNote() };
+		}
+		const p = personMeds(view.state.facet(vaultHost), who, this.day);
+		return { ...p, write: (fn) => this.personLog$(view, who, fn), listNote: async () => p.path || host.ensureNote(personMedsPath(who), newMedsNote(who)) };
+	}
+
+	// Writes to a person's log for the day (made first if needed), then
+	// brings its meds properties up to date. In line with health$'s writes.
+	personLog$(view, who, fn) {
+		if (!host?.ensureNote || !this.day) return Promise.resolve();
+		const vault = view.state.facet(vaultHost);
+		const run = async () => {
+			try {
+				const path = await host.ensureNote(personLogPath(who, this.day), newMedsLog(who, this.day));
+				const { doses } = personMeds(vault, who, this.day);
+				await vault.write(path, (t) => syncMedsLog(fn(t), doses));
+				redrawPanel(this.panelKey);
+			} catch (e) {
+				host.toast?.(`Couldn't write to ${who}'s medicine log: ` + (e?.message || e));
+			}
+		};
+		healthWrites = healthWrites.then(run, run);
+		return healthWrites;
+	}
+
 	// Today's doses with a Take button each, then the as-needed ones; or,
-	// with edit (or no list yet), the list itself to add to and change.
-	medsPanel(view, anchor, { edit = false } = {}) {
-		const st = { edit, form: null };
+	// with edit (or no list yet), the list itself to add to and change. who:
+	// a person from the planner's people:, or null for your own.
+	medsPanel(view, anchor, { edit = false, who = null } = {}) {
+		const st = { edit, form: null, who, busy: false };
+		const redraw = () => redrawPanel(this.panelKey);
 		openPanel(this.panelKey, "meds", anchor, (box) => {
 			box.classList.add("planner-panel");
-			const { meds, path } = medsList(view.state, this.cfg);
+			const sc = this.medsScope(view, who);
+			const { meds, path } = sc;
 			if (st.form || st.edit || !meds.length) {
-				box.append(el("div", "planner-panel-title", "Your medications"));
+				box.append(el("div", "planner-panel-title", who ? `${who}'s medications` : "Your medications"));
 				this.medsEditor(view, box, st);
-				if (!st.form && meds.length) box.append(panelButton("planner-log-btn", "Done", () => { st.edit = false; redrawPanel(this.panelKey); }));
+				if (!st.form && meds.length) box.append(panelButton("planner-log-btn", "Done", () => { st.edit = false; redraw(); }));
 				return;
 			}
-			box.append(el("div", "planner-panel-title", "Medications"));
-			const day = this.now(view);
-			const status = doseStatus(this.dosesNow(view), day.medsTaken);
-			const take = (dose, forTime) => this.health$(view, (t) => addUnder(t, MEDS.heading, medTakenLine(dose, forTime)));
+			box.append(el("div", "planner-panel-title", who ? `${who}'s medicines` : "Medications"));
+			const status = doseStatus(sc.doses, sc.taken);
+			const by = host?.myName?.() || null;
+			// Takes the newest log from the other devices first, so two people
+			// giving the same dose see each other's; then asks before logging a
+			// dose that's already been given.
+			const take = async (list) => {
+				if (st.busy) return;
+				st.busy = true;
+				redraw();
+				try {
+					if (host?.syncNow && !(await host.syncNow())) host.toast?.("Couldn't check for doses logged on other devices. Logging it anyway.");
+					const now = this.medsScope(view, who);
+					const fresh = new Date();
+					const lines = [];
+					for (const { dose, forTime } of list) {
+						const had = alreadyGiven(now.taken, { name: dose.name, forTime, now: fresh });
+						if (had && !confirm(`${dose.name}${forTime ? ` for ${timeText(forTime)}` : ""} was already logged at ${had.time ? timeText(had.time) : "some point today"}${had.by ? ` by ${had.by}` : ""}. Log it again?`)) continue;
+						lines.push(medTakenLine(dose, forTime, fresh, by));
+					}
+					if (lines.length) await now.write((t) => lines.reduce((acc, line) => addUnder(acc, MEDS.heading, line), t));
+				} finally {
+					st.busy = false;
+					redraw();
+				}
+			};
+			const takeBtn = (onClick) => {
+				const b = panelButton("planner-take", st.busy ? "…" : "Take", onClick);
+				b.disabled = st.busy;
+				return b;
+			};
+			const given = (e) => `✓ ${e.time ? timeText(e.time) : "taken"}${e.by ? ` by ${e.by}` : ""}`;
 			if (status.doses.length) {
 				const late = new Set(overdue(status, this.day));
 				const mins = new Date().getHours() * 60 + new Date().getMinutes();
 				const dueNow = status.doses.filter((d) => !d.taken && this.day === isoDay(new Date()) && Number(d.time.slice(0, 2)) * 60 + Number(d.time.slice(3)) <= mins + 30);
-				box.append(el("div", "planner-panel-sub", `Today · ${status.done} of ${status.due} taken`));
+				box.append(el("div", "planner-panel-sub", `Today · ${status.done} of ${status.due} ${who ? "given" : "taken"}`));
 				for (const d of status.doses) {
 					const row = el("div", "planner-dose" + (d.taken ? " taken" : late.has(d) ? " late" : ""));
 					row.append(el("span", "planner-dose-time", timeText(d.time)));
@@ -655,16 +765,18 @@ class PlannerWidget extends WidgetType {
 					if (pic) row.append(pic);
 					row.append(el("span", "planner-log-text", d.name + (d.dose ? ` · ${d.dose}` : "")));
 					if (d.taken) {
-						row.append(el("span", "planner-log-meta", `✓ ${d.taken.time ? timeText(d.taken.time) : "taken"}`));
-						const x = panelButton("planner-log-x", "×", () => this.health$(view, (t) => removeLine(t, d.taken.line, d.taken.text)));
+						row.append(el("span", "planner-log-meta", given(d.taken)));
+						const x = panelButton("planner-log-x", "×", () => sc.write((t) => removeLine(t, d.taken.line, d.taken.text)));
 						x.title = "Not taken after all";
 						row.append(x);
-					} else row.append(panelButton("planner-take", "Take", () => take(d, d.time)));
+					} else row.append(takeBtn(() => take([{ dose: d, forTime: d.time }])));
 					box.append(row);
 				}
-				if (dueNow.length > 1) box.append(panelButton("planner-log-btn", `Take all due now (${dueNow.length})`, async () => {
-					for (const d of dueNow) await take(d, d.time);
-				}));
+				if (dueNow.length > 1) {
+					const all = panelButton("planner-log-btn", `Take all due now (${dueNow.length})`, () => take(dueNow.map((d) => ({ dose: d, forTime: d.time }))));
+					all.disabled = st.busy;
+					box.append(all);
+				}
 			}
 			const prn = meds.filter((m) => m.asNeeded);
 			if (prn.length) {
@@ -673,17 +785,25 @@ class PlannerWidget extends WidgetType {
 					const row = el("div", "planner-dose");
 					const pic = pillThumb(m.photo, path);
 					if (pic) row.append(pic);
-					row.append(el("span", "planner-log-text", m.name + (m.dose ? ` · ${m.dose}` : "")), panelButton("planner-take", "Take", () => take(m, null)));
+					row.append(el("span", "planner-log-text", m.name + (m.dose ? ` · ${m.dose}` : "")), takeBtn(() => take([{ dose: m, forTime: null }])));
 					box.append(row);
 				}
 			}
 			if (status.extra.length) {
-				box.append(el("div", "planner-panel-sub", "Also taken today"));
-				for (const it of status.extra) box.append(this.logRow(view, `${it.time ? timeText(it.time) + " · " : ""}${it.name}`, it.dose, it));
+				box.append(el("div", "planner-panel-sub", who ? "Also given today" : "Also taken today"));
+				for (const it of status.extra) box.append(this.logRow(view, `${it.time ? timeText(it.time) + " · " : ""}${it.name}`, [it.dose, it.by && `by ${it.by}`].filter(Boolean).join(" · "), it, sc.write));
 			}
 			const foot = el("div", "planner-panel-foot");
-			foot.append(panelButton("planner-link", "Edit the list", () => { st.edit = true; redrawPanel(this.panelKey); }));
+			foot.append(panelButton("planner-link", "Edit the list", () => { st.edit = true; redraw(); }));
 			if (path) foot.append(panelButton("planner-link", "Open the list note", () => { closePanel(); host.open(path); }));
+			if (host?.setMyName) {
+				const me = panelButton("planner-link", by ? `Logging as ${by}` : "Add your name to doses", () => {
+					const name = prompt("Your name on the doses you log from this device (blank for none):", by || "");
+					if (name != null) { host.setMyName(name); redraw(); }
+				});
+				me.title = "Shown on each dose you log, so everyone sharing the notes can see who gave it.";
+				foot.append(me);
+			}
 			box.append(foot);
 		});
 	}
@@ -692,11 +812,12 @@ class PlannerWidget extends WidgetType {
 	// (st.form) for one. Writes straight to the list note.
 	medsEditor(view, box, st) {
 		const vault = view.state.facet(vaultHost);
-		const { meds, path } = medsList(view.state, this.cfg);
+		const sc = this.medsScope(view, st.who);
+		const { meds, path } = sc;
 		const redraw = () => redrawPanel(this.panelKey);
 		const write = async (fn) => {
 			try {
-				const p = path || await host.medsNote();
+				const p = await sc.listNote();
 				if (p) await vault.write(p, fn);
 			} catch (e) {
 				host.toast?.("Couldn't save the medications list: " + (e?.message || e));
@@ -780,7 +901,7 @@ class PlannerWidget extends WidgetType {
 					if (!shot) return;
 					f.photoBusy = true;
 					redraw();
-					try { f.photo = await host.medPhoto(await shrinkPhoto(shot), f.name.trim()); } catch {}
+					try { f.photo = await host.medPhoto(await shrinkPhoto(shot), f.name.trim(), await sc.listNote()); } catch {}
 					f.photoBusy = false;
 					redraw();
 				}));
@@ -846,6 +967,15 @@ class PlannerWidget extends WidgetType {
 			box.append(row);
 		}
 		box.append(panelButton("planner-log-btn", "Add a medicine", () => open(null)));
+		if (st.who) {
+			box.append(panelButton("planner-link", `Take ${st.who}'s button off the planner`, () => {
+				if (!confirm(`Take ${st.who}'s Meds button off the planner? Their list and logs stay in ${personFolder(st.who).slice(0, -1)}.`)) return;
+				const people = this.cfg.people.filter((p) => p.toLowerCase() !== st.who.toLowerCase());
+				this.cfg = { ...this.cfg, people };
+				this.saveShared(view, { people });
+				closePanel();
+			}));
+		}
 		const rem = el("label", "planner-check");
 		const cb = el("input");
 		cb.type = "checkbox";
@@ -1381,14 +1511,14 @@ class PlannerWidget extends WidgetType {
 	}
 
 	// A logged line in a panel, with × to take it out of the health note.
-	logRow(view, text, meta, it) {
+	logRow(view, text, meta, it, write = (fn) => this.health$(view, fn)) {
 		const row = el("div", "planner-log");
 		row.append(el("span", "planner-log-text", text));
 		if (meta) row.append(el("span", "planner-log-meta", meta));
 		const x = el("button", "planner-log-x", "×");
 		x.type = "button";
 		x.title = "Remove";
-		x.addEventListener("click", () => this.health$(view, (t) => removeLine(t, it.line, it.text)));
+		x.addEventListener("click", () => write((t) => removeLine(t, it.line, it.text)));
 		row.append(x);
 		return row;
 	}
@@ -1769,6 +1899,7 @@ function build(state) {
 		const health = healthDay(day ? vault.text(healthPathFor(path)) : null, foods);
 		const meds = medsList(state, cfg);
 		const doses = day ? dosesOn(meds.meds, day) : [];
+		const people = cfg.people.map((who) => personMeds(vault, who, day));
 		const habits = habitRows(vault, readHabits(cfg.habits), day);
 		const lookback = day ? onThisDay(journalEntries(vault), day) : [];
 		if (cfg.tasks.length && !notes) notes = allNotes(state);
@@ -1776,7 +1907,7 @@ function build(state) {
 			const tcfg = readConfig(`list: ${tag}`);
 			return { cfg: tcfg, result: taskList(notes, tcfg, { path, today }) };
 		});
-		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: shared.colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks, meds: { path: meds.path, meds: meds.meds }, doses, habits, lookback }), block: true }));
+		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: shared.colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks, meds: { path: meds.path, meds: meds.meds }, doses, people, habits, lookback }), block: true }));
 	});
 	return b.finish();
 }

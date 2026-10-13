@@ -77,7 +77,7 @@ import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath
 import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder, setWords, healthDay, healthDayOf } from "./planner.js";
 import { readHabits, habitProps, habitsGlance } from "./habits.js";
 import { proseWords, countsTowardWords, addWords } from "./wordlog.js";
-import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE, photoTarget } from "./meds.js";
+import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE, photoTarget, personMedsPath, personLogPath } from "./meds.js";
 import { openFoodPanel, openTrends, journalEntries, lookbackItem } from "./plannerview.js";
 import { onThisDay, period, reviewNote } from "./journal.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
@@ -159,6 +159,7 @@ function change(path, fn) {
 // ---- sync ------------------------------------------------------------------
 
 let syncing = false, again = false, lastSynced = null, lastError = null, syncTimer;
+let syncWaiters = []; // syncNow()'s, told when the next whole sync ends
 
 function scheduleSync(ms = 2000) {
 	clearTimeout(syncTimer);
@@ -194,6 +195,7 @@ async function runSync() {
 		renderStatus();
 		renderTree();
 		if (again) { again = false; scheduleSync(0); }
+		else for (const done of syncWaiters.splice(0)) done(lastError == null);
 		scheduleLocalPass(500);
 	}
 }
@@ -1893,11 +1895,31 @@ const plannerHost = {
 	},
 	// A photo of a pill, saved where a picture pasted into the medicine list
 	// would go and named after the medicine -> the embed for its line.
-	async medPhoto(file, medName) {
-		const list = await this.medsNote();
+	async medPhoto(file, medName, list) {
+		list ||= await this.medsNote();
 		const base = String(medName || "").replace(/[\\/:*?"<>|#^[\]]/g, "").trim() || "Medicine";
 		return uploadPicture(new File([file], `${base} pill.${pictureExt(file.type) || "jpg"}`, { type: file.type || "image/jpeg" }), list);
 	},
+	// A note at path, made with text when it isn't there yet -> its path.
+	async ensureNote(path, text) {
+		const have = visible().find((n) => n.path.toLowerCase() === path.toLowerCase());
+		if (have) return have.path;
+		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+		renderTree();
+		scheduleSync();
+		return path;
+	},
+	// Syncs now and waits for it: true once the vault's newest notes are
+	// here, false when offline, failed or slower than `ms`.
+	syncNow(ms = 10000) {
+		if (!navigator.onLine) return Promise.resolve(false);
+		const done = new Promise((res) => syncWaiters.push(res));
+		scheduleSync(0);
+		return Promise.race([done, new Promise((res) => setTimeout(() => res(false), ms))]);
+	},
+	// This device's name for the doses it logs ("by Brandon"), or null.
+	myName: () => readRaw("wr1t3rMyName") || null,
+	setMyName: (name) => storeRaw("wr1t3rMyName", String(name).replace(/[|\n]/g, " ").trim() || null),
 	// A picture embed in the note at fromPath -> its vault path, or null.
 	picturePath(embed, fromPath) {
 		const target = photoTarget(embed);
@@ -3038,22 +3060,38 @@ function medsNotePath() {
 }
 
 // Reminders for doses from `from` on, unless the planner's turned them off.
+// The people the planner gives medicines to (people:) get theirs too, from
+// their own lists and logs.
 function upcomingDoses(from) {
-	const path = medsNotePath();
-	if (!path || !dailyPlanner().med_reminders) return [];
-	const meds = parseMeds(notes.get(path)?.text || "");
-	if (!meds.some((m) => !m.asNeeded)) return [];
-	const health = new Map();
-	for (const n of notes.values()) {
-		const m = n && !n.deleted && n.path.match(/(?:^|\/)(\d{4}-\d{2}-\d{2}) Health\.md$/i);
-		if (m) health.set(m[1], n);
-	}
+	const planner = dailyPlanner();
+	if (!planner.med_reminders) return [];
 	const textOf = (n) => (n.path === editor.path ? editor.view.state.doc.toString() : n.text) || "";
-	return medReminders(meds, {
-		from, days: 7,
-		takenOn: (day) => { const n = health.get(day); return n ? itemsUnder(textOf(n), MEDS.heading).map((it) => medEntry(it.text)) : []; },
-		pathOn: (day) => health.get(day)?.path || path,
-	});
+	const live = (p) => { const n = notes.get(p); return n && !n.deleted ? n : null; };
+	const out = [];
+	const path = medsNotePath();
+	const meds = path ? parseMeds(notes.get(path)?.text || "") : [];
+	if (meds.some((m) => !m.asNeeded)) {
+		const health = new Map();
+		for (const n of notes.values()) {
+			const m = n && !n.deleted && n.path.match(/(?:^|\/)(\d{4}-\d{2}-\d{2}) Health\.md$/i);
+			if (m) health.set(m[1], n);
+		}
+		out.push(...medReminders(meds, {
+			from, days: 7,
+			takenOn: (day) => { const n = health.get(day); return n ? itemsUnder(textOf(n), MEDS.heading).map((it) => medEntry(it.text)) : []; },
+			pathOn: (day) => health.get(day)?.path || path,
+		}));
+	}
+	for (const who of planner.people) {
+		const list = live(personMedsPath(who));
+		if (!list) continue;
+		out.push(...medReminders(parseMeds(textOf(list)), {
+			from, days: 7, who,
+			takenOn: (day) => { const n = live(personLogPath(who, day)); return n ? itemsUnder(textOf(n), MEDS.heading).map((it) => medEntry(it.text)) : []; },
+			pathOn: (day) => live(personLogPath(who, day))?.path || list.path,
+		}));
+	}
+	return out;
 }
 
 async function uploadReminders() {
