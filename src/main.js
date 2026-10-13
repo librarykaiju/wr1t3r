@@ -78,7 +78,8 @@ import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock,
 import { readHabits, habitProps, habitsGlance } from "./habits.js";
 import { proseWords, countsTowardWords, addWords } from "./wordlog.js";
 import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE } from "./meds.js";
-import { openFoodPanel } from "./plannerview.js";
+import { openFoodPanel, openTrends, journalEntries, lookbackItem } from "./plannerview.js";
+import { onThisDay, period, reviewNote } from "./journal.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
 import { attachmentKind } from "./attachments.js";
 import { ocrOn, setOcrOn, unread, readFiles } from "./ocr.js";
@@ -1489,6 +1490,7 @@ let homeKey = null;
 function renderHome(force = false) {
 	if (!editor || editor.path) return;
 	renderHomeBoards();
+	renderLookback();
 	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
 	// Redraw only when something a tile shows changed (a sync redraws the
 	// sidebar often; the pictures would flicker).
@@ -1519,6 +1521,53 @@ function renderHome(force = false) {
 			savePins(next);
 		},
 	});
+}
+
+// On this day on Home: entries from today's date in earlier years (src/journal.js).
+let lookbackKey = null;
+const notesVault = { paths: () => visible().map((n) => n.path), text: (p) => { const n = notes.get(p); return n && !n.binary && !n.deleted ? n.text : null; } };
+function renderLookback() {
+	const box = $("homeLookback");
+	if (!box) return;
+	const hits = onThisDay(journalEntries(notesVault), isoDate(new Date())).slice(0, 5);
+	const key = JSON.stringify(hits.map((e) => [e.path, e.title, e.snippet, e.years]));
+	if (key === lookbackKey) return;
+	lookbackKey = key;
+	box.hidden = !hits.length;
+	$("lookbackList").replaceChildren(...hits.map((e) => lookbackItem(e, () => openNote(e.path))));
+}
+
+// Mood, sleep and weight from the palette: the planner's panel, opened at
+// the top of the page.
+function moodTrends() {
+	const view = editor.view;
+	if (!view) return;
+	const d = editor.path ? noteDay(editor.path.replace(/ Health\.md$/i, ".md")) : null;
+	const day = d ? isoDate(d) : null;
+	const anchor = { getBoundingClientRect: () => ({ left: Math.max(8, innerWidth / 2 - 280), bottom: 56 }) };
+	openTrends(view, anchor, day);
+}
+
+// A weekly, monthly or year review (src/journal.js): a note in reviews/ with
+// the period's numbers, entries and what was finished, then questions (or
+// the notebook's own _templates/Review.md). One already written opens.
+async function writeReview(kind) {
+	const p = period(kind, isoDate(new Date()));
+	const list = visible().filter((n) => !n.binary);
+	const paths = list.map((n) => n.path);
+	const tmpl = findTemplate(paths, "_templates/review.md");
+	const daily = findTemplate(paths) || findTemplate(paths, JOURNAL_TEMPLATE);
+	const path = (tmpl || daily)?.root ?? commonFolder(visible());
+	const target = path + "reviews/" + p.name + ".md";
+	const have = paths.find((q) => q.toLowerCase() === target.toLowerCase());
+	if (have) return openNote(have);
+	const days = new Map();
+	for (const n of list) { const d = healthDayOf(n.path); if (d) days.set(d, healthDay(n.text, [])); }
+	const template = tmpl ? renderTemplate(notes.get(tmpl.path).text, { title: p.name, date: new Date() }).text : null;
+	const text = reviewNote(p, { notes: list, days, habits: featureOn("daily") ? sharedHabits() : [], template, today: isoDate(new Date()) });
+	await change(target, (cur) => ({ path: target, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	openNote(target);
+	scheduleSync();
 }
 
 // Boards under Home's tiles: the ```board blocks in _wr1t3r/Home Boards.md
@@ -3250,6 +3299,10 @@ function allCommands() {
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
 		["Log food", logFood, "eat meal nutrition calories health usda planner"],
+		...(featureOn("daily") ? [["Mood, sleep and weight", moodTrends, "trends chart graph health stats tracker mood sleep weight history"]] : []),
+		["Write this week's review", () => writeReview("week"), "weekly review reflect journal recap"],
+		["Write this month's review", () => writeReview("month"), "monthly review reflect journal recap"],
+		["Write this year's review", () => writeReview("year"), "yearly annual review reflect journal recap year in review"],
 		["Insert board", insertBoard, "grid gallery kanban list table view properties filter database base", true],
 		["Insert list", insertList, "checklist shopping wishlist tasks todo crit list card", true],
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],

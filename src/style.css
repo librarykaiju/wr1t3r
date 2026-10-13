@@ -1603,6 +1603,33 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .hg-before { background: color-mix(in srgb, var(--muted) 7%, var(--bg)); }
 .planner-habit-key { display: flex; gap: 12px; margin-top: 8px; color: var(--muted); font-size: 12px; }
 .planner-habit-key > span { display: inline-flex; align-items: center; gap: 4px; }
+/* On this day (src/plannerview.js lookbackItem), on the planner and Home. */
+.lookback-item { border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.lookback-item:last-child { border-bottom: 0; }
+.lookback-link { display: flex; flex-direction: column; gap: 1px; width: 100%; padding: 5px 0; border: 0; background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.lookback-link:hover .lookback-title { color: var(--accent); }
+.lookback-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.lookback-when { flex: none; color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.lookback-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lookback-text { color: var(--muted); font-size: 13px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#empty .home-lookback { width: min(34em, 100%); padding: 8px 14px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font: 15px/1.5 var(--sans); }
+#empty .home-lookback h3 { margin: 0 0 2px; font: 600 0.88em/1.4 var(--sans); color: var(--fg); text-align: center; }
+#empty .home-lookback ul { list-style: none; margin: 0; padding: 0; }
+/* Mood, sleep and weight (src/plannerview.js openTrends). */
+.planner-trends { width: min(560px, calc(100vw - 24px)); }
+.planner-trends-range { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 6px 0 4px; }
+.planner-trends-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 14px 0 6px; }
+.planner-trends-head span { color: var(--muted); font-size: 13px; }
+.planner-mood-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-rows: 22px; gap: 2px; }
+.planner-mood-strip.dense { gap: 0; }
+.planner-mood-strip > span { border-radius: 3px; }
+.planner-mood-strip.dense > span { border-radius: 0; }
+.planner-mood-strip > span.none { background: color-mix(in srgb, var(--muted) 10%, var(--bg)); }
+.planner-mood-key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; }
+.planner-mood-key > span { display: inline-flex; align-items: center; gap: 2px; }
+.planner-mood-key .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.planner-trends-bymood { margin-top: 8px; }
+.planner-trends .chart-line { height: 140px; }
 .planner-setup { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 12px; background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
 .planner-setup-text { flex: 1 1 220px; font-weight: 600; }
 .planner-setup .planner-log-btn { padding: 6px 16px; }

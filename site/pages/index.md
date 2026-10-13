@@ -82,6 +82,10 @@ Give your height, weight, activity and goal, and wr1t3r works out daily targets 
 Keep your Critical Tasks and To Do's as master lists, or write a task in any note. Each day shows the tasks due that day, and anything unticked from earlier days stays on today's list as overdue until it's done. Add a time to a task and wr1t3r reminds you while it's open on your commputer. Connect your Google Calendar, and those reminders will roll to the app.
 ![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
 
+### Look back on what you wrote
+
+On this day shows what you wrote on today's date in earlier years, on Home and on the day's planner. Mood, sleep and weight puts the last month, three months or year of your logs on one page, with your average sleep on good days and bad ones. At the end of a week, month or year, one command writes a review: your entries, habits, moods, sleep and what you finished, with a few questions to answer underneath.
+
 ### Stats for your logs
 
 Book, film, TV and game logs add up on their own: how many you finished each year, pages read, average rating, what you're on now and what's next, in bar, line and pie charts. Pin the numbers to your Home screen as tiles.
