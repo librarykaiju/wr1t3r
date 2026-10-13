@@ -476,6 +476,18 @@ The site's words are Markdown files in `site/pages/` (`index.md`, `help.md`, `le
 
 Both custom domains are created by the deploy, since wr1t3r.app is a zone on the same Cloudflare account. The personal build (`npm run deploy`) is unaffected.
 
+## The self-host build (free)
+
+Anyone can host their own copy for free: the product build with no license check, on their own Dropbox app. `site/pages/self-host.md` (https://wr1t3r.app/self-host.html) is the step-by-step guide for people who've never done it; this is the short version.
+
+- **`npm run build:selfhost`** builds with `.env.selfhost` (`VITE_DROPBOX_ONLY=1` like the product build, plus `VITE_SELF_HOST=1`) into `dist-selfhost/`. It needs `VITE_DROPBOX_APP_KEY` from the shell, the host's build variables or `.env.selfhost.local`, and stops with a pointer to the guide without it. No `VITE_POLAR_*`, so there's no trial, key or License tab. `VITE_SELF_HOST` only changes where the sign-in screen and Settings say the notes are, since a self-hoster's Dropbox app has its own name.
+- **Cloudflare:** a fork imported into Workers Builds, build command empty, deploy command `npm run deploy:selfhost`, which deploys `wrangler.selfhost.toml` (the product Worker's setup, named `wr1t3r`, on workers.dev, no custom domain). The Worker name in the dashboard has to match.
+- **GitHub Pages:** `.github/workflows/self-host-pages.yml` builds and deploys on every push to a fork's `main` (never in this repo), with the key from the `DROPBOX_APP_KEY` repository variable. The page assumes it's at the top of its address, so the fork is named `yourname.github.io`. Pages ignores `public/_headers`, so that copy runs without the Content-Security-Policy.
+- **Google Drive and Calendar** work on Cloudflare if the self-hoster also sets `VITE_GOOGLE_CLIENT_ID` and the Worker's `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, as on the product build; the guide leaves them out.
+- **Updates** reach a fork when its owner clicks Sync fork; the host rebuilds on the push.
+
+The code is under the PolyForm Noncommercial license (`LICENSE.md`): free for personal, school and nonprofit use, not for selling.
+
 ## Features and folders
 
 Settings > Features turns whole areas on or off for the notebook: long-form writing, boards, daily notes and planner, health and food, media logs, calendar, transcripts and voice memos, searchable pictures, capture and clipping, and reminders. A Dropbox build leaves transcripts and voice memos out of the list and calls capture just Capture, since those parts need the Worker. An area that's off leaves the command palette, menus and buttons (`data-feature` in `index.html`, `body.no-<area>` in `style.css`); the notes it made stay as they are. The same tab sets wr1t3r's own folders inside the notes' folder: the Inbox note, uploads, clippings, compiled notes and the task lists.

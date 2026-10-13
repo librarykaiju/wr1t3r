@@ -178,9 +178,15 @@ wr1t3r runs local in your browser so there's no account to make and no server ho
 
 _After you buy, your license key is on your Polar purchases page, linked from your receipt email. Paste it into Settings > License. Payments are handled by Polar._
 
+_Can't pay right now, or want to learn how it's done? [Host your own copy for free](/self-host.html)._
+
 --- faq
 
 ## Questions
+
+### Can I use wr1t3r for free?
+
+Yes. You can put your own copy online for free with Cloudflare or GitHub Pages and keep your notes in your Dropbox. It takes about 20 minutes and no coding. [Here's how, step by step](/self-host.html). The $20 version is for people who'd rather skip the setup: it works right away, updates itself, and works with Google Drive too.
 
 ### Do I need a Dropbox or Google account?
 
@@ -212,4 +218,4 @@ Try it free first. If it isn't working out after you buy, ask within 30 days for
 
 --- footer
 
-wr1t3r · [Help](/help.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
+wr1t3r · [Help](/help.html) · [Host it free](/self-host.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)

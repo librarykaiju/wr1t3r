@@ -17,6 +17,10 @@ _Last updated October 8, 2026._
 
 A license key for the wr1t3r web app at my.wr1t3r.app, for your own use on up to the number of devices stated at purchase. Bug fixes and updates are included, and you can email [hello@wr1t3r.app](mailto:hello@wr1t3r.app) for help. Beyond that, the app comes without any warranty that it will meet your needs or run without errors. Keep your own backups of anything important; your notes are plain files in your Dropbox or Google Drive, so any backup tool works.
 
+## Free self-hosted copies
+
+You can also host your own copy of wr1t3r for free, under the terms of its [license](https://github.com/librarykaiju/wr1t3r/blob/main/LICENSE.md). There's nothing to buy or refund for those, and the same no-warranty terms above apply.
+
 ## Payments
 
 Orders are processed by Polar, which acts as the merchant of record and handles payment, sales tax and receipts. Their terms apply to the purchase.

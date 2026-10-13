@@ -127,6 +127,9 @@ const notes = new NoteMap();
 if (dropboxAppKey()) registerStorage("dropbox", () => dropboxStorage());
 if (googleClientId()) registerStorage("gdrive", () => driveStorage({ call: googleClient() }));
 const DROPBOX_ONLY = !!import.meta.env.VITE_DROPBOX_ONLY;
+// A self-hosted copy (VITE_SELF_HOST) has its own Dropbox app, whose folder
+// is named after that app rather than wr1t3r.
+const DROPBOX_FOLDER = import.meta.env.VITE_SELF_HOST ? "your Dropbox app's folder under Apps" : "Apps › wr1t3r";
 // onDropbox means no Worker: the notes are in Dropbox, or (onDrive) Google Drive.
 const onDrive = storageKind() === "gdrive";
 const onDropbox = storageKind() === "dropbox" || onDrive;
@@ -4848,7 +4851,7 @@ function showSettingsTab(tab, onPhoneList = false) {
 	if (tab === "hotkeys") renderHotkeyTab();
 	if (tab === "sync") {
 		$("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
-		$("setStorage").textContent = onDrive ? "Notes are kept in your Google Drive, in the wr1t3r folder. wr1t3r only sees files it put there itself, so add notes and pictures with Upload." : onDropbox ? "Notes are kept in your Dropbox, in Apps › wr1t3r." : "";
+		$("setStorage").textContent = onDrive ? "Notes are kept in your Google Drive, in the wr1t3r folder. wr1t3r only sees files it put there itself, so add notes and pictures with Upload." : onDropbox ? `Notes are kept in your Dropbox, in ${DROPBOX_FOLDER}.` : "";
 	}
 	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
 	if (tab === "focus") markSeg("focusSeg", $("app").classList.contains("focus-mode"));
@@ -6111,7 +6114,7 @@ function showLogin(message = "") {
 	if (DROPBOX_ONLY && dropboxAppKey()) {
 		$("tokenLogin").remove();
 		$("login").classList.add("dropbox-only");
-		$("dropboxLead").textContent = "Your notes live in your own Dropbox, in Apps › wr1t3r. They never pass through anyone else's server.";
+		$("dropboxLead").textContent = `Your notes live in your own Dropbox, in ${DROPBOX_FOLDER}. They never pass through anyone else's server.`;
 		$("dropboxStart").textContent = "Sign in with Dropbox";
 		$("dropboxStart").focus();
 		if (googleClientId()) {
