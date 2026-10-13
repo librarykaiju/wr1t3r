@@ -15,21 +15,22 @@ export async function readBarcode(photo) {
 				const formats = FORMATS.filter((f) => supported.includes(f));
 				if (formats.length) {
 					const [hit] = await new BarcodeDetector({ formats }).detect(bitmap);
-					// Found one, or looked properly and there's none.
-					return hit?.rawValue || null;
+					if (hit?.rawValue) return hit.rawValue;
 				}
-			} catch { /* fall through to ZXing */ }
+			} catch { /* ZXing below */ }
 		}
-		return await zxing(bitmap);
+		// Not found by the browser's reader (or there isn't one): ZXing, at two
+		// sizes, since a barcode small in a big photo reads better larger.
+		return await zxing(bitmap, 1600) || (Math.max(bitmap.width, bitmap.height) > 1600 ? await zxing(bitmap, 2600) : null);
 	} finally {
 		bitmap.close?.();
 	}
 }
 
-async function zxing(bitmap) {
+async function zxing(bitmap, size) {
 	const Z = await import("@zxing/library");
-	// Phone photos are large; barcodes read fine at this size, and faster.
-	const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+	// Phone photos are large; most barcodes read fine smaller, and faster.
+	const scale = Math.min(1, size / Math.max(bitmap.width, bitmap.height));
 	const w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale);
 	const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
 	const ctx = canvas.getContext("2d", { willReadFrequently: true });

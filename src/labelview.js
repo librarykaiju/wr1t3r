@@ -57,6 +57,9 @@ export async function foodFromLabel({ known = () => null } = {}) {
 				ui.note(`Couldn't look up barcode ${code} (${e?.message || e}).`);
 			}
 			ui.status("Reading the photo for a Nutrition Facts label…");
+		} else {
+			ui.note("No barcode in the photo, so it's read as a Nutrition Facts label.");
+			ui.status("Reading the label…");
 		}
 		let found = {};
 		try {
