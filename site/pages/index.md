@@ -1,5 +1,5 @@
 ---
-title: wr1t3r: write, publish and keep your notes in your own Dropbox or Google Drive
+title: "wr1t3r: write, publish and keep your notes in your own Dropbox or Google Drive"
 description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, a day planner with habit, health and medication tracking, thirteen color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox or Google Drive as plain files.
 buy:
 ---
@@ -16,9 +16,9 @@ buy:
 
 --- hero
 
-# Write the thing.<br>Publish it. Keep it yours.
+# Write the thing.<br>Publish it online. Keep it yours.
 
-wr1t3r is a writing app for stories, books, journals and notes. Plan scenes on a storyboard, read the whole draft as one document, keep a day planner next to it, and turn the notes you choose into a website you can put on Neocities. Every note is a plain Markdown file in your Dropbox or Google Drive, so nothing is locked in and nobody else holds your work.
+wr1t3r is a app for creative writing, journaling, notetaking. Plan scenes on a storyboard, read the whole draft as one document, keep a day planner next to it, and turn the notes you choose into a website you can put on Neocities. Every note is a plain Markdown file in your Dropbox or Google Drive, so nothing is locked in and nobody else holds your work.
 
 [Try it free for 14 days](https://my.wr1t3r.app/) [Buy for $20](buy)
 
@@ -28,7 +28,7 @@ _Works in any modern browser on Mac, Windows, Linux, iPhone, iPad and Android. W
 
 --- features
 
-## A storyboard for your scenes
+## Plan and write with storyboards
 
 Start a short story, novel, essay or script with one button and its folder comes ready with starter notes. Each scene is its own note. Lay them out as index cards on a dot-grid page with a synopsis and status, drag them into order, and color them by point of view or thread. Switch to the outliner to see word counts and status in a table.
 
