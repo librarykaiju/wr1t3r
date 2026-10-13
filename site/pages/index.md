@@ -18,7 +18,7 @@ buy:
 
 # Write the thing.<br>Publish it online. Keep it yours.
 
-wr1t3r is a app for creative writing, journaling, notetaking. Plan scenes on a storyboard, read the whole draft as one document, keep a day planner next to it, and turn the notes you choose into a website you can put on Neocities. Every note is a plain Markdown file in your Dropbox or Google Drive, so nothing is locked in and nobody else holds your work.
+wr1t3r is a app for creative writing, journaling, and notetaking. Plan & stay organized with the built-in day planner, and publish the notes you choose on the web with Neocities. Every note is a plain Markdown file in your Dropbox or Google Drive, so nothing is locked in and nobody else holds your work.
 
 [Try it free for 14 days](https://my.wr1t3r.app/) [Buy for $20](buy)
 
@@ -28,9 +28,9 @@ _Works in any modern browser on Mac, Windows, Linux, iPhone, iPad and Android. W
 
 --- features
 
-## Plan and write with storyboards
+## Plan and write with scene cards on the storyboard
 
-Start a short story, novel, essay or script with one button and its folder comes ready with starter notes. Each scene is its own note. Lay them out as index cards on a dot-grid page with a synopsis and status, drag them into order, and color them by point of view or thread. Switch to the outliner to see word counts and status in a table.
+Start a short story, novel, essay, or script with a button and its project folder comes ready with starter notes. Each scene card is its own note. Lay them out like index cards and rearrange them as needed. Stay organized with synopses and status badges, and color code them by point of view or thread. Switch to the outliner to see word counts and status in a table.
 
 ![Storyboard view of a novel's scenes as index cards with synopses and status labels](/shots/corkboard.webp)
 
@@ -48,7 +48,7 @@ Markdown with a formatting toolbar, a <kbd>/</kbd> menu for headings, lists, tab
 
 ## On your phone too
 
-Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your Dropbox or Google Drive, so the scene you wrote on the train is on your laptop when you get home.
+Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your Dropbox or Google Drive, so the scene you wrote on your lunch break is on your laptop when you get home.
 
 ![The storyboard on a phone](/shots/phone-corkboard.webp)
 ![The editor on a phone](/shots/phone-editor.webp)
