@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseTime, parseDays, parseMed, medLine, parseMeds, putMed, removeMed, dosesOn, medEntry, medTakenLine, doseStatus, overdue, medReminders, newMedsNote } from "../src/meds.js";
+import { parseTime, parseDays, parseMed, medLine, parseMeds, putMed, removeMed, dosesOn, medEntry, medTakenLine, doseStatus, overdue, medReminders, newMedsNote, medsCalendar, medEvents } from "../src/meds.js";
 import { workOut, readGoal, needsRecalc } from "../src/targets.js";
 
 test("times and days", () => {
@@ -178,4 +178,31 @@ test("a course with dates, a purpose and a note, and its chart", async () => {
 	assert.equal(chart.rows[1].active, false);
 	assert.equal(chart.rows[1].cells["11:00"].due, false);
 	assert.equal(chart.rows[2].given.length, 1);
+});
+
+test("medsCalendar: yours and each person's", () => {
+	assert.deepEqual(medsCalendar(), { id: "wr1t3r-meds", name: "Medications", color: "#33b679", shown: true, writable: false, meds: true });
+	assert.equal(medEvents(parseMeds("- A | 1 | 09:00"), medsCalendar(), { from: new Date(2026, 9, 7), to: new Date(2026, 9, 8) })[0].title, "💊 A 1");
+	const mom = medsCalendar("Mom", 1);
+	assert.equal(mom.id, "wr1t3r-meds:mom");
+	assert.equal(mom.name, "Mom's medicines");
+	assert.equal(mom.who, "Mom");
+	assert.notEqual(mom.color, medsCalendar().color);
+});
+
+test("medEvents: each dose as a quarter-hour event, given ones ticked", () => {
+	const meds = parseMeds("- Lisinopril | 10 mg | 08:00, 20:00\n- Ibuprofen | 200 mg | as needed\n- Amoxicillin | 500 mg | 12:00 | until 2026-10-07");
+	const c = medsCalendar("Mom", 1);
+	const from = new Date(2026, 9, 7, 9, 0), to = new Date(2026, 9, 9);
+	const ev = medEvents(meds, c, { from, to, takenOn: (day) => (day === "2026-10-07" ? [medEntry("12:05 | Amoxicillin | 500 mg | for 12:00 | by Brandon")] : []) });
+	// 08:00 on the 7th is before `from`; Amoxicillin stops after the 7th.
+	assert.deepEqual(ev.map((e) => [new Date(e.start).getDate(), new Date(e.start).getHours(), e.title]), [
+		[7, 12, "✓ Mom: Amoxicillin 500 mg"], [7, 20, "💊 Mom: Lisinopril 10 mg"], [8, 8, "💊 Mom: Lisinopril 10 mg"], [8, 20, "💊 Mom: Lisinopril 10 mg"],
+	]);
+	assert.equal(ev[0].location, "given 12:05 by Brandon");
+	assert.equal(ev[0].calendar, c.id);
+	assert.equal(ev[0].color, c.color);
+	assert.deepEqual(ev[0].alerts, []);
+	assert.equal(new Date(ev[1].end) - new Date(ev[1].start), 15 * 60000);
+	assert.equal(new Set(ev.map((e) => e.id)).size, ev.length);
 });

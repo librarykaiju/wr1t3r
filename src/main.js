@@ -77,7 +77,7 @@ import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath
 import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder, setWords, healthDay, healthDayOf } from "./planner.js";
 import { readHabits, habitProps, habitsGlance } from "./habits.js";
 import { proseWords, countsTowardWords, addWords } from "./wordlog.js";
-import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE, photoTarget, personMedsPath, personLogPath } from "./meds.js";
+import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE, photoTarget, personMedsPath, personLogPath, medsCalendar, medEvents, MEDS_CALENDAR } from "./meds.js";
 import { openFoodPanel, openTrends, journalEntries, lookbackItem } from "./plannerview.js";
 import { onThisDay, period, reviewNote } from "./journal.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
@@ -1953,7 +1953,7 @@ const plannerHost = {
 	},
 	image: (ref, from) => tileImage(ref, from),
 	open: (path) => openNote(path),
-	toast: (text) => toast(text),
+	toast: (text, ms) => toast(text, ms),
 	// Live USDA search through the Worker; with no Worker or no USDA key, the
 	// USDA tables shipped with the app (src/foodtable.js).
 	async usda(q) {
@@ -3059,39 +3059,58 @@ function medsNotePath() {
 	return paths.filter(want).sort((a, b) => a.length - b.length)[0] || null;
 }
 
-// Reminders for doses from `from` on, unless the planner's turned them off.
-// The people the planner gives medicines to (people:) get theirs too, from
-// their own lists and logs.
-function upcomingDoses(from) {
+// Whose medicines the app knows: you (the medicine list and the Health notes'
+// logs) and each person the planner gives medicines to (people:), from their
+// own lists and logs. [{ who, meds, takenOn(day), pathOn(day) }].
+function medSources() {
 	const planner = dailyPlanner();
-	if (!planner.med_reminders) return [];
 	const textOf = (n) => (n.path === editor.path ? editor.view.state.doc.toString() : n.text) || "";
 	const live = (p) => { const n = notes.get(p); return n && !n.deleted ? n : null; };
+	const logged = (n) => (n ? itemsUnder(textOf(n), MEDS.heading).map((it) => medEntry(it.text)) : []);
 	const out = [];
 	const path = medsNotePath();
-	const meds = path ? parseMeds(notes.get(path)?.text || "") : [];
-	if (meds.some((m) => !m.asNeeded)) {
+	if (path) {
 		const health = new Map();
 		for (const n of notes.values()) {
 			const m = n && !n.deleted && n.path.match(/(?:^|\/)(\d{4}-\d{2}-\d{2}) Health\.md$/i);
 			if (m) health.set(m[1], n);
 		}
-		out.push(...medReminders(meds, {
-			from, days: 7,
-			takenOn: (day) => { const n = health.get(day); return n ? itemsUnder(textOf(n), MEDS.heading).map((it) => medEntry(it.text)) : []; },
-			pathOn: (day) => health.get(day)?.path || path,
-		}));
+		out.push({ who: null, meds: parseMeds(notes.get(path)?.text || ""), takenOn: (day) => logged(health.get(day)), pathOn: (day) => health.get(day)?.path || path });
 	}
 	for (const who of planner.people) {
 		const list = live(personMedsPath(who));
-		if (!list) continue;
-		out.push(...medReminders(parseMeds(textOf(list)), {
-			from, days: 7, who,
-			takenOn: (day) => { const n = live(personLogPath(who, day)); return n ? itemsUnder(textOf(n), MEDS.heading).map((it) => medEntry(it.text)) : []; },
-			pathOn: (day) => live(personLogPath(who, day))?.path || list.path,
-		}));
+		if (list) out.push({ who, meds: parseMeds(textOf(list)), takenOn: (day) => logged(live(personLogPath(who, day))), pathOn: (day) => live(personLogPath(who, day))?.path || list.path });
 	}
 	return out;
+}
+
+// Reminders for doses from `from` on, unless the planner's turned them off.
+function upcomingDoses(from) {
+	if (!dailyPlanner().med_reminders) return [];
+	return medSources().filter((s) => s.meds.some((m) => !m.asNeeded))
+		.flatMap(({ who, meds, takenOn, pathOn }) => medReminders(meds, { from, days: 7, takenOn, pathOn, ...(who ? { who } : {}) }));
+}
+
+// The agenda's Medications calendars, one for you and one per person, kept in
+// the app: the calendar list gets them when it loads, and their doses are
+// worked out from the lists and logs each time the agenda draws, so a Take
+// shows at once, offline too.
+function medCalendarSources() {
+	if (!featureOn("health")) return [];
+	return medSources().filter((s) => s.meds.some((m) => !m.asNeeded)).map((s, i) => ({ ...s, calendar: medsCalendar(s.who, i) }));
+}
+function withMedCalendars(r) {
+	return { ...r, calendars: [...r.calendars.filter((c) => !c.meds), ...medCalendarSources().map((s) => s.calendar)] };
+}
+// events (from the calendar) plus the doses in [from, from + days).
+function withMedEvents(events, from, days) {
+	const to = agenda.addDays(from, days);
+	const doses = medCalendarSources().flatMap((s) => medEvents(s.meds, s.calendar, { from, to, takenOn: s.takenOn }));
+	if (!doses.length) return events;
+	return [...events.filter((e) => !e.calendar.startsWith(MEDS_CALENDAR)), ...doses].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+}
+async function calendarEvents(from, to, ids) {
+	return withMedCalendars(await calendarDo((c) => c.events(from, to, ids)));
 }
 
 async function uploadReminders() {
@@ -4069,7 +4088,7 @@ function calendarName(id) {
 function fillCalendarSetting() {
 	fillRemindCalendar();
 	const sel = $("dailyCal"), id = readRaw(DAILY_CAL_KEY) || "";
-	const list = calState === "setup" ? [] : cal?.calendars || [];
+	const list = calState === "setup" ? [] : (cal?.calendars || []).filter((c) => !c.meds);
 	sel.replaceChildren(new Option("Off", ""));
 	for (const c of [...list].sort((a, b) => b.primary - a.primary)) sel.append(new Option(agenda.calendarLabel(c), c.id));
 	// Picked before the calendar list loaded on this device: keep it.
@@ -5700,7 +5719,18 @@ function shownIds() {
 
 function visibleEvents() {
 	const ids = shownIds();
-	return (cal?.events || []).filter((e) => ids.has(e.calendar));
+	return withMedEvents(cal?.events || [], agenda.startOfDay(new Date()), agenda.DAYS).filter((e) => ids.has(e.calendar));
+}
+
+// A Medications calendar that's new on this device starts shown, even when
+// you've picked which calendars show; after that, its chip decides.
+const MED_CALS_SEEN_KEY = "wr1t3rMedCalsSeen";
+function showNewMedCalendars(calendars, picked) {
+	const seen = readJSON(MED_CALS_SEEN_KEY, []);
+	const fresh = calendars.filter((c) => c.meds && !seen.includes(c.id)).map((c) => c.id);
+	if (!fresh.length) return;
+	writeJSON(MED_CALS_SEEN_KEY, [...seen, ...fresh]);
+	writeJSON(FILTER_KEY, [...new Set([...picked, ...fresh])]);
 }
 
 function toggleCalendar(id) {
@@ -5726,7 +5756,7 @@ const idsKey = () => [...shownIds()].sort().join(",");
 
 async function rangeEvents(from, days) {
 	const picked = readJSON(FILTER_KEY, null);
-	const r = await calendarDo((c) => c.events(from, agenda.addDays(from, days), Array.isArray(picked) ? picked : null));
+	const r = await calendarEvents(from, agenda.addDays(from, days), Array.isArray(picked) ? picked : null);
 	return r.events;
 }
 
@@ -5752,7 +5782,7 @@ async function loadPick() {
 
 function monthEvents() {
 	const ids = shownIds();
-	return (monthData?.events || []).filter((e) => ids.has(e.calendar));
+	return withMedEvents(monthData?.events || [], agenda.gridStart(monthShown), agenda.GRID_DAYS).filter((e) => ids.has(e.calendar));
 }
 
 function renderMonth() {
@@ -5824,7 +5854,8 @@ async function loadAgenda(force = false) {
 	const from = agenda.startOfDay(new Date());
 	try {
 		const picked = readJSON(FILTER_KEY, null);
-		const r = await calendarDo((c) => c.events(from, agenda.addDays(from, agenda.DAYS), Array.isArray(picked) ? picked : null));
+		const r = await calendarEvents(from, agenda.addDays(from, agenda.DAYS), Array.isArray(picked) ? picked : null);
+		if (Array.isArray(picked)) showNewMedCalendars(r.calendars, picked);
 		const fetched = Array.isArray(picked) ? picked : r.calendars.filter((c) => c.shown).map((c) => c.id);
 		cal = { at: Date.now(), events: r.events, calendars: r.calendars, fetched };
 		writeJSON(AGENDA_KEY, cal);
@@ -5844,7 +5875,9 @@ function renderAgenda() {
 	if (!$("settings").hidden && document.activeElement !== $("dailyCal")) fillCalendarSetting();
 	const now = new Date();
 	const events = visibleEvents();
-	const next = agenda.nextEvent(events, now);
+	// The header's next event leaves doses out: they come every few hours, and
+	// their reminders cover them.
+	const next = agenda.nextEvent(events.filter((e) => !e.calendar.startsWith(MEDS_CALENDAR)), now);
 	$("calNext").textContent = next && agenda.startOfDay(new Date(next.start)).getTime() === agenda.startOfDay(now).getTime()
 		? `${new Date(next.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} ${next.title}` : "";
 	$("addEventBtn").hidden = calState === "setup";
@@ -5879,7 +5912,7 @@ function renderAgenda() {
 			return;
 		}
 		const ids = shownIds();
-		shown = pickData.events.filter((e) => ids.has(e.calendar));
+		shown = withMedEvents(pickData.events, agendaFrom, agenda.DAYS).filter((e) => ids.has(e.calendar));
 	}
 	for (const day of agenda.byDay(shown, from)) {
 		const sec = document.createElement("section");

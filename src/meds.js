@@ -373,3 +373,54 @@ export function medChart(meds, day, taken = []) {
 	});
 	return { times, rows };
 }
+
+// ---- The calendar -------------------------------------------------------------
+
+export const MEDS_CALENDAR = "wr1t3r-meds";
+const MED_COLORS = ["#33b679", "#8e24aa", "#f4511e", "#039be5", "#e67c73", "#616161"];
+
+// The agenda's Medications calendar for you (who null) or a person, the
+// i-th: { id, name, color, shown, writable }. Kept in the app; nothing goes
+// to Google Calendar.
+export function medsCalendar(who = null, i = 0) {
+	return {
+		id: who ? `${MEDS_CALENDAR}:${who.toLowerCase()}` : MEDS_CALENDAR,
+		name: who ? `${who}'s medicines` : "Medications",
+		color: MED_COLORS[i % MED_COLORS.length],
+		shown: true,
+		writable: false,
+		meds: true,
+		...(who ? { who } : {}),
+	};
+}
+
+// Each scheduled dose in [from, to) as an agenda event, a quarter hour long,
+// with no alerts (the dose reminders do that): "💊 Mom: Lisinopril 10 mg" on a
+// person's calendar, and ✓ in place of 💊 once it's been given. takenOn(day)
+// -> the day's log entries.
+export function medEvents(meds, calendar, { from, to, takenOn = () => [] }) {
+	const out = [];
+	for (let d = new Date(from.getFullYear(), from.getMonth(), from.getDate()); d < to; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+		const day = isoOf(d);
+		const doses = dosesOn(meds, day);
+		if (!doses.length) continue;
+		for (const dose of doseStatus(doses, takenOn(day) || []).doses) {
+			const [h, m] = dose.time.split(":").map(Number);
+			const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
+			if (start < from) continue;
+			out.push({
+				id: `${day}|${dose.time}|${dose.name}`,
+				calendar: calendar.id,
+				title: `${dose.taken ? "✓" : "💊"} ${calendar.who ? calendar.who + ": " : ""}${dose.name}${dose.dose ? " " + dose.dose : ""}`,
+				allDay: false,
+				start: start.toISOString(),
+				end: new Date(start.getTime() + 15 * 60000).toISOString(),
+				location: dose.taken ? [dose.taken.time && `given ${dose.taken.time}`, dose.taken.by && `by ${dose.taken.by}`].filter(Boolean).join(" ") : "",
+				link: "",
+				color: calendar.color,
+				alerts: [],
+			});
+		}
+	}
+	return out;
+}
