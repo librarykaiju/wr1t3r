@@ -38,7 +38,7 @@ import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDro
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { isPublished, notPublishedWhy } from "./published.js";
 import { USES, DEFAULT_USES, featuresFor, starterNotes, guideText, needsHomeScreen } from "./onboarding.js";
-import { DEFAULT_API, licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, maskKey } from "./license.js";
+import { DEFAULT_API, licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, maskKey, cleanKey, readLicenseNote, writeLicenseNote, withDevice, withoutDevice } from "./license.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
@@ -181,6 +181,7 @@ async function runSync() {
 		uploadReminders();
 		sendCalendarReminders();
 		maybeWelcome();
+		noteLicense();
 		lastError = null;
 		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
 		sortPending = null;
@@ -1148,12 +1149,78 @@ function setupLicense() {
 	recheckLicense();
 }
 
+// The license note (src/license.js): the key and the devices it's on, in
+// _wr1t3r/License.md beside the Home note.
+const licenseFile = () => homeFile().replace(/[^/]*$/, "License.md");
+function licenseNote() {
+	const n = notes.get(licenseFile());
+	return readLicenseNote(!n || n.deleted || n.binary ? "" : n.text);
+}
+async function changeLicenseNote(fn) {
+	if (!visible().length) return; // not loaded yet: noteLicense() catches up after the sync
+	const path = licenseFile();
+	await change(path, (cur) => {
+		const text = cur && !cur.deleted && !cur.binary ? cur.text : null;
+		const next = writeLicenseNote(text, fn(readLicenseNote(text)));
+		if (next === text) return undefined;
+		return { ...(cur || { path, base: null }), path, text: next, dirty: true, deleted: false };
+	});
+	scheduleSync();
+}
+// After each sync: this device goes in the license note if it isn't there,
+// which also covers devices licensed before the note existed.
+function noteLicense() {
+	if (!licensing) return;
+	const lic = savedLicense();
+	// The key window went up before the notes were in: fill in the note's key now.
+	if (!lic && !$("license").hidden && !$("licenseKey").value && licenseNote().key) showLicense($("license").dataset.required === "1");
+	if (!lic?.instance) return;
+	const note = licenseNote();
+	if (note.key === lic.key && note.devices.some((d) => d.id === lic.instance)) return;
+	changeLicenseNote((n) => withDevice(n, lic, deviceName()));
+}
+
+// The license note's devices, each but this one with a button that frees its
+// place on the key. Works for a lost device: freeing needs only the key and
+// the activation's id. freed() runs after one goes.
+function licenseDevices(freed) {
+	const lic = savedLicense(), note = licenseNote();
+	const list = Object.assign(document.createElement("ul"), { className: "license-devices" });
+	for (const d of note.devices) {
+		const here = lic?.key === note.key && lic.instance === d.id;
+		const li = document.createElement("li");
+		li.append(Object.assign(document.createElement("span"), { textContent: d.name + (here ? " (this device)" : "") + (d.added ? ", added " + d.added : "") }));
+		if (!here) {
+			const b = Object.assign(document.createElement("button"), { type: "button", textContent: "Free" });
+			b.addEventListener("click", async () => {
+				if (!confirm(`Free ${d.name}'s place on the key? If it's still in use, it goes back to asking for the key.`)) return;
+				b.disabled = true;
+				try {
+					await deactivateLicense({ key: note.key, instance: d.id }, LICENSE);
+					await changeLicenseNote((n) => withoutDevice(n, d.id));
+					freed();
+				} catch (err) {
+					toast(err instanceof TypeError ? "Couldn't reach Polar." : err.message);
+					b.disabled = false;
+				}
+			});
+			li.append(b);
+		}
+		list.append(li);
+	}
+	return list;
+}
+
 // The key window. required: the trial is over, so it can't be put away.
 function showLicense(required = false) {
+	const saved = licenseNote().key;
+	if (saved && !$("licenseKey").value) $("licenseKey").value = saved;
+	const where = saved ? "Your key is filled in from _wr1t3r/License.md in your notes." : "It's on your Polar purchases page, linked from your receipt email.";
 	$("licenseTitle").textContent = required ? "Your free trial has ended" : "Enter your license key";
 	$("licenseHint").textContent = required
-		? "Your notes are safe in your own storage. To keep writing in wr1t3r, enter your license key. It's on your Polar purchases page, linked from your receipt email."
-		: "It's on your Polar purchases page, linked from your receipt email.";
+		? "Your notes are safe in your own storage. To keep writing in wr1t3r, enter your license key. " + where
+		: where;
+	$("licenseDevices").hidden = true;
 	$("licenseLater").hidden = required;
 	$("licenseOut").hidden = !required;
 	$("licenseError").hidden = true;
@@ -1169,6 +1236,8 @@ async function enterLicense() {
 	try {
 		const lic = await activateLicense($("licenseKey").value, { ...LICENSE, name: deviceName() });
 		writeJSON(LICENSE_KEY, lic);
+		changeLicenseNote((n) => withDevice(n, lic, deviceName()));
+		$("licenseDevices").hidden = true;
 		$("licenseKey").value = "";
 		$("license").hidden = true;
 		toast(lic.name ? `Thanks, ${lic.name}. wr1t3r is yours.` : "Thanks. wr1t3r is yours.");
@@ -1176,6 +1245,13 @@ async function enterLicense() {
 	} catch (e) {
 		err.textContent = e instanceof TypeError ? "Couldn't reach Polar. Check the connection and try again." : e.message;
 		err.hidden = false;
+		// Full: the devices the license note knows of, to free one and try again.
+		const box = $("licenseDevices");
+		box.hidden = !(e.full && licenseNote().key === cleanKey($("licenseKey").value) && licenseNote().devices.length);
+		if (!box.hidden) {
+			err.textContent = "That key is already on as many devices as it allows. Free one you've lost or stopped using, and this device takes its place. Not listed? Email hello@wr1t3r.app.";
+			box.replaceChildren(licenseDevices(() => enterLicense()));
+		}
 	} finally {
 		go.disabled = false;
 	}
@@ -1189,6 +1265,7 @@ async function recheckLicense() {
 	try { next = await checkLicense(lic, LICENSE); } catch { return; }
 	if (next) return writeJSON(LICENSE_KEY, next);
 	storeRaw(LICENSE_KEY, null);
+	changeLicenseNote((n) => withoutDevice(n, lic.instance));
 	renderLicenseSettings();
 	if (licenseNow().status === "ended") showLicense(true);
 	toast("This device's license key is no longer active.", 8000);
@@ -1212,6 +1289,7 @@ function renderLicenseSettings() {
 			try {
 				await deactivateLicense(lic, LICENSE);
 				storeRaw(LICENSE_KEY, null);
+				await changeLicenseNote((n) => withoutDevice(n, lic.instance));
 				renderLicenseSettings();
 				if (licenseNow().status === "ended") showLicense(true);
 			} catch (err) {
@@ -1227,6 +1305,12 @@ function renderLicenseSettings() {
 			const a = Object.assign(document.createElement("a"), { href: LICENSE.buy, target: "_blank", rel: "noopener", textContent: "Buy wr1t3r" });
 			pane.append(Object.assign(document.createElement("p"), { className: "hint" }).appendChild(a).parentNode);
 		}
+	}
+	const note = licenseNote();
+	if (note.devices.length && (!lic || lic.key === note.key)) {
+		pane.append(Object.assign(document.createElement("h2"), { textContent: "Devices on your key" }));
+		pane.append(licenseDevices(() => renderLicenseSettings()));
+		pane.append(p("From _wr1t3r/License.md in your notes. Free one you've lost, wiped or stopped using, so the key can go on another. Lost track of one that isn't listed? Email hello@wr1t3r.app.", "hint"));
 	}
 }
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, cleanKey, maskKey } from "../src/license.js";
+import { licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, cleanKey, maskKey, readLicenseNote, writeLicenseNote, withDevice, withoutDevice } from "../src/license.js";
 
 const DAY = 86400000;
 const KEY = "38b1460a-5104-4067-a91d-77b872934d51";
@@ -116,4 +116,36 @@ test("removing this device frees the activation", async () => {
 test("keys are cleaned and masked", () => {
 	assert.equal(cleanKey(" ab cd\n"), "abcd");
 	assert.equal(maskKey(KEY), "••••••••72934d51");
+});
+
+test("the license note keeps the key and its devices, and leaves the rest of the note alone", () => {
+	assert.deepEqual(readLicenseNote(""), { key: "", devices: [] });
+	assert.deepEqual(readLicenseNote("```json\nnot json\n```"), { key: "", devices: [] });
+	let note = withDevice(readLicenseNote(""), { key: KEY, instance: "act-1" }, "wr1t3r on Mac", Date.UTC(2026, 9, 13));
+	assert.deepEqual(note, { key: KEY, devices: [{ id: "act-1", name: "wr1t3r on Mac", added: "2026-10-13" }] });
+	const text = writeLicenseNote(null, note);
+	assert.deepEqual(readLicenseNote(text), note);
+	note = withDevice(readLicenseNote(text), { key: KEY, instance: "act-2" }, "wr1t3r on iPhone", 0);
+	assert.deepEqual(note.devices.map((d) => d.id), ["act-1", "act-2"]);
+	// The same device again isn't listed twice.
+	assert.equal(withDevice(note, { key: KEY, instance: "act-2" }, "wr1t3r on iPhone", 0).devices.length, 2);
+	// A different key starts the list over.
+	assert.deepEqual(withDevice(note, { key: "other", instance: "act-9" }, "x", 0).devices.map((d) => d.id), ["act-9"]);
+	assert.deepEqual(withoutDevice(note, "act-1").devices.map((d) => d.id), ["act-2"]);
+	// Rewriting keeps what the user wrote around the block.
+	const edited = "My own words.\n\n" + text + "\nMore after.";
+	const again = writeLicenseNote(edited, withoutDevice(note, "act-1"));
+	assert.match(again, /^My own words\.\n/);
+	assert.match(again, /More after\.$/);
+	assert.deepEqual(readLicenseNote(again).devices.map((d) => d.id), ["act-2"]);
+});
+
+test("a full key says so, so the key window can list devices to free", async () => {
+	const polar = fakePolar({ full: { org: "o1", status: "granted", limit: 1, activations: ["x"] } });
+	const e = await activateLicense("full", { fetch: polar.fetch, org: "o1" }).catch((e) => e);
+	assert.equal(e.full, true);
+	assert.match(e.message, /hello@wr1t3r\.app/);
+	// Freeing the listed device by its id alone makes room.
+	await deactivateLicense({ key: "full", instance: "x" }, { fetch: polar.fetch, org: "o1" });
+	assert.ok(await activateLicense("full", { fetch: polar.fetch, org: "o1" }));
 });
