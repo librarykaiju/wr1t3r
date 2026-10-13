@@ -255,7 +255,9 @@ html { -webkit-text-size-adjust: 100%; }
    (whose maximum-scale also stops iOS zooming in on a focused field): no pinch
    or double-tap zoom, and nothing wider than the screen widens the page. Wide
    things (tables, boards) scroll inside their own box. */
-html { touch-action: pan-x pan-y; }
+/* iOS reads touch-action on the element touched, not the page, so every
+   element gets it; ones that need their own (drag grips) still set it. */
+html, body, body * { touch-action: pan-x pan-y; }
 html, body { overflow-x: clip; }
 body { background: var(--bg); color: var(--fg); font: 15px/1.4 var(--sans); }
 button, input { font: inherit; color: inherit; }
