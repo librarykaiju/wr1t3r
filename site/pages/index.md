@@ -28,9 +28,15 @@ _Works in any modern browser on Mac, Windows, Linux, iPhone, iPad and Android. W
 
 --- features
 
+<<<<<<< HEAD
 ## Plan and write with scene cards on the storyboard
 
 Start a short story, novel, essay, or script with a button and its project folder comes ready with starter notes. Each scene card is its own note. Lay them out like index cards and rearrange them as needed. Stay organized with synopses and status badges, and color code them by point of view or thread. Switch to the outliner to see word counts and status in a table.
+=======
+## Plan and write with scene cards on a storyboard
+
+Start a short story, novel, essay, or script with a button and its project folder comes ready with starter notes. Each scene card is its own note. Lay them out like index cards and rearrange them as needed. Stay organized with synopses and status badges, and color-code them by point of view or thread. Switch to the outliner to see word counts and status in a table.
+>>>>>>> daff7f124c891f73b62991e14822d138e4be8c9c
 
 ![Storyboard view of a novel's scenes as index cards with synopses and status labels](/shots/corkboard.webp)
 
