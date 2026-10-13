@@ -327,7 +327,7 @@ export function medReminders(meds, { from = Date.now(), days = 7, takenOn = () =
 			const at = new Date(y, mo - 1, d, h, min).getTime();
 			if (at < from) continue;
 			const title = `💊 ${who ? who + ": " : ""}${dose.name}${dose.dose ? " " + dose.dose : ""}`;
-			out.push({ id: hash(`med\n${who ? who + "\n" : ""}${dose.name}\n${at}`), at, title, path: pathOn(day) });
+			out.push({ id: hash(`med\n${who ? who + "\n" : ""}${dose.name}\n${at}`), at, title, path: pathOn(day), med: true });
 		}
 	}
 	return out;

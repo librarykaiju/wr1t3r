@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { eventIdFor, reminderEvent, plan, prune, PER_PASS } from "../src/calreminders.js";
+import { eventIdFor, reminderEvent, plan, prune, PER_PASS, byCalendar } from "../src/calreminders.js";
 import { eventBody } from "../worker/calendar.js";
 
 const at = (s) => new Date(s).getTime();
@@ -39,4 +39,16 @@ test("a pass adds what's new and removes what's gone", () => {
 	const many = Array.from({ length: 40 }, (_, i) => r("T" + i, new Date(now + (i + 1) * 3600000).toISOString()));
 	assert.equal(plan(many, {}, now).add.length, PER_PASS);
 	assert.deepEqual(Object.keys(prune({ a: { at: now - 2 * 864e5 }, b: { at: now - 3600000 } }, now)), ["b"]);
+});
+
+test("byCalendar: doses to their own calendar, the reminders one, or none", () => {
+	const task = { at: 1, title: "Call" }, dose = { at: 2, title: "💊 Mom: Lisinopril", med: true };
+	const map = (o) => Object.fromEntries([...byCalendar([task, dose], o)].map(([k, v]) => [k, v.map((r) => r.title)]));
+	assert.deepEqual(map({ tasks: "r", doses: "" }), { r: ["Call", "💊 Mom: Lisinopril"] });
+	assert.deepEqual(map({ tasks: "r", doses: "m" }), { r: ["Call"], m: ["💊 Mom: Lisinopril"] });
+	assert.deepEqual(map({ tasks: "r", doses: "off" }), { r: ["Call"] });
+	assert.deepEqual(map({ tasks: null, doses: "m" }), { m: ["💊 Mom: Lisinopril"] });
+	assert.deepEqual(map({ tasks: null, doses: "" }), {});
+	assert.equal(reminderEvent(dose, "UTC").title, "💊 Mom: Lisinopril");
+	assert.equal(reminderEvent(task, "UTC").title, "⏰ Call");
 });

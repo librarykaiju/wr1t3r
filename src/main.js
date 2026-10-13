@@ -100,7 +100,7 @@ import { INBOX, captureEntry, appendCapture, stamp } from "./capture.js";
 import { bookmarklet } from "./clippayload.js";
 import { recordVoice } from "./recorder.js";
 import { remindersIn, dueReminders } from "./reminders.js";
-import { plan as remindPlan, prune as remindPrune, reminderEvent, eventIdFor } from "./calreminders.js";
+import { plan as remindPlan, prune as remindPrune, reminderEvent, eventIdFor, byCalendar, PER_PASS } from "./calreminders.js";
 import { openHistory } from "./historyview.js";
 import { foodFromLabel } from "./labelview.js";
 
@@ -3131,24 +3131,34 @@ async function uploadReminders() {
 // next two weeks of reminders into it as events with a popup, so the Calendar
 // app reminds you with wr1t3r closed. Per device, like the Google connection.
 const REMIND_CAL_KEY = "wr1t3r-remind-calendar"; // the calendar's id
+// Medicine doses' calendar: unset for the reminders calendar, "off" for none.
+const MED_CAL_KEY = "wr1t3r-med-calendar";
 const REMIND_SENT_KEY = "wr1t3r-remind-sent"; // { eventId: { at, title, cal } }
 let remindSending = false;
 
 // Google Calendar itself (the page's own connection, or the Worker's), never
 // wr1t3r's notebook calendar: those events wouldn't remind anyone.
 const googleSide = () => pageGoogle || (!onDropbox && !calNotebook ? api : null);
-const calendarReminders = () => featureOn("reminders") && !!readRaw(REMIND_CAL_KEY) && !!googleSide();
+const remindTargets = () => ({ tasks: readRaw(REMIND_CAL_KEY) || null, doses: readRaw(MED_CAL_KEY) || "" });
+const calendarReminders = () => featureOn("reminders") && byCalendar([{}, { med: true }], remindTargets()).size > 0 && !!googleSide();
 
 const gone = (e) => /\b(404|410)\b|not found|has been deleted/i.test(e?.message || "");
 
 async function sendCalendarReminders() {
 	if (remindSending || !navigator.onLine) return;
-	const g = googleSide(), calId = readRaw(REMIND_CAL_KEY);
+	const g = googleSide();
 	let sent = remindPrune(readJSON(REMIND_SENT_KEY, {}), Date.now());
-	// Turned off, or moved to another calendar: take back the events still to come.
-	const want = featureOn("reminders") && calId && g ? calId : null;
-	const { add, remove } = want ? remindPlan(upcomingReminders(), Object.fromEntries(Object.entries(sent).filter(([, x]) => x.cal === want)), Date.now()) : { add: [], remove: [] };
-	const stale = Object.entries(sent).filter(([, x]) => x.cal !== want && x.at > Date.now()).map(([id]) => id);
+	// Tasks to the reminders calendar, doses to theirs (Settings > Reminders).
+	// A calendar turned off or changed has its events still to come taken back.
+	const groups = featureOn("reminders") && g ? byCalendar(upcomingReminders(), remindTargets()) : new Map();
+	const add = [], remove = [];
+	for (const [cal, list] of groups) {
+		const p = remindPlan(list, Object.fromEntries(Object.entries(sent).filter(([, x]) => x.cal === cal)), Date.now());
+		add.push(...p.add.map((r) => [cal, r]));
+		remove.push(...p.remove);
+	}
+	add.sort((a, b) => a[1].at - b[1].at).splice(PER_PASS);
+	const stale = Object.entries(sent).filter(([, x]) => !groups.has(x.cal) && x.at > Date.now()).map(([id]) => id);
 	if (!g || (!add.length && !remove.length && !stale.length)) return;
 	remindSending = true;
 	const save = () => writeJSON(REMIND_SENT_KEY, sent);
@@ -3159,7 +3169,7 @@ async function sendCalendarReminders() {
 			save();
 		}
 		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-		for (const r of add) {
+		for (const [want, r] of add) {
 			const ev = reminderEvent(r, timeZone);
 			// Already there: another device sent it first.
 			try { await g.addEvent({ ...ev, calendarId: want }); } catch (e) { if (!/already exists|\b409\b/i.test(e?.message || "")) throw e; }
@@ -4102,13 +4112,20 @@ function fillCalendarSetting() {
 function fillRemindCalendar() {
 	const sel = $("remCal"), id = readRaw(REMIND_CAL_KEY) || "";
 	const google = !!googleSide() && calState !== "setup";
-	for (const id of ["remCalHead", "remCalRow", "remCalHint"]) $(id).hidden = !google;
+	for (const id of ["remCalHead", "remCalRow", "remCalHint", "medCalHead", "medCalRow", "medCalHint"]) $(id).hidden = !google;
 	if (!google || document.activeElement === sel) return;
 	const list = (cal?.calendars || []).filter((c) => c.writable !== false);
 	sel.replaceChildren(new Option("Off", ""));
 	for (const c of [...list].sort((a, b) => b.primary - a.primary)) sel.append(new Option(agenda.calendarLabel(c), c.id));
 	if (id && !list.some((c) => c.id === id)) sel.append(new Option("Picked calendar", id));
 	sel.value = id;
+	// Medicine doses: the same calendar, one of their own, or none.
+	const med = $("medCal"), mid = readRaw(MED_CAL_KEY) || "";
+	if (document.activeElement === med) return;
+	med.replaceChildren(new Option("Same as reminders", ""), new Option("Off", "off"));
+	for (const c of [...list].sort((a, b) => b.primary - a.primary)) med.append(new Option(agenda.calendarLabel(c), c.id));
+	if (mid && mid !== "off" && !list.some((c) => c.id === mid)) med.append(new Option("Picked calendar", mid));
+	med.value = mid;
 }
 
 // A clicked link: web links open in a new tab, links to notes open the note
@@ -5259,6 +5276,12 @@ function setupSettings() {
 		storeRaw(REMIND_CAL_KEY, e.target.value || null);
 		await sendCalendarReminders();
 		toast(e.target.value ? "Reminders for the next two weeks are going into that calendar; its app reminds you even with wr1t3r closed." : "Reminders stopped going to Google Calendar, and the ones still to come were taken out.", 8000);
+	});
+	$("medCal").addEventListener("change", async (e) => {
+		storeRaw(MED_CAL_KEY, e.target.value || null);
+		await sendCalendarReminders();
+		const v = e.target.value;
+		toast(v === "off" ? "Medicine doses stopped going to Google Calendar, and the ones still to come were taken out." : v ? "Medicine doses for the next two weeks are going into that calendar, with a popup at each one." : "Medicine doses go to the reminders calendar again.", 8000);
 	});
 	$("smaller").addEventListener("click", () => setSize(fontSize - 1));
 	$("fontPick").addEventListener("change", (e) => setFont(e.target.value));
