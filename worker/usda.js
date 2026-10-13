@@ -54,7 +54,7 @@ export function usdaFood(f) {
 		name: brand && !plain.toLowerCase().includes(brand.toLowerCase()) ? `${plain} (${brand})` : plain,
 		calories: round(per100.calories, 0), fat: round(per100.fat, 1), carbs: round(per100.carbs, 1),
 		protein: round(per100.protein, 1), fiber: round(per100.fiber, 1),
-		group: groupOf(f.foodCategory),
+		group: groupOf(f.foodCategory, f.description),
 		aliases: [...new Set([brand && plain.toLowerCase()].filter(Boolean))],
 	};
 }
@@ -75,24 +75,38 @@ function servingOf(f) {
 	return { serving: "100g", factor: 1 };
 }
 
-// USDA's food category -> the Nutrition Database's Food Group.
+// USDA's food category -> the Nutrition Database's Food Group. The
+// categories are SR Legacy's ("Vegetables and Vegetable Products"), Branded
+// foods' ("Nut & Seed Butters") and FNDDS's survey ones ("Bananas", "Liquor
+// and cocktails"). First match wins, so the narrow ones come first: "Potato
+// chips" is a snack, "Salad dressings and vegetable oils" an oil, "Apple juice"
+// a drink. Dishes (pizza, burgers, burritos) stay Other.
 const GROUPS = [
-	[/vegetable|fruit|produce|salad|potato/i, "Produce"],
-	[/legume|bean|lentil|tofu/i, "Legume"],
+	[/pizza|burger|sandwich|burrito|taco|nachos|enchilada|quesadilla|chimichanga|\bchili\b/i, "Other"],
+	[/macaroni|pasta mixed/i, "Grain"],
+	[/doughnut|pastr/i, "Sweetener"],
+	[/chips|popcorn|pretzel|snack|\bbars?\b/i, "Snack"],
+	[/formula|\bjuice$|alcohol|liquor|liqueur|cocktail|vodka|tequila|whiskey|brandy|martini|\b(gin|rum)\b|\bwine\b|\bbeer\b|smoothie|soft drink|fruit drink|sports? (and energy )?drink/i, "Beverage"],
 	[/\bnuts?\b|seed|peanut/i, "Fat/Protein"],
-	[/fats? and oils|oil|butter|margarine/i, "Fat/Oil"],
+	[/fats? and oils|\boils?\b|butter|margarine|animal fat|mayonnaise/i, "Fat/Oil"],
+	[/sauce|condiment|dressing|\bdips?\b|grav(y|ies)|ketchup|mustard|mayo|salsa|pickle|olive/i, "Condiment"],
+	[/vegetable|fruit|produce|salad|potato|tomato|carrot|onion|\bcorn\b|lettuce|\bpeppers?\b|broccoli|spinach|cabbage|string bean|green bean|apple|banana|grape|peach|nectarine|\bpears?\b|berr(y|ies)|citrus|orange|melon|pineapple|mango|papaya/i, "Produce"],
+	[/legume|bean|lentil|tofu|soy product/i, "Legume"],
 	[/milk substitute|plant.based milk|non.dairy/i, "Dairy Alternative"],
 	[/dairy|cheese|milk|yogurt|cream/i, "Dairy"],
-	[/poultry|chicken|turkey|beef|pork|lamb|veal|game|fish|seafood|shellfish|sausage|meat|egg/i, "Protein"],
-	[/cereal|grain|pasta|bread|baked|rice|cracker|tortilla|flour/i, "Grain"],
-	[/sweet|candy|sugar|syrup|honey|dessert|cookie/i, "Sweetener"],
+	[/poultry|chicken|turkey|beef|pork|lamb|veal|game|fish|seafood|shellfish|sausage|meat|egg|bacon|frankfurter|cold cuts|\bham\b/i, "Protein"],
+	[/cereal|grain|pasta|noodle|bread|baked|rice|cracker|tortilla|flour|bagel|muffin|\brolls?\b|\bbuns?\b|biscuit|pancake|waffle|french toast|oatmeal|grits/i, "Grain"],
+	[/sweet|candy|sugar|syrup|honey|dessert|cookie|brownie|cake|\bpies?\b|pastr|doughnut|pudding|gelatin|\bices?\b|sorbet|\bjams?\b|topping/i, "Sweetener"],
 	[/spice|herb|seasoning/i, "Spice"],
 	[/beverage|drink|juice|coffee|tea|soda|water/i, "Beverage"],
-	[/sauce|condiment|dressing|dip|ketchup|mustard|mayo|salsa/i, "Condiment"],
 ];
-export function groupOf(category) {
+const match = (text) => GROUPS.find(([re]) => re.test(String(text || "")))?.[1];
+
+// A food's group from its category, else from the first words of its name
+// ("Broccoli, fresh, cooked" -> Produce) when the category says nothing.
+export function groupOf(category, name = "") {
 	const c = typeof category === "object" ? category?.description : category;
-	return GROUPS.find(([re]) => re.test(String(c || "")))?.[1] || "Other";
+	return match(c) || match(String(name).split(",")[0]) || "Other";
 }
 
 // "PEANUT BUTTER, CREAMY" -> "Peanut Butter, Creamy". Mixed-case text is left as is.
