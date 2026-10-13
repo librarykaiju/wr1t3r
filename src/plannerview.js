@@ -36,6 +36,9 @@ import { menu, cardColorPicker } from "./basesui.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
 import { entries, onThisDay, yearsAgo, dayHealth, trends, series } from "./journal.js";
 import { lineChart, sliceColor } from "./charts.js";
+// Loaded with the planner, not on the camera tap: a phone opens the camera
+// only straight from a tap, before anything is fetched.
+import { foodFromLabel } from "./labelview.js";
 
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 
@@ -498,7 +501,6 @@ class PlannerWidget extends WidgetType {
 			photo.addEventListener("click", async () => {
 				// Out of the way of the photo's dialog, which opens under panels.
 				closePanel();
-				const { foodFromLabel } = await import("./labelview.js");
 				const f = await foodFromLabel({ known: (code) => foods.find((x) => x.aliases.includes(code)) || null });
 				if (f) await addAndLog(f);
 			});
