@@ -3307,6 +3307,7 @@ function allCommands() {
 		["Log food", logFood, "eat meal nutrition calories health usda planner"],
 		["Import foods into the Nutrition Database", importFoods, "csv spreadsheet foods nutrition database calories import cronometer"],
 		["Add this recipe to the Nutrition Database", syncRecipe, "recipe ingredients nutrition database calories per serving sync"],
+		["Add a food from a nutrition label photo", foodFromLabelPhoto, "photo picture camera nutrition facts label scan food database calories"],
 		...(featureOn("daily") ? [["Mood, sleep and weight", moodTrends, "trends chart graph health stats tracker mood sleep weight history"]] : []),
 		["Write this week's review", () => writeReview("week"), "weekly review reflect journal recap"],
 		["Write this month's review", () => writeReview("month"), "monthly review reflect journal recap"],
@@ -4148,6 +4149,19 @@ async function importFoods() {
 	await dataviewVault.write(path, (t) => { r = fi.addFoods(t, read.foods); return r.text; });
 	scheduleSync();
 	toast(`Added ${r.added} food${r.added === 1 ? "" : "s"}` + (r.already ? `; ${r.already} ${r.already === 1 ? "was" : "were"} already there.` : "."), 6000);
+}
+
+// A food from a photo of its Nutrition Facts label (src/labelview.js), saved
+// to the Nutrition Database.
+async function foodFromLabelPhoto() {
+	const { foodFromLabel } = await import("./labelview.js");
+	const food = await foodFromLabel();
+	if (!food) return;
+	const fi = await import("./foodimport.js");
+	const path = await nutritionNote();
+	let r = { added: 0 };
+	await dataviewVault.write(path, (t) => { r = fi.addFoods(t, [food]); return r.text; });
+	toast(r.added ? `Added ${food.name} (${food.calories} cal per ${food.serving}) to the Nutrition Database.` : `${food.name} is already in the Nutrition Database, so it was left as it is.`, 6000);
 }
 
 // The open note as a recipe: its "## Ingredients" list, matched against the

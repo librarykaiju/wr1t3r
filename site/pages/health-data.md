@@ -77,11 +77,15 @@ Calorie counts on food labels and in databases are averages. Real food varies, a
 
 Every food you log comes from a table in a note called _Nutrition Database_, in your own Dropbox or Google Drive. Each row is one food: its name, a serving, then calories, fat, carbs, protein and fiber for that serving, a food group and any other names you call it by. If you don't have the note yet, the Food button's _Make one_ makes it.
 
-There are four ways to fill it.
+There are five ways to fill it.
 
 ### From a USDA search
 
 On the Food button, type a food and press _Search USDA_. Picking a result adds it to the table and logs it.
+
+### From a photo of the label
+
+On the Food button, _📷 Add a food from its label_ (or Commands > _Add a food from a nutrition label photo_) takes a photo of a Nutrition Facts label, or opens the camera on a phone. The text is read on your device, so the photo never leaves it. wr1t3r fills in the serving size, calories, fat, carbs, protein and fiber, and shows them beside the photo. Check them and name the food before you save. If the calories don't add up from the fat, carbs and protein, it says so, because that usually means a number was misread. It works best on a flat, well-lit US-style label.
 
 ### By hand
 
