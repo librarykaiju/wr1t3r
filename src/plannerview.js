@@ -21,6 +21,7 @@ import {
 } from "./planner.js";
 import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn, addDays } from "./habits.js";
 import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText } from "./meds.js";
+import { searchMeds, strengthDose, dailyMedLink } from "./rxterms.js";
 import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES, ADULT } from "./targets.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
@@ -690,8 +691,61 @@ class PlannerWidget extends WidgetType {
 				return wrap;
 			};
 			const row = el("div", "planner-food-opts");
-			row.append(field("name", "Medicine", "Lisinopril"), field("dose", "Dose", "10 mg"));
+			const nameField = field("name", "Medicine", "Lisinopril");
+			const nameInput = nameField.querySelector("input");
+			nameInput.autocomplete = "off";
+			row.append(nameField, field("dose", "Dose", "10 mg"));
 			box.append(row);
+			// Names and strengths from the National Library of Medicine's
+			// RxTerms (src/rxterms.js) as the name is typed; a pick fills the
+			// name and offers its strengths for the dose.
+			const picks = el("div", "planner-med-picks");
+			const showPicks = (into) => {
+				into.replaceChildren();
+				if (f.found?.length) {
+					const list = el("div", "planner-results");
+					for (const r of f.found) {
+						const b = el("button", "planner-result");
+						b.type = "button";
+						b.append(el("span", null, r.label), el("span", "planner-result-meta", r.strengths.length ? `${r.strengths.length} strength${r.strengths.length === 1 ? "" : "s"}` : ""));
+						b.addEventListener("click", () => {
+							Object.assign(f, { name: r.name, strengths: r.strengths, found: null });
+							if (!f.dose.trim() && r.strengths.length === 1) f.dose = strengthDose(r.strengths[0]);
+							redraw();
+						});
+						list.append(b);
+					}
+					into.append(list);
+				}
+				if (f.searchError) into.append(el("p", "planner-panel-hint", f.searchError));
+			};
+			showPicks(picks);
+			box.append(picks);
+			nameInput.addEventListener("input", () => {
+				clearTimeout(st.timer);
+				const q = f.name.trim();
+				const update = () => { const into = box.querySelector(".planner-med-picks"); if (into && st.form === f) showPicks(into); };
+				if (q.length < 3) { f.found = null; f.searchError = ""; update(); return; }
+				st.timer = setTimeout(async () => {
+					try {
+						const found = await searchMeds(q);
+						if (f.name.trim() !== q) return;
+						Object.assign(f, { found, searchError: found.length ? "" : "No medicines by that name. You can still add it as typed." });
+					} catch {
+						Object.assign(f, { found: null, searchError: "Couldn't reach the medicine list. Type the name and dose yourself." });
+					}
+					update();
+				}, 300);
+			});
+			if (f.strengths?.length) {
+				const chips = el("div", "planner-med-strengths");
+				for (const s of f.strengths) {
+					const b = panelButton("planner-day", s, () => { f.dose = strengthDose(s); redraw(); });
+					b.setAttribute("aria-pressed", String(f.dose.trim() === strengthDose(s)));
+					chips.append(b);
+				}
+				box.append(chips);
+			}
 			const prn = el("label", "planner-check");
 			const cb = el("input");
 			cb.type = "checkbox";
@@ -711,7 +765,8 @@ class PlannerWidget extends WidgetType {
 			}
 			if (f.error) box.append(el("p", "planner-panel-error", f.error));
 			const foot = el("div", "planner-panel-foot");
-			foot.append(panelButton("planner-link", "Cancel", () => { st.form = null; redraw(); }), panelButton("planner-log-btn", f.line == null ? "Add" : "Save", async () => {
+			foot.append(panelButton("planner-link", "Cancel", () => { clearTimeout(st.timer); st.form = null; redraw(); }), panelButton("planner-log-btn", f.line == null ? "Add" : "Save", async () => {
+				clearTimeout(st.timer);
 				const name = f.name.trim();
 				const parts = f.times.split(/\s*,\s*/).filter(Boolean);
 				const times = f.asNeeded ? [] : parts.map(parseTime);
@@ -739,7 +794,9 @@ class PlannerWidget extends WidgetType {
 			const row = el("div", "planner-log");
 			const when = m.asNeeded ? "as needed" : m.times.map(timeText).join(", ") + (m.days ? ` · ${daysText(m.days)}` : "");
 			row.append(el("span", "planner-log-text", m.name + (m.dose ? ` · ${m.dose}` : "")), el("span", "planner-log-meta", when));
-			row.append(panelButton("planner-link", "Edit", () => open(m)));
+			const label = el("a", "planner-link", "Label");
+			Object.assign(label, { href: dailyMedLink(m.name), target: "_blank", rel: "noopener noreferrer", title: `${m.name}'s prescribing information on DailyMed` });
+			row.append(label, panelButton("planner-link", "Edit", () => open(m)));
 			const x = panelButton("planner-log-x", "×", () => { if (confirm(`Take ${m.name} off the list?`)) write((t) => removeMed(t, m.line)); });
 			x.title = "Take it off the list";
 			row.append(x);

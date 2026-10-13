@@ -1610,6 +1610,10 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .planner-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .planner-day { padding: 5px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--muted); font: 12px var(--sans); cursor: pointer; }
 .planner-day[aria-pressed=true] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--fg); font-weight: 600; }
+.planner-med-picks:empty { display: none; }
+.planner-med-strengths { display: flex; flex-wrap: wrap; gap: 4px; }
+.planner-med-strengths .planner-day { padding: 5px 9px; }
+a.planner-link { text-decoration: none; }
 .planner-pick { display: flex; gap: 6px; align-items: center; }
 .planner-pick .planner-check { flex: 1; }
 .planner-arrow { width: 30px; padding: 2px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); cursor: pointer; }
