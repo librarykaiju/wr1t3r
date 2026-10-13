@@ -1988,6 +1988,10 @@ async function tallyWords() {
 	}
 }
 
+// The app's scale is fixed: iOS Safari ignores user-scalable=no, so its
+// pinch is stopped here (touch-action in style.css covers the rest). Text
+// size is Settings > Appearance.
+document.addEventListener("gesturestart", (e) => e.preventDefault());
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && wordBase.size) { clearTimeout(wordTimer); tallyWords(); } });
 
 // The Habits tile on Home (a "habits:" pin): today's count, the longest
