@@ -1,6 +1,6 @@
 ---
 title: wr1t3r help: setting up and publishing
-description: Step by step: set up wr1t3r with your Dropbox, then publish your notes as a website on Neocities or GitHub Pages.
+description: Step by step: set up wr1t3r with your Dropbox or Google Drive, then publish your notes as a website on Neocities or GitHub Pages.
 page: help
 ---
 
@@ -27,7 +27,7 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 
 1.  **Open [my.wr1t3r.app](https://my.wr1t3r.app/)** in any browser. On an iPhone or iPad, tap Share, then _Add to Home Screen_, and open wr1t3r from there. Safari clears a website's saved data after a few weeks unless it's on the Home Screen.
 
-2.  **Sign in with Dropbox.** wr1t3r gets one folder of its own, _Apps › wr1t3r_, and can't see anything else in your Dropbox. Your notes go straight between your browser and Dropbox; they never pass through a server of mine.
+2.  **Sign in with Dropbox or Google Drive.** In Dropbox, wr1t3r gets one folder of its own, _Apps › wr1t3r_, and can't see anything else in your Dropbox. In Google Drive, it keeps your notes in a folder called _wr1t3r_ and sees only the files it made. Either way, your notes go straight between your browser and your storage; they never pass through a server of mine.
 
     ![The first screen: Your notes live in your own Dropbox, in Apps › wr1t3r, and a Sign in with Dropbox button](/shots/help-connect.webp)
 
@@ -37,7 +37,7 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 
 4.  **Read the Welcome note.** It explains each part you turned on. Delete it when you're done; Commands > _Getting started_ writes a fresh one.
 
-5.  **Already have notes?** Put your Markdown files (and their pictures) in _Dropbox › Apps › wr1t3r_. They show up when you switch back to wr1t3r.
+5.  **Already have notes?** In Dropbox, put your Markdown files (and their pictures) in _Dropbox › Apps › wr1t3r_. They show up when you switch back to wr1t3r. In Google Drive, add them with the Upload button, since wr1t3r can only see files it put there itself.
 
 6.  **Enter your license key** in Settings > License after you buy. Everything works during the 14-day trial.
 

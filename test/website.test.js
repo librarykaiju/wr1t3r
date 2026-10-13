@@ -171,6 +171,12 @@ test("the site carries Two-tone, One-tone and Mixtape colors", () => {
 	assert.ok(tape.includes("--mx-bg: #101820;") && tape.includes("--bg: var(--mx-bg") && tape.includes("--f2: var(--mx-second"));
 });
 
+test("the site colors headings by level only when asked", () => {
+	const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
+	assert.ok(themeCss(css, { light: "shire", headings: "level" }).includes("article h6 { color: var(--f6); }"));
+	assert.ok(!themeCss(css, { light: "shire" }).includes("article h1"));
+});
+
 test("the toolbar's published check matches the site's, and says why not", async () => {
 	const { isPublished: own, notPublishedWhy } = await import("../src/published.js");
 	assert.equal(own("Posts/A.md", "---\npublish: true\n---\n"), true);

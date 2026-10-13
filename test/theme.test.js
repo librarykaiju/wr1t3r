@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readTheme, familyOf, themeAttr, readTones, readMixtape, mixtapeVars, toHex, contrast, themeVariants, MIXTAPE_DEFAULT } from "../src/theme.js";
+import { readTheme, familyOf, themeAttr, readTones, readHeadings, readMixtape, mixtapeVars, toHex, contrast, themeVariants, MIXTAPE_DEFAULT } from "../src/theme.js";
 
 test("old saved themes still load", () => {
 	assert.deepEqual(readTheme(null, "dark"), { family: "default", mode: "dark" });
@@ -26,6 +26,8 @@ test("families pick their light or dark variant, Auto follows the system", () =>
 	assert.equal(themeAttr("synthwave", "light", false), "synthwave");
 	assert.equal(themeAttr("bubblegum", "light", true), "bubblegum");
 	assert.equal(themeAttr("bubblegum", "auto", true), "bubblegum-night");
+	assert.equal(themeAttr("shire", "light", true), "shire");
+	assert.equal(themeAttr("shire", "auto", true), "shire-night");
 });
 
 test("A saved Sakura, since dropped, opens as Bubblegum", () => {
@@ -59,4 +61,10 @@ test("Mixtape colors: bad or missing ones fall back, dark backgrounds make a dar
 	assert.equal(toHex("rgb(0,0,0)"), null);
 	assert.equal(Math.round(contrast("#000000", "#ffffff")), 21);
 	assert.ok(contrast("#fbfaf7", "#f0f0f0") < 4.5);
+});
+
+test("Headings: one color unless By level was saved", () => {
+	assert.equal(readHeadings(null), "one");
+	assert.equal(readHeadings("level"), "level");
+	assert.equal(readHeadings("plaid"), "one");
 });
