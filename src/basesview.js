@@ -23,7 +23,7 @@ import { linkOpener } from "./links.js";
 import { parseYaml, readBase, runView, show, fileFor, BLink, BDate, BImage, noteKey, displayName, setProperty } from "./bases.js";
 import {
 	writeYaml, viewsOf, freshName, extra, VIEW_TYPES, viewLabel, sameProp, propType, conditionsFor,
-	readFilters, writeFilters, rawText, readSource, writeSource, prefill, moveValue, lanesFor, laneKeys,
+	readFilters, writeFilters, rawText, rowExpr, readSource, writeSource, prefill, moveValue, lanesFor, laneKeys,
 } from "./baseconfig.js";
 import { el, button, onMenu, menu, openPanel, closePanel, redrawPanel, panelOpen, select, suggestions, valuesOf, editValue, cardColorPicker } from "./basesui.js";
 import { makeCard } from "./cards.js";
@@ -257,9 +257,10 @@ function catalog(r, host) {
 	const paths = host.paths?.() || [];
 	const rows = r.rows?.length ? r.rows.map((x) => x.file) : paths.slice(0, 400).map((p) => { const t = host.text(p); return t == null ? null : fileFor(p, t, paths); }).filter(Boolean);
 	for (const f of rows) for (const k of Object.keys(f.properties)) seen.add(k);
-	const notes = [...seen].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+	const cols = r.tableHeaders || [];
+	const notes = [...seen].filter((k) => !cols.some((c) => c.toLowerCase() === k.toLowerCase())).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 	const formulas = Object.keys(r.base.formulas || {}).map((k) => "formula." + k);
-	return { notes, all: [...notes, ...FILE_PROPS, ...formulas] };
+	return { notes: [...cols, ...notes], all: [...cols, ...notes, ...FILE_PROPS, ...formulas] };
 }
 const nameOf = (id, r) => displayName(id, r.base);
 
@@ -391,8 +392,8 @@ class BaseWidget extends WidgetType {
 		}
 		for (const msg of r.errors.slice(0, 3)) wrap.append(el("div", "md-dql-error", msg));
 
-		const type = VIEW_TYPES.some((x) => x.type === r.view.type) ? r.view.type : "table";
-		if (type !== r.view.type) wrap.append(el("div", "md-base-note", `wr1t3r can't draw ${r.view.type} views, so this one shows as a grid.`));
+		const type = !r.tableHeaders && VIEW_TYPES.some((x) => x.type === r.view.type) ? r.view.type : "table";
+		if (!r.tableHeaders && type !== r.view.type) wrap.append(el("div", "md-base-note", `wr1t3r can't draw ${r.view.type} views, so this one shows as a grid.`));
 		const cells = cellTools(ctx, r, editable);
 		if (type === "kanban") kanban(ctx, r, editable, cells, wrap);
 		else if (type === "calendar") calendar(ctx, r, editable, wrap, dateProp(r, host));
@@ -446,7 +447,8 @@ function toolbar(ctx, r, editable, wrap) {
 				repick({ view: at, sort: null });
 			}, "Add a view"));
 		}
-		bar.append(el("span", "md-base-count", r.total === 1 ? "1 note" : `${r.total} notes`));
+		const unit = r.tableHeaders ? "row" : "note";
+		bar.append(el("span", "md-base-count", r.total === 1 ? `1 ${unit}` : `${r.total} ${unit}s`));
 	}
 	const tools = el("div", "md-base-tools");
 	if (!r.error && editable) {
@@ -548,8 +550,40 @@ function sourcePanel(box, ctx) {
 	box.append(adder("Add a tag", [...tags].sort(), (v) => { v = v.replace(/^#/, ""); put((s) => { if (!s.tags.includes(v)) s.tags.push(v); }); }, "src-tag"));
 	if (src.rest.length) {
 		box.append(el("div", "base-panel-sub", "Also required"));
-		src.rest.forEach((row, i) => box.append(rawRow(row.raw != null ? rawText(row.raw) : null, row, () => put((s) => s.rest.splice(i, 1)))));
+		src.rest.forEach((row, i) => box.append(rawRow(row.raw != null ? rawText(row.raw) : rowExpr(row), row, () => put((s) => s.rest.splice(i, 1)))));
 	}
+	rowsPicker(box, ctx, r);
+}
+
+// What one row of this view is: a note, or a row of a table in each note
+// (a budget with a Category | Budget | Spent table in every month's note).
+function rowsPicker(box, ctx, r) {
+	box.append(el("div", "base-panel-sub", "Each row is"));
+	const cur = r.view.wr1t3r?.tableRows;
+	const on = cur != null && cur !== false && cur !== "";
+	const setRows = (fn) => ctx.save((cfg, v) => {
+		const x = extra(v);
+		fn(x);
+		if (!Object.keys(x).length) delete v.wr1t3r;
+	});
+	const line = el("div", "base-row");
+	line.append(select([["note", "a note"], ["table", "a row of a table in the note"]], on ? "table" : "note", (m) => setRows((x) => { if (m === "table") x.tableRows = true; else delete x.tableRows; })));
+	box.append(line);
+	if (!on) return;
+	const which = el("div", "base-row");
+	const input = el("input", "base-input");
+	input.placeholder = "First table";
+	input.value = cur === true ? "" : String(cur);
+	input.title = "Leave empty for the first table. A number picks the second, third... table. A heading picks the table under it.";
+	const commit = () => {
+		const t = input.value.trim();
+		setRows((x) => { x.tableRows = t === "" ? true : /^\d+$/.test(t) ? Number(t) : t; });
+	};
+	input.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); commit(); } });
+	input.addEventListener("change", commit);
+	which.append(el("span", null, "Table"), input);
+	box.append(which);
+	box.append(el("p", "base-panel-hint", "Columns come from the table's header row. Rows named Total or Sum are skipped. Change a table's cells in the note."));
 }
 
 function chip(text, remove) {
@@ -734,6 +768,10 @@ function layoutPanel(box, ctx) {
 	heading(box, "Layout");
 	const row = (label, control) => { const l = el("div", "base-row"); l.append(el("span", "base-row-label", label), control); box.append(l); return l; };
 	const type = VIEW_TYPES.some((x) => x.type === v.type) ? v.type : "table";
+	if (r.tableHeaders) {
+		box.append(el("p", "base-panel-hint", "Table rows show as a grid."));
+		return;
+	}
 	row("Show as", select(VIEW_TYPES.map((x) => [x.type, x.label]), type, (ty) => ctx.save((cfg, view) => {
 		view.type = ty;
 		if ((ty === "calendar" || ty === "timeline") && !view.wr1t3r?.date) {
@@ -813,6 +851,8 @@ function cellTools(ctx, r, editable) {
 	const edit = (cell, row, id, value) => {
 		const k = noteKey(id);
 		if (!editable || !k || !ctx.host?.write) return;
+		// A table row's own columns are edited in the note, not here.
+		if (row.tableKeys?.has(k.toLowerCase())) return;
 		const type = typeFor(id);
 		cell.classList.add("md-base-editable");
 		const write = (v) => ctx.host.write(row.path, (text) => setProperty(text, k, v));
@@ -895,22 +935,20 @@ function grid(ctx, r, editable, cells, wrap) {
 
 // The totals row under the grid: each column's summary (Sum, Average, a
 // count...), picked by clicking its cell and saved in the view's summaries:.
+// A grouped grid also totals each group, right under its rows.
 function totals(ctx, r, editable, table, widthOf, size) {
 	const set = r.columns.map((id) => summaryFor(r.view, id, sameProp));
 	if (!editable && !set.some(Boolean)) return;
-	const rows = r.groups.flatMap((g) => g.rows);
-	const foot = table.createTFoot().insertRow();
-	foot.className = "md-base-totals";
-	r.columns.forEach((id, c) => {
-		const td = foot.insertCell();
+	const rowsOf = (rows, tr, pickable) => r.columns.forEach((id, c) => {
+		const td = tr.insertCell();
 		td.dataset.col = c;
 		size(td, widthOf(id));
 		const name = set[c];
 		if (name) {
 			const label = SUMMARIES.find(([n]) => n === name)?.[1] || name;
 			td.append(el("span", "md-base-total-name", label + " "), el("span", "md-base-total", summarize(name, rows.map((row) => row.value(id)))));
-		} else if (editable) td.append(el("span", "md-base-total-add", "Total"));
-		if (!editable) return;
+		} else if (editable && pickable) td.append(el("span", "md-base-total-add", "Total"));
+		if (!editable || !pickable) return;
 		td.classList.add("pick");
 		td.title = "Pick a total for " + r.names[c];
 		td.addEventListener("click", (e) => {
@@ -923,6 +961,22 @@ function totals(ctx, r, editable, table, widthOf, size) {
 			menu([...SUMMARIES.map(([n, l]) => [(n === name ? "✓ " : "") + l, () => choose(n)]), null, ["None", () => choose(null)]], e.clientX, e.clientY);
 		});
 	});
+	if (r.groups.length > 1) {
+		// After each group's rows; the group header row is the one before them.
+		const body = table.tBodies[0];
+		const heads = [...body.querySelectorAll("tr.md-base-group")];
+		r.groups.forEach((g, i) => {
+			if (!set.some(Boolean) || !heads[i]) return;
+			const last = heads[i + 1] || null;
+			const tr = document.createElement("tr");
+			tr.className = "md-base-subtotal";
+			body.insertBefore(tr, last);
+			rowsOf(g.rows, tr, false);
+		});
+	}
+	const foot = table.createTFoot().insertRow();
+	foot.className = "md-base-totals";
+	rowsOf(r.groups.flatMap((g) => g.rows), foot, true);
 }
 
 // The handle on a column head's right edge: drag to size the column, double

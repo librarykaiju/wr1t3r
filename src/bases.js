@@ -26,6 +26,7 @@ import { parseFrontmatter } from "./dvpage.js";
 import { noteTags } from "./frontmatter.js";
 import { noteLinks } from "./vaultlinks.js";
 import { resolveNote } from "./links.js";
+import { tableRecords } from "./basestables.js";
 
 // ---- YAML -------------------------------------------------------------------
 
@@ -692,20 +693,44 @@ export function runView(base, viewIndex, files, { thisPath = null, sortBy = null
 	const byPath = new Map(files.map((f) => [f.path, f]));
 	const fileOf = (p) => { const f = byPath.get(p); return f ? fileFor(p, f.text, paths) : null; };
 	const thisFile = thisPath ? fileOf(thisPath) : null;
-	const columns = toList(view.order).map(String);
-	if (!columns.length) columns.push("file.name");
+	const tableRows = view.wr1t3r?.tableRows;
+	const asRows = tableRows != null && tableRows !== false && tableRows !== "";
 	const rows = [];
 	const errors = new Set();
+	const headers = [];
 	for (const f of files) {
 		if (!/\.md$/i.test(f.path)) continue;
 		const file = fileFor(f.path, f.text, paths);
-		const ctx = { file, formulas: base.formulas || {}, this: thisFile, resolve: (n) => resolve?.(n, f.path) ?? resolveNote({ note: n, wiki: true }, f.path, paths), fileFor: fileOf };
-		try {
-			if (!passes(base.filters, ctx) || !passes(view.filters, ctx)) continue;
-		} catch (e) { errors.add(e.message); continue; }
-		const value = (id) => { try { const v = propertyValue(id, ctx); return v instanceof BaseError ? (errors.add(v.message), null) : v; } catch (e) { errors.add(e.message); return null; } };
-		rows.push({ path: f.path, file, value, values: columns.map(value) });
+		const ctxOf = (file) => ({ file, formulas: base.formulas || {}, this: thisFile, resolve: (n) => resolve?.(n, f.path) ?? resolveNote({ note: n, wiki: true }, f.path, paths), fileFor: fileOf });
+		const addRow = (file, extra = {}) => {
+			const ctx = ctxOf(file);
+			try {
+				if (!passes(base.filters, ctx) || !passes(view.filters, ctx)) return;
+			} catch (e) { errors.add(e.message); return; }
+			const value = (id) => { try { const v = propertyValue(id, ctx); return v instanceof BaseError ? (errors.add(v.message), null) : v; } catch (e) { errors.add(e.message); return null; } };
+			rows.push({ path: f.path, file, value, values: [], ...extra });
+		};
+		if (!asRows) { addRow(file); continue; }
+		const t = tableRecords(f.text, tableRows);
+		if (!t) continue;
+		for (const h of t.headers) if (!headers.some((x) => x.toLowerCase() === h.toLowerCase())) headers.push(h);
+		const tableKeys = new Set(t.headers.map((h) => h.toLowerCase()));
+		t.rows.forEach((rec, index) => {
+			// The row sees the table's columns as properties; where a column and a
+			// property share a name, the column wins.
+			const properties = { ...file.properties };
+			for (const [k, v] of Object.entries(rec)) {
+				for (const old of Object.keys(properties)) if (old.toLowerCase() === k.toLowerCase()) delete properties[old];
+				properties[k] = typed(v);
+			}
+			const rowFile = { ...file, properties };
+			rowFile.file = rowFile;
+			addRow(rowFile, { tableRow: index, tableKeys });
+		});
 	}
+	const columns = toList(view.order).map(String);
+	if (!columns.length) columns.push("file.name", ...(asRows ? headers : []));
+	for (const r of rows) r.values = columns.map(r.value);
 	const sorts = sortBy ? [sortBy] : toList(view.sort).filter((s) => s && s.property);
 	if (!sortBy && rank && view.wr1t3r?.sort === "binder") {
 		const key = new Map(rows.map((r) => [r.path, rank(r.path) ?? Infinity]));
@@ -738,7 +763,7 @@ export function runView(base, viewIndex, files, { thisPath = null, sortBy = null
 			return String(g.direction).toUpperCase() === "DESC" ? -c : c;
 		});
 	}
-	return { view, columns, names: columns.map((c) => displayName(c, base)), groups, rows: limited, total: rows.length, errors: [...errors] };
+	return { view, columns, names: columns.map((c) => displayName(c, base)), groups, rows: limited, total: rows.length, errors: [...errors], ...(asRows ? { tableHeaders: headers } : {}) };
 }
 
 // ---- Writing a property -----------------------------------------------------
