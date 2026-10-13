@@ -193,7 +193,7 @@ That's it. Cloudflare or GitHub Pages sees the change and puts the new version o
 - **It's free.** No trial and no license key.
 - **Dropbox only.** Google Drive and Google Calendar need a lot more setup, so this guide leaves them out. Everything else works the same.
 - **You get updates when you click _Sync fork_.** The paid app updates by itself.
-- **It's for you.** You can use your copy for anything personal, for school, or for a nonprofit. You can't sell it or sell access to it. The [license](https://github.com/librarykaiju/wr1t3r/blob/main/LICENSE.md) has the exact words.
+- **It's yours to use.** Use your copy for anything, even paid work like writing a book you sell. Just don't offer wr1t3r to other people as an app or service of your own, free or paid. The [license](https://github.com/librarykaiju/wr1t3r/blob/main/LICENSE.md) has the exact words.
 
 ### Want to build it on your own computer?
 
