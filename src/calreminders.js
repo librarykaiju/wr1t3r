@@ -35,7 +35,7 @@ export function reminderEvent(r, timeZone) {
 	const note = String(r.path || "").split("/").pop().replace(/\.md$/i, "");
 	return {
 		id: eventIdFor(r),
-		title: "⏰ " + r.title,
+		title: (r.med ? "" : "⏰ ") + r.title,
 		start: local(r.at),
 		end: local(r.at + MINUTES * 60000),
 		timeZone,
@@ -62,4 +62,19 @@ export function plan(list, sent, now) {
 // reminder that's just gone off isn't sent again).
 export function prune(sent, now) {
 	return Object.fromEntries(Object.entries(sent).filter(([, s]) => s.at > now - 864e5));
+}
+
+// Which calendar each reminder goes to: tasks to the reminders calendar, and
+// medicine doses (r.med) to their own when one's picked ("off" sends none),
+// else to the reminders calendar. -> Map(calendar id -> reminders).
+export function byCalendar(list, { tasks = null, doses = "" } = {}) {
+	const out = new Map();
+	const dose = doses === "off" ? null : doses || tasks;
+	for (const r of list) {
+		const cal = r.med ? dose : tasks;
+		if (!cal) continue;
+		if (!out.has(cal)) out.set(cal, []);
+		out.get(cal).push(r);
+	}
+	return out;
 }

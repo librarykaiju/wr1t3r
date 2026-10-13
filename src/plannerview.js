@@ -22,7 +22,8 @@ import {
 import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn, addDays } from "./habits.js";
 import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText, medEntry, alreadyGiven, personMedsPath, personLogPath, personFolder, cleanPerson, newMedsNote, newMedsLog, activeOn, parseDate, shortDate } from "./meds.js";
 import { searchMeds, strengthDose, dailyMedLink } from "./rxterms.js";
-import { choosePhoto, shrinkPhoto } from "./photo.js";
+import { choosePhoto, chooseFile, shrinkPhoto } from "./photo.js";
+import { readMedRows, addMeds, fileRows } from "./medimport.js";
 import { openMedChart } from "./medchartview.js";
 import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES, ADULT } from "./targets.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
@@ -991,6 +992,21 @@ class PlannerWidget extends WidgetType {
 			box.append(row);
 		}
 		box.append(panelButton("planner-log-btn", "Add a medicine", () => open(null)));
+		const sheet = panelButton("planner-link", "Import from a spreadsheet…", async () => {
+			const file = await chooseFile(".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+			if (!file) return;
+			let read;
+			try { read = readMedRows(await fileRows(file)); } catch (e) { return host.toast?.(e.message, 8000); }
+			if (!read.meds.length) return host.toast?.("That sheet has no rows with a medicine name.");
+			const list = read.meds.map((m) => "• " + m.name + (m.dose ? " " + m.dose : "")).slice(0, 12).join("\n") + (read.meds.length > 12 ? `\n…and ${read.meds.length - 12} more` : "");
+			if (!confirm(`Add ${read.meds.length} medicine${read.meds.length === 1 ? "" : "s"} to ${st.who ? st.who + "'s" : "the"} list?\n\n${list}\n\nOnes already on the list (same name) stay as they are. Check the times after: a schedule in words like "twice daily" becomes 8am and 8pm.`)) return;
+			let r = { added: 0, already: 0 };
+			await write((t) => { r = addMeds(t, read.meds); return r.text; });
+			host.toast?.(`Added ${r.added} medicine${r.added === 1 ? "" : "s"}` + (r.already ? `; ${r.already} ${r.already === 1 ? "was" : "were"} already on the list.` : "."), 6000);
+			redraw();
+		});
+		sheet.title = "A .csv or .xlsx with a Medicine column, and any of Dose, Times, Days, Start, End, Purpose and Notes";
+		box.append(sheet);
 		if (st.who) {
 			box.append(panelButton("planner-link", `Take ${st.who}'s button off the planner`, () => {
 				if (!confirm(`Take ${st.who}'s Meds button off the planner? Their list and logs stay in ${personFolder(st.who).slice(0, -1)}.`)) return;

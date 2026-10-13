@@ -1,11 +1,15 @@
 // A photo from the camera (on a phone) or a picture file, or null when
 // cancelled.
-export function choosePhoto() {
+export const choosePhoto = () => chooseFile("image/*", true);
+
+// A file of the accept types, or null when cancelled; camera: a phone opens
+// the camera.
+export function chooseFile(accept, camera = false) {
 	return new Promise((resolve) => {
 		// In the page while it's open: Safari ignores a click on a detached
 		// input, and a phone can let one go while the camera is up.
-		const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/*", hidden: true });
-		input.setAttribute("capture", "environment");
+		const input = Object.assign(document.createElement("input"), { type: "file", accept, hidden: true });
+		if (camera) input.setAttribute("capture", "environment");
 		document.body.append(input);
 		input.addEventListener("change", () => { resolve(input.files[0] || null); input.remove(); }, { once: true });
 		input.addEventListener("cancel", () => { resolve(null); input.remove(); }, { once: true });
