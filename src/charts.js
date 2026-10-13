@@ -10,23 +10,27 @@ const svgEl = (tag, attrs = {}) => {
 };
 const fmt = (n) => Number(n).toLocaleString();
 
-// The points of a line through values, in a w x h box with pad around it.
-export function linePoints(values, w, h, pad = 0) {
-	const max = Math.max(1, ...values);
+// The points of a line through values, in a w x h box with pad around it,
+// from floor (the bottom edge) up to the largest value.
+export function linePoints(values, w, h, pad = 0, floor = 0) {
+	const max = Math.max(floor + 1, ...values);
 	const step = values.length > 1 ? (w - pad * 2) / (values.length - 1) : 0;
-	return values.map((v, i) => [pad + i * step, h - pad - (v / max) * (h - pad * 2)]);
+	return values.map((v, i) => [pad + i * step, h - pad - ((v - floor) / (max - floor)) * (h - pad * 2)]);
 }
 
 // A line chart: items [{ label, value, title }], a dot and count at each
-// point, labels underneath. color: a CSS color.
-export function lineChart(items, color) {
+// point, labels underneath. color: a CSS color. floor: the value at the
+// bottom edge, above 0 for numbers that only move a little (weight).
+// counts: false leaves the numbers off the dots (they stay in each dot's
+// tooltip), for lines with too many points to label.
+export function lineChart(items, color, { floor = 0, counts = true } = {}) {
 	const wrap = document.createElement("div");
 	wrap.className = "chart-line";
 	wrap.style.setProperty("--bc", color);
 	const W = 600, H = 150, pad = 14;
 	const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", role: "img" });
 	svg.setAttribute("aria-label", items.map((i) => `${i.label}: ${i.value}`).join(", "));
-	const pts = linePoints(items.map((i) => i.value), W, H, pad);
+	const pts = linePoints(items.map((i) => i.value), W, H, pad, floor);
 	if (pts.length) {
 		const d = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
 		svg.append(svgEl("path", { d: `${d}L${pts.at(-1)[0].toFixed(1)},${H - pad}L${pts[0][0].toFixed(1)},${H - pad}Z`, class: "area" }));
@@ -44,7 +48,7 @@ export function lineChart(items, color) {
 		m.style.left = `${(x / W) * 100}%`;
 		m.style.top = `${(y / H) * 100}%`;
 		m.title = it.title || `${it.label}: ${fmt(it.value)}`;
-		if (it.value) m.dataset.v = fmt(it.value);
+		if (it.value && counts) m.dataset.v = fmt(it.value);
 		marks.append(m);
 	});
 	wrap.append(marks);

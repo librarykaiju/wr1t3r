@@ -19,7 +19,7 @@ import {
 	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine, cardColor, editPlannerBlock,
 	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine, HABITS, untick,
 } from "./planner.js";
-import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn } from "./habits.js";
+import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn, addDays } from "./habits.js";
 import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText } from "./meds.js";
 import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES } from "./targets.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
@@ -34,6 +34,8 @@ import { onMenu } from "./homeview.js";
 import { EVENT_COLORS } from "./agenda.js";
 import { menu, cardColorPicker } from "./basesui.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
+import { entries, onThisDay, yearsAgo, dayHealth, trends, series } from "./journal.js";
+import { lineChart, sliceColor } from "./charts.js";
 
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 
@@ -107,6 +109,37 @@ function habitHistory(vault) {
 	return days;
 }
 
+// Every journal entry in the vault (src/journal.js), each note read again
+// only when its text changes, for On this day.
+const entryCache = new Map();
+export function journalEntries(vault) {
+	const out = [];
+	for (const p of vault.paths()) {
+		if (!/\.md$/i.test(p)) continue;
+		const text = vault.text(p);
+		let c = entryCache.get(p);
+		if (!c || c.text !== text) { c = { text, list: text == null ? [] : entries([{ path: p, text }]) }; entryCache.set(p, c); }
+		out.push(...c.list);
+	}
+	return out;
+}
+
+// Every health note's mood, sleep and weight (Map "YYYY-MM-DD" ->
+// src/journal.js dayHealth), each read again only when its text changes.
+const healthCache = new Map();
+function healthHistory(vault) {
+	const days = new Map();
+	for (const p of vault.paths()) {
+		const day = healthDayOf(p);
+		if (!day) continue;
+		const text = vault.text(p);
+		let c = healthCache.get(p);
+		if (!c || c.text !== text) { c = { text, d: dayHealth(healthDay(text, [])) }; healthCache.set(p, c); }
+		days.set(day, c.d);
+	}
+	return days;
+}
+
 // The Habits card's rows for a day: [{ h, p (progress), s (streak), due }].
 function habitRows(vault, habits, day) {
 	if (!day || !habits.length) return [];
@@ -172,7 +205,7 @@ class PlannerWidget extends WidgetType {
 		this.meds ??= { path: null, meds: [] };
 		this.doses ??= [];
 		this.habits ??= [];
-		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, this.meds.path, this.meds.meds, this.doses, this.habits.map((r) => [r.h, r.p, r.s.current, r.s.best, r.due]), p.day && p.day === isoDay(new Date()) ? new Date().getHours() : 0, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
+		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, this.meds.path, this.meds.meds, this.doses, this.habits.map((r) => [r.h, r.p, r.s.current, r.s.best, r.due]), (this.lookback || []).map((e) => [e.path, e.title, e.snippet, e.years]), p.day && p.day === isoDay(new Date()) ? new Date().getHours() : 0, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
 	}
 	eq(o) { return o.key === this.key; }
 
@@ -217,6 +250,7 @@ class PlannerWidget extends WidgetType {
 				["Set my targets…", () => this.targetsPanel(view, anchor)],
 				["Medications…", () => this.medsPanel(view, anchor, { edit: !medsList(view.state, this.cfg).meds.length })],
 				["Habits…", () => this.habitsPanel(view, anchor)],
+				["Mood, sleep and weight…", () => openTrends(view, anchor, this.day)],
 				null,
 				["Set up the planner…", () => this.setupPanel(view, anchor)],
 			], r.left, r.bottom + 6);
@@ -1221,15 +1255,30 @@ class PlannerWidget extends WidgetType {
 
 	columns(view, ro) {
 		const habits = this.habits.length ? this.colored(view, ro, this.habitsCard(view, ro), "habits") : null;
-		const cols = el("div", "planner-cols" + (this.tasks.length || habits ? "" : " planner-one"));
+		const back = this.lookback?.length ? this.colored(view, ro, this.lookbackCard(), "onthisday") : null;
+		const cols = el("div", "planner-cols" + (this.tasks.length || habits || back ? "" : " planner-one"));
 		cols.append(this.timeline(view, ro));
-		if (this.tasks.length || habits) {
+		if (this.tasks.length || habits || back) {
 			const right = el("div", "planner-tasks");
 			if (habits) right.append(habits);
 			for (const t of this.tasks) right.append(this.colored(view, ro, new TaskListWidget(t.cfg, t.result, null, this.from, this.path).toDOM(view), t.cfg.lists.join("+")));
+			if (back) right.append(back);
 			cols.append(right);
 		}
 		return cols;
+	}
+
+	// On this day: what was written on this date in earlier years, each a
+	// link to the entry with its first words.
+	lookbackCard() {
+		const card = el("div", "md-tl planner-lookback");
+		const head = el("div", "md-tl-head");
+		head.append(el("span", "md-tl-title", "On this day"), el("span", "md-tl-count", String(this.lookback.length)));
+		card.append(head);
+		const list = el("ul", "md-tl-list");
+		for (const e of this.lookback) list.append(lookbackItem(e, () => host?.open(e.path)));
+		card.append(list);
+		return card;
 	}
 
 	// A card in its color, with a dot in its head that picks it. The pick
@@ -1412,6 +1461,121 @@ function panelButton(cls, text, run) {
 	return b;
 }
 
+// One On this day entry: "3 years ago · Moving day" over its first words,
+// opening it on a click. Shared with Home (main.js).
+export function lookbackItem(e, open) {
+	const li = el("li", "lookback-item");
+	const b = el("button", "lookback-link");
+	b.type = "button";
+	b.title = `Open ${e.title} (${e.day})`;
+	b.addEventListener("click", open);
+	const top = el("span", "lookback-top");
+	top.append(el("span", "lookback-when", yearsAgo(e.years)), el("span", "lookback-title", e.daily ? "Daily note" : e.title));
+	b.append(top);
+	if (e.snippet) b.append(el("span", "lookback-text", e.snippet));
+	li.append(b);
+	return li;
+}
+
+// Mood, sleep and weight over the last 30 days, 90 days or year up to `day`
+// (today when not given), read from the health notes. anchor: anything with
+// getBoundingClientRect(), under which it opens.
+const RANGES = [["30 days", 30, "day"], ["90 days", 90, "week"], ["Year", 365, "month"]];
+let trendRange = 0;
+// The planner's own moods keep one color each, warm for the hard ones and
+// green for the good, so a month reads at a glance; moods of your own take
+// the theme's other colors in turn. -> Map label (lower case) -> color.
+const MOOD_COLORS = { great: "var(--f4)", good: "var(--f5)", okay: "var(--f3)", tired: "var(--f6)", anxious: "var(--f2)", low: "var(--f7)", sad: "color-mix(in srgb, var(--f7) 60%, var(--f6))", irritable: "var(--f1)" };
+function moodColors(moods) {
+	const out = new Map();
+	let i = 0;
+	for (const m of moods) {
+		const k = m.label.toLowerCase();
+		out.set(k, MOOD_COLORS[k] || sliceColor(7 + i++));
+	}
+	return out;
+}
+
+// A line chart whose bottom edge sits a little under the lowest point, so
+// small changes (a pound, half an hour of sleep) show.
+// Past a dozen points the numbers come off the dots and only every few
+// dates are written underneath, so they don't run into each other.
+function trendChart(pts, color) {
+	const lo = Math.min(...pts.map((p) => p.value)), hi = Math.max(...pts.map((p) => p.value));
+	const every = Math.ceil(pts.length / 6);
+	const items = pts.map((p, i) => ({ ...p, label: (pts.length - 1 - i) % every ? "" : p.label }));
+	return lineChart(items, color, { floor: Math.max(0, Math.floor(lo - Math.max(1, (hi - lo) * 0.5))), counts: pts.length <= 12 });
+}
+
+export function openTrends(view, anchor, day = null) {
+	const today = day || isoDay(new Date());
+	openPanel("trends", "trends", anchor, (box) => {
+		box.classList.add("planner-panel", "planner-trends");
+		const vault = view.state.facet(vaultHost);
+		if (!vault) return;
+		const [, n, by] = RANGES[trendRange];
+		const from = addDays(today, -(n - 1));
+		const t = trends(healthHistory(vault), from, today);
+		box.append(el("div", "planner-panel-title", "Mood, sleep and weight"));
+		const tabs = el("div", "planner-trends-range");
+		RANGES.forEach(([label], i) => {
+			const b = panelButton("planner-day", label, () => { trendRange = i; redrawPanel("trends"); });
+			b.setAttribute("aria-pressed", String(i === trendRange));
+			tabs.append(b);
+		});
+		box.append(tabs);
+		const logged = t.moods.length || t.sleep.nights || t.weight;
+		if (!logged) {
+			box.append(el("p", "planner-panel-empty", "Nothing logged yet. The Mood, Sleep and Weight buttons on the daily planner write to each day's health note, and it all shows up here."));
+			return;
+		}
+		const section = (title, sub) => { const h = el("div", "planner-trends-head"); h.append(el("b", null, title)); if (sub) h.append(el("span", null, sub)); box.append(h); };
+		if (t.moods.length) {
+			const days = t.days.filter((d) => d.mood).length;
+			section("Mood", `${days} of ${t.days.length} days logged`);
+			const color = moodColors(t.moods);
+			const strip = el("div", "planner-mood-strip" + (n > 31 ? " dense" : ""));
+			strip.setAttribute("role", "img");
+			strip.setAttribute("aria-label", t.moods.map((m) => `${m.label}: ${m.n}`).join(", "));
+			for (const d of t.days) {
+				const c = el("span", d.mood ? null : "none");
+				if (d.mood) c.style.background = color.get(d.mood[1].toLowerCase());
+				c.title = new Date(d.day + "T12:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + ": " + (d.mood ? `${d.mood[0]} ${d.mood[1]}`.trim() : "nothing logged");
+				strip.append(c);
+			}
+			box.append(strip);
+			const key = el("div", "planner-mood-key");
+			t.moods.forEach((m) => {
+				const k = el("span");
+				const dot = el("span", "dot");
+				dot.style.background = color.get(m.label.toLowerCase());
+				k.append(dot, ` ${m.emoji ? m.emoji + " " : ""}${m.label} `, el("b", null, String(m.n)));
+				key.append(k);
+			});
+			box.append(key);
+		}
+		if (t.sleep.nights) {
+			section("Sleep", `${t.sleep.avg} h a night on average`);
+			box.append(trendChart(series(t.days, "sleep", by), "var(--f5)"));
+			if (t.byMood.length > 1) {
+				const rows = el("div", "planner-trends-bymood");
+				rows.append(el("span", "planner-panel-sub", "Average sleep by the day's mood"));
+				for (const m of t.byMood) {
+					const r = el("div", "planner-log");
+					r.append(el("span", "planner-log-text", `${m.emoji ? m.emoji + " " : ""}${m.label}`), el("span", "planner-log-meta", `${m.sleep} h · ${m.nights} nights`));
+					rows.append(r);
+				}
+				box.append(rows);
+			}
+		}
+		if (t.weight) {
+			const w = t.weight, u = w.unit ? " " + w.unit : "";
+			section("Weight", w.n > 1 ? `${w.first} → ${w.last}${u} (${w.change > 0 ? "+" : ""}${w.change})` : `${w.last}${u}`);
+			box.append(trendChart(series(t.days, "weight", by), "var(--f3)"));
+		}
+	});
+}
+
 function sleepHoursOf(bed, wake) {
 	return /^\d{2}:\d{2}$/.test(bed || "") && /^\d{2}:\d{2}$/.test(wake || "") ? ((Number(wake.slice(0, 2)) * 60 + Number(wake.slice(3)) - Number(bed.slice(0, 2)) * 60 - Number(bed.slice(3)) + 1440) % 1440) / 60 : null;
 }
@@ -1464,12 +1628,13 @@ function build(state) {
 		const meds = medsList(state, cfg);
 		const doses = day ? dosesOn(meds.meds, day) : [];
 		const habits = habitRows(vault, readHabits(cfg.habits), day);
+		const lookback = day ? onThisDay(journalEntries(vault), day) : [];
 		if (cfg.tasks.length && !notes) notes = allNotes(state);
 		const tasks = cfg.tasks.map((tag) => {
 			const tcfg = readConfig(`list: ${tag}`);
 			return { cfg: tcfg, result: taskList(notes, tcfg, { path, today }) };
 		});
-		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: shared.colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks, meds: { path: meds.path, meds: meds.meds }, doses, habits }), block: true }));
+		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: shared.colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks, meds: { path: meds.path, meds: meds.meds }, doses, habits, lookback }), block: true }));
 	});
 	return b.finish();
 }
