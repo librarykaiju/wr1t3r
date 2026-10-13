@@ -10,6 +10,7 @@
 
 import { parseLabel, addsUp } from "./label.js";
 import { choosePhoto } from "./photo.js";
+import { newerBuild } from "./stale.js";
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
@@ -25,11 +26,11 @@ export async function foodFromLabel({ known = () => null } = {}) {
 	const url = URL.createObjectURL(photo);
 	const ui = dialog(url);
 	try {
-		let code = null;
+		let code = null, noReader = false;
 		try {
 			const { readBarcode } = await import("./barcode.js");
 			code = await readBarcode(photo);
-		} catch { /* no barcode reader here: read the label */ }
+		} catch { noReader = true; /* no barcode reader here: read the label */ }
 		if (code) {
 			const mine = known(code);
 			// Unless the dialog was closed while the photo was read.
@@ -45,19 +46,22 @@ export async function foodFromLabel({ known = () => null } = {}) {
 			}
 			ui.status("Reading the photo for a Nutrition Facts label…");
 		} else {
-			ui.note("No barcode in the photo, so it's read as a Nutrition Facts label.");
+			ui.note(noReader ? "Reading it as a Nutrition Facts label." : "No barcode in the photo, so it's read as a Nutrition Facts label.");
 			ui.status("Reading the label…");
 		}
-		let found = {};
+		let found = {}, failed = false;
 		try {
 			const { readText } = await import("./localocr.js");
 			found = parseLabel(await readText(photo, photo.type || "image/jpeg"));
 		} catch (e) {
-			ui.note(`Couldn't read the photo (${e?.message || e}). Type the numbers in instead.`);
+			failed = true;
+			ui.note(await newerBuild()
+				? "wr1t3r was updated since this page was opened, so the photo reader couldn't load. Reload wr1t3r and take the photo again, or type the numbers in."
+				: `Couldn't read the photo (${e?.message || e}). Type the numbers in instead.`);
 		}
 		// The barcode as an alias, so the next scan finds this food.
 		if (code) found.aliases = [code];
-		return await ui.form(found, code ? "Or take a photo of the Nutrition Facts label instead." : "");
+		return await ui.form(found, code ? "Or take a photo of the Nutrition Facts label instead." : "", failed);
 	} finally {
 		URL.revokeObjectURL(url);
 	}
@@ -87,13 +91,14 @@ function dialog(photoUrl) {
 		status: (t) => { status.textContent = [...notes, t].join(" "); },
 		// -> whether it was still open.
 		close: () => { if (closed) return false; close(null); return true; },
-		form: (found, tip = "") => new Promise((resolve) => {
+		// failed: the photo couldn't be read at all, which a note already says.
+		form: (found, tip = "", failed = false) => new Promise((resolve) => {
 			// Closed while the photo was being read.
 			if (closed) return resolve(null);
 			finish = resolve;
 			const got = ["calories", "fat", "carbs", "protein", "fiber"].filter((k) => found[k] != null).length;
 			const named = !!found.name;
-			status.textContent = [...notes, named ? tip : got ? `Found ${got} of 5 numbers. Check them against the photo, then name the food.` : `Couldn't make out the numbers. Type them in from the photo. ${tip}`.trim()].join(" ");
+			status.textContent = [...notes, named || failed ? tip : got ? `Found ${got} of 5 numbers. Check them against the photo, then name the food.` : `Couldn't make out the numbers. Type them in from the photo. ${tip}`.trim()].filter(Boolean).join(" ");
 			const field = (key, label, type = "number", value = found[key] ?? "") => {
 				const wrapF = el("label", "label-field");
 				const input = Object.assign(el("input"), { type, value, name: key });

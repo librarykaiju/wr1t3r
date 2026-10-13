@@ -103,6 +103,7 @@ import { remindersIn, dueReminders } from "./reminders.js";
 import { plan as remindPlan, prune as remindPrune, reminderEvent, eventIdFor, byCalendar, PER_PASS } from "./calreminders.js";
 import { openHistory } from "./historyview.js";
 import { foodFromLabel } from "./labelview.js";
+import { newerBuild } from "./stale.js";
 
 const $ = (id) => document.getElementById(id);
 // path -> note, mirrors IndexedDB. version changes when a note arrives, goes,
@@ -6901,6 +6902,20 @@ async function start() {
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
 	navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
+
+// A lazy part of the app failed to load. Usually a deploy since this page was
+// opened (src/stale.js): offer a reload, since a home-screen app has no button
+// for it. Callers still get the error.
+let staleShown = false;
+window.addEventListener("vite:preloadError", async () => {
+	if (staleShown || !(await newerBuild())) return;
+	staleShown = true;
+	const msg = document.createElement("span");
+	const reload = Object.assign(document.createElement("button"), { type: "button", textContent: "Reload" });
+	reload.addEventListener("click", () => location.reload());
+	msg.append("wr1t3r was updated since this page was opened. Reload to finish loading it. ", reload);
+	toast(msg, 60000, "Update ready");
+});
 
 if (isGoogleReturn(location.href)) {
 	// Back from connecting Google: keep the tokens, then load the page fresh.

@@ -49,6 +49,8 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
 	const url = new URL(e.request.url);
 	if (e.request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
+	// Asked for fresh (src/stale.js checks the server's page for a newer build).
+	if (e.request.cache === "no-store" && e.request.mode !== "navigate") return;
 
 	// The dataviewjs sandbox: fresh when online, cached otherwise.
 	if (url.pathname === SANDBOX) {
