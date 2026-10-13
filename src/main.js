@@ -394,11 +394,21 @@ function renderStatus() {
 	const n = pending();
 	const waiting = n ? ` · ${n} to send` : "";
 	s.classList.toggle("warn", !!lastError && lastError !== "offline");
+	s.classList.toggle("synced", !syncing && !lastError && !n && !!lastSynced);
+	s.removeAttribute("aria-label");
 	if (syncing) s.textContent = "Syncing…";
 	else if (lastError === "offline") s.textContent = "Offline" + waiting;
 	else if (lastError) { s.textContent = "Sync failed" + waiting; s.title = lastError + " (tap to retry)"; return; }
 	else if (n) s.textContent = `${n} to send`;
-	else if (lastSynced) s.textContent = "Synced " + lastSynced.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+	else if (lastSynced) {
+		// "Synced" drops to an icon on phones, where the bar is short of room.
+		const time = lastSynced.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+		const word = document.createElement("span");
+		word.className = "st-word";
+		word.textContent = "Synced ";
+		s.replaceChildren(word, time);
+		s.setAttribute("aria-label", `Synced ${time}. Sync now`);
+	}
 	else s.textContent = "";
 	s.title = "Sync now";
 }
@@ -5825,12 +5835,13 @@ function layoutColumns() {
 	app.classList.toggle("right-shut", cols && rightShut());
 	app.classList.toggle("agenda-folded", cols && agendaFolded());
 	// The sync time and Contents sit in the right column's footer while it
-	// shows, else back in the note's bar and the notices corner.
+	// shows, else in the note's bar, the sync time at its right end across
+	// from the focus timer (floating over the note, it covered text on phones).
 	if (cols && !rightShut()) {
 		if ($("status").parentElement !== $("rightFoot")) $("rightFoot").append($("tocBtn"), $("status"));
-	} else if ($("status").parentElement === $("rightFoot")) {
+	} else if ($("status").parentElement !== $("bar")) {
 		$("count").before($("tocBtn"));
-		$("noticeList").after($("status"));
+		$("count").after($("status"));
 	}
 	const label = (btn, on, what) => {
 		btn.setAttribute("aria-pressed", String(on));
