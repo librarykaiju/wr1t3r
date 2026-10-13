@@ -135,10 +135,11 @@
 				</span>
 				<button id="tocBtn" type="button" class="quiet" aria-expanded="false" aria-controls="toc" title="Table of contents">
 					<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M8 12h12M8 18h12"/></svg>
-					Contents
+					<span>Contents</span>
 				</button>
 				<button id="count" type="button" class="quiet" title="Stats and writing goals" aria-expanded="false" aria-controls="statsPanel"></button>
 				<div id="statsPanel" class="pop stats-pop" hidden></div>
+				<button id="status" type="button" class="quiet" title="Sync now"></button>
 			</footer>
 		</main>
 		<aside id="rightcol" aria-label="Calendar and contents">
@@ -479,10 +480,9 @@
 				<div class="welcome-actions"><a id="licenseBuy" class="welcome-link" target="_blank" rel="noopener">Buy wr1t3r</a><button id="licenseLater" type="button" class="quiet">Not now</button><button id="licenseOut" type="button" class="quiet" hidden>Sign out</button><button id="licenseGo" type="submit">Activate</button></div>
 			</form>
 		</div>
-		<!-- Every notice in one corner: messages stack above the last sync time. -->
+		<!-- Every notice in one corner. -->
 		<div id="notices">
 			<div id="noticeList" role="status" aria-live="polite"></div>
-			<button id="status" type="button" title="Sync now"></button>
 		</div>
 	</div>
 	<script type="module" src="/src/main.js"></script>
