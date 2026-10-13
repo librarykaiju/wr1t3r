@@ -488,10 +488,19 @@ class PlannerWidget extends WidgetType {
 					list.append(b);
 				}
 			};
+			// A food from a photo of its Nutrition Facts label (src/labelview.js).
+			const photo = el("button", "planner-link planner-label-photo", "📷 Add a food from its label");
+			photo.type = "button";
+			photo.title = "Take or pick a photo of a Nutrition Facts label. It's read on this device, and you check the numbers before it's saved.";
+			photo.addEventListener("click", async () => {
+				const { foodFromLabel } = await import("./labelview.js");
+				const f = await foodFromLabel();
+				if (f) await addAndLog(f);
+			});
 			q.addEventListener("input", () => { st.q = q.value; st.usda = null; fill(); });
 			q.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); list.querySelector("button")?.click(); } });
 			fill();
-			box.append(q, row, list);
+			box.append(q, row, list, photo);
 
 			const day = this.now(view);
 			const logged = day.meals.filter((m) => m.items.length);
