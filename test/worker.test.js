@@ -138,3 +138,21 @@ test("USDA search: needs a key, scales to a serving, and maps categories", async
 		globalThis.fetch = real;
 	}
 });
+
+test("USDA food groups: survey categories, and the name when the category says nothing", async () => {
+	const { groupOf } = await import("../worker/usda.js");
+	const cases = [
+		["Bananas", "", "Produce"], ["Onions", "", "Produce"], ["Corn", "", "Produce"],
+		["Potato chips", "", "Snack"], ["Tortilla, corn, other chips", "", "Snack"],
+		["Apple juice", "", "Beverage"], ["Liquor and cocktails", "", "Beverage"], ["Fruit drinks", "", "Beverage"],
+		["Salad dressings and vegetable oils", "", "Fat/Oil"], ["Pasta sauces, tomato-based", "", "Condiment"],
+		["Cakes and pies", "", "Sweetener"], ["Doughnuts, sweet rolls, pastries", "", "Sweetener"],
+		["Bagels and English muffins", "", "Grain"], ["Macaroni and cheese", "", "Grain"],
+		["Pizza", "", "Other"], ["Burritos and tacos", "", "Other"],
+		// SR Legacy's stay where they were.
+		["Fruits and Fruit Juices", "", "Produce"], ["Fats and Oils", "", "Fat/Oil"], ["Dairy and Egg Products", "", "Dairy"], ["Soups, Sauces, and Gravies", "", "Condiment"],
+		// No category: the name's first words.
+		["", "Broccoli, frozen, cooked", "Produce"], ["", "Vodka", "Beverage"], ["", "Cheeseburger (Burger King)", "Other"], ["", "Unknown thing", "Other"],
+	];
+	for (const [category, name, want] of cases) assert.equal(groupOf(category, name), want, `${category || name}`);
+});
