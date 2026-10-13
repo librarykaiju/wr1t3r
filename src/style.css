@@ -1618,6 +1618,23 @@ a.planner-link { text-decoration: none; }
 .planner-pill img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .planner-med-photo { display: flex; align-items: center; gap: 8px; }
 .planner-med-photo .planner-pill { width: 48px; height: 48px; }
+.palette-box.medchart-box { width: min(1100px, 100%); max-height: 86vh; padding: 16px 18px 14px; gap: 10px; font-family: var(--sans); }
+.medchart-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.medchart-nav { display: flex; gap: 4px; }
+.medchart-day { margin: 0; color: var(--muted); font-size: 13px; }
+.medchart-scroll { overflow: auto; min-height: 0; border: 1px solid var(--line); border-radius: 8px; }
+.medchart { width: 100%; border-collapse: collapse; font: 13px/1.35 var(--sans); }
+.medchart th, .medchart td { padding: 6px 8px; border-bottom: 1px solid var(--line); border-right: 1px solid color-mix(in srgb, var(--line) 60%, transparent); text-align: left; vertical-align: middle; }
+.medchart th { position: sticky; top: 0; background: var(--card); font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.medchart tr:last-child td { border-bottom: 0; }
+.medchart-name { font-weight: 600; min-width: 110px; }
+.medchart-name .planner-pill { width: 24px; height: 24px; margin-right: 6px; vertical-align: middle; }
+.medchart td.medchart-cell { text-align: center; white-space: nowrap; color: var(--muted); }
+.medchart-cell .medchart-meta { display: block; font-size: 11px; font-weight: 400; }
+.medchart td.medchart-due { color: var(--fg); font-weight: 700; }
+.medchart td.medchart-late { color: var(--bad); font-weight: 700; }
+.medchart td.medchart-given { color: var(--f4); font-weight: 700; background: color-mix(in srgb, var(--f4) 10%, transparent); }
+.medchart tr.medchart-off td { color: var(--muted); font-weight: 400; }
 .planner-pick { display: flex; gap: 6px; align-items: center; }
 .planner-pick .planner-check { flex: 1; }
 .planner-arrow { width: 30px; padding: 2px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); cursor: pointer; }
