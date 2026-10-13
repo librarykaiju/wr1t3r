@@ -486,7 +486,7 @@ Anyone can host their own copy for free: the product build with no license check
 - **Google Drive and Calendar** work on Cloudflare if the self-hoster also sets `VITE_GOOGLE_CLIENT_ID` and the Worker's `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, as on the product build; the guide leaves them out.
 - **Updates** reach a fork when its owner clicks Sync fork; the host rebuilds on the push.
 
-The code is source-available under the PolyForm Shield license (`LICENSE.md`): anyone can read, change and use it for any purpose, paid work included, except offering a product that competes with wr1t3r (free or paid).
+The code is open source under the GNU AGPL v3 (`LICENSE`): anyone can use, change and share it for any purpose, and anyone who runs a changed copy for other people has to offer them its source.
 
 ## Features and folders
 

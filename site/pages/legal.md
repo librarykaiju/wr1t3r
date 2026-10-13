@@ -19,7 +19,7 @@ A license key for the wr1t3r web app at my.wr1t3r.app, for your own use on up to
 
 ## Free self-hosted copies
 
-You can also host your own copy of wr1t3r for free, under the terms of its [license](https://github.com/librarykaiju/wr1t3r/blob/main/LICENSE.md). There's nothing to buy or refund for those, and the same no-warranty terms above apply.
+You can also host your own copy of wr1t3r for free, under the terms of its [license](https://github.com/librarykaiju/wr1t3r/blob/main/LICENSE). There's nothing to buy or refund for those, and the same no-warranty terms above apply.
 
 ## Payments
 
