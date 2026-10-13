@@ -79,10 +79,20 @@ test("targets from a goal", () => {
 	// 10*95.25 + 6.25*177.8 - 205 + 5 = 1864; *1.375 = 2563; -500 = 2063
 	assert.equal(t.rest, 1864);
 	assert.equal(t.calories_target, 2060);
-	assert.equal(t.water_target, 144);
+	assert.equal(t.water_target, 104); // 3.0 L of drinks, to the nearest 8 oz
 	assert.equal(t.floored, false);
-	assert.ok(t.protein_target > 100 && t.protein_target < 160, t.protein_target);
+	// 1.2 g/kg while losing, on the BMI-25 weight for 5'10" (79 kg)
+	assert.equal(t.protein_target, 95);
 	assert.equal(t.fat_target, Math.round(2060 * 0.3 / 9));
+	assert.equal(t.fiber_target, 29);
+	assert.equal(t.steps_target, 8000);
+	assert.equal(workOut({ ...g, plan: "maintain" }).protein_target, Math.round(0.8 * 25 * 1.778 ** 2));
+	assert.equal(workOut({ ...g, sex: "female" }).water_target, 72);
+	assert.equal(workOut({ ...g, age: 17 }), null);
+	const expecting = workOut({ ...g, sex: "female", pregnant: true });
+	assert.equal(expecting.calories_target, workOut({ ...g, sex: "female", plan: "maintain" }).calories_target);
+	assert.equal(readGoal({ ...g, pregnant: "true" }).pregnant, true);
+	assert.equal(readGoal(g).pregnant, undefined);
 	const small = workOut({ units: "kg", sex: "female", age: 70, height: 150, weight: 45, activity: "sedentary", plan: "lose-1" });
 	assert.equal(small.calories_target, 1200);
 	assert.equal(small.floored, true);

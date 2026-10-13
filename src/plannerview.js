@@ -17,11 +17,11 @@ import {
 	PLANNER, readPlanner, writePlanner, setEntryColor, timelineRows, setEntry, addEvents, hourLabel, clock, healthPathFor,
 	parseNutrition, searchFoods, addFoodRow, healthDay, syncHealth, toggleMeds, addUnder, removeLine, foodLine,
 	mealAt, MEALS, WATER, MOOD, EXERCISE, moodLine, moodChoice, exerciseLine, cardColor, editPlannerBlock,
-	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine, HABITS, untick,
+	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine, HABITS, untick, LABEL_TARGETS,
 } from "./planner.js";
 import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn, addDays } from "./habits.js";
 import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText } from "./meds.js";
-import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES } from "./targets.js";
+import { workOut, readGoal, needsRecalc, ACTIVITY, PLANS, SEXES, ADULT } from "./targets.js";
 import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
 import { isoDay } from "./tasks.js";
@@ -39,8 +39,12 @@ import { lineChart, sliceColor } from "./charts.js";
 
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 
+// Where the targets' numbers come from.
+const HEALTH_DATA = "https://wr1t3r.app/health-data.html";
+
 // Set by main.js: { healthNote(dailyPath) -> Promise<path> (made from the
-// template if needed), medsNote() -> Promise<path> (made if needed),
+// template if needed), medsNote() and nutritionNote() -> Promise<path> (made
+// if needed),
 // dailyTemplate() -> Promise<path|null> (the built-in one saved to the vault
 // if it isn't there), settings(tab), events(day) -> Promise<events|null>,
 // image(ref, from), open(path), toast(text), usda(query) -> Promise<foods>
@@ -401,7 +405,8 @@ class PlannerWidget extends WidgetType {
 			const { foods, path: dbPath } = nutrition(view.state, this.cfg);
 			box.append(el("div", "planner-panel-title", "Log food"));
 			if (!dbPath) {
-				box.append(el("p", "planner-panel-empty", this.cfg.nutrition ? `Couldn't find ${this.cfg.nutrition}.` : "There's no Nutrition Database.md in the vault."));
+				box.append(el("p", "planner-panel-empty", this.cfg.nutrition ? `Couldn't find ${this.cfg.nutrition}.` : "Foods are logged from a Nutrition Database note, and there isn't one yet."));
+				if (!this.cfg.nutrition && host?.nutritionNote) box.append(panelButton("planner-log-btn", "Make one", async () => { await host.nutritionNote(); redrawPanel(this.panelKey); }));
 				return;
 			}
 			const row = el("div", "planner-food-opts");
@@ -491,7 +496,7 @@ class PlannerWidget extends WidgetType {
 			const day = this.now(view);
 			const logged = day.meals.filter((m) => m.items.length);
 			if (logged.length) {
-				box.append(el("div", "planner-panel-sub", `Today · ${fmt(day.totals.calories)} of ${fmt(this.cfg.calories_target)} cal` + (this.cfg.macros ? macroText(day.totals, this.cfg) : ` · ${fmt(day.totals.protein)} g protein · ${fmt(day.totals.carbs)} g carbs · ${fmt(day.totals.fat)} g fat`) + ` · ${fmt(day.totals.fiber)} g fiber`));
+				box.append(el("div", "planner-panel-sub", `Today · ${fmt(day.totals.calories)} of ${fmt(this.cfg.calories_target)} cal` + (this.cfg.macros ? macroText(day.totals, this.cfg) : ` · ${fmt(day.totals.protein)} g protein · ${fmt(day.totals.carbs)} g carbs · ${fmt(day.totals.fat)} g fat`) + ` · ${fmt(day.totals.fiber)}${this.cfg.macros && this.cfg.fiber_target ? ` / ${fmt(this.cfg.fiber_target)}` : ""} g fiber`));
 				for (const m of logged) {
 					box.append(el("div", "planner-log-head", m.meal));
 					for (const it of m.items) box.append(this.logRow(view, `${it.name}${it.servings === 1 ? "" : ` ×${it.servings}`}`, it.food ? `${fmt(it.food.calories * it.servings)} cal` : "not in the database", it));
@@ -888,16 +893,16 @@ class PlannerWidget extends WidgetType {
 		return {
 			units, sex: g?.sex || "female", age: g?.age ?? "", weight: weight ?? g?.weight ?? "",
 			ft: units === "lb" && height ? Math.floor(height / 12) : "", inch: units === "lb" && height ? Math.round(height % 12) : "", cm: units === "kg" ? height : "",
-			activity: g?.activity || "light", plan: g?.plan || "maintain",
+			activity: g?.activity || "light", plan: g?.plan || "maintain", pregnant: !!g?.pregnant,
 			calories_target: c.calories_target, water_target: c.water_target, steps_target: c.steps_target, sleep_target: c.sleep_target,
-			macros: c.macros, protein_target: c.protein_target ?? "", fat_target: c.fat_target ?? "", carbs_target: c.carbs_target ?? "",
-			note: weight != null && g ? "Weight updated. Press Work out my targets for the new numbers." : "", worked: false,
+			macros: c.macros, protein_target: c.protein_target ?? "", fat_target: c.fat_target ?? "", carbs_target: c.carbs_target ?? "", fiber_target: c.fiber_target ?? "",
+			note: weight != null && g ? "Weight updated. Press Work out my targets for the new numbers." : "", worked: false, personal: !!g,
 		};
 	}
 
 	goalOf(st) {
 		const height = st.units === "lb" ? (Number(st.ft) || 0) * 12 + (Number(st.inch) || 0) : Number(st.cm);
-		return readGoal({ units: st.units, sex: st.sex, age: st.age, height, weight: st.weight, activity: st.activity, plan: st.plan });
+		return readGoal({ units: st.units, sex: st.sex, age: st.age, height, weight: st.weight, activity: st.activity, plan: st.plan, pregnant: st.pregnant || null });
 	}
 
 	// The values targetsForm's state saves as.
@@ -907,7 +912,7 @@ class PlannerWidget extends WidgetType {
 		const out = { units: st.units, macros: !!st.macros };
 		if (goal) out.goal = goal;
 		for (const k of ["calories_target", "water_target", "steps_target", "sleep_target"]) if (n(st[k])) out[k] = n(st[k]);
-		for (const k of ["protein_target", "fat_target", "carbs_target"]) out[k] = st.macros ? n(st[k]) : this.cfg[k] ?? null;
+		for (const k of ["protein_target", "fat_target", "carbs_target", "fiber_target"]) out[k] = st.macros ? n(st[k]) : this.cfg[k] ?? null;
 		return out;
 	}
 
@@ -935,16 +940,34 @@ class PlannerWidget extends WidgetType {
 		box.append(row(sel("units", "Units", [["lb", "lb, ft/in"], ["kg", "kg, cm"]]), sel("sex", "Sex", SEXES), num("age", "Age")));
 		box.append(st.units === "lb" ? row(num("ft", "Height ft"), num("inch", "in"), num("weight", "Weight lb", "0.1")) : row(num("cm", "Height cm"), num("weight", "Weight kg", "0.1")));
 		box.append(row(sel("activity", "Activity", ACTIVITY.map(([k, label]) => [k, label]))), row(sel("plan", "Goal", PLANS.map(([k, lb, kg]) => [k, st.units === "kg" ? kg : lb]))));
+		const preg = el("label", "planner-check");
+		const pcb = el("input");
+		pcb.type = "checkbox";
+		pcb.checked = !!st.pregnant;
+		pcb.addEventListener("change", () => { st.pregnant = pcb.checked; });
+		preg.append(pcb, " Pregnant or breastfeeding");
+		box.append(preg);
 		box.append(panelButton("planner-link", "Work out my targets", () => {
-			const r = workOut(this.goalOf(st), { water_step: this.cfg.water_step });
-			if (!r) st.note = "Fill in age, height and weight first.";
+			const goal = this.goalOf(st);
+			const r = goal && goal.age >= ADULT && workOut(goal, { water_step: this.cfg.water_step });
+			if (!goal) st.note = "Fill in age, height and weight first.";
+			else if (!r) st.note = `These formulas are made for adults, so wr1t3r doesn't work out targets under ${ADULT}. A doctor can give you numbers that fit.`;
 			else {
-				Object.assign(st, { calories_target: r.calories_target, water_target: r.water_target, protein_target: r.protein_target, fat_target: r.fat_target, carbs_target: r.carbs_target, worked: true });
-				st.note = r.floored ? `That goal would go under ${fmt(r.calories_target)} calories a day, so it stops there. A slower goal is safer.` : `About ${fmt(r.rest)} calories at rest; the targets below are worked out from that. Change any of them.`;
+				Object.assign(st, { calories_target: r.calories_target, water_target: r.water_target, steps_target: r.steps_target, protein_target: r.protein_target, fat_target: r.fat_target, carbs_target: r.carbs_target, fiber_target: r.fiber_target, worked: true, personal: true });
+				st.note = [
+					r.floored ? `That goal would go under ${fmt(r.calories_target)} calories a day, so it stops there. A slower goal is safer.` : `About ${fmt(r.rest)} calories at rest; the targets below are worked out from that. Change any of them.`,
+					goal.pregnant ? "No calorie cut while pregnant or breastfeeding: your needs go up, so ask your doctor or midwife how much." : "",
+					r.lowCarbs && st.macros ? "Carbs come out under 130 g, the daily minimum the guidelines give. Check with a doctor or dietitian before going that low." : "",
+				].filter(Boolean).join(" ");
 			}
 			redraw();
 		}));
 		if (st.note) box.append(el("p", "planner-panel-hint", st.note));
+		const hint = el("p", "planner-panel-hint");
+		const src = Object.assign(el("a", null, "Where these numbers come from"), { href: HEALTH_DATA, target: "_blank", rel: "noopener" });
+		hint.append(st.personal || st.worked ? "" : "Until you work them out, these are the standard Nutrition Facts label values, not numbers for you. ",
+			"Estimates from published guidelines, not medical advice. Check with a doctor or dietitian, especially with a health condition. ", src, ".");
+		box.append(hint);
 		box.append(el("div", "planner-panel-sub", "Daily targets"));
 		box.append(row(num("calories_target", "Calories"), num("water_target", "Water oz")), row(num("steps_target", "Steps"), num("sleep_target", "Sleep hours", "0.25")));
 		const mac = el("label", "planner-check");
@@ -953,13 +976,14 @@ class PlannerWidget extends WidgetType {
 		cb.checked = !!st.macros;
 		cb.addEventListener("change", () => {
 			st.macros = cb.checked;
-			const r = st.macros && !st.protein_target && workOut(this.goalOf(st), { water_step: this.cfg.water_step });
-			if (r) Object.assign(st, { protein_target: r.protein_target, fat_target: r.fat_target, carbs_target: r.carbs_target });
+			const unset = !st.protein_target || Number(st.protein_target) === LABEL_TARGETS.protein_target;
+			const r = st.macros && unset && workOut(this.goalOf(st), { water_step: this.cfg.water_step });
+			if (r) Object.assign(st, { protein_target: r.protein_target, fat_target: r.fat_target, carbs_target: r.carbs_target, fiber_target: r.fiber_target });
 			redraw();
 		});
 		mac.append(cb, " Protein, fat and carbs targets too");
 		box.append(mac);
-		if (st.macros) box.append(row(num("protein_target", "Protein g"), num("fat_target", "Fat g"), num("carbs_target", "Carbs g")));
+		if (st.macros) box.append(row(num("protein_target", "Protein g"), num("fat_target", "Fat g"), num("carbs_target", "Carbs g"), num("fiber_target", "Fiber g")));
 	}
 
 	targetsPanel(view, anchor, opts = {}) {

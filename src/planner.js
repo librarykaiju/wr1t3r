@@ -62,16 +62,22 @@ const DEFAULT_EXERCISES = ["🚶 Walk", "🏃 Run", "🥾 Hike"];
 export const BUTTONS = [["food", "🍎", "Food"], ["water", "💧", "Water"], ["meds", "💊", "Meds"], ["exercise", "👟", "Exercise"], ["mood", "🙂", "Mood"], ["sleep", "😴", "Sleep"], ["weight", "⚖️", "Weight"]];
 const DEFAULT_BUTTONS = BUTTONS.slice(0, 5).map(([id]) => id);
 
+// The targets until a goal works out personal ones: the FDA's Nutrition Facts
+// reference values (2,000 calories, 50 g protein, 78 g fat, 275 g carbs, 28 g
+// fiber), and water from drinks halfway between the National Academies'
+// figures for men and women (src/targets.js).
+export const LABEL_TARGETS = { calories_target: 2000, water_target: 88, protein_target: 50, fat_target: 78, carbs_target: 275, fiber_target: 28 };
+
 const DEFAULTS = {
 	tasks: ["crit", "todo"], moods: DEFAULT_MOODS, exercises: DEFAULT_EXERCISES, buttons: DEFAULT_BUTTONS,
-	calories_target: 2417, water_target: 128, water_step: 8, steps_target: 7000, activity_target: 400, sleep_target: 8,
-	protein_target: null, fat_target: null, carbs_target: null, start: 9, end: 21, macros: false, med_reminders: true, units: "lb",
+	...LABEL_TARGETS, water_step: 8, steps_target: 7000, activity_target: 400, sleep_target: 8,
+	start: 9, end: 21, macros: false, med_reminders: true, units: "lb",
 	habits: [],
 };
-const NUMBERS = ["calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "start", "end"];
+const NUMBERS = ["calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "fiber_target", "start", "end"];
 const ORDER = ["setup", "banner", "title", "buttons", "tasks", "moods", "exercises", "nutrition", "medications", "units", "goal", ...NUMBERS, "macros", "med_reminders", "colors", "habits", "timeline"];
 // What a day takes from the Daily template's block when its own doesn't set it.
-export const SHARED = ["setup", "buttons", "moods", "exercises", "nutrition", "medications", "units", "goal", "calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "macros", "med_reminders", "habits"];
+export const SHARED = ["setup", "buttons", "moods", "exercises", "nutrition", "medications", "units", "goal", "calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "fiber_target", "macros", "med_reminders", "habits"];
 const BOOLS = ["macros", "med_reminders"];
 const yes = (v) => v === true || /^(true|yes|on)$/i.test(String(v ?? ""));
 export const CARD_COLORS = 7;

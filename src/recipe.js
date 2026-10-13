@@ -104,3 +104,79 @@ export function upsertRecipeRow(dbText, name, row) {
 	lines.splice(last + 1, 0, row);
 	return { text: lines.join(nl), action: "Added" };
 }
+
+// The ingredients the database has nothing for: their names, once each.
+export function missingIngredients(noteText, dbText) {
+	const known = lookup(parseNutrition(dbText || ""));
+	const lines = listItems(noteText).filter((l) => l.section?.subpath === "Ingredients").map((l) => l.text.trim()).filter(Boolean);
+	const names = lines.map((l) => ingredientEntry(l, known).name).filter((n) => n && !known.find(n));
+	return [...new Map(names.map((n) => [n.toLowerCase(), n])).values()];
+}
+
+const FILLER = new Set(["and", "or", "of", "with", "the", "a", "an", "fresh", "chopped", "diced", "sliced", "minced", "large", "small", "medium", "to", "taste", "for", "optional", "smoked"]);
+// Words that mark a food as a dish or a processed form rather than the plain
+// ingredient a recipe means.
+const PROCESSED = /\b(fast foods?|restaurant|breaded|fried|frozen|prepared|mixture|rings?|liquid|industrial|imitation|baby ?food|babyfood|sandwich|nachos|pizza|meal|dinner|entree|canned|dehydrated|dried|reduced fat|nonfat|low fat|light|mayonnaise|meatless|substitute|roll|loaf|salad dressing|soup|spread|deli|prepackaged|rotisserie|buttermilk|sweetened|flavou?r|dry|sliced|microwav\w*)\b/;
+
+// "Onions" -> "onion", "Tomatoes" -> "tomato": close enough to match plurals.
+const stem = (w) => w.replace(/(oes|ies)$/, (m) => (m === "ies" ? "y" : "o")).replace(/([^s])s$/, "$1");
+const tokens = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}%]+/gu, " ").split(" ").filter(Boolean).map(stem);
+
+// The closest foods for an ingredient name, best first. Each food is scored on
+// how many of the name's words it has (whole words, plurals aside), whether
+// the last word, the thing itself, leads its name ("Onions, raw" for "onion"),
+// whether its name starts with one of them, and whether it's the plain (raw or
+// whole) ingredient rather than a dish or processed form; shorter names win
+// ties.
+// A food with under a third of the words is no match.
+const tokenCache = new WeakMap();
+const tokenSet = (f) => {
+	let t = tokenCache.get(f);
+	if (!t) tokenCache.set(f, (t = new Set(tokens([f.name, ...(f.aliases || [])].join(", ")))));
+	return t;
+};
+const dfCache = new WeakMap();
+function docFreq(foods) {
+	let df = dfCache.get(foods);
+	if (df) return df;
+	df = new Map();
+	for (const f of foods) for (const w of tokenSet(f)) df.set(w, (df.get(w) || 0) + 1);
+	dfCache.set(foods, df);
+	return df;
+}
+
+export function closestFoods(foods, name, limit = 5) {
+	const words = tokens(name).filter((w) => w.length > 1 && !FILLER.has(w));
+	if (!words.length) return [];
+	const head = words.at(-1);
+	// Rarer words count for more: "paprika" says more than "powder".
+	const df = docFreq(foods);
+	const weight = (w) => Math.log((foods.length + 1) / ((df.get(w) || 0) + 1));
+	const total = words.reduce((t, w) => t + weight(w), 0) || 1;
+	const scored = [];
+	for (const f of foods) {
+		const have = tokenSet(f);
+		const matched = words.filter((w) => have.has(w));
+		if (matched.length / words.length < 1 / 3) continue;
+		const hits = (matched.reduce((t, w) => t + weight(w), 0) / total) * words.length;
+		const lead = new Set(tokens(f.name.split(",")[0]));
+		const n = f.name.toLowerCase();
+		const first = stem(n.split(/[\s,]/)[0]);
+		const score = (hits / words.length) * 100 + (lead.has(head) ? 30 : have.has(head) ? 10 : 0) + (words.includes(first) ? 15 : 0)
+			+ (/\braw\b/.test(n) ? 8 : 0) + (/\bwhole\b/.test(n) ? 8 : 0) - (PROCESSED.test(n) ? 25 : 0) - have.size / 2;
+		scored.push({ f, score });
+	}
+	return scored.sort((x, y) => y.score - x.score || x.f.name.localeCompare(y.f.name)).slice(0, limit).map((x) => x.f);
+}
+
+export const closestFood = (foods, name) => closestFoods(foods, name, 1)[0] || null;
+
+// The choices for each missing ingredient: [{ ingredient, options }], the
+// closest food first (options empty when nothing comes close).
+export function matchIngredients(names, foods, limit = 5) {
+	return names.map((ingredient) => ({ ingredient, options: closestFoods(foods, ingredient, limit) }));
+}
+
+// The food to add for an ingredient: the pick, with the ingredient's name as
+// an alias so the recipe matches it from then on.
+export const asIngredient = (food, ingredient) => ({ ...food, aliases: [...new Set([...(food.aliases || []), ingredient])] });

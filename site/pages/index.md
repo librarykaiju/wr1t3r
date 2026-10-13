@@ -73,7 +73,7 @@ One tap logs a glass of water, a walk, your mood, last night's sleep or this mor
 
 ### Targets worked out for you
 
-Give your height, weight, activity and goal, and wr1t3r works out daily targets for calories, water, steps and sleep, with protein, fat and carbs if you want them. Every button shows how far along you are. Log a new weight and it offers to update the targets.
+Give your height, weight, activity and goal, and wr1t3r works out daily targets for calories, water and steps, with protein, fat, carbs and fiber if you want them. Every number comes from published nutrition guidelines and peer-reviewed research, and [the sources are listed](/health-data.html). Every button shows how far along you are. Log a new weight and it offers to update the targets.
 
 ![The targets step of the planner setup: units, age, height, weight, activity and goal, with the calories, water, steps and sleep targets worked out](/shots/planner-targets.webp)
 
@@ -94,7 +94,7 @@ Book, film, TV and game logs add up on their own: how many you finished each yea
 
 ### Also on the planner
 
-- **Food and recipes.** Log meals from a built-in table of about 7,800 common foods, or from your own recipes, with calories and nutrition added up for the day.
+- **Food and recipes.** Log meals from USDA's table of about 7,800 common foods, your own foods or your own recipes, with calories and nutrition added up for the day. [Where the numbers come from](/health-data.html).
 - **Moods and exercises your way.** Change the choices on the Mood and Exercise buttons to your own.
 - **A timeline for the day.** Block out your hours, and add events from your calendar.
 - **Everything is a note.** Your planner, health log and medication list are plain Markdown files in your Dropbox or Google Drive like the rest of your notes.
@@ -222,4 +222,4 @@ Try it free first. If it isn't working out after you buy, ask within 30 days for
 
 --- footer
 
-wr1t3r · [Help](/help.html) · [Host it free](/self-host.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
+wr1t3r · [Help](/help.html) · [Host it free](/self-host.html) · [Health data sources](/health-data.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
