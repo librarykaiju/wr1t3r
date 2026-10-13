@@ -56,6 +56,9 @@ const detail = (body) => (typeof body.detail === "string" ? body.detail : "");
 const ours = (key, benefit) => !benefit || String(key?.benefit_id ?? "") === String(benefit);
 
 const NOT_OURS = "That key isn't for wr1t3r.";
+// When the key is on as many devices as it allows. The key window also lists
+// the devices the license note knows of, to free one from there.
+export const FULL = "That key is already on as many devices as it allows. Free a place on it from Settings > License on any device. Lost track of one? Email hello@wr1t3r.app and I'll sort it out.";
 
 // Activates key on this device. Resolves to the license to save, or throws
 // an Error with a message to show. A network failure throws a TypeError.
@@ -66,7 +69,7 @@ export async function activateLicense(key, { fetch: fetchFn = fetch, api = DEFAU
 	if (status !== 200 || !body.id) {
 		const why = detail(body);
 		if (status === 404) throw new Error("That key wasn't found. Check it against the one in your Polar purchases.");
-		if (status === 403 && /supports \d+ activation|limit/i.test(why)) throw new Error("That key is already on as many devices as it allows. Remove it from one (Settings > License there), then try again.");
+		if (status === 403 && /supports \d+ activation|limit/i.test(why)) throw Object.assign(new Error(FULL), { full: true });
 		if (status === 403 && /expired|revoked|disabled|no longer active/i.test(why)) throw new Error("That key is no longer active.");
 		if (status === 429 || status >= 500) throw new Error("Polar is unavailable. Try again in a minute.");
 		throw new Error(why ? "Polar says: " + why : "That key wasn't accepted.");
@@ -101,3 +104,42 @@ export async function deactivateLicense(license, { fetch: fetchFn = fetch, api =
 
 // The key with all but its last part hidden.
 export const maskKey = (key) => { const k = cleanKey(key); return k.length > 8 ? "•".repeat(8) + k.slice(-8) : k; };
+
+// ---- The license note --------------------------------------------------------
+//
+// _wr1t3r/License.md beside the Home note, so it lives in the user's own
+// storage and syncs like any note: the key, and each device it's on
+// ({ id: the Polar activation, name, added }). A device whose browser was
+// cleared, or a new one, finds the key there instead of in old email, and any
+// device can free another's place on the key, including one that's lost.
+
+const BLOCK = /```json[ \t]*\n([\s\S]*?)\n```/;
+
+// The note's text -> { key, devices }.
+export function readLicenseNote(text) {
+	const m = (text || "").match(BLOCK);
+	let o = null;
+	try { o = m ? JSON.parse(m[1]) : null; } catch {}
+	const key = typeof o?.key === "string" ? cleanKey(o.key) : "";
+	const devices = (Array.isArray(o?.devices) ? o.devices : [])
+		.filter((d) => d && typeof d.id === "string" && d.id)
+		.map((d) => ({ id: d.id, name: String(d.name || "A device"), added: String(d.added || "") }));
+	return { key, devices };
+}
+
+// The note's text with { key, devices } in its block.
+export function writeLicenseNote(text, { key, devices }) {
+	const block = "```json\n" + JSON.stringify({ key, devices }, null, "\t") + "\n```";
+	if (text && BLOCK.test(text)) return text.replace(BLOCK, () => block);
+	return "Your wr1t3r license key and the devices it's on, so a new device or a cleared browser can find the key, and any device can free another's place on it (Settings > License). Keep this note private, like the key itself.\n\n" + block + "\n";
+}
+
+// The note with this device's activation in it. A different key starts the
+// list over: the old one's devices aren't this key's.
+export function withDevice(note, license, name, now = Date.now()) {
+	const devices = note.key === license.key ? note.devices.filter((d) => d.id !== license.instance) : [];
+	return { key: license.key, devices: [...devices, { id: license.instance, name, added: new Date(now).toISOString().slice(0, 10) }] };
+}
+
+// The note without the device whose activation is id.
+export const withoutDevice = (note, id) => ({ ...note, devices: note.devices.filter((d) => d.id !== id) });

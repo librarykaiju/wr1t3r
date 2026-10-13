@@ -15,6 +15,7 @@ page: help
 Step by step, from first sign-in to a website with your notes on it. In the app, Settings > Help links back here.
 
 - [Setting up wr1t3r](#setup)
+- [Getting back in, and your devices](#devices)
 - [Publishing your notes as a website](#publishing)
 - [Putting the site on Neocities](#neocities)
 - [Putting the site on GitHub Pages](#github)
@@ -43,6 +44,18 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 6.  **Enter your license key** in Settings > License after you buy. Everything works during the 14-day trial.
 
 ![Settings › Help in the app: a Getting started guide button and links to these guides](/shots/help-settings.webp)
+
+--- devices
+
+## Getting back in, and your devices
+
+wr1t3r has no account or password of its own. You sign in with Dropbox or Google, and your notes stay there.
+
+- **Forgot your Dropbox or Google password?** Reset it with Dropbox or Google, then sign in to wr1t3r again. Everything is where you left it.
+- **Moving to a new Dropbox or Google account?** In Dropbox, copy the _Apps › wr1t3r_ folder into the new account, then sign in to wr1t3r with it. In Google Drive, sign in to wr1t3r with the new account first, then add your notes with the Upload button, since wr1t3r only sees files it put there itself. Your license key isn't tied to either account, so it keeps working.
+- **New device, or a browser that was cleared?** Once you're signed in, the key window fills in your key from _\_wr1t3r/License.md_, a note wr1t3r keeps beside your Home note. Keep that note private, like the key itself.
+- **Key on too many devices?** A key covers 5. Settings > License lists every device it's on, with a _Free_ button for each, so you can free a lost or wiped one from any other device. The same list shows in the key window when it's full. If one isn't listed, email [hello@wr1t3r.app](mailto:hello@wr1t3r.app).
+- **Lost the key?** It's on your Polar purchases page, linked from your receipt email. Polar signs you in with a code sent to that email address.
 
 --- publishing
 
