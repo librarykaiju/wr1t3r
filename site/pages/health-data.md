@@ -89,7 +89,7 @@ On the Food button, the 📷 at the end of the search box (or Commands > _Add a 
 
 If the photo shows a barcode, wr1t3r first checks your Nutrition Database for it. If it isn't there, it looks the number up in [Open Food Facts](https://world.openfoodfacts.org), a free, open database of packaged foods. Only the barcode's digits are sent. The food is added with its barcode as an alias, so the next scan finds it in your own database.
 
-If there's no barcode, or Open Food Facts doesn't have it, wr1t3r reads the Nutrition Facts label instead. It fills in the serving size, calories, fat, carbs, protein and fiber, and shows them beside the photo. Either way, check the numbers and the name before you save. If the calories don't add up from the fat, carbs and protein, it says so, because that usually means a number was misread. Labels read best when they're flat, well lit and US-style.
+If there's no barcode, or Open Food Facts doesn't have it, wr1t3r reads the Nutrition Facts label instead. It fills in the serving size, calories, fat, carbs, protein and fiber, and shows them beside the photo. Either way, check the numbers and the name before you save. If the calories are far from what the fat, carbs and protein add up to, it says so, because that usually means a number was misread. Small differences are normal: makers may use each food's own calorie factors. Labels read best when they're flat, well lit and US-style.
 
 ### By hand
 

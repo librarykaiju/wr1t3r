@@ -39,7 +39,7 @@ test("Open Food Facts: per serving when the label gives it", () => {
 		product_name: "Crunchy Peanut Butter", brands: "Jif, J.M. Smucker", serving_size: "2 Tbsp (32 g)", serving_quantity: 32, categories: "Spreads, Nut butters, Peanut butters",
 		nutriments: { "energy-kcal_serving": 190, fat_serving: 16, carbohydrates_serving: 8, proteins_serving: 7, fiber_serving: 2, "energy-kcal_100g": 594 },
 	}, "0051500255162");
-	assert.deepEqual(f, { name: "Crunchy Peanut Butter (Jif)", serving: "2 Tbsp (32 g)", calories: 190, fat: 16, carbs: 8, protein: 7, fiber: 2, group: "Fat/Protein", aliases: ["0051500255162"] });
+	assert.deepEqual(f, { name: "Crunchy Peanut Butter (Jif)", serving: "2 Tbsp (32g)", calories: 190, fat: 16, carbs: 8, protein: 7, fiber: 2, group: "Fat/Protein", aliases: ["0051500255162"] });
 });
 
 test("Open Food Facts: per 100 g scaled to the serving, kJ when there's no kcal, and no nutrition", () => {

@@ -28,7 +28,8 @@ export function productFood(p, code = "") {
 	const grams = Number(p.serving_quantity) > 0 ? Number(p.serving_quantity) : null;
 	// Per serving as printed; else worked out from per 100 g and the serving's
 	// weight; else per 100 g.
-	let sfx = "_serving", factor = 1, serving = String(p.serving_size || "").trim();
+	// "1.0 serving (40.0 g)" -> "1 serving (40g)".
+	let sfx = "_serving", factor = 1, serving = String(p.serving_size || "").trim().replace(/(\d)\.0\b/g, "$1").replace(/(\d)\s+(g|ml)\b/gi, "$1$2");
 	if (kcalOk(kcal("_serving"))) { serving ||= "1 serving"; }
 	else if (grams && kcalOk(kcal("_100g"))) { sfx = "_100g"; factor = grams / 100; serving ||= `${grams}g`; }
 	else if (kcalOk(kcal("_100g"))) { sfx = "_100g"; serving = "100g"; }

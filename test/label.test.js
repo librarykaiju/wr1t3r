@@ -34,6 +34,10 @@ Protein 4 g`;
 	assert.deepEqual(parseLabel(text), { serving: "1 bar (40g)", perContainer: 6, calories: 190, fat: 8, carbs: 21, fiber: 0, protein: 4 });
 	assert.deepEqual(parseLabel("a blurry photo"), {});
 	assert.equal(addsUp({ calories: 900, fat: 8, carbs: 21, protein: 4 }), false);
+	// A nut bar's label: 15 g fat, 16 g carbs with 7 g fiber, 6 g protein, 170
+	// calories (nut fat counts for less than 9 a gram).
+	assert.equal(addsUp({ calories: 170, fat: 15, carbs: 16, protein: 6, fiber: 7 }), true);
+	assert.equal(addsUp({ calories: 470, fat: 15, carbs: 16, protein: 6, fiber: 7 }), false);
 });
 
 test("a label printed as running text, as on a bar's wrapper", () => {

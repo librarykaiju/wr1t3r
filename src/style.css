@@ -1502,7 +1502,7 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .planner-link { padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--muted); font: 12px/1.5 var(--sans); cursor: pointer; }
 .planner-search-wrap { position: relative; flex: none; }
 .planner-search-wrap .planner-search { padding-right: 44px; }
-.planner-search-camera { position: absolute; top: 50%; right: 3px; transform: translateY(-50%); display: grid; place-items: center; width: 36px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; font-size: 17px; line-height: 1; cursor: pointer; }
+.planner-search-camera { position: absolute; top: 50%; right: 3px; transform: translateY(-50%); display: grid; place-items: center; width: 36px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--fg); line-height: 1; cursor: pointer; }
 .planner-search-camera:hover, .planner-search-camera:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
 .planner-link:hover { color: var(--accent); border-color: var(--accent); }
 .planner-buttons { display: grid; grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }

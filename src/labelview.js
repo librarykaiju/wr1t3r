@@ -129,7 +129,7 @@ function dialog(photoUrl) {
 			const warn = el("p", "label-warn");
 			const check = () => {
 				const v = Object.fromEntries(nums.map((f) => [f.input.name, f.input.value === "" ? null : Number(f.input.value)]));
-				warn.textContent = addsUp(v) ? "" : "Calories don't match the fat, carbs and protein (4 per gram of carbs and protein, 9 per gram of fat). One of them is probably misread.";
+				warn.textContent = addsUp(v) ? "" : "The calories are far from what the fat, carbs and protein add up to. One of the numbers may be misread.";
 			};
 			for (const f of nums) f.input.addEventListener("input", check);
 			check();

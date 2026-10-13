@@ -102,6 +102,7 @@ import { recordVoice } from "./recorder.js";
 import { remindersIn, dueReminders } from "./reminders.js";
 import { plan as remindPlan, prune as remindPrune, reminderEvent, eventIdFor } from "./calreminders.js";
 import { openHistory } from "./historyview.js";
+import { foodFromLabel } from "./labelview.js";
 
 const $ = (id) => document.getElementById(id);
 // path -> note, mirrors IndexedDB. version changes when a note arrives, goes,
@@ -4154,7 +4155,7 @@ async function importFoods() {
 // A food from a photo of its Nutrition Facts label (src/labelview.js), saved
 // to the Nutrition Database.
 async function foodFromLabelPhoto() {
-	const { foodFromLabel } = await import("./labelview.js");
+	// Not imported here and now: a phone opens the camera only straight from a tap.
 	const food = await foodFromLabel();
 	if (!food) return;
 	const fi = await import("./foodimport.js");

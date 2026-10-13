@@ -36,6 +36,9 @@ import { menu, cardColorPicker } from "./basesui.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
 import { entries, onThisDay, yearsAgo, dayHealth, trends, series } from "./journal.js";
 import { lineChart, sliceColor } from "./charts.js";
+// Loaded with the planner, not on the camera tap: a phone opens the camera
+// only straight from a tap, before anything is fetched.
+import { foodFromLabel } from "./labelview.js";
 
 const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
 
@@ -490,14 +493,14 @@ class PlannerWidget extends WidgetType {
 			};
 			// A food from a photo of its barcode or Nutrition Facts label
 			// (src/labelview.js), from the camera button at the search box's end.
-			const photo = el("button", "planner-search-camera", "📷");
+			const photo = el("button", "planner-search-camera");
+			photo.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>`;
 			photo.type = "button";
 			photo.title = "Add a food from a photo of its barcode or Nutrition Facts label. The photo is read on this device, and you check the numbers before it's saved.";
 			photo.setAttribute("aria-label", "Add a food from a photo of its barcode or label");
 			photo.addEventListener("click", async () => {
 				// Out of the way of the photo's dialog, which opens under panels.
 				closePanel();
-				const { foodFromLabel } = await import("./labelview.js");
 				const f = await foodFromLabel({ known: (code) => foods.find((x) => x.aliases.includes(code)) || null });
 				if (f) await addAndLog(f);
 			});

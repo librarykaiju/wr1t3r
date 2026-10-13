@@ -57,9 +57,12 @@ export function parseLabel(text) {
 }
 
 // Whether the calories roughly match 4 per gram of protein and carbs and 9
-// per gram of fat (labels round, so within a quarter, or 20 calories).
-export function addsUp({ calories, fat, carbs, protein }) {
+// per gram of fat, with fiber (counted in the carbs) at 2. Makers may use
+// each food's own factors (nuts give less than 9 a gram of fat), and labels
+// round, so within 30%, or 20 calories. A misread digit is far further off.
+export function addsUp({ calories, fat, carbs, protein, fiber }) {
 	if ([calories, fat, carbs, protein].some((v) => v == null)) return true;
-	const worked = 4 * protein + 4 * carbs + 9 * fat;
-	return Math.abs(worked - calories) <= Math.max(20, calories * 0.25);
+	const fib = Math.min(fiber || 0, carbs);
+	const worked = 4 * protein + 4 * (carbs - fib) + 2 * fib + 9 * fat;
+	return Math.abs(worked - calories) <= Math.max(20, calories * 0.3);
 }
