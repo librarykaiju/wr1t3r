@@ -77,7 +77,7 @@ import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath
 import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder, setWords, healthDay, healthDayOf } from "./planner.js";
 import { readHabits, habitProps, habitsGlance } from "./habits.js";
 import { proseWords, countsTowardWords, addWords } from "./wordlog.js";
-import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE } from "./meds.js";
+import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE, photoTarget } from "./meds.js";
 import { openFoodPanel, openTrends, journalEntries, lookbackItem } from "./plannerview.js";
 import { onThisDay, period, reviewNote } from "./journal.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
@@ -93,7 +93,7 @@ import { SIZES, MARGINS, readSetup, setPageSetup } from "./pagelayout.js";
 import { setPageView, isPageView } from "./pageview.js";
 import { setTracking, isTracking, setFinalView, isFinalView, acceptChange, rejectChange, resolveEvery, gotoChange, addComment, countChanges } from "./trackview.js";
 import { setPictureHost } from "./paste.js";
-import { pictureFolder, pictureName, freePath, pictureLink } from "./pictures.js";
+import { pictureFolder, pictureName, freePath, pictureLink, pictureExt } from "./pictures.js";
 import { setupToolbar } from "./toolbar.js";
 import * as versions from "./history.js";
 import { INBOX, captureEntry, appendCapture, stamp } from "./capture.js";
@@ -1891,6 +1891,21 @@ const plannerHost = {
 		scheduleSync();
 		return path;
 	},
+	// A photo of a pill, saved where a picture pasted into the medicine list
+	// would go and named after the medicine -> the embed for its line.
+	async medPhoto(file, medName) {
+		const list = await this.medsNote();
+		const base = String(medName || "").replace(/[\\/:*?"<>|#^[\]]/g, "").trim() || "Medicine";
+		return uploadPicture(new File([file], `${base} pill.${pictureExt(file.type) || "jpg"}`, { type: file.type || "image/jpeg" }), list);
+	},
+	// A picture embed in the note at fromPath -> its vault path, or null.
+	picturePath(embed, fromPath) {
+		const target = photoTarget(embed);
+		const path = target && dataviewVault.resolveAttachment(target, fromPath);
+		return path && attachmentKind(path) === "image" ? path : null;
+	},
+	pictureURL: (path) => dataviewVault.attachmentURL(path),
+	openPicture: (path) => openAttachment(path),
 	// The Nutrition Database, made beside the medicine list (or in the notes'
 	// folder) when it isn't there.
 	nutritionNote: () => nutritionNote(),

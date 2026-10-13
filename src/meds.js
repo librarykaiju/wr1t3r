@@ -71,26 +71,42 @@ export function daysText(days) {
 	return days.map((d) => DAY_NAMES[d]).join(", ");
 }
 
-// "Lisinopril | 10 mg | 08:00" -> { name, dose, times, asNeeded, days }, or
-// null when it isn't a medicine line.
+// A picture embed, ![[Lisinopril pill.jpg]] or ![](Lisinopril%20pill.jpg),
+// -> the name it links to, else null.
+export function photoTarget(part) {
+	const wiki = /^!\[\[([^\]|]+)\]\]$/.exec(String(part).trim());
+	if (wiki) return wiki[1].trim();
+	const md = /^!\[[^\]]*\]\(<?([^()<>]+)>?\)$/.exec(String(part).trim());
+	if (!md) return null;
+	try { return decodeURIComponent(md[1].trim()); } catch { return md[1].trim(); }
+}
+
+// "Lisinopril | 10 mg | 08:00 | ![[Lisinopril pill.jpg]]" -> { name, dose,
+// times, asNeeded, days, photo }, or null when it isn't a medicine line.
+// photo, the embed as written, is there only when the line has one, wherever
+// it sits.
 export function parseMed(text) {
-	const parts = String(text).split("|").map((s) => s.trim());
+	const all = String(text).split("|").map((s) => s.trim());
+	const at = all.findIndex((p, i) => i > 0 && photoTarget(p));
+	const photo = at < 0 ? "" : all.splice(at, 1)[0];
+	const parts = all;
 	const name = parts.shift();
 	if (!name) return null;
 	let k = parts.findIndex((p) => parseTimes(p) != null);
 	const times = k < 0 ? [] : parseTimes(parts[k]);
 	const dose = (k < 0 ? parts : parts.slice(0, k)).filter(Boolean).join(" ");
 	const days = k < 0 ? null : parseDays(parts.slice(k + 1).join(", "));
-	return { name, dose, times, asNeeded: !times.length, days };
+	return { name, dose, times, asNeeded: !times.length, days, ...(photo ? { photo } : {}) };
 }
 
-export function medLine({ name, dose, times = [], days = null }) {
+export function medLine({ name, dose, times = [], days = null, photo = "" }) {
 	const clean = (s) => String(s ?? "").replace(/\s*[|\n]\s*/g, " ").trim();
 	const parts = [clean(name)];
 	if (clean(dose)) parts.push(clean(dose));
 	parts.push(times.length ? times.join(", ") : "as needed");
 	const d = times.length ? daysText(days) : "";
 	if (d) parts.push(d);
+	if (photoTarget(photo)) parts.push(clean(photo));
 	return parts.join(" | ");
 }
 
@@ -149,7 +165,7 @@ export function dosesOn(meds, day) {
 	const out = [];
 	for (const m of meds) {
 		if (m.asNeeded || (m.days && !m.days.includes(wd))) continue;
-		for (const time of m.times) out.push({ name: m.name, dose: m.dose, time });
+		for (const time of m.times) out.push({ name: m.name, dose: m.dose, time, ...(m.photo ? { photo: m.photo } : {}) });
 	}
 	return out.sort((a, b) => a.time.localeCompare(b.time) || a.name.localeCompare(b.name));
 }
