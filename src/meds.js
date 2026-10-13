@@ -12,9 +12,14 @@
 // every day; "weekdays" and "weekends" work too.
 //
 // The health note's log, under "## 💊 Medications":
-//   - 08:12 | Lisinopril | 10 mg | for 08:00
+//   - 08:12 | Lisinopril | 10 mg | for 08:00 | by Brandon
 // "for 08:00" says which scheduled dose it was; a line without it (typed by
 // hand, or an as-needed dose) counts toward the earliest dose not yet taken.
+// "by Brandon" is who gave it, when this device has a name set.
+//
+// People someone looks after (the planner's people: [Mom]) each have a folder,
+// People/Mom/, with their own list (People/Mom/Medications.md) and a log note a
+// day (People/Mom/Meds/2026-10-13 meds.md, the same heading and lines).
 
 export const MEDS = { heading: "💊 Medications" };
 export const MEDS_NOTE = "Medications.md";
@@ -131,8 +136,24 @@ export function parseMeds(text) {
 	return out;
 }
 
-export function newMedsNote() {
-	return "---\ntitle: Medications\n---\n\n# Medications\n\nOne medicine per line: name | dose | times (or \"as needed\") | days (leave out for every day).\n\n";
+export function newMedsNote(who = null) {
+	const title = who ? `${who}'s medications` : "Medications";
+	return `---\ntitle: ${who ? JSON.stringify(title) : title}\n---\n\n# ${title}\n\nOne medicine per line: name | dose | times (or "as needed") | days (leave out for every day).\n\n`;
+}
+
+// ---- People someone looks after --------------------------------------------
+
+export const PEOPLE = "People";
+
+// A person's name as it can go in a path and a log line, or "".
+export const cleanPerson = (name) => String(name ?? "").replace(/[\\/:*?"<>|#^[\]\n]/g, "").replace(/\s+/g, " ").trim();
+
+export const personFolder = (who) => `${PEOPLE}/${cleanPerson(who)}/`;
+export const personMedsPath = (who) => personFolder(who) + MEDS_NOTE;
+export const personLogPath = (who, day) => `${personFolder(who)}Meds/${day} meds.md`;
+
+export function newMedsLog(who, day) {
+	return `---\ntitle: ${JSON.stringify(`${who}'s medicines, ${day}`)}\nperson: ${JSON.stringify(who)}\ndate: "${day}"\n---\n\n## ${MEDS.heading}\n\n`;
 }
 
 // The list note with a medicine added (at the end of the list), or line i
@@ -173,22 +194,37 @@ export function dosesOn(meds, day) {
 // "08:12 | Lisinopril | 10 mg | for 08:00" -> { time, name, dose, for }.
 export function medEntry(text) {
 	const parts = String(text).split("|").map((s) => s.trim());
-	const out = { time: null, name: "", dose: "", for: null };
+	const out = { time: null, name: "", dose: "", for: null, by: null };
 	if (/^\d{1,2}:\d{2}$/.test(parts[0] || "")) out.time = parseTime(parts.shift());
 	out.name = parts.shift() || "";
 	const rest = [];
 	for (const p of parts) {
 		const f = p.match(/^for\s+(.+)$/i);
+		const by = p.match(/^by\s+(\S.*)$/i);
 		if (f && parseTime(f[1])) out.for = parseTime(f[1]);
+		else if (by) out.by = by[1].trim();
 		else if (p) rest.push(p);
 	}
 	out.dose = rest.join(" ");
 	return out;
 }
 
-export function medTakenLine({ name, dose }, forTime = null, date = new Date()) {
+export function medTakenLine({ name, dose }, forTime = null, date = new Date(), by = null) {
 	const clean = (s) => String(s ?? "").replace(/\s*[|\n]\s*/g, " ").trim();
-	return [`${pad(date.getHours())}:${pad(date.getMinutes())}`, clean(name), ...(clean(dose) ? [clean(dose)] : []), ...(forTime ? [`for ${forTime}`] : [])].join(" | ");
+	return [`${pad(date.getHours())}:${pad(date.getMinutes())}`, clean(name), ...(clean(dose) ? [clean(dose)] : []), ...(forTime ? [`for ${forTime}`] : []), ...(clean(by) ? [`by ${clean(by)}`] : [])].join(" | ");
+}
+
+// Before logging name (for the scheduled dose at forTime, or as needed at
+// `now`): the entry that says it's already been given, or null. A scheduled
+// dose is given once it has an entry for it; an as-needed one counts as
+// given when it was logged in the last `mins` minutes.
+export function alreadyGiven(entries, { name, forTime = null, now = new Date(), mins = 30 }) {
+	const key = (s) => String(s).trim().toLowerCase();
+	const same = entries.filter((e) => key(e.name) === key(name));
+	if (forTime) return same.find((e) => e.for === forTime) || null;
+	const at = now.getHours() * 60 + now.getMinutes();
+	const recent = same.filter((e) => e.time && at - (Number(e.time.slice(0, 2)) * 60 + Number(e.time.slice(3))) >= 0 && at - (Number(e.time.slice(0, 2)) * 60 + Number(e.time.slice(3))) < mins);
+	return recent.at(-1) || null;
 }
 
 // The day's doses with what was taken for each: { doses: [{ name, dose,
@@ -235,7 +271,8 @@ const isoOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDat
 // already taken: [{ id, at, title, path }] as src/reminders.js has them.
 // takenOn(day) -> the day's log entries (as doseStatus takes them);
 // pathOn(day) -> the note a reminder opens.
-export function medReminders(meds, { from = Date.now(), days = 7, takenOn = () => [], pathOn = () => null } = {}) {
+// who: the person they're for ("💊 Mom: Lisinopril 10 mg"), or null for you.
+export function medReminders(meds, { from = Date.now(), days = 7, takenOn = () => [], pathOn = () => null, who = null } = {}) {
 	const out = [];
 	const start = new Date(from);
 	for (let i = 0; i < days; i++) {
@@ -249,8 +286,8 @@ export function medReminders(meds, { from = Date.now(), days = 7, takenOn = () =
 			const [h, min] = dose.time.split(":").map(Number);
 			const at = new Date(y, mo - 1, d, h, min).getTime();
 			if (at < from) continue;
-			const title = `💊 ${dose.name}${dose.dose ? " " + dose.dose : ""}`;
-			out.push({ id: hash(`med\n${dose.name}\n${at}`), at, title, path: pathOn(day) });
+			const title = `💊 ${who ? who + ": " : ""}${dose.name}${dose.dose ? " " + dose.dose : ""}`;
+			out.push({ id: hash(`med\n${who ? who + "\n" : ""}${dose.name}\n${at}`), at, title, path: pathOn(day) });
 		}
 	}
 	return out;

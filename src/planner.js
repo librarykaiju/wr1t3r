@@ -17,6 +17,8 @@
 //   goal: {units: lb, ...}        out from the goal); macros: true shows
 //   macros: true                  protein, fat and carbs targets too
 //   medications: "[[My meds]]"    the medicine list (Medications.md otherwise)
+//   people: [Mom, Dad]            people you give medicines to: a Meds button
+//                                each, their list and logs in People/<name>/
 //   setup: done                   the setup card has been through
 //   habits:                      the Habits card's habits (src/habits.js)
 //     - 🧘 Stretch
@@ -47,7 +49,7 @@
 
 import { parseYaml, setProperty } from "./bases.js";
 import { parseFrontmatter } from "./dvpage.js";
-import { MEDS, medEntry, doseStatus } from "./meds.js";
+import { MEDS, medEntry, doseStatus, cleanPerson } from "./meds.js";
 import { HABITS, WORDS, habitEntry, wordsEntry, dayOf, readHabits, habitProps, sameHabit } from "./habits.js";
 
 export const PLANNER = "wr1t3r-planner";
@@ -72,12 +74,12 @@ const DEFAULTS = {
 	tasks: ["crit", "todo"], moods: DEFAULT_MOODS, exercises: DEFAULT_EXERCISES, buttons: DEFAULT_BUTTONS,
 	...LABEL_TARGETS, water_step: 8, steps_target: 7000, activity_target: 400, sleep_target: 8,
 	start: 9, end: 21, macros: false, med_reminders: true, units: "lb",
-	habits: [],
+	habits: [], people: [],
 };
 const NUMBERS = ["calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "fiber_target", "start", "end"];
-const ORDER = ["setup", "banner", "title", "buttons", "tasks", "moods", "exercises", "nutrition", "medications", "units", "goal", ...NUMBERS, "macros", "med_reminders", "colors", "habits", "timeline"];
+const ORDER = ["setup", "banner", "title", "buttons", "tasks", "moods", "exercises", "nutrition", "medications", "people", "units", "goal", ...NUMBERS, "macros", "med_reminders", "colors", "habits", "timeline"];
 // What a day takes from the Daily template's block when its own doesn't set it.
-export const SHARED = ["setup", "buttons", "moods", "exercises", "nutrition", "medications", "units", "goal", "calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "fiber_target", "macros", "med_reminders", "habits"];
+export const SHARED = ["setup", "buttons", "moods", "exercises", "nutrition", "medications", "people", "units", "goal", "calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "fiber_target", "macros", "med_reminders", "habits"];
 const BOOLS = ["macros", "med_reminders"];
 const yes = (v) => v === true || /^(true|yes|on)$/i.test(String(v ?? ""));
 export const CARD_COLORS = 7;
@@ -110,6 +112,7 @@ export function readPlanner(code, shared = null) {
 	cfg.goal = raw.goal && typeof raw.goal === "object" && !Array.isArray(raw.goal) ? raw.goal : null;
 	cfg.setup = raw.setup == null || String(raw.setup).trim() === "" ? null : String(raw.setup).trim();
 	cfg.timeline = (Array.isArray(raw.timeline) ? raw.timeline : []).map((s) => String(s ?? "").trim()).filter(Boolean);
+	cfg.people = list(raw.people).map(cleanPerson).filter((p, i, all) => p && all.findIndex((q) => q.toLowerCase() === p.toLowerCase()) === i);
 	cfg.habits = (Array.isArray(raw.habits) ? raw.habits : []).map((s) => String(s ?? "").trim()).filter(Boolean);
 	for (const k of NUMBERS) {
 		const n = Number(cfg[k]);
@@ -710,6 +713,19 @@ export function syncHealth(text, foods, cfg = DEFAULTS, doses = null, day = null
 	if ((habits.length || d.habits.words) && /^\d{4}-\d{2}-\d{2}$/.test(date)) Object.assign(want, habitProps(habits, d.habits, date));
 	let out = text;
 	for (const [k, v] of Object.entries(want)) if (String(fm[k] ?? "") !== String(v)) out = setProperty(out, k, v === "" ? null : v);
+	return out;
+}
+
+// A person's day's medicine log (src/meds.js personLogPath) with its
+// properties brought up to date: meds (every dose given), meds_taken,
+// meds_due.
+export function syncMedsLog(text, doses) {
+	if (!doses.length) return text;
+	const taken = itemsUnder(text, MEDS.heading).map((it) => ({ ...it, ...medEntry(it.text) }));
+	const st = doseStatus(doses, taken);
+	const fm = parseFrontmatter(text) || {};
+	let out = text;
+	for (const [k, v] of Object.entries({ meds: st.done === st.due, meds_taken: st.done, meds_due: st.due })) if (String(fm[k] ?? "") !== String(v)) out = setProperty(out, k, v);
 	return out;
 }
 

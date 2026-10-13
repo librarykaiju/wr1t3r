@@ -115,3 +115,40 @@ test("a medicine line keeps its pill photo", async () => {
 	assert.equal(medLine({ name: "Ibuprofen", dose: "200 mg", photo: "" }), "Ibuprofen | 200 mg | as needed");
 	assert.equal(dosesOn([m], "2026-10-12")[0].photo, "![[Lisinopril pill.jpg]]");
 });
+
+test("doses say who gave them, and a second dose is caught", async () => {
+	const { alreadyGiven } = await import("../src/meds.js");
+	const at = new Date(2026, 9, 13, 8, 12);
+	const line = medTakenLine({ name: "Lisinopril", dose: "10 mg" }, "08:00", at, "Sam");
+	assert.equal(line, "08:12 | Lisinopril | 10 mg | for 08:00 | by Sam");
+	assert.deepEqual(medEntry(line), { time: "08:12", name: "Lisinopril", dose: "10 mg", for: "08:00", by: "Sam" });
+	assert.equal(medTakenLine({ name: "Lisinopril", dose: "10 mg" }, "08:00", at), "08:12 | Lisinopril | 10 mg | for 08:00");
+	const log = [medEntry(line), medEntry("14:40 | Ibuprofen | 200 mg | by Brandon")];
+	assert.equal(alreadyGiven(log, { name: "lisinopril", forTime: "08:00" }).by, "Sam");
+	assert.equal(alreadyGiven(log, { name: "Lisinopril", forTime: "20:00" }), null);
+	assert.equal(alreadyGiven(log, { name: "Ibuprofen", now: new Date(2026, 9, 13, 14, 55) }).time, "14:40");
+	assert.equal(alreadyGiven(log, { name: "Ibuprofen", now: new Date(2026, 9, 13, 15, 30) }), null);
+});
+
+test("people's medicines live in their own folder", async () => {
+	const { personMedsPath, personLogPath, cleanPerson, newMedsNote, newMedsLog, parseMeds: pm } = await import("../src/meds.js");
+	const { readPlanner, syncMedsLog } = await import("../src/planner.js");
+	assert.equal(cleanPerson(" Aunt / Jo|"), "Aunt Jo");
+	assert.equal(personMedsPath("Mom"), "People/Mom/Medications.md");
+	assert.equal(personLogPath("Mom", "2026-10-13"), "People/Mom/Meds/2026-10-13 meds.md");
+	assert.match(newMedsNote("Mom"), /^title: "Mom's medications"$/m);
+	assert.deepEqual(readPlanner("people: [Mom, Dad, mom]").people, ["Mom", "Dad"]);
+	assert.deepEqual(readPlanner("").people, []);
+	assert.deepEqual(readPlanner("buttons: [meds]", "people: [Mom]").people, ["Mom"]);
+	const meds = pm("- Lisinopril | 10 mg | 08:00, 20:00");
+	const doses = dosesOn(meds, "2026-10-13");
+	const log = newMedsLog("Mom", "2026-10-13").replace("## 💊 Medications\n", "## 💊 Medications\n- 08:12 | Lisinopril | 10 mg | for 08:00 | by Sam\n");
+	const out = syncMedsLog(log, doses);
+	assert.match(out, /^meds: false$/m);
+	assert.match(out, /^meds_taken: 1$/m);
+	assert.match(out, /^meds_due: 2$/m);
+	assert.match(out, /^person: "Mom"$/m);
+	const r = medReminders(meds, { from: new Date(2026, 9, 13, 9).getTime(), days: 1, who: "Mom" });
+	assert.deepEqual(r.map((x) => x.title), ["💊 Mom: Lisinopril 10 mg"]);
+	assert.notEqual(r[0].id, medReminders(meds, { from: new Date(2026, 9, 13, 9).getTime(), days: 1 })[0].id);
+});
