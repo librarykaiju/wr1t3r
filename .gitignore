@@ -8,5 +8,6 @@ dist-selfhost/
 site/public/index.html
 site/public/help.html
 site/public/legal.html
+site/public/health-data.html
 site/public/privacy.html
 site/public/self-host.html
