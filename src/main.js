@@ -72,6 +72,8 @@ import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { setCardsHost } from "./cardsblock.js";
 import { setPlannerHost, importEvents } from "./plannerview.js";
+import { setWeekHost } from "./weekview.js";
+import { weekOf, weekNote, weeklyPath, noteWeek, reflectSection, hasReflect, addReflect } from "./weekly.js";
 import { openPropertyCleanup } from "./propcleanview.js";
 import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
 import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder, setWords, healthDay, healthDayOf } from "./planner.js";
@@ -2037,6 +2039,9 @@ const plannerHost = {
 		return path;
 	},
 	settings: (tab) => openSettings(true, tab),
+	weekOn: () => featureOn("weekly"),
+	openWeek: (day) => openWeekly(day),
+	reflectWeek: (day) => reflectWeek(null, weekOf(day).from),
 	async events(date) {
 		if (!readRaw(DAILY_CAL_KEY)) {
 			openSettings(true, "tasks");
@@ -3491,7 +3496,9 @@ function allCommands() {
 		["Add this recipe to the Nutrition Database", syncRecipe, "recipe ingredients nutrition database calories per serving sync"],
 		["Add a food from a nutrition label photo", foodFromLabelPhoto, "photo picture camera nutrition facts label scan food database calories"],
 		...(featureOn("daily") ? [["Mood, sleep and weight", moodTrends, "trends chart graph health stats tracker mood sleep weight history"]] : []),
-		["Write this week's review", () => writeReview("week"), "weekly review reflect journal recap"],
+		["Open this week's note", () => openWeekly(), "weekly planner week ahead plan agenda periodic"],
+		["Reflect on this week", () => reflectWeek(null, weekOf(isoDate(new Date())).from), "weekly review reflect recover rest journal recap"],
+		["Write this week's review", () => writeReview("week"), "weekly review journal recap"],
 		["Write this month's review", () => writeReview("month"), "monthly review reflect journal recap"],
 		["Write this year's review", () => writeReview("year"), "yearly annual review reflect journal recap year in review"],
 		["Insert board", insertBoard, "grid gallery kanban list table view properties filter database base", true],
@@ -4094,11 +4101,10 @@ function templateFor(name = "_templates/daily.md") {
 	return text == null ? null : { path: null, root: commonFolder(visible()), text };
 }
 
-async function openDaily({ quiet = true } = {}) {
+async function openDaily({ quiet = true, date = new Date() } = {}) {
 	const paths = visible().map((n) => n.path);
 	const tmpl = templateFor();
 	if (!tmpl) return toast("There's no _templates/Daily.md in the vault.");
-	const date = new Date();
 	const title = isoDate(date);
 	const folder = tmpl.root + DAILY_FOLDER;
 	const path = folder + title + ".md";
@@ -4121,6 +4127,55 @@ async function openDaily({ quiet = true } = {}) {
 	scheduleSync();
 	await fillTimeline(path, { quiet });
 }
+
+// ---- The weekly note (src/weekly.js, src/weekview.js) -----------------------
+// "2026-W42.md" in _weekly/ beside _daily/, made the first time it's opened.
+async function openWeekly(day = isoDate(new Date())) {
+	const tmpl = templateFor();
+	const root = tmpl?.root ?? commonFolder(visible());
+	const path = weeklyPath(root, day);
+	const have = visible().find((n) => n.path.toLowerCase() === path.toLowerCase());
+	if (have) { openNote(have.path); return have.path; }
+	const text = weekNote(day);
+	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	renderTree();
+	openNote(path);
+	scheduleSync();
+	return path;
+}
+
+// Reflect & recover at the end of the weekly note: the week in numbers, then
+// the questions. In the open note when it's that week's; otherwise that
+// week's note is opened (made if needed) and it goes there.
+async function reflectWeek(view, from) {
+	const list = visible().filter((n) => !n.binary);
+	const days = new Map();
+	for (const n of list) { const d = healthDayOf(n.path); if (d) days.set(d, healthDay(n.text, [])); }
+	const section = reflectSection(from, { notes: list, days, habits: featureOn("daily") ? sharedHabits() : [], today: isoDate(new Date()) });
+	if (!view || noteWeek(editor.path) !== from) {
+		await openWeekly(from);
+		view = editor.view;
+		if (!view || noteWeek(editor.path) !== from) return;
+	}
+	const text = view.state.sliceDoc();
+	if (hasReflect(text)) return toast("This week already has Reflect & recover.");
+	const next = addReflect(text, section);
+	view.dispatch({ changes: { from: 0, to: text.length, insert: next }, selection: { anchor: next.length }, scrollIntoView: true });
+	view.focus();
+}
+
+setWeekHost({
+	on: () => featureOn("weekly"),
+	async events(from) {
+		if (!featureOn("calendar") || calState === "setup" || (!navigator.onLine && !calNotebook)) return null;
+		const ids = shownIds();
+		const events = await rangeEvents(agenda.startOfDay(new Date(from + "T12:00")), 7);
+		return events.filter((e) => e.calendar !== MEDS_CALENDAR && (!ids.size || ids.has(e.calendar)));
+	},
+	openDay: (day) => openDaily({ date: new Date(day + "T12:00") }),
+	reflect: (view, from) => reflectWeek(view, from),
+	openWeek: (day) => openWeekly(day),
+});
 
 // The Timeline's calendar (Settings > Daily note timeline): off until one is
 // picked, per device like the other settings.

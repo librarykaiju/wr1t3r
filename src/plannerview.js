@@ -285,6 +285,11 @@ class PlannerWidget extends WidgetType {
 			out.push(fig);
 		}
 		const links = [];
+		// The weekly note; on a weekend's planner, a nudge to look back on the week.
+		if (this.day && host?.weekOn?.()) {
+			const weekend = [0, 6].includes(new Date(this.day + "T12:00").getDay());
+			links.push(weekend ? ["Reflect on the week", "Open this week's note and add Reflect & recover", () => host.reflectWeek(this.day)] : ["This week", "Open this week's note", () => host.openWeek(this.day)]);
+		}
 		if (this.day && host) links.push(["Health note", "Open this day's health note", async () => { const p = await host.healthNote(this.path); if (p) host.open(p); }]);
 		if (this.day && host && !view.state.readOnly) links.push(["Planner", "Choose the buttons, set targets and medications", (e) => {
 			const r = e.currentTarget.getBoundingClientRect();
