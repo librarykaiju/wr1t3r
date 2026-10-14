@@ -59,11 +59,11 @@ Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your
 
 The Today button opens a note for the day: your tasks, a timeline, your habits and a row of buttons for the things you track. A week-ahead note and calendar view allow you to take your planner further. Medicines, health logs and reflections live in the same notebook as your writing, and you decide how much of it you want.
 
-### See the whole month
+### Set it up once, your way
 
-The calendar page shows Month or Week, and each day holds its events, the tasks due that day, penciled-in plans and stickers. Pencil in a plan you're not sure of yet, then ink it into your calendar when it's firm, or erase it. On a phone it's one week as a list, with the weeks as tabs down the side and a swipe to the next one. Use the built-in calendar, which syncs like your notes, or connect Google Calendar.
+The first daily note asks a few questions: which buttons you want, your daily targets and your medications. Pick only what you'll use. Change your mind later from the planner's menu, or turn any part off in Settings > Features: the health side, the weekly planner or the calendar page.
 
-![The calendar page for October: a month grid with tasks, penciled-in plans and stickers on the days](/shots/planner-month.webp)
+![The day planner with a setup card above a row of buttons for food, water, meds, exercise and mood, a timeline and two task lists](/shots/planner-setup.webp)
 
 ### Plan the week ahead
 
@@ -71,11 +71,11 @@ Each week gets a note with its seven days side by side: the events on your calen
 
 ![The week-ahead note: seven days from Monday to Sunday with tasks on each, a This week badge and a Reflect & recover button](/shots/planner-week.webp)
 
-### Set it up once, your way
+### See the whole month
 
-The first daily note asks a few questions: which buttons you want, your daily targets and your medications. Pick only what you'll use. Change your mind later from the planner's menu, or turn any part off in Settings > Features: the health side, the weekly planner or the calendar page.
+The calendar page shows Month or Week, and each day holds its events, the tasks due that day, penciled-in plans and stickers. Pencil in a plan you're not sure of yet, then ink it into your calendar when it's firm, or erase it. On a phone it's one week as a list, with the weeks as tabs down the side and a swipe to the next one. Use the built-in calendar, which syncs like your notes, or connect Google Calendar.
 
-![The day planner with a setup card above a row of buttons for food, water, meds, exercise and mood, a timeline and two task lists](/shots/planner-setup.webp)
+![The calendar page for October: a month grid with tasks, penciled-in plans and stickers on the days](/shots/planner-month.webp)
 
 ### Track the habits you care about
 
