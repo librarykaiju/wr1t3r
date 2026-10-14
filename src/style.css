@@ -2143,6 +2143,7 @@ body.no-daily [data-feature~="daily"], body.no-health [data-feature~="health"],
 body.no-media [data-feature~="media"], body.no-calendar [data-feature~="calendar"],
 body.no-audio [data-feature~="audio"], body.no-ocr [data-feature~="ocr"],
 body.no-capture [data-feature~="capture"], body.no-reminders [data-feature~="reminders"],
+body.no-website [data-feature~="website"], body.no-website #toolbar .tb-publish,
 body.no-health .planner-buttons { display: none !important; }
 .set-folder label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0; }
 .set-folder input { flex: 0 1 220px; min-width: 0; }

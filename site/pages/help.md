@@ -63,17 +63,23 @@ wr1t3r has no account or password of its own. You sign in with Dropbox or Google
 
 wr1t3r builds a website from the notes you choose, as plain web pages you can put on any host. Nothing is published until you say so.
 
-1.  **Choose the notes.** Open a note, click the globe in the toolbar, and choose _Publish this note_. That adds `publish: true` to the note's properties. The globe is highlighted on notes that are on the site; the same menu unpublishes them.
+1.  **Turn it on.** In Settings › Features, set _Website_ to _On_. The globe button shows up in the toolbar. (It's on already if any of your notes has `publish: true`.)
 
-    ![The globe button in the toolbar, open: This note isn't on your website, Publish this note, Export as website](/shots/help-globe.webp)
+2.  **Choose the notes.** Open a note, click the globe in the toolbar, and choose _Add to my website_. That adds `publish: true` to the note's properties; nothing goes online yet. The globe is highlighted on notes that are on the site, and the same menu takes them off.
 
-2.  **Set up the site.** In the globe menu, choose _Export as website…_. Give the site a title, pick a theme, light or dark, and a layout (a menu across the top, or folders down the left as in the app). Add Ko-fi, Patreon or your own link, and where else to find you. The preview on the right shows any page as visitors will see it.
+    ![The globe button in the toolbar, open, with the note's place on the website and Export as website](/shots/help-globe.webp)
+
+3.  **Set up the site.** In the globe menu, choose _Export as website…_. Give the site a title, pick a theme, light or dark, and a layout (a menu across the top, or folders down the left as in the app). Add Ko-fi, Patreon or your own link, and where else to find you. The preview on the right shows any page as visitors will see it.
 
     Already have a site with its own look? Tick _Plain HTML pages that use your own stylesheet_. The pages come without a theme and link `main.css` at the top of the site (or another address you give), so put your stylesheet there and they match the rest of your site. The sidebar, share buttons and Properties box are left out.
 
     ![The Export as website window: site title, logo, theme, light or dark, layout and other settings on the left, and a preview of the front page on the right](/shots/help-export.webp)
 
-3.  **Put it online.** Download it as a .zip for [Neocities](#neocities) (or any host that takes a folder of web pages), or send it straight to [GitHub Pages](#github). Both are free.
+4.  **Put it online.** There are two ways, both free:
+    - **Publish to GitHub** sends it straight to [GitHub Pages](#github), one click each time after the first setup. GitHub can pass it on to [Neocities](#neocities-github), and Netlify or Cloudflare Pages can watch the same repository.
+    - **Download website (.zip)** gives you the files to upload yourself, to [Neocities](#neocities) or any host that takes a folder of web pages. You do this again each time you change the site.
+
+    wr1t3r can't upload to Neocities directly. It's either through GitHub or by hand.
 
 _Links to other notes stay links when those notes are published too. `%% comments %%` never go on the site. To show a note's likes and replies from Bluesky, add a `bluesky` property with the Bluesky post's address._
 

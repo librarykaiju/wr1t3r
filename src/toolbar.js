@@ -136,7 +136,7 @@ export function setupToolbar(bar, getView, { print, lookUp, type, review, page, 
 	bar.setAttribute("aria-label", "Formatting");
 	let refreshType = () => {};
 	const [first, second, sep, ...rest] = BUTTONS; // undo, redo | font, size | the rest
-	const all = [first, second, sep, "type", ...rest, null, ["Page layout", "Page view, paper size, orientation and margins", "page", (view, btn) => page?.(view, btn)], ["Review", "Track changes, and accept or reject them", "review", (view, btn) => review?.(view, btn)], ["Look up", "Look up the word in the dictionary and thesaurus", "book", (view) => lookUp?.(view)], ["Publish", "Put this note on your website, or export the site", "globe", (view, btn) => publish?.(view, btn)], ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
+	const all = [first, second, sep, "type", ...rest, null, ["Page layout", "Page view, paper size, orientation and margins", "page", (view, btn) => page?.(view, btn)], ["Review", "Track changes, and accept or reject them", "review", (view, btn) => review?.(view, btn)], ["Look up", "Look up the word in the dictionary and thesaurus", "book", (view) => lookUp?.(view)], ["Publish", "Add this note to your website, or export the site", "globe", (view, btn) => publish?.(view, btn)], ["Print or export", "Print or export this note (PDF, Word, HTML)", "print", () => print?.()]];
 	for (const b of all) {
 		if (b === "type") { if (type) refreshType = typeControls(bar, type); continue; }
 		if (!b) { bar.append(Object.assign(document.createElement("span"), { className: "tb-sep" })); continue; }
@@ -166,7 +166,7 @@ export function setupToolbar(bar, getView, { print, lookUp, type, review, page, 
 		const b = bar.querySelector(".tb-publish");
 		if (!b) return;
 		b.setAttribute("aria-pressed", String(!!on));
-		b.title = on ? "On your website. Click to unpublish or export the site" : "Put this note on your website, or export the site";
+		b.title = on ? "On your website. Click to remove it or export the site" : "Add this note to your website, or export the site";
 	};
 	return { refreshType, refreshReview, refreshPage, refreshPublish };
 }

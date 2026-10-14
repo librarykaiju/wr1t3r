@@ -5,9 +5,9 @@ import { FEATURE_AREAS, readSettings, writeSettings } from "../src/features.js";
 import { readPins } from "../src/home.js";
 import { cardInfo } from "../src/binder.js";
 
-test("every area belongs to some use", () => {
+test("every area but the auto ones belongs to some use", () => {
 	const covered = new Set(USES.flatMap((u) => u.areas));
-	for (const a of FEATURE_AREAS) assert.ok(covered.has(a.id), a.id);
+	for (const a of FEATURE_AREAS.filter((a) => !a.auto)) assert.ok(covered.has(a.id), a.id);
 });
 
 test("featuresFor turns on what the chosen uses need, and nothing else", () => {
@@ -17,8 +17,10 @@ test("featuresFor turns on what the chosen uses need, and nothing else", () => {
 	assert.equal(f.health, false);
 	assert.equal(f.daily, false);
 	assert.equal(featuresFor(["health"]).daily, true); // the planner holds the food log
-	assert.ok(Object.values(featuresFor([])).every(Boolean));
-	assert.ok(Object.values(featuresFor(USES.map((u) => u.id))).every(Boolean));
+	const set = (f) => Object.entries(f).filter(([id]) => !FEATURE_AREAS.find((a) => a.id === id).auto).map(([, v]) => v);
+	assert.ok(set(featuresFor([])).every(Boolean));
+	assert.ok(set(featuresFor(USES.map((u) => u.id))).every(Boolean));
+	assert.equal(featuresFor(["writing"]).website, null, "the website stays unset");
 });
 
 test("the features round-trip through the Settings note", () => {

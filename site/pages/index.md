@@ -103,25 +103,25 @@ Book, film, TV and game logs add up on their own: how many you finished each yea
 
 ## Publish a website from your notes
 
-Click the globe on any note to publish it. Export as website turns every published note into a finished site, in your colors, packed in one .zip. Drop it on [Neocities](https://neocities.org), GitHub Pages or any web host. No server, no wr1t3r account, no monthly fee.
+Turn on Website in Settings, then click the globe on any note to add it to your site. Export as website turns those notes into a finished site, in your colors. Publish it to GitHub Pages in one click, and from there to [Neocities](https://neocities.org), Netlify or Cloudflare Pages, which update each time you publish. Or download it as a .zip and upload it to any web host yourself. No server, no wr1t3r account, no monthly fee.
 
 ![An exported site: a notebook-style folder menu on the left, an essay in the middle, and a sidebar with a calendar of posts, Ko-fi and Patreon buttons and social links](/shots/site-notebook.webp)
 
-- **Only what you choose.** Notes go on the site when you publish them. Everything else stays private in your Dropbox or Google Drive.
+- **Only what you choose.** Notes go on the site when you add them. Everything else stays private in your Dropbox or Google Drive.
 - **Two layouts.** A menu across the top, or a notebook-style sidebar with folders that open and close.
 - **Your name and logo.** A site title, a logo from your notes, and a footer line.
 - **Get paid for your work.** Ko-fi and Patreon buttons in the sidebar, or a link to any shop or tip jar.
 - **An archive by month.** A calendar in the sidebar and a page for each month, for notes with a date.
 - **Find me on.** Links to Bluesky, Mastodon, Instagram and the rest, plus an email link written so spam bots have a harder time reading your address.
 - **Share and reply.** A share button on every post. Link a post to Bluesky and its likes and replies show on your page.
-- **Made for Neocities.** Plain pages with links that work on any host, and a preview before you download.
+- **Made for Neocities.** Plain pages with links that work on any host, and a preview before you publish.
 - **Or bring your own look.** Export plain HTML pages that link your `main.css`, so they match a site you already have.
 
 ### One button, right in the toolbar
 
-The globe lights up when the note you're on is published. Click it to publish or unpublish, or to open Export as website and see the whole site before you download it.
+The globe lights up when the note you're on is part of your site. Click it to add or remove the note, or to open Export as website, see the whole site, and publish or download it.
 
-![The globe button in the toolbar, open, with Publish this note and Export as website](/shots/publish.webp)
+![The globe button in the toolbar, open, with the note's place on the website and Export as website](/shots/publish.webp)
 
 --- themes
 
@@ -214,7 +214,7 @@ Yes. Email me at [hello@wr1t3r.app](mailto:hello@wr1t3r.app) with questions abou
 
 ### Do I need a web host to publish?
 
-Only somewhere to upload the .zip. A free [Neocities](https://neocities.org) site works: unzip it and drag the files into Neocities' uploader. Free Neocities accounts don't take audio or video files, so wr1t3r leaves those out unless you ask for them.
+You need somewhere for it to live, and free ones work. A free GitHub account gives you one-click publishing to GitHub Pages, and Neocities can be updated from there too. Or download the .zip and drag the files into a free [Neocities](https://neocities.org) site's uploader. Free Neocities accounts don't take audio or video files, so wr1t3r leaves those out unless you ask for them.
 
 ### Can I get a refund?
 
