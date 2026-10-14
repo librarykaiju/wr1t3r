@@ -365,8 +365,25 @@ test("a reply to one of the site's own posts is listed under that post", () => {
 		{ path: "Replies/Theirs.md", text: note("publish: true\ndate: 2026-10-14\nreply-to: https://friend.example/post.html", "Hi") },
 	], [], { title: "T", address: "me.neocities.org" });
 	const post = site.files.get("sketches/gandalf.html");
-	assert.match(post, /<section class="responses"[\s\S]*href="https:\/\/me\.neocities\.org\/replies\/re-gandalf\.html">Re Gandalf</);
+	assert.match(post, /<section class="responses"[\s\S]*Nice![\s\S]*href="\.\.\/replies\/re-gandalf\.html">Re Gandalf</);
 	assert.match(site.files.get("replies/re-gandalf.html"), /In reply to <a class="u-in-reply-to" href="[^"]+">Gandalf<\/a>/, "named by its title");
 	assert.doesNotMatch(site.files.get("replies/theirs.html"), /class="responses"/);
 	assert.match(site.files.get("replies/theirs.html"), /In reply to <a class="u-in-reply-to" href="https:\/\/friend\.example\/post\.html">friend\.example\/post\.html</);
+});
+
+test("responses show their first words, and your own replies whole", () => {
+	const note = (fm, body) => `---\n${fm}\n---\n${body}`;
+	const long = "word ".repeat(80).trim();
+	const site = buildSite([
+		{ path: "Sketches/Pk.md", text: note(`publish: true\ndate: 2026-09-25\nresponses:\n  - "[Ann: Re Pk](https://ann.example/re.html) ${long}"\n  - "https://bob.example/x.html"`, "A sketch.") },
+		{ path: "Replies/Re Pk.md", text: note("publish: true\ndate: 2026-10-14\nreply-to: https://me.neocities.org/sketches/pk.html", "In reply to [Pk](https://me.neocities.org/sketches/pk.html) by Me.\n\nSick drawing. See [[Other]].") },
+		{ path: "Sketches/Other.md", text: note("publish: true", "Other") },
+	], [], { title: "T", address: "me.neocities.org" });
+	const page = site.files.get("sketches/pk.html");
+	const excerpt = /<p class="response-excerpt">([^<]*) <a href="https:\/\/ann\.example\/re\.html">Read it on their site<\/a>/.exec(page);
+	assert.ok(excerpt, "their words with a link to the rest");
+	assert.ok(excerpt[1].length <= 200);
+	assert.match(page, /href="https:\/\/bob\.example\/x\.html">bob\.example\/x\.html<\/a><\/li>/, "a bare address is just a link");
+	assert.match(page, /class="h-cite u-comment response-own">[\s\S]*Sick drawing\. See <a href="other\.html">Other<\/a>/, "your own reply whole, its links pointed from here");
+	assert.doesNotMatch(page.match(/<section class="responses"[\s\S]*?<\/section>/)[0], /In reply to/);
 });

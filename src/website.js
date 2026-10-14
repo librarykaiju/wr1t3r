@@ -51,8 +51,10 @@
 // A note with reply-to: <a post's address> says so above its text, and its
 // feed entry carries the link (thr:in-reply-to), so the other site's reader
 // can tell its author. Replies they chose to show are in the note's
-// responses: list, "[words](address)" or a bare address each, listed under
-// the post.
+// responses: list, "[words](address)" or a bare address each, optionally
+// followed by the reply's first words, listed under the post with those words
+// (at most RESPONSE_EXCERPT characters) and a link to the rest on its own
+// site. A reply on this site to one of its own posts is shown whole.
 
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
@@ -64,6 +66,9 @@ import { resolveAttachment, attachmentKind } from "./attachments.js";
 import { calloutLook } from "./blocks.js";
 import { COVER_SHAPES, COVER_POSITIONS, COVER_WIDTHS } from "./pretty.js";
 import { SHOWN_FOLDERS } from "./frontmatter.js";
+import { shorten } from "./feedparse.js";
+
+export const RESPONSE_EXCERPT = 200;
 
 export { isPublished, siteAddress, webAddress };
 
@@ -611,10 +616,12 @@ export function buildSite(notes, attachments, opts = {}) {
 		const answers = post && info.replyTo ? ownPage(info.replyTo) : null;
 		// Not when the note says it itself (Neighbors' Reply starts it with "In reply to [title](address)").
 		const reply = post && info.replyTo && !body.includes(`href="${esc(info.replyTo)}"`) ? `<p class="reply-to">In reply to <a class="u-in-reply-to" href="${esc(info.replyTo)}">${esc(answers ? answers.title : shortAddress(info.replyTo))}</a></p>\n` : "";
-		const mine = (ownReplies.get(site) || []).map((e) => ({ text: e.title, url: address + e.file }));
-		const all = [...(info.responses || []), ...mine.filter((m) => !(info.responses || []).some((r) => r.url === m.url))];
-		info.responses = all;
-		const responses = post && info.responses?.length ? `<section class="responses" aria-label="Responses">\n<h2>Responses</h2>\n<ul>\n${info.responses.map((r) => `<li class="h-cite u-comment"><a class="u-url" href="${esc(r.url)}">${esc(r.text || shortAddress(r.url))}</a></li>`).join("\n")}\n</ul>\n</section>\n` : "";
+		const mine = (ownReplies.get(site) || []).map((e) => ({ text: e.title, url: address + e.file, own: e }));
+		const all = [...(info.responses || []).filter((r) => !mine.some((m) => m.url === r.url)), ...mine];
+		const responseItem = (r) => r.own
+			? `<li class="h-cite u-comment response-own">\n<div class="e-content">${rebase(withoutReplyLine(r.own.body, address + site), r.own.file, site)}</div>\n<p class="response-by"><a class="u-url" href="${esc(relativeURL(site, r.own.file))}">${esc(r.text)}</a>${r.own.date ? ` · <time class="dt-published" datetime="${esc(r.own.date)}">${esc(r.own.date)}</time>` : ""}</p>\n</li>`
+			: `<li class="h-cite u-comment"><a class="u-url" href="${esc(r.url)}">${esc(r.text || shortAddress(r.url))}</a>${r.excerpt ? `\n<p class="response-excerpt">${esc(r.excerpt)} <a href="${esc(r.url)}">Read it on their site</a></p>` : ""}</li>`;
+		const responses = post && all.length ? `<section class="responses" aria-label="Responses">\n<h2>Responses</h2>\n<ul>\n${all.map(responseItem).join("\n")}\n</ul>\n</section>\n` : "";
 		const text = post ? body.replace(/^<div class="note">/, '<div class="note e-content">') : body;
 		out.set(site, html({ ...info, props: own || opts.properties === false ? null : info.props, body: reply + text + responses + extras + pagerFor(site) + follow + ringLine, post, feed: feedURL, blogroll: neighbors.length ? relativeURL(site, SITE_FILES.blogroll) : "", menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css, footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
@@ -626,15 +633,32 @@ export function buildSite(notes, attachments, opts = {}) {
 // "someone.neocities.org/winter-beds.html": an address without its scheme.
 const shortAddress = (u) => String(u).replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
 
+// A reply's page body (from file) shown under the page at site: its links
+// and pictures pointed from there instead.
+function rebase(body, file, site) {
+	const dir = file.split("/").slice(0, -1);
+	return body.replace(/\b(src|href)="([^"]*)"/g, (all, attr, u) => {
+		if (!u || /^([a-z][\w+.-]*:|\/|#|\?)/i.test(u)) return all;
+		const parts = [...dir];
+		for (const seg of u.split("#")[0].split("/")) seg === ".." ? parts.pop() : seg !== "." && parts.push(decodeURIComponent(seg));
+		const hash = u.includes("#") ? "#" + u.split("#").slice(1).join("#") : "";
+		return `${attr}="${esc(relativeURL(site, parts.join("/")))}${hash}"`;
+	});
+}
+
+// The body without its "In reply to [post](address)…" paragraph, which says
+// nothing under the post itself.
+const withoutReplyLine = (body, address) => body.replace(/<p>In reply to <a [^>]*href="([^"]*)"[^>]*>[\s\S]*?<\/p>\n?/g, (p, href) => (address && href.replace(/&amp;/g, "&").toLowerCase().replace(/^https?:\/\/(www\.)?/, "") === String(address).toLowerCase().replace(/^https?:\/\/(www\.)?/, "") ? "" : p));
+
 // A note's responses: property as [{ text, url }]: each "[words](address)"
 // or a bare address. Anything else is left out.
 export function responseList(v) {
 	const out = [];
 	for (const r of Array.isArray(v) ? v : v == null ? [] : [v]) {
 		const t = String(r ?? "").trim();
-		const m = /^\[([^\]]*)\]\((\S+)\)$/.exec(t);
+		const m = /^\[([^\]]*)\]\((\S+)\)(?:\s+([\s\S]*))?$/.exec(t);
 		const url = webAddress(m ? m[2] : t);
-		if (url && !out.some((x) => x.url === url)) out.push({ text: m ? m[1].trim() : "", url });
+		if (url && !out.some((x) => x.url === url)) out.push({ text: m ? m[1].trim() : "", url, ...(m?.[3]?.trim() ? { excerpt: shorten(m[3], RESPONSE_EXCERPT) } : {}) });
 	}
 	return out;
 }
@@ -1008,6 +1032,11 @@ header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: con
 .responses { margin: 2.5em 0 0; padding-top: 1em; border-top: 1px solid var(--line); font: 15px/1.5 var(--sans); }
 .responses h2 { font-size: 1em; margin: 0 0 0.5em; }
 .responses ul { margin: 0; padding-left: 1.2em; }
+.responses li { margin: 0 0 0.8em; }
+.response-excerpt { margin: 0.2em 0 0; }
+.response-own { list-style: none; margin-left: -1.2em; padding: 0.6em 0.9em; border-left: 3px solid var(--line); }
+.response-own .e-content > .note > :first-child { margin-top: 0; }
+.response-by { margin: 0.3em 0 0; font-size: 0.9em; opacity: 0.8; }
 .ring { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; margin: 1em 0 0; font: 14px/1.5 var(--sans); }
 .ring a { color: var(--muted); }
 .ring a[rel="next"] { text-align: right; }

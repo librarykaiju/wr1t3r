@@ -2279,7 +2279,7 @@ function responseNote(address, hasResponse = false) {
 async function addResponse(post) {
 	const me = mySite();
 	if (!me || !onSite(post.inReplyTo, me)) throw new Error("set your site's address in Export as website first");
-	const { pageFiles, relativeURL } = await import("./website.js");
+	const { pageFiles, relativeURL, RESPONSE_EXCERPT } = await import("./website.js");
 	const published = visible().filter((n) => !n.binary && isPublished(n.path, n.text));
 	const files = pageFiles(published.map((n) => n.path));
 	const front = published.find((n) => /^(content\/)?(home|index)\.md$/i.test(n.path));
@@ -2287,7 +2287,9 @@ async function addResponse(post) {
 	const at = (n) => me + relativeURL("index.html", n === front ? "index.html" : files.get(n.path));
 	const note = published.find((n) => at(n) === want || at(n).replace(/\.html$/, "") === want);
 	if (!note) throw new Error("that post isn't one of the notes published here any more");
-	const entry = `[${post.name}: ${post.title}](${post.url})`.replace(/\n/g, " ");
+	// Their first words go along, shown under the post with a link to the rest.
+	const { shorten } = await import("./feedparse.js");
+	const entry = `[${`${post.name}: ${post.title}`.replace(/[[\]]/g, "")}](${post.url})${post.summary ? " " + shorten(post.summary, RESPONSE_EXCERPT) : ""}`.replace(/\s*\n\s*/g, " ");
 	await dataviewVault.write(note.path, (t) => {
 		const now = parseFrontmatter(t).responses;
 		const list = (Array.isArray(now) ? now : now ? [now] : []).map(String);
