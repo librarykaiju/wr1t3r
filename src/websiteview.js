@@ -4,9 +4,10 @@
 // settings are kept on this device. After a download it says how to put the
 // site online, and lists pages the last download had that this one doesn't,
 // since re-uploading a folder doesn't delete what's already on the host.
-// Or it publishes the site to a GitHub repo (src/githubpublish.js), and from
-// there to Neocities if asked; the token stays on this device, and only if the
-// person asks.
+// Or it publishes the site straight to Neocities with the person's API key
+// (src/neocitiespublish.js, through the Worker), or to a GitHub repo
+// (src/githubpublish.js) and from there to Neocities if asked. A key or token
+// stays on this device, and only if the person asks.
 //
 // host: {
 //   notes()        [{ path, text }] for every note
@@ -16,6 +17,7 @@
 //   font()         the editor font, as CSS
 //   following()    the sites followed (src/feeds.js), for the "Sites I read" page
 //   sites(address) a list of sites through the relay -> Promise<{ list, title, sites }>, for a webring
+//   worker(path, init) fetch from wr1t3r's Worker, signed in, for Publish to Neocities
 //   toast(text)
 // }
 
@@ -25,6 +27,7 @@ import { siteOf } from "./published.js";
 import { siteUrl, hostOf } from "./feeds.js";
 import { FAMILIES, familyOf, themeVariants } from "./theme.js";
 import { publishToGitHub } from "./githubpublish.js";
+import { neocitiesSite, publishToNeocities } from "./neocitiespublish.js";
 
 const FAMILY_NAMES = { default: "Default", gruvbox: "Gruvbox", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", shire: "Shire", mixtape: "Mixtape" };
 
@@ -36,6 +39,9 @@ const save = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catc
 const TOKEN = "wr1t3r-github-token";
 const readToken = () => { try { return localStorage.getItem(TOKEN) || ""; } catch { return ""; } };
 const keepToken = (t) => { try { t ? localStorage.setItem(TOKEN, t) : localStorage.removeItem(TOKEN); } catch {} };
+const NEO_KEY = "wr1t3r-neocities-key";
+const readNeoKey = () => { try { return localStorage.getItem(NEO_KEY) || ""; } catch { return ""; } };
+const keepNeoKey = (k) => { try { k ? localStorage.setItem(NEO_KEY, k) : localStorage.removeItem(NEO_KEY); } catch {} };
 
 export function openWebsite(host) {
 	open?.close();
@@ -137,6 +143,14 @@ export function openWebsite(host) {
 	sub("Files");
 	const media = check("Include audio and video (a free Neocities site won't take them)", saved.media);
 	const footer = check("Say “Made with wr1t3r” at the bottom", saved.footer);
+	sub("Publish to Neocities (optional)");
+	const neoIntro = document.createElement("p");
+	neoIntro.className = "hint";
+	const keyLink = Object.assign(document.createElement("a"), { href: "https://neocities.org/settings", target: "_blank", rel: "noopener", textContent: "Get your API key" });
+	neoIntro.append("Sends the site straight to your Neocities site. ", keyLink, " from your site's Settings > API on neocities.org and paste it here. Only files that changed are sent, and pages you've unpublished are taken down. The key goes through wr1t3r's server on its way to Neocities, because Neocities won't take it straight from a web page; it isn't kept there. ", helpLink("neocities-direct", "Help"), ".");
+	form.append(neoIntro);
+	const neoKey = field("Neocities API key", Object.assign(text(readNeoKey(), "Your site's API key"), { type: "password", autocomplete: "off" }));
+	const neoKeep = check("Remember the key on this device", !!readNeoKey());
 	sub("Publish to GitHub (optional)");
 	const ghHelp = document.createElement("p");
 	ghHelp.className = "hint";
@@ -156,7 +170,8 @@ export function openWebsite(host) {
 	actions.className = "compile-actions";
 	const go = Object.assign(document.createElement("button"), { type: "button", textContent: "Download website (.zip)" });
 	const ghGo = Object.assign(document.createElement("button"), { type: "button", textContent: "Publish to GitHub" });
-	actions.append(go, ghGo);
+	const neoGo = Object.assign(document.createElement("button"), { type: "button", textContent: "Publish to Neocities" });
+	actions.append(go, neoGo, ghGo);
 	form.append(actions);
 	const after = Object.assign(document.createElement("div"), { className: "website-after hint" });
 	form.append(after);
@@ -178,7 +193,7 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), address: address.value.trim(), feedFull: feedFull.checked, neighbors: neighbors.checked, ringUrl: ringUrl.value.trim(), ringName: ringName.value.trim(), ringMembers: ringMembers.value.trim(), family: family.value, mode: mode.value, tones: tones.value, headings: headings.value });
+	const settings = () => ({ neoSite: saved.neoSite || "", ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), address: address.value.trim(), feedFull: feedFull.checked, neighbors: neighbors.checked, ringUrl: ringUrl.value.trim(), ringName: ringName.value.trim(), ringMembers: ringMembers.value.trim(), family: family.value, mode: mode.value, tones: tones.value, headings: headings.value });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
 	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font(), tones: tones.value, headings: headings.value, mixtape: family.value === "mixtape" ? now.mixtape : null }) + (family.value === "synthwave" ? GLOW : "");
@@ -285,7 +300,7 @@ export function openWebsite(host) {
 
 	ghGo.addEventListener("click", async () => {
 		const was = ghGo.textContent;
-		ghGo.disabled = go.disabled = true;
+		ghGo.disabled = neoGo.disabled = go.disabled = true;
 		try {
 			site = build();
 			if (!site.pages.length) return host.toast("Publish a note first: set its publish property to true.");
@@ -304,8 +319,41 @@ export function openWebsite(host) {
 		} catch (e) {
 			after.replaceChildren(p("Couldn't publish to GitHub: " + e.message));
 		} finally {
-			ghGo.disabled = go.disabled = false;
+			ghGo.disabled = neoGo.disabled = go.disabled = false;
 			ghGo.textContent = was;
+		}
+	});
+
+	neoGo.addEventListener("click", async () => {
+		const was = neoGo.textContent;
+		neoGo.disabled = ghGo.disabled = go.disabled = true;
+		try {
+			const key = neoKey.value.trim();
+			keepNeoKey(neoKeep.checked ? key : "");
+			neoGo.textContent = "Looking at your Neocities site…";
+			// Which site first, so the feed and replies know its address.
+			const where = await neocitiesSite({ key, call: host.worker });
+			if (saved.neoSite !== where.url) { saved.neoSite = where.url; save(saved); }
+			site = build();
+			if (!site.pages.length) return host.toast("Publish a note first: set its publish property to true.");
+			const s = settings();
+			const lasts = saved.neoLast || {};
+			const r = await publishToNeocities({ key, call: host.worker, site: where, files: site.files, read: host.blob, last: lasts[where.sitename] || [], progress: (t) => (neoGo.textContent = t) });
+			Object.assign(saved, s, { neoSite: r.url, neoLast: { ...lasts, [where.sitename]: r.paths } });
+			save(saved);
+			const a = Object.assign(document.createElement("a"), { href: r.url, target: "_blank", rel: "noopener", textContent: r.url });
+			const first = p("");
+			first.append(r.changed || r.deleted ? `Published to Neocities (${r.changed} file${r.changed === 1 ? "" : "s"} sent${r.deleted ? `, ${r.deleted} removed` : ""}). Your site: ` : "Nothing had changed since the last publish. Your site: ", a, ".");
+			after.replaceChildren(
+				first,
+				...(r.failed.length ? [p(`Neocities wouldn't take ${r.failed.length === 1 ? "this file" : "these files"}${s.media ? " (a free Neocities site doesn't take audio or video; untick Include audio and video)" : ""}:`), list(r.failed.map((f) => `${f.path}: ${f.message}`))] : []),
+				...(r.missing.length ? [p("These files couldn't be read on this device, so they weren't sent:"), list(r.missing)] : []),
+			);
+		} catch (e) {
+			after.replaceChildren(p("Couldn't publish to Neocities: " + e.message));
+		} finally {
+			neoGo.disabled = ghGo.disabled = go.disabled = false;
+			neoGo.textContent = was;
 		}
 	});
 

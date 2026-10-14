@@ -147,7 +147,7 @@ export function guideText(features, { worker = true, story = false } = {}) {
 		"",
 		"## Your website",
 		"",
-		"The globe button in the toolbar adds the note you're on to your website (it sets `publish: true`); nothing goes online yet. **Export as website…** builds the site from every note you've added, in your theme. From there, **Publish to GitHub** puts it on GitHub Pages in one click (and on to Neocities, if you set that up), or **Download** gives you a .zip to upload to Neocities or any other host yourself.",
+		"The globe button in the toolbar adds the note you're on to your website (it sets `publish: true`); nothing goes online yet. **Export as website…** builds the site from every note you've added, in your theme. From there, **Publish to Neocities** sends it to your Neocities site in one click, **Publish to GitHub** puts it on GitHub Pages, or **Download** gives you a .zip to upload to any other host yourself.",
 	);
 	else lines.push(
 		"",

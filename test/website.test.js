@@ -311,7 +311,8 @@ test("the feed: dated posts, newest first, a line or two and a link each", () =>
 	];
 	const site = buildSite(notes, ["pic.png"], { title: "Brandon's notes", tagline: "Out walking" });
 	const feed = site.files.get("feed.xml");
-	assert.match(feed, /^<\?xml version="1.0" encoding="utf-8"\?>\n<feed xmlns="http:\/\/www.w3.org\/2005\/Atom" xmlns:thr="http:\/\/purl.org\/syndication\/thread\/1.0">/);
+	assert.match(feed, /^<\?xml version="1.0" encoding="utf-8"\?>\n<\?xml-stylesheet type="text\/xsl" href="feed-style.xml"\?>\n<feed xmlns="http:\/\/www.w3.org\/2005\/Atom" xmlns:thr="http:\/\/purl.org\/syndication\/thread\/1.0">/);
+	assert.match(site.files.get("feed-style.xml"), /<xsl:stylesheet/, "a browser shows the feed as a page");
 	assert.match(feed, /<title>Brandon's notes<\/title>/);
 	assert.match(feed, /<subtitle>Out walking<\/subtitle>/);
 	assert.match(feed, /<updated>2026-05-06T00:00:00Z<\/updated>/);
@@ -354,4 +355,18 @@ test("site addresses and summaries", () => {
 	assert.ok(long.length <= 281 && long.endsWith("word…"));
 	assert.equal(atomFeed([{ file: "a.html", title: "A", date: "", body: "" }], { title: "S" }), "");
 	assert.ok(!atomFeed([{ file: "a.html", title: "Bad\u0001char", date: "2026-01-01", body: "" }], { title: "S" }).includes("\u0001"));
+});
+
+test("a reply to one of the site's own posts is listed under that post", () => {
+	const note = (fm, body) => `---\n${fm}\n---\n${body}`;
+	const site = buildSite([
+		{ path: "Sketches/Gandalf.md", text: note("publish: true\ndate: 2026-09-25", "A wizard.") },
+		{ path: "Replies/Re Gandalf.md", text: note("publish: true\ndate: 2026-10-14\nreply-to: https://me.neocities.org/sketches/gandalf.html", "Nice!") },
+		{ path: "Replies/Theirs.md", text: note("publish: true\ndate: 2026-10-14\nreply-to: https://friend.example/post.html", "Hi") },
+	], [], { title: "T", address: "me.neocities.org" });
+	const post = site.files.get("sketches/gandalf.html");
+	assert.match(post, /<section class="responses"[\s\S]*href="https:\/\/me\.neocities\.org\/replies\/re-gandalf\.html">Re Gandalf</);
+	assert.match(site.files.get("replies/re-gandalf.html"), /In reply to <a class="u-in-reply-to" href="[^"]+">Gandalf<\/a>/, "named by its title");
+	assert.doesNotMatch(site.files.get("replies/theirs.html"), /class="responses"/);
+	assert.match(site.files.get("replies/theirs.html"), /In reply to <a class="u-in-reply-to" href="https:\/\/friend\.example\/post\.html">friend\.example\/post\.html</);
 });

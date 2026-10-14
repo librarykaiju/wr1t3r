@@ -42,6 +42,8 @@
 //   GET    /api/feed?url=          a site's feed for Neighbors -> its posts' titles,
 //                                  links, dates and summaries; see worker/feed.js
 //   GET    /api/sites?url=         a site's blogroll or a webring's members; same file
+//   /api/neocities/{info,list,upload,delete}  Publish to Neocities, passed through
+//                                  with the X-Neocities-Key header; see worker/neocities.js
 //   /api/calendar/...              Google Calendar agenda; see worker/calendar.js
 //   /api/media/...                 movie, book, music, game, comic and podcast
 //                                  lookups for media notes; see worker/media.js
@@ -63,6 +65,7 @@
 import { r2Backend } from "./r2.js";
 import { githubBackend } from "./github.js";
 import { feedApi } from "./feed.js";
+import { neocitiesApi } from "./neocities.js";
 import { proxyFetch } from "./fetch.js";
 import { calendarApi } from "./calendar.js";
 import { mediaApi } from "./media.js";
@@ -93,6 +96,8 @@ export default {
 			if (url.pathname === "/api/fetch" && request.method === "GET") return await proxyFetch(url.searchParams.get("url"), env);
 			const feed = await feedApi(request, env, url);
 			if (feed) return json(feed);
+			const neo = await neocitiesApi(request, env, url);
+			if (neo) return neo;
 			const cal = await calendarApi(request, env, url);
 			if (cal) return json(cal);
 			const media = await mediaApi(request, env, url);

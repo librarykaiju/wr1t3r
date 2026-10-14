@@ -187,6 +187,25 @@ export function blogrollLinks(html, base) {
 	return [...new Set(out)];
 }
 
+// Links in a page's text that look like its feed (<a href="rss.xml">), on the
+// same site, for pages that don't name one in their <head>.
+export function feedAnchors(html, base) {
+	const out = [];
+	let host = "";
+	try { host = new URL(base).host; } catch {}
+	for (const m of String(html || "").matchAll(/<a\b[^>]*\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+		const u = absolute(decodeEntities(m[2] ?? m[3] ?? m[4]), base);
+		if (!u) continue;
+		const x = new URL(u);
+		if (x.host !== host) continue;
+		if (/\.(rss|atom)$|\.xml$|(^|\/)(rss|atom|feed)\/?$/i.test(x.pathname) && !/sitemap/i.test(x.pathname)) out.push(u);
+	}
+	return [...new Set(out)];
+}
+
+// The text of a page's <title>, or "".
+export const pageTitle = (html) => htmlText(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(String(html || ""))?.[1] || "");
+
 // Where to look for a list of sites when a page names none.
 export const LIST_GUESSES = ["neighbors.opml", "blogroll.opml"];
 

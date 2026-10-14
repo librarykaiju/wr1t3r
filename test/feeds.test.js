@@ -175,11 +175,50 @@ test("the relay finds a site's feed and answers with posts only", async () => {
 		const b = await fetchFeed("https://b.example/", {});
 		assert.equal(b.feed, "https://b.example/rss.xml", "found by its usual name");
 		assert.equal((await fetchFeed("https://moved.example/feed", {})).feed, "https://a.example/feed.xml");
-		await assert.rejects(fetchFeed("https://n.example/", {}), (e) => e.status === 404);
+		const n = await fetchFeed("https://n.example/", {});
+		assert.equal(n.feed, "", "no feed: the site is watched instead");
+		assert.deepEqual(n.items, []);
+		assert.match(n.page.hash, /^[0-9a-f]{24}$/);
+		assert.ok(!JSON.stringify(n).includes("nothing"), "never the page's words");
 		await assert.rejects(fetchFeed("http://127.0.0.1/feed", {}), (e) => e.status === 403);
 		await assert.rejects(fetchFeed("", {}), (e) => e.status === 400);
-		assert.ok(web.seen.filter((u) => u.startsWith("https://n.example/")).length <= 4, "a few tries at most");
+		assert.ok(web.seen.filter((u) => u.startsWith("https://n.example/")).length <= 6, "a few tries at most");
 	} finally { web.restore(); }
+});
+
+test("hand-made pages: no doctype, a feed linked in the text, or none at all", async () => {
+	const web = fakeWeb({
+		"https://hand.neocities.org/": { body: `<title>Hand made</title>\n<p>Hi! <a href="/blog/rss.xml">my rss</a> <a href="https://elsewhere.example/feed.xml">theirs</a></p>`, type: "text/html" },
+		"https://hand.neocities.org/blog/rss.xml": { body: RSS2, type: "application/rss+xml" },
+		"https://plain.neocities.org/": { body: `<title>Plain &amp; simple</title><center>under construction</center>`, type: "text/html" },
+		"https://neocities.org/api/info?sitename=plain": { body: JSON.stringify({ result: "success", info: { sitename: "plain", last_updated: "Tue, 13 Oct 2026 18:30:00 -0000" } }), type: "application/json" },
+	});
+	try {
+		const hand = await fetchFeed("https://hand.neocities.org/", {});
+		assert.equal(hand.feed, "https://hand.neocities.org/blog/rss.xml");
+		const plain = await fetchFeed("https://plain.neocities.org/", {});
+		assert.equal(plain.feed, "");
+		assert.equal(plain.title, "Plain & simple");
+		assert.equal(plain.page.updated, "2026-10-13T18:30:00.000Z", "Neocities says when it changed");
+	} finally { web.restore(); }
+});
+
+test("a site with no feed shows up when it changes", async () => {
+	const list = [{ url: "https://plain.example/" }];
+	let hash = "aaa";
+	const fetchFeed = async () => ({ feed: "", title: "Plain", site: "https://plain.example/", items: [], page: { hash } });
+	const first = await readFeeds(list, fetchFeed, { at: Date.UTC(2026, 9, 1) });
+	assert.deepEqual(first.feeds["https://plain.example/"].items, [], "nothing to say the first time");
+	const same = await readFeeds(list, fetchFeed, { old: first.feeds, at: Date.UTC(2026, 9, 2) });
+	assert.deepEqual(same.feeds["https://plain.example/"].items, []);
+	hash = "bbb";
+	const changed = await readFeeds(list, fetchFeed, { old: same.feeds, at: Date.UTC(2026, 9, 3) });
+	assert.deepEqual(changed.feeds["https://plain.example/"].items, [{ title: "Updated their site", url: "https://plain.example/", date: "2026-10-03T00:00:00.000Z", update: true }]);
+	const later = await readFeeds(list, fetchFeed, { old: changed.feeds, at: Date.UTC(2026, 9, 4) });
+	assert.equal(later.feeds["https://plain.example/"].items[0].date, "2026-10-03T00:00:00.000Z", "keeps when it last changed");
+	const neo = await readFeeds(list, async () => ({ feed: "", site: "https://plain.example/", items: [], page: { hash, updated: "2026-10-13T18:30:00.000Z" } }), { at: 9 });
+	assert.equal(neo.feeds["https://plain.example/"].items[0].date, "2026-10-13T18:30:00.000Z");
+	assert.deepEqual(neo.list, list, "no feed address to save");
 });
 
 test("the product Worker's relay answers only its own page", async () => {
