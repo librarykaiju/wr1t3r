@@ -36,7 +36,9 @@
 // opts.feedFull puts the whole post in instead. opts.address, the site's own
 // address, makes the feed's links and ids absolute; without it they're
 // relative to the feed, which readers resolve. Post pages are also marked up
-// as h-entry (title, date, text) for IndieWeb tools.
+// as h-entry (title, date, text) for IndieWeb tools. Under each page a line
+// offers the feed, and, when the address is known, following the site in
+// wr1t3r (FOLLOW_APP, its #follow= link).
 
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
@@ -50,6 +52,9 @@ import { COVER_SHAPES, COVER_POSITIONS, COVER_WIDTHS } from "./pretty.js";
 import { SHOWN_FOLDERS } from "./frontmatter.js";
 
 export { isPublished };
+
+// Where "Follow in wr1t3r" goes: the app opens Neighbors with the site filled in.
+export const FOLLOW_APP = "https://my.wr1t3r.app/";
 
 export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html", feed: "feed.xml" };
 
@@ -437,7 +442,8 @@ export function buildSite(notes, attachments, opts = {}) {
 		pages.push({ path: n.path, file: site, title: r.info.title, date: r.info.date, folder: sitePath(n.path).split("/").slice(0, -1).join("/") });
 		entries.push({ file: site, title: r.info.title, date: r.info.date, tags: r.info.tags, description: r.info.description, body: r.body });
 	}
-	const feed = atomFeed(entries, { title, tagline, address: opts.address, full: !!opts.feedFull });
+	const address = siteAddress(opts.address) || "";
+	const feed = atomFeed(entries, { title, tagline, address, full: !!opts.feedFull });
 	if (feed) out.set(SITE_FILES.feed, feed);
 
 	// The front page: Home's text, then every page by folder, newest first.
@@ -553,7 +559,9 @@ export function buildSite(notes, attachments, opts = {}) {
 		const post = pages.some((p) => p.file === site && site !== SITE_FILES.index);
 		const extras = own ? "" : (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "");
 		const css = !own ? relativeURL(site, SITE_FILES.style) : /^(https?:)?\/\/|^\//i.test(own) ? own : "../".repeat(site.split("/").length - 1) + own;
-		out.set(site, html({ ...info, props: own || opts.properties === false ? null : info.props, body: (post ? body.replace(/^<div class="note">/, '<div class="note e-content">') : body) + extras + pagerFor(site), post, feed: feed && relativeURL(site, SITE_FILES.feed), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css, footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+		const feedURL = feed && relativeURL(site, SITE_FILES.feed);
+		const follow = feed && !own ? `<p class="follow">Follow this site: <a href="${esc(feedURL)}" type="application/atom+xml">its feed</a>${address ? ` or <a href="${esc(FOLLOW_APP + "#follow=" + encodeURIComponent(address))}">in wr1t3r</a>` : ""}</p>\n` : "";
+		out.set(site, html({ ...info, props: own || opts.properties === false ? null : info.props, body: (post ? body.replace(/^<div class="note">/, '<div class="note e-content">') : body) + extras + pagerFor(site) + follow, post, feed: feedURL, menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css, footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
 	if (!own) out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
@@ -861,6 +869,8 @@ header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: con
 .pager a { text-decoration: none; color: var(--fg); }
 .pager a span { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
 .pager .next { text-align: right; }
+.follow { margin: 2.5em 0 0; font: 14px/1.5 var(--sans); color: var(--muted); }
+.follow a { color: var(--muted); }
 footer.site { font-weight: normal; color: var(--muted); border-top: 1px solid var(--line); margin-top: 3em; }
 footer.site a { color: var(--muted); }
 main { margin: 0 auto; padding: 0 20px 4em; }

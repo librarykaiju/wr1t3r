@@ -15,6 +15,7 @@ const ICONS = {
 	command: '<path d="M13 3.5 5.5 13.5H12l-1 7 7.5-10H12z"/>',
 	url: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>',
 	view: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><rect x="6.5" y="7.5" width="4.5" height="4" rx="0.8"/><rect x="13" y="7.5" width="4.5" height="4" rx="0.8"/><rect x="6.5" y="13.5" width="4.5" height="3.5" rx="0.8"/>',
+	neighbors: '<path d="M2.5 11 7 7l4.5 4v8.5h-9z"/><path d="M12.5 11 17 7l4.5 4v8.5h-9z"/><path d="M5.5 19.5v-3.5h3v3.5M15.5 19.5v-3.5h3v3.5"/>',
 	add: '<path d="M12 5v14M5 12h14"/>',
 };
 
@@ -182,7 +183,8 @@ function ends(bars) {
 // host: { pins, homeFile, paths, text(path), image(ref, from) -> Promise<src>|null,
 //         open(pin, path), menu(index, x, y), add()?, reorder(from, to), emptyLabel?,
 //         glance(folder)? -> glance(...) | null, for stats tiles,
-//         habits()? -> habitsGlance(...) | null, for the Habits tile }
+//         habits()? -> habitsGlance(...) | null, for the Habits tile,
+//         neighbors()? -> the same shape | null, for the Neighbors tile }
 export function drawHome(grid, host) {
 	grid.replaceChildren();
 	const { pins, homeFile, paths } = host;
@@ -231,7 +233,7 @@ export function drawHome(grid, host) {
 			tile.classList.add("has-cover");
 			tile.append(img);
 		}
-		const g = k.kind === "view" && k.view === "stats" && host.glance ? host.glance(k.folder) : k.kind === "habits" && host.habits ? host.habits() : null;
+		const g = k.kind === "view" && k.view === "stats" && host.glance ? host.glance(k.folder) : k.kind === "habits" && host.habits ? host.habits() : k.kind === "neighbors" && host.neighbors ? host.neighbors() : null;
 		if (g) {
 			tile.classList.add("has-glance");
 			tile.append(label, glanceFace(g, pin.chart, size));
