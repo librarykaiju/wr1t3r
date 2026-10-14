@@ -79,7 +79,10 @@ A weekly agenda helps you plan ahead or add plans as things come up. At the end 
 
 ### See the whole month
 
-The calendar page shows Month or Week, and each day holds its events, the tasks due that day, penciled-in plans and stickers. Pencil in a plan you're not sure of yet, then ink it into your calendar when it's firm, or erase it. On a phone it's one week as a list, with the weeks as tabs down the side and a swipe to the next one. Use the built-in calendar, which syncs like your notes, or connect Google Calendar.
+Calendar view provides flexibility in taking your planning even further.
+
+- Pencil in tentative plans to review and confirm at a later date.
+- Ink those plans to turn them into calendar events with reminders.
 
 ![The calendar page for October: a month grid with tasks, penciled-in plans and stickers on the days](/shots/planner-month.webp)
 
