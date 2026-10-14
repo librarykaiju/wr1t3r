@@ -133,11 +133,13 @@ export function neighborsList(list, feeds, { max = 100 } = {}) {
 export const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return String(u || ""); } };
 
 // Reads every followed site's feed, a few at a time, through fetchFeed(address)
-// -> { feed, title, site, items } (the relay's answer). Returns { feeds,
-// list }: feeds as neighborsList takes them, with { error } for a site that
-// couldn't be read (its last good posts kept from old), and list with any
-// newly found feed addresses filled in (the same list when none were).
-export async function readFeeds(list, fetchFeed, { old = {}, at = Date.now(), together = 4 } = {}) {
+// -> { feed, title, site, items } (the relay's answer), and with fetchSites,
+// who each site reads (its blogroll: -> { sites }). Returns { feeds, list }:
+// feeds as neighborsList takes them, with { error } for a site that couldn't
+// be read (its last good posts kept from old) and reads: [{ url, feed, name }],
+// and list with any newly found feed addresses filled in (the same list when
+// none were).
+export async function readFeeds(list, fetchFeed, { old = {}, at = Date.now(), together = 4, fetchSites = null } = {}) {
 	const feeds = {};
 	let next = list;
 	const queue = [...list];
@@ -150,6 +152,13 @@ export async function readFeeds(list, fetchFeed, { old = {}, at = Date.now(), to
 			} catch (e) {
 				feeds[s.url] = { ...(old[s.url] || { title: "", items: [] }), error: String(e?.message || e) };
 			}
+			if (!fetchSites) continue;
+			try {
+				const r = await fetchSites(s.url);
+				feeds[s.url].reads = (r.sites || []).slice(0, 200).map((x) => ({ url: x.url, ...(x.feed ? { feed: x.feed } : {}), ...(x.name ? { name: x.name } : {}) }));
+			} catch {
+				if (old[s.url]?.reads) feeds[s.url].reads = old[s.url].reads;
+			}
 		}
 	};
 	await Promise.all(Array.from({ length: Math.min(together, list.length) }, one));
@@ -158,3 +167,35 @@ export async function readFeeds(list, fetchFeed, { old = {}, at = Date.now(), to
 
 // How many posts are newer than seen (ms since 1970).
 export const newSince = (posts, seen) => posts.filter((p) => p.date && Date.parse(p.date) > (seen || 0)).length;
+
+// "People your neighbors read": sites the sites you follow list as theirs,
+// that you don't follow yet (nor your own), most-listed first:
+// [{ url, feed, name, via: [names] }].
+export function suggestions(list, feeds, { me = "", max = 12 } = {}) {
+	const found = new Map();
+	for (const s of list) {
+		const f = feeds[s.url];
+		const by = s.name || f?.title || hostOf(s.url);
+		for (const r of f?.reads || []) {
+			const url = siteUrl(r.url);
+			if (!url || sameSite(url, me) || list.some((x) => sameSite(x.url, url) || (r.feed && sameSite(x.feed, r.feed)))) continue;
+			const key = url.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "");
+			const had = found.get(key) || { url, feed: r.feed || "", name: r.name || "", via: [] };
+			if (!had.via.includes(by)) had.via.push(by);
+			if (!had.name && r.name) had.name = r.name;
+			found.set(key, had);
+		}
+	}
+	return [...found.values()].sort((a, b) => b.via.length - a.via.length || (a.name || a.url).localeCompare(b.name || b.url)).slice(0, max);
+}
+
+// Whether address is a page on the site at me ("https://you.neocities.org/").
+export function onSite(address, me) {
+	const k = (u) => String(u || "").toLowerCase().replace(/^https?:\/\/(www\.)?/, "");
+	const root = k(me).replace(/\/*$/, "/");
+	return !!me && (k(address) + "/").startsWith(root);
+}
+
+// Posts by the sites you follow that answer one of yours: neighborsList's
+// posts with an inReplyTo on your site, newest first.
+export const repliesTo = (posts, me) => posts.filter((p) => p.inReplyTo && onSite(p.inReplyTo, me));

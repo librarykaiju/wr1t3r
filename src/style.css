@@ -2106,6 +2106,11 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .neighbors-meta a { color: var(--muted); }
 .neighbors-summary { margin: 6px 0 0; font: 15px/1.5 var(--serif); color: var(--fg); }
 .neighbors-empty { padding: 24px 0; color: var(--muted); font-size: 15px; }
+.neighbors-via { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.neighbors-sites li > button[aria-pressed="true"] { color: var(--fg); }
+.neighbors-acts { display: flex; gap: 6px; margin: 6px 0 0; }
+.neighbors-acts button { font-size: 13px; padding: 3px 10px; min-height: 0; color: var(--muted); }
+.neighbors-heading { margin: 16px 0 0; font: 600 13px/1.4 var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 @media (max-width: 720px) {
 	.compile-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
 	/* The posts first on a phone; following below them. */

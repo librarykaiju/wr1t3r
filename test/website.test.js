@@ -311,7 +311,7 @@ test("the feed: dated posts, newest first, a line or two and a link each", () =>
 	];
 	const site = buildSite(notes, ["pic.png"], { title: "Brandon's notes", tagline: "Out walking" });
 	const feed = site.files.get("feed.xml");
-	assert.match(feed, /^<\?xml version="1.0" encoding="utf-8"\?>\n<feed xmlns="http:\/\/www.w3.org\/2005\/Atom">/);
+	assert.match(feed, /^<\?xml version="1.0" encoding="utf-8"\?>\n<feed xmlns="http:\/\/www.w3.org\/2005\/Atom" xmlns:thr="http:\/\/purl.org\/syndication\/thread\/1.0">/);
 	assert.match(feed, /<title>Brandon's notes<\/title>/);
 	assert.match(feed, /<subtitle>Out walking<\/subtitle>/);
 	assert.match(feed, /<updated>2026-05-06T00:00:00Z<\/updated>/);

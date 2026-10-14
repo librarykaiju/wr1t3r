@@ -41,6 +41,7 @@
 //                                  Content-Type, and X-Final-URL after redirects
 //   GET    /api/feed?url=          a site's feed for Neighbors -> its posts' titles,
 //                                  links, dates and summaries; see worker/feed.js
+//   GET    /api/sites?url=         a site's blogroll or a webring's members; same file
 //   /api/calendar/...              Google Calendar agenda; see worker/calendar.js
 //   /api/media/...                 movie, book, music, game, comic and podcast
 //                                  lookups for media notes; see worker/media.js

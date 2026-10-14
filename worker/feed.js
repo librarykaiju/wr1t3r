@@ -2,19 +2,23 @@
 // directly (CORS), so it asks the Worker:
 //
 //   GET /api/feed?url=   a site or its feed -> { feed, title, site, items:
-//                        [{ title, url, date, summary }] } (src/feedparse.js)
+//                        [{ title, url, date, summary, inReplyTo? }] } (src/feedparse.js)
+//   GET /api/sites?url=  a site or an OPML list -> { list, title, sites:
+//                        [{ url, feed, name }] }: who a site reads (its
+//                        blogroll), or a webring's members
 //
 // Given a web page, it follows the feed the page names in its <head>, else
-// tries the usual feed names (feed.xml, atom.xml...). It answers only with a
-// feed's titles, links, dates and a line or two of each post, never a page or
-// a post's full text, so it can't be used to fetch anything else. Fetching
-// goes through proxyFetch (worker/fetch.js): public addresses only, a few
-// redirects, 15s and 5 MB at most. Nothing is kept, logged or cached: no
+// tries the usual feed names (feed.xml, atom.xml...); for a list of sites, the
+// blogroll the page names, else neighbors.opml. It answers only with a feed's
+// titles, links, dates and a line or two of each post, or a list's sites,
+// never a page or a post's full text, so it can't be used to fetch anything
+// else. Fetching goes through proxyFetch (worker/fetch.js): public addresses
+// only, a few redirects, 15s and 5 MB at most. Nothing is kept, logged or cached: no
 // record of who reads which feed.
 
 import { HttpError } from "./util.js";
 import { proxyFetch } from "./fetch.js";
-import { parseFeed, feedLinks, feedKind, FEED_GUESSES } from "../src/feedparse.js";
+import { parseFeed, feedLinks, feedKind, FEED_GUESSES, blogrollLinks, LIST_GUESSES, isOpml, opmlTitle, parseOpml } from "../src/feedparse.js";
 
 const MAX_TRIES = 4; // the page, its feed, and a couple of guesses
 
@@ -54,8 +58,31 @@ export async function fetchFeed(raw, env) {
 	throw new HttpError(404, "No feed found there");
 }
 
+export async function fetchSites(raw, env) {
+	if (!raw) throw new HttpError(400, "Which site?");
+	let tries = 0;
+	const attempt = async (url) => {
+		if (tries++ >= MAX_TRIES) return null;
+		try { return await read(url, env); } catch (e) { if (tries === 1) throw e; return null; }
+	};
+	const asList = (r) => (r && isOpml(r.text) ? { list: r.url, title: opmlTitle(r.text), sites: parseOpml(r.text).slice(0, 500) } : null);
+	const first = await attempt(raw);
+	let found = asList(first);
+	if (found) return found;
+	if (feedKind(first.text) === "html") {
+		const named = blogrollLinks(first.text, first.url);
+		const guesses = LIST_GUESSES.map((g) => new URL(g, first.url).href);
+		for (const u of [...named, ...guesses.filter((g) => !named.includes(g))]) {
+			found = asList(await attempt(u));
+			if (found) return found;
+			if (tries >= MAX_TRIES) break;
+		}
+	}
+	throw new HttpError(404, "No list of sites found there");
+}
+
 export async function feedApi(request, env, url) {
-	if (url.pathname !== "/api/feed") return null;
+	if (url.pathname !== "/api/feed" && url.pathname !== "/api/sites") return null;
 	if (request.method !== "GET") throw new HttpError(405, "GET only");
-	return fetchFeed(url.searchParams.get("url"), env);
+	return (url.pathname === "/api/feed" ? fetchFeed : fetchSites)(url.searchParams.get("url"), env);
 }

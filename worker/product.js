@@ -18,7 +18,7 @@ export default {
 		try {
 			// The feed relay answers only this page's own requests (browsers
 			// mark a same-origin fetch; a GET may carry no Origin).
-			if (url.pathname === "/api/feed" && request.headers.get("Sec-Fetch-Site") !== "same-origin" && origin !== url.origin) return json({ error: "Not allowed" }, 403);
+			if ((url.pathname === "/api/feed" || url.pathname === "/api/sites") && request.headers.get("Sec-Fetch-Site") !== "same-origin" && origin !== url.origin) return json({ error: "Not allowed" }, 403);
 			const out = (await googleAuthApi(request, env, url)) || (await feedApi(request, env, url));
 			return out ? json(out) : json({ error: "Not found" }, 404);
 		} catch (e) {

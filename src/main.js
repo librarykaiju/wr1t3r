@@ -36,7 +36,7 @@ import { googleCalendar } from "./gcal.js";
 import { driveStorage, DRIVE_SCOPES } from "./gdrive.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
-import { isPublished, notPublishedWhy } from "./published.js";
+import { isPublished, notPublishedWhy, siteOf } from "./published.js";
 import { USES, DEFAULT_USES, featuresFor, starterNotes, guideText, needsHomeScreen } from "./onboarding.js";
 import { DEFAULT_API, licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, maskKey, cleanKey, readLicenseNote, writeLicenseNote, withDevice, withoutDevice } from "./license.js";
 import { sync, conflictPath } from "./sync.js";
@@ -57,7 +57,7 @@ import { rerunDataview } from "./dataview.js";
 import { makeMediaNote, coverDialog } from "./media.js";
 import { coverQuery } from "./medianote.js";
 import { parseFrontmatter } from "./dvpage.js";
-import { followingPath, readFollowing, writeFollowing, refreshDue, readFeeds, neighborsList, newSince } from "./feeds.js";
+import { followingPath, readFollowing, writeFollowing, refreshDue, readFeeds, neighborsList, newSince, onSite } from "./feeds.js";
 import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, pinSize, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
 import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
 import { reorder } from "./drag.js";
@@ -2186,8 +2186,11 @@ async function saveFollows(list) {
 }
 
 // One site's feed through the relay: { feed, title, site, items }.
-async function lookupFeed(address) {
-	const res = await fetch("/api/feed?url=" + encodeURIComponent(address), { headers: token() ? { Authorization: "Bearer " + token() } : {}, cache: "no-store" });
+const lookupFeed = (address) => relay("/api/feed", address);
+// A site's list of sites (its blogroll, or a webring's members): { list, title, sites }.
+const lookupSites = (address) => relay("/api/sites", address);
+async function relay(path, address) {
+	const res = await fetch(path + "?url=" + encodeURIComponent(address), { headers: token() ? { Authorization: "Bearer " + token() } : {}, cache: "no-store" });
 	const type = res.headers.get("Content-Type") || "";
 	// A copy of wr1t3r on GitHub Pages has no Worker to ask.
 	if (!/json/i.test(type)) throw new Error("this copy of wr1t3r can't read other sites' feeds (it needs wr1t3r.app, or a copy on Cloudflare)");
@@ -2202,7 +2205,7 @@ function refreshNeighbors() {
 	neighborsReading = (async () => {
 		const list = follows();
 		const last = readJSON(NEIGHBORS_KEY, {});
-		const { feeds, list: found } = await readFeeds(list, lookupFeed, { old: last.feeds || {} });
+		const { feeds, list: found } = await readFeeds(list, lookupFeed, { old: last.feeds || {}, fetchSites: lookupSites });
 		writeJSON(NEIGHBORS_KEY, { at: Date.now(), feeds });
 		// Feed addresses found along the way go into Following.md, onto the
 		// list as it is now (it may have changed while the feeds were read).
@@ -2232,8 +2235,65 @@ async function openNeighborsView(follow = "") {
 		refresh: refreshNeighbors,
 		lookup: lookupFeed,
 		seen: (ms) => { writeJSON(NEIGHBORS_SEEN, ms); renderHome(true); },
+		me: mySite,
+		reply: replyTo,
+		responded: (post) => !!responseNote(post.url, true),
+		addResponse,
 		toast,
 	}, { follow });
+}
+
+// This notebook's own website, from Export as website's settings on this device.
+const mySite = () => siteOf(readJSON("wr1t3r-website", {}));
+
+// Reply: a new note that answers post, with reply-to: its address. Publishing
+// it puts the reply on this site and in its feed, where the other site's
+// reader finds it.
+function replyTo(post) {
+	const title = ("Re " + post.title).replace(/[\\/:*?"<>|#^[\]]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+	newNote(commonFolder(visible()) + "Replies/" + title + ".md", (path) => {
+		const date = new Date().toLocaleDateString("en-CA");
+		let text = withTitleHeading(newNoteFrontmatter(name(path), date), name(path));
+		text = setProperty(text, "reply-to", post.url);
+		toast("Set publish: true when your reply is ready; it goes out with the site's next publish.", 8000);
+		return text + `\nIn reply to [${post.title.replace(/[[\]]/g, "")}](${post.url}) by ${post.name}.\n\n`;
+	});
+}
+
+// The note on this site whose page is address (a published note), or, with
+// hasResponse, the note that already lists address in its responses.
+function responseNote(address, hasResponse = false) {
+	for (const n of visible()) {
+		if (n.binary || !n.text || !isPublished(n.path, n.text)) continue;
+		if (hasResponse) {
+			if (!n.text.includes(address)) continue;
+			const r = parseFrontmatter(n.text).responses;
+			if ((Array.isArray(r) ? r : [r]).some((x) => String(x ?? "").includes(address))) return n.path;
+		}
+	}
+	return null;
+}
+
+// Shows a reply from a neighbor under the post it answers: adds it to that
+// note's responses: list.
+async function addResponse(post) {
+	const me = mySite();
+	if (!me || !onSite(post.inReplyTo, me)) throw new Error("set your site's address in Export as website first");
+	const { pageFiles, relativeURL } = await import("./website.js");
+	const published = visible().filter((n) => !n.binary && isPublished(n.path, n.text));
+	const files = pageFiles(published.map((n) => n.path));
+	const front = published.find((n) => /^(content\/)?(home|index)\.md$/i.test(n.path));
+	const want = post.inReplyTo.replace(/[#?].*$/, "").replace(/\/$/, "/index.html");
+	const at = (n) => me + relativeURL("index.html", n === front ? "index.html" : files.get(n.path));
+	const note = published.find((n) => at(n) === want || at(n).replace(/\.html$/, "") === want);
+	if (!note) throw new Error("that post isn't one of the notes published here any more");
+	const entry = `[${post.name}: ${post.title}](${post.url})`.replace(/\n/g, " ");
+	await dataviewVault.write(note.path, (t) => {
+		const now = parseFrontmatter(t).responses;
+		const list = (Array.isArray(now) ? now : now ? [now] : []).map(String);
+		return list.some((x) => x.includes(post.url)) ? t : setProperty(t, "responses", [...list, entry]);
+	});
+	toast(`It shows under “${name(note.path)}” the next time the site is published.`, 8000);
 }
 
 // The Neighbors tile on Home (a "neighbors:" pin): how many posts are new
@@ -6877,6 +6937,8 @@ async function exportWebsite() {
 		},
 		theme: () => ({ ...readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme")), tones: readTones(readRaw("wr1t3rColors")), headings: readHeadings(readRaw("wr1t3rHeadings")), mixtape: mixtapeVars(readMixtape(readRaw("wr1t3rMixtape"))) }),
 		font: () => FONTS[fontName] && fontName !== "serif" ? FONTS[fontName] : "",
+		following: follows,
+		sites: lookupSites,
 		toast,
 	});
 }

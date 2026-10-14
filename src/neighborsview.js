@@ -12,10 +12,18 @@
 //   refresh()              reads every feed now -> Promise (the new feeds())
 //   lookup(address)        one site's feed through the relay -> { feed, title, site, items }
 //   seen(ms)               marks the posts up to now as seen
+//   me()                   this notebook's own site's address, or ""
+//   reply(post)            starts a note that replies to post
+//   responded(post)        whether post is already in the answered note's responses
+//   addResponse(post)      adds it there -> Promise
 //   toast(text)
 // }
+//
+// Replies from sites you follow to your own posts are listed first, each with
+// a button that shows it under your post. Below who you follow, "People your
+// neighbors read" suggests sites from your neighbors' own lists.
 
-import { neighborsList, addFollow, parseOpml, siteUrl, sameSite, hostOf } from "./feeds.js";
+import { neighborsList, addFollow, parseOpml, siteUrl, sameSite, hostOf, suggestions, repliesTo } from "./feeds.js";
 
 let open = null;
 
@@ -70,7 +78,9 @@ export function openNeighbors(host, { follow = "" } = {}) {
 	const lastRead = el("p", "hint");
 	const followingHead = el("h3", null, "Following");
 	const sites = el("ul", "neighbors-sites");
-	form.append(add, go, status, row, lastRead, followingHead, sites,
+	const suggestHead = el("h3", null, "People your neighbors read");
+	const suggested = el("ul", "neighbors-sites neighbors-suggested");
+	form.append(add, go, status, row, lastRead, followingHead, sites, suggestHead, suggested,
 		el("p", "hint", "Feeds are read each morning and evening while wr1t3r is open. Who you follow is kept in your notebook (_wr1t3r/Following.md), not on any server."));
 
 	// The right side: the posts.
@@ -93,19 +103,44 @@ export function openNeighbors(host, { follow = "" } = {}) {
 			const f = feeds[s.url];
 			const a = Object.assign(el("a", null, s.name || f?.title || hostOf(s.url)), { href: s.url, target: "_blank", rel: "noopener" });
 			const note = f?.error ? el("span", "neighbors-error", `Couldn't read its feed: ${f.error}`) : null;
+			const priv = Object.assign(el("button", "quiet", s.private ? "Private" : "Listed"), { type: "button" });
+			priv.title = s.private ? "Left off your site's list of sites you read. Click to list it." : "On your site's list of sites you read. Click to keep it private.";
+			priv.setAttribute("aria-pressed", String(!!s.private));
+			priv.addEventListener("click", async () => {
+				await host.save(host.list().map((t) => (t.url === s.url ? { ...t, private: !s.private } : t)));
+				draw();
+			});
 			const un = Object.assign(el("button", "quiet", "Unfollow"), { type: "button" });
 			un.addEventListener("click", async () => {
 				if (!confirm(`Stop following ${a.textContent}?`)) return;
 				await host.save(host.list().filter((t) => t.url !== s.url));
 				draw();
 			});
-			li.append(a, un);
+			li.append(a, priv, un);
 			if (note) li.append(note);
 			return li;
 		}));
 		if (!list.length) sites.append(el("li", "hint", "Nobody yet. Follow a site above, or import the list from another feed reader."));
+		// Suggestions from the neighbors' own lists.
+		const sugg = suggestions(list, feeds, { me: host.me() });
+		suggestHead.hidden = suggested.hidden = !sugg.length;
+		suggested.replaceChildren(...sugg.map((s) => {
+			const li = el("li");
+			const a = Object.assign(el("a", null, s.name || hostOf(s.url)), { href: s.url, target: "_blank", rel: "noopener" });
+			const b = Object.assign(el("button", "quiet", "Follow"), { type: "button" });
+			b.addEventListener("click", async () => {
+				await host.save(addFollow(host.list(), s));
+				status.textContent = `Following ${a.textContent}.`;
+				draw();
+				doRefresh();
+			});
+			li.append(a, b, el("span", "neighbors-via", `Read by ${s.via.slice(0, 3).join(", ")}${s.via.length > 3 ? ` and ${s.via.length - 3} more` : ""}`));
+			return li;
+		}));
 		const items = neighborsList(list, feeds);
-		posts.replaceChildren(...items.map((p) => {
+		const me = host.me();
+		const replies = me ? repliesTo(items, me) : [];
+		const post = (p, reply = false) => {
 			const li = el("li", "neighbors-post");
 			const a = Object.assign(el("a", "neighbors-title", p.title), { href: p.url, target: "_blank", rel: "noopener" });
 			const meta = el("p", "neighbors-meta");
@@ -113,8 +148,25 @@ export function openNeighbors(host, { follow = "" } = {}) {
 			if (p.date) meta.append(" · ", Object.assign(el("time", null, when(p.date)), { dateTime: p.date }));
 			li.append(a, meta);
 			if (p.summary) li.append(el("p", "neighbors-summary", p.summary));
+			const acts = el("p", "neighbors-acts");
+			if (reply) {
+				const shown = host.responded(p);
+				const b = Object.assign(el("button", "quiet", shown ? "Shown under your post" : "Show under your post"), { type: "button", disabled: shown });
+				b.addEventListener("click", async () => {
+					b.disabled = true;
+					try { await host.addResponse(p); b.textContent = "Shown under your post"; }
+					catch (e) { b.disabled = false; host.toast("Couldn't add it: " + e.message); }
+				});
+				acts.append(b);
+			}
+			const r = Object.assign(el("button", "quiet", "Reply"), { type: "button" });
+			r.title = "Write a note that answers this post; once published, it's on your site and in your feed";
+			r.addEventListener("click", () => { close(); host.reply(p); });
+			acts.append(r);
+			li.append(acts);
 			return li;
-		}));
+		};
+		posts.replaceChildren(...(replies.length ? [el("li", "neighbors-heading", "Replies to your posts"), ...replies.map((p) => post(p, true)), el("li", "neighbors-heading", "Everyone else")] : []), ...items.filter((p) => !replies.includes(p)).map((p) => post(p)));
 		if (!items.length) posts.append(el("li", "neighbors-empty", list.length ? (last.at ? "Nothing posted yet by the sites you follow." : "Reading their feeds…") : "When the sites you follow post something, it shows here, newest first. Click a post to read it on their site."));
 	}
 

@@ -1,7 +1,8 @@
 // Reading other sites' feeds: a small XML reader, then Atom, RSS (0.9x, 1.0
 // and 2.0) and JSON Feed as { title, site, items: [{ title, url, date,
 // summary }] }, only what the Neighbors view shows. Summaries are plain text,
-// a line or two; a post's full text never leaves its site. No DOM and no
+// a line or two; a post's full text never leaves its site. An item that
+// answers another post (thr:in-reply-to) carries its address as inReplyTo. No DOM and no
 // imports, so the Worker's feed relay (worker/feed.js) uses it as is.
 
 export const SUMMARY_MAX = 280;
@@ -97,11 +98,14 @@ export function parseFeed(text, url = "", { max = 20 } = {}) {
 }
 
 function finish(title, site, items, max) {
-	const out = items.filter((i) => i.url).map((i) => ({ title: i.title || i.summary.slice(0, 80) || i.url, url: i.url, date: i.date, summary: i.summary }));
+	const out = items.filter((i) => i.url).map((i) => ({ title: i.title || i.summary.slice(0, 80) || i.url, url: i.url, date: i.date, summary: i.summary, ...(i.inReplyTo ? { inReplyTo: i.inReplyTo } : {}) }));
 	// Newest first; undated ones keep the feed's order after the dated ones.
 	out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 	return { title: clean(title), site, items: out.slice(0, max) };
 }
+
+// The post an entry answers (thr:in-reply-to), as an address, or "".
+const replyOf = (node, base) => { const r = kid(node, "in-reply-to"); return r ? absolute(r.attrs.href || r.attrs.ref, base) : ""; };
 
 function atom(feed, url, max) {
 	const base = absolute(feed.attrs.base, url) || url;
@@ -119,6 +123,7 @@ function atom(feed, url, max) {
 			url: linkOf(e, base),
 			date: isoDate(textOf(kid(e, "published")) || textOf(kid(e, "updated"))),
 			summary: shorten(content?.attrs.type === "text" ? raw : htmlText(raw)),
+			inReplyTo: replyOf(e, base),
 		};
 	});
 	return finish(htmlText(textOf(kid(feed, "title"))), site, items, max);
@@ -138,6 +143,7 @@ function rss(top, url, max) {
 			url: absolute(link, site || url),
 			date: isoDate(textOf(kid(i, "pubdate")) || textOf(kid(i, "date")) || textOf(kid(i, "published"))),
 			summary: shorten(htmlText(textOf(kid(i, "description")) || textOf(kid(i, "encoded")))),
+			inReplyTo: replyOf(i, site || url),
 		};
 	});
 	return finish(htmlText(textOf(kid(channel, "title"))), site, items, max);
@@ -169,6 +175,21 @@ export function feedLinks(html, base) {
 	return [...new Set(out.sort((x, y) => x[0] - y[0]).map((x) => x[1]))];
 }
 
+// The lists of sites a page names as its blogroll (<link rel="blogroll">),
+// as absolute addresses.
+export function blogrollLinks(html, base) {
+	const out = [];
+	for (const m of String(html || "").matchAll(/<link\b[^>]*>/gi)) {
+		const rel = /\brel\s*=\s*["']?([^"'>]+)/i.exec(m[0])?.[1] || "";
+		const href = /\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(m[0]);
+		if (/(^|\s)blogroll(\s|$)/i.test(rel) && href) { const u = absolute(decodeEntities(href[2] ?? href[3] ?? href[4]), base); if (u) out.push(u); }
+	}
+	return [...new Set(out)];
+}
+
+// Where to look for a list of sites when a page names none.
+export const LIST_GUESSES = ["neighbors.opml", "blogroll.opml"];
+
 // Where to look for a feed when a site's page names none.
 export const FEED_GUESSES = ["feed.xml", "atom.xml", "rss.xml", "index.xml", "feed"];
 
@@ -184,6 +205,12 @@ export function siteUrl(text) {
 		return u.href;
 	} catch { return ""; }
 }
+
+// Whether text is an OPML file.
+export const isOpml = (text) => /^\s*(<\?[\s\S]*?\?>\s*)?(<!--[\s\S]*?-->\s*)*<opml[\s>]/i.test(String(text || "").replace(/^\uFEFF/, ""));
+
+// An OPML file's title.
+export const opmlTitle = (text) => clean(textOf(kid(kid(kid(parseXml(text), "opml"), "head"), "title")));
 
 // The sites in an OPML file (another reader's export): [{ url, feed, name }].
 export function parseOpml(text) {
