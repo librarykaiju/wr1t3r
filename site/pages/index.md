@@ -57,7 +57,7 @@ Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your
 
 ## A flexible planner for your life
 
-The Today button opens a note for the day: your tasks, a timeline, your habits and a row of buttons for the things you track. A week-ahead note and calendar view allow you to take your planner further. Medicines, health logs and reflections live in the same notebook as your writing, and you decide how much of it you want.
+The Today button opens a note for the day: your tasks, a timeline, your habits and a row of buttons for the things you track. A week-ahead note and calendar view allow you to take your planner further.
 
 ### Set it up once, your way
 
@@ -76,6 +76,10 @@ Each week gets a note with its seven days side by side: the events on your calen
 The calendar page shows Month or Week, and each day holds its events, the tasks due that day, penciled-in plans and stickers. Pencil in a plan you're not sure of yet, then ink it into your calendar when it's firm, or erase it. On a phone it's one week as a list, with the weeks as tabs down the side and a swipe to the next one. Use the built-in calendar, which syncs like your notes, or connect Google Calendar.
 
 ![The calendar page for October: a month grid with tasks, penciled-in plans and stickers on the days](/shots/planner-month.webp)
+
+## Optional health and habit tracking
+
+Medicines, health logs and reflections live in the same notebook as your writing, and you decide how much of it you want.
 
 ### Track the habits you care about
 
