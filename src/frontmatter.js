@@ -273,6 +273,9 @@ const imagesShown = StateField.define({
 // all; their headers have one. Showing or hiding it is remembered per note
 // until the page reloads.
 export const SHOWN_FOLDERS = /(^|\/)(logs|sketchbooks|catalog)\//i;
+// Media logs (logs/: books, games, movies...) put the cover beside the
+// properties, like a shelf card; everywhere else it's a wide picture under them.
+export const COVER_BESIDE = /(^|\/)logs\//i;
 const PLANNER_FENCE = /(^|\n)```wr1t3r-planner[ \t]*\r?\n/;
 export const isPlannerPage = (doc) => PLANNER_FENCE.test(doc.sliceString(0, Math.min(doc.length, 20000)));
 const hasHeader = (state) => isPlannerPage(state.doc) || !!healthDayOf(state.facet(notePath));

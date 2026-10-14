@@ -12,7 +12,18 @@
 // private is named by its path. Pictures and PDFs it uses are copied into
 // files/; audio and video only when asked (a free Neocities site won't take
 // them). A published note named Home or Index (at the top of the notebook)
-// becomes the front page's text, above the list of pages. A menu at the top
+// becomes the front page's text. Where it has a posts block, that block
+// becomes a list of the newest posts:
+//
+//   ```posts
+//   folder: microblog      (left out or "all": every folder)
+//   count: 5               (how many, newest first; 10 if left out)
+//   show: summary          (title, summary, or full: the whole post)
+//   ```
+//
+// A Home note with no posts block is followed by what opts.front says:
+// { folder: "all" | "" (nothing) | a folder, count } as a posts block would,
+// or, left out, every page by folder. A menu at the top
 // links each top-level folder's own list of pages (folder/index.html), and
 // each page ends with links to the pages before and after it in its folder.
 //
@@ -65,7 +76,7 @@ import { resolveNote } from "./links.js";
 import { resolveAttachment, attachmentKind } from "./attachments.js";
 import { calloutLook } from "./blocks.js";
 import { COVER_SHAPES, COVER_POSITIONS, COVER_WIDTHS } from "./pretty.js";
-import { SHOWN_FOLDERS } from "./frontmatter.js";
+import { SHOWN_FOLDERS, COVER_BESIDE } from "./frontmatter.js";
 import { shorten } from "./feedparse.js";
 
 export const RESPONSE_EXCERPT = 200;
@@ -297,6 +308,7 @@ export function pageInfo(path, text) {
 		responses: responseList(p.responses),
 		props: propRows(p, SHOWN_FOLDERS.test(path)),
 		open: SHOWN_FOLDERS.test(path),
+		beside: COVER_BESIDE.test(path),
 	};
 }
 
@@ -504,7 +516,31 @@ export function buildSite(notes, attachments, opts = {}) {
 		const ps = pages.filter((p) => p.folder === f).sort(newest);
 		ps.forEach((p, i) => pagerOf.set(p.file, { prev: ps[i - 1], next: ps[i + 1] }));
 	}
-	page(SITE_FILES.index, front?.path ?? "", { title: lead?.info.title || title, tags: [], date: "", cover: lead?.info.cover, banner: lead?.info.banner, bannerPosition: lead?.info.bannerPosition, description: lead?.info.description }, (lead?.body || "") + (pages.length ? `<nav class="contents" aria-label="Pages">\n${list}\n</nav>` : `<p class="empty">Nothing published yet.</p>`));
+	// posts blocks: the newest posts of a folder, as the Home note places them.
+	const entryOf = new Map(entries.map((e) => [e.file, e]));
+	const postList = ({ folder = "all", count = 10, show = "summary" } = {}) => {
+		const f = String(folder).trim().replace(/^\/+|\/+$/g, "").toLowerCase();
+		const n = Math.max(1, Math.min(200, parseInt(count, 10) || 10));
+		const how = /^(title|summary|full)$/i.test(show) ? show.toLowerCase() : "summary";
+		const chosen = pages.filter((p) => !f || f === "all" || p.folder.toLowerCase() === f || p.folder.toLowerCase().startsWith(f + "/")).sort(newest).slice(0, n);
+		if (!chosen.length) return `<p class="empty">Nothing posted here yet.</p>\n`;
+		const item = (p) => {
+			const e = entryOf.get(p.file) || {};
+			const link = `<a href="${esc(relativeURL(SITE_FILES.index, p.file))}">${esc(p.title)}</a>`;
+			const when = p.date ? `<time datetime="${p.date}">${esc(longDate(p.date))}</time>` : "";
+			if (how === "full") return `<article class="h-entry">\n<h3 class="p-name">${link}</h3>\n${when ? `<p class="post-date">${when}</p>\n` : ""}${rebase(e.body || "", p.file, SITE_FILES.index)}</article>`;
+			const summary = how === "summary" ? summaryOf(e.description, e.body || "") : "";
+			return `<li>${link}${when ? ` ${when}` : ""}${summary ? `\n<p class="post-summary">${esc(summary)}</p>` : ""}</li>`;
+		};
+		return how === "full" ? `<div class="post-list post-list-full">\n${chosen.map(item).join("\n")}\n</div>\n` : `<ul class="post-list post-list-${how}">\n${chosen.map(item).join("\n")}\n</ul>\n`;
+	};
+	const settingsOf = (code) => Object.fromEntries(code.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").split("\n").map((l) => /^\s*(\w+)\s*:\s*(.*?)\s*$/.exec(l)).filter(Boolean).map((m) => [m[1].toLowerCase(), m[2].replace(/^["']|["']$/g, "")]));
+	const POSTS_BLOCK = /<pre><code class="language-posts">([\s\S]*?)<\/code><\/pre>\n?/g;
+	const designed = !!lead?.body.includes('<code class="language-posts">');
+	const leadBody = designed ? lead.body.replace(POSTS_BLOCK, (all, code) => postList(settingsOf(code))) : lead?.body || "";
+	const fp = opts.front;
+	const rest = designed ? "" : !pages.length ? `<p class="empty">Nothing published yet.</p>` : !fp || fp.folder == null ? `<nav class="contents" aria-label="Pages">\n${list}\n</nav>` : fp.folder === "" ? "" : postList({ folder: fp.folder, count: fp.count, show: fp.show || "summary" });
+	page(SITE_FILES.index, front?.path ?? "", { title: lead?.info.title || title, tags: [], date: "", cover: lead?.info.cover, banner: lead?.info.banner, bannerPosition: lead?.info.bannerPosition, description: lead?.info.description }, leadBody + rest);
 	if (front) pages.unshift({ path: front.path, file: SITE_FILES.index, title: lead.info.title, date: lead.info.date, folder: "" });
 	// Who this site reads, and the webring it runs.
 	const neighbors = opts.neighbors === false ? [] : (opts.following || []).filter((f) => f && !yes(f.private) && webAddress(f.url));
@@ -979,7 +1015,7 @@ function supportBox(s) {
 	return `<section class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</section>\n`;
 }
 
-function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex, post, feed, blogroll }) {
+function html({ title, date, tags, props, open, beside, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex, post, feed, blogroll }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
 	const brand = `<a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly && !tagline ? "" : `<span class="name">${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}${tagline ? `<span class="tagline">${esc(tagline)}</span>` : ""}</span>`}</a>`;
 	// The notebook layout has no header: the title and logo top the folders, as in the app's sidebar.
@@ -998,7 +1034,7 @@ ${feed ? `<link rel="alternate" type="application/atom+xml" title="${esc(siteTit
 ${tree ? "" : `<header class="site">${brand}${menu || ""}</header>\n`}${banner ? `<div class="banner"><img src="${esc(banner)}" alt="" style="object-position: center ${bannerPosition}%"></div>\n` : ""}<main>
 ${tree || ""}<article${post ? ' class="h-entry"' : ""}>
 <h1${post ? ' class="p-name"' : ""}>${esc(title)}</h1>
-${(date || tags.length) && !(props && open) ? `<p class="meta">${[date ? `<time${post ? ' class="dt-published"' : ""} datetime="${date}">${esc(longDate(date))}</time>` : "", ...tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`)].filter(Boolean).join(" ")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !props) ? `<img class="cover${open ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
+${(date || tags.length) && !(props && open) ? `<p class="meta">${[date ? `<time${post ? ' class="dt-published"' : ""} datetime="${date}">${esc(longDate(date))}</time>` : "", ...tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`)].filter(Boolean).join(" ")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open && beside ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !beside || !props) ? `<img class="cover${open && beside ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
 ${side ? `<aside class="side">\n${side}</aside>\n` : ""}</main>
 ${footer ? `<footer class="site">Made with <a href="https://wr1t3r.app">wr1t3r</a></footer>\n` : ""}</body>
@@ -1033,6 +1069,12 @@ header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: con
 .responses h2 { font-size: 1em; margin: 0 0 0.5em; }
 .responses ul { margin: 0; padding-left: 1.2em; }
 .responses li { margin: 0 0 0.8em; }
+.post-list { padding: 0; list-style: none; }
+.post-list li { margin: 0 0 1em; }
+.post-list time, .post-date { font: 0.85em/1.4 var(--sans); opacity: 0.75; }
+.post-summary { margin: 0.25em 0 0; }
+.post-list-full article { margin: 0 0 2.5em; padding-bottom: 1.5em; border-bottom: 1px solid var(--line); }
+.post-list-full h3 { margin: 0; }
 .response-excerpt { margin: 0.2em 0 0; }
 .response-own { list-style: none; margin-left: -1.2em; padding: 0.6em 0.9em; border-left: 3px solid var(--line); }
 .response-own .e-content > .note > :first-child { margin-top: 0; }

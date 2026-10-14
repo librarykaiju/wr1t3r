@@ -21,7 +21,7 @@
 import { StateField } from "@codemirror/state";
 import { EditorView, ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
-import { frontmatterLines, propertiesFolded, showImageProps, imagePropsShown, boxCover, focusProperty, SHOWN_FOLDERS } from "./frontmatter.js";
+import { frontmatterLines, propertiesFolded, showImageProps, imagePropsShown, boxCover, focusProperty, COVER_BESIDE } from "./frontmatter.js";
 import { attachmentKind } from "./attachments.js";
 
 export const BANNER_KEY = "banner";
@@ -293,10 +293,10 @@ class CoverWidget extends WidgetType {
 	ignoreEvent() { return true; }
 }
 
-// Outside logs, sketchbooks and catalog (whose covers sit beside the
-// properties), a cover is a wide picture under the properties: as wide as
-// the text when it's big enough, never stretched past its own size.
-const wideCover = (state) => !SHOWN_FOLDERS.test(state.facet(notePath) || "");
+// Outside media logs (whose covers sit beside the properties), a cover is a
+// wide picture under the properties: as wide as the text when it's big
+// enough, never stretched past its own size.
+const wideCover = (state) => !COVER_BESIDE.test(state.facet(notePath) || "");
 
 class WideCoverWidget extends WidgetType {
 	constructor(src) { super(); this.src = src; }
