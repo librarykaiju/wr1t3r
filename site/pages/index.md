@@ -73,7 +73,7 @@ Keep your Critical Tasks and To Do's as primary lists, or write a task in any no
 
 ### Plan the week ahead
 
-A weekly agenda helps you plan ahead or add things as things come up. At the end of the week Reflect & recover lets you see how much you've accomplished, with journal prompts to help you process and make time to rest.
+A weekly agenda helps you plan ahead or add plans as things come up. At the end of the week Reflect & recover lets you see how much you've accomplished, with journal prompts to help you process and make time to rest.
 
 ![The week-ahead note: a card for each day from Monday to Sunday with its tasks and calendar events, a This week badge and a Reflect & recover button](/shots/planner-week.webp)
 
