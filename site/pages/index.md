@@ -73,13 +73,13 @@ One tap logs a glass of water, a walk, your mood, last night's sleep or this mor
 
 ### Targets worked out for you
 
-Give your height, weight, activity and goal, and wr1t3r works out daily targets for calories, water and steps, with protein, fat, carbs and fiber if you want them. Every number comes from published nutrition guidelines and peer-reviewed research, and [the sources are listed](/health-data.html). Every button shows how far along you are. Log a new weight and it offers to update the targets.
+Give your height, weight, activity and goal, and wr1t3r works out daily targets for calories, water and steps, with protein, fat, carbs and fiber if you want them. Every number comes from [published nutrition guidelines and peer-reviewed research](/health-data.html). Every button shows how far along you are. Log a new weight and it offers to update the targets.
 
 ![The targets step of the planner setup: units, age, height, weight, activity and goal, with the calories, water, steps and sleep targets worked out](/shots/planner-targets.webp)
 
 ### Tasks that don't get lost
 
-Keep your Critical Tasks and To Do's as master lists, or write a task in any note. Each day shows the tasks due that day, and anything unticked from earlier days stays on today's list as overdue until it's done. Add a time to a task and wr1t3r reminds you while it's open on your commputer. Connect your Google Calendar, and those reminders will roll to the app.
+Keep your Critical Tasks and To Do's as primary lists, or write a task in any note. Each day shows the tasks due that day, and anything unticked from earlier days carries over to the next day until it's marked 'done. Add a time to a task and wr1t3r reminds you while it's open on your commputer. Connect your Google Calendar, and those reminders will roll to the app.
 ![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
 
 ### Look back on what you wrote
@@ -94,7 +94,7 @@ Book, film, TV and game logs add up on their own: how many you finished each yea
 
 ### Also on the planner
 
-- **Food and recipes.** Log meals from USDA's table of about 7,800 common foods, your own foods or your own recipes, with calories and nutrition added up for the day. [Where the numbers come from](/health-data.html).
+- **Food and recipes.** Log meals from USDA's table of about 7,800 common foods, or build recipes from wr1t3r's connected nutrition databases. Each logged item tracks your calories and nutrition for the day. [Where the numbers come from](/health-data.html).
 - **Moods and exercises your way.** Change the choices on the Mood and Exercise buttons to your own.
 - **A timeline for the day.** Block out your hours, and add events from your calendar.
 - **Everything is a note.** Your planner, health log and medication list are plain Markdown files in your Dropbox or Google Drive like the rest of your notes.
