@@ -10,6 +10,13 @@
 // alone. A free Neocities site turns some kinds of file away: those are
 // reported, and the rest still goes up.
 
+// Where Export as website keeps the key, when the person ticks Remember.
+export const NEOCITIES_KEY = "wr1t3r-neocities-key";
+// Whether this device has a key remembered, for the globe's Publish to Neocities.
+export function hasNeocitiesKey() {
+	try { return !!localStorage.getItem(NEOCITIES_KEY); } catch { return false; }
+}
+
 const enc = new TextEncoder();
 const bytesOf = (v) => (typeof v === "string" ? enc.encode(v) : v);
 

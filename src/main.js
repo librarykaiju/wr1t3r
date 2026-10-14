@@ -37,6 +37,7 @@ import { driveStorage, DRIVE_SCOPES } from "./gdrive.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { isPublished, notPublishedWhy, siteOf } from "./published.js";
+import { hasNeocitiesKey } from "./neocitiespublish.js";
 import { USES, DEFAULT_USES, featuresFor, starterNotes, guideText, needsHomeScreen } from "./onboarding.js";
 import { DEFAULT_API, licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, maskKey, cleanKey, readLicenseNote, writeLicenseNote, withDevice, withoutDevice } from "./license.js";
 import { sync, conflictPath } from "./sync.js";
@@ -3730,7 +3731,8 @@ function allCommands() {
 		...(ocrOn() ? [["Stop reading new pictures and PDFs", () => { setOcrOn(false); toast("New pictures and PDFs won't be read. Ones already read stay searchable."); }, "ocr off"]] : []),
 		["Version history", showHistory, "versions snapshots restore undo earlier backup recover diff compare", true],
 		["Export or print this note", () => exportNote(editor.path), "print pdf word docx html download save", true],
-		["Export as website", exportWebsite, "publish site web neocities github pages html zip blog garden static share"],
+		["Export as website", () => exportWebsite(), "publish site web neocities github pages html zip blog garden static share"],
+		["Publish to Neocities", () => exportWebsite({ now: "neocities" }), "website site web upload send update"],
 		["Add this note to my website", () => setPublished(editor.path, true), "publish website site web share public", true],
 		["Remove this note from my website", () => setPublished(editor.path, false), "unpublish website site web private hide", true],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme gear"],
@@ -6926,7 +6928,7 @@ async function uploadPicture(file, notePath) {
 // Export or print one note: the Compile dialog with just that note.
 // Export as website (src/website.js): every note marked publish: true, as a
 // zip of web pages. Runs in the page, so it's the same on every build.
-async function exportWebsite() {
+async function exportWebsite(opts) {
 	if (!attachmentsLoaded) await refreshAttachments();
 	const { openWebsite } = await import("./websiteview.js");
 	openWebsite({
@@ -6953,7 +6955,7 @@ async function exportWebsite() {
 		},
 		worker: (path, init = {}) => fetch(path, { ...init, headers: { ...(init.headers || {}), ...(token() ? { Authorization: "Bearer " + token() } : {}) } }),
 		toast,
-	});
+	}, opts);
 }
 
 async function setPublished(path, on) {
@@ -6978,7 +6980,9 @@ function publishMenu(view, btn) {
 	showMenu([
 		status,
 		...(path && !view.state.readOnly ? [[on ? "Remove from my website" : "Add to my website", () => setPublished(path, !on)]] : []),
-		["Export as website…", exportWebsite],
+		// One click, once Export as website has remembered a Neocities key here.
+		...(hasNeocitiesKey() ? [["Publish to Neocities", () => exportWebsite({ now: "neocities" })]] : []),
+		["Export as website…", () => exportWebsite()],
 	], b.left, b.bottom + 4);
 }
 

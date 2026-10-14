@@ -29,7 +29,7 @@ _Free Neocities sites work. No server to run, no wr1t3r account, no monthly fee.
 
 ## One click to Neocities
 
-Paste your Neocities API key once and Publish to Neocities does the rest. Only the files that changed are sent, so a new post goes up in seconds. Pages you unpublish come down. Files you put on your site yourself are left alone. If a file isn't allowed on a free site, wr1t3r tells you which one and sends the rest.
+Paste your Neocities API key once. After that, Publish to Neocities is right in the globe menu. Only the files that changed are sent, so a new post goes up in seconds. Pages you unpublish come down. Files you put on your site yourself are left alone. If a file isn't allowed on a free site, wr1t3r tells you which one and sends the rest.
 
 Not on Neocities? Publish to GitHub Pages in one click, let Netlify or Cloudflare Pages pick it up from there, or download a .zip for any host.
 
