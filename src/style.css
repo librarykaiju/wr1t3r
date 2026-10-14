@@ -1484,11 +1484,12 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .tile.drop-before { box-shadow: -4px 0 0 var(--accent); }
 .tile.drop-after { box-shadow: 4px 0 0 var(--accent); }
 /* Bigger tiles (a pin's size:): 2x1 spans two columns, 2x2 two columns and
-   two rows. Every tile stretches to its row, so a big tile's rows and the
-   small tiles beside it line up; on a phone's two columns a 2x1 is a full row. */
-.home-grid > .tile { align-self: stretch; }
-.tile.size-2x1 { grid-column: span 2; aspect-ratio: 8 / 3; }
-.tile.size-2x2 { grid-column: span 2; grid-row: span 2; aspect-ratio: 4 / 3; }
+   two rows. Small tiles keep their 4:3 shape and set the row heights; a big
+   tile drops its own shape and stretches to the rows it spans, with a floor
+   for rows it has to itself (a phone's two columns). Stretching the small
+   tiles too breaks Safari, which then shrinks their width to fit the shape. */
+.tile.size-2x1, .tile.size-2x2 { grid-column: span 2; aspect-ratio: auto; align-self: stretch; min-height: 120px; }
+.tile.size-2x2 { grid-row: span 2; min-height: 250px; }
 .tile.size-2x1.has-glance .tile-glance, .tile.size-2x2.has-glance .tile-glance { flex: 1; min-height: 0; justify-content: flex-end; }
 .tile.size-2x1.has-glance .tile-glance { flex-direction: row; align-items: stretch; gap: 16px; }
 .tile.size-2x1 .tile-glance-nums { flex: 0 1 auto; max-width: 50%; justify-content: flex-end; }
