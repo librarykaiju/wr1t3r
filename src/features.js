@@ -36,7 +36,7 @@ export const FEATURE_AREAS = [
 	{ id: "ocr", label: "Searchable pictures and PDFs", detail: "Read the text in pictures and PDFs so search finds them" },
 	{ id: "capture", label: "Capture and clipping", detail: "The Inbox, quick capture and the web clipper", },
 	{ id: "reminders", label: "Reminders", detail: "Notifications for tasks with a time" },
-	{ id: "website", label: "Website", detail: "The globe in the toolbar: pick the notes that go on your website, then export the site or publish it to GitHub Pages", auto: true },
+	{ id: "website", label: "Website", detail: "The globe in the toolbar: pick the notes that go on your website, then export the site or publish it to Neocities or GitHub Pages", auto: true },
 ];
 
 // wr1t3r's own folders, relative to the notes' folder ("content/" or the top).
