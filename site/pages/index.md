@@ -96,7 +96,7 @@ Medicines, health logs and reflections live in the same notebook as your writing
 
 ### Track the habits you care about
 
-The Habits card ticks off each habit, counts the ones you do more than once, adds up words written toward a goal and keeps your streaks. Pin it to your Home screen as a tile, small or large. One tap logs a glass of water, a walk, your mood, last night's sleep or this morning's weight. Each log is a line in the day's health note, and the day's totals are saved as properties, so a board can line your days up side by side.
+Build and add habit cards to your Today note that you can complete with the click of a button. Each click adds toward the goals you set in the day's health note. Track your streaks with stat cards on the Home screen or a habit board.
 
 ![The Meds button open: today's doses with times, Take buttons, a Take all due now button and as-needed medicines](/shots/planner-meds.webp)
 
