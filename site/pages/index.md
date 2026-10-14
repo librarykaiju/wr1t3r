@@ -84,6 +84,7 @@ Calendar view provides flexibility in taking your planning even further.
 - Pencil in tentative plans to review and confirm at a later date.
 - Ink those plans to turn them into calendar events with reminders.
 - Erase plans when they change.
+- Add stickers to the calendar for fun visual reminders.
 
 Use the built-in calendar, which syncs like your notes, or connect Google Calendar.
 
