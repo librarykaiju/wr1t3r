@@ -29,6 +29,14 @@
 // header, nav, main, article and footer, without the parts that need wr1t3r's
 // own styles (the sidebar, the folders down the left, share buttons, the
 // Properties box, Bluesky replies).
+//
+// Every site with dated posts gets an Atom feed (feed.xml, atomFeed below), so
+// anyone can follow it from a feed reader, and each page names it in its head.
+// Entries carry a summary and a link, so readers come to the site to read;
+// opts.feedFull puts the whole post in instead. opts.address, the site's own
+// address, makes the feed's links and ids absolute; without it they're
+// relative to the feed, which readers resolve. Post pages are also marked up
+// as h-entry (title, date, text) for IndieWeb tools.
 
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
@@ -43,7 +51,7 @@ import { SHOWN_FOLDERS } from "./frontmatter.js";
 
 export { isPublished };
 
-export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html" };
+export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html", feed: "feed.xml" };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const first = (v) => (Array.isArray(v) ? v.find((x) => x != null && String(x).trim() !== "") : v);
@@ -351,7 +359,8 @@ export function allowedKind(kind, { media = false } = {}) {
 // vaultPath }), pages: [{ path, file, title }], skipped: [vaultPath] }.
 // notes: [{ path, text }] (every note; only published ones get pages),
 // attachments: every vault file's path. opts: { title, css, footer, media },
-// or { stylesheet } in place of css.
+// or { stylesheet } in place of css; address (the site's https address) and
+// feedFull for the feed.
 export function buildSite(notes, attachments, opts = {}) {
 	const title = String(opts.title || "").trim() || "My notebook";
 	const tagline = String(opts.tagline || "").trim();
@@ -377,6 +386,7 @@ export function buildSite(notes, attachments, opts = {}) {
 
 	const out = new Map();
 	const pages = [];
+	const entries = []; // the posts, for the feed
 	const support = supportBox(opts.support);
 	const social = socialBox(opts.social);
 	const own = ownStylesheet(opts.stylesheet);
@@ -425,7 +435,10 @@ export function buildSite(notes, attachments, opts = {}) {
 		const r = render(n, site);
 		page(site, n.path, r.info, r.body);
 		pages.push({ path: n.path, file: site, title: r.info.title, date: r.info.date, folder: sitePath(n.path).split("/").slice(0, -1).join("/") });
+		entries.push({ file: site, title: r.info.title, date: r.info.date, tags: r.info.tags, description: r.info.description, body: r.body });
 	}
+	const feed = atomFeed(entries, { title, tagline, address: opts.address, full: !!opts.feedFull });
+	if (feed) out.set(SITE_FILES.feed, feed);
 
 	// The front page: Home's text, then every page by folder, newest first.
 	const lead = front ? render(front, SITE_FILES.index) : null;
@@ -540,11 +553,79 @@ export function buildSite(notes, attachments, opts = {}) {
 		const post = pages.some((p) => p.file === site && site !== SITE_FILES.index);
 		const extras = own ? "" : (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "");
 		const css = !own ? relativeURL(site, SITE_FILES.style) : /^(https?:)?\/\/|^\//i.test(own) ? own : "../".repeat(site.split("/").length - 1) + own;
-		out.set(site, html({ ...info, props: own || opts.properties === false ? null : info.props, body: body + extras + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css, footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+		out.set(site, html({ ...info, props: own || opts.properties === false ? null : info.props, body: (post ? body.replace(/^<div class="note">/, '<div class="note e-content">') : body) + extras + pagerFor(site), post, feed: feed && relativeURL(site, SITE_FILES.feed), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css, footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
 	if (!own) out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
 	return { files: out, pages, skipped: [...skipped].sort(), title };
+}
+
+// The site's own address as "https://host/path/", or null: "you.neocities.org"
+// gets https:// and a closing slash. Only web addresses, nothing with spaces.
+export function siteAddress(v) {
+	let t = String(v ?? "").trim();
+	if (!t || /[\s"'<>]/.test(t)) return null;
+	if (!/^[a-z][\w+.-]*:/i.test(t)) t = "https://" + t.replace(/^\/+/, "");
+	try {
+		const u = new URL(t);
+		if (!/^https?:$/.test(u.protocol) || !u.hostname.includes(".")) return null;
+		u.search = u.hash = "";
+		return u.href.replace(/\/?$/, "/");
+	} catch { return null; }
+}
+
+// A post's line or two for the feed: its description, else the start of its
+// first paragraph as plain text, cut at a word near 280 characters.
+export function summaryOf(description, body) {
+	if (description) return description;
+	const para = /<p>([\s\S]*?)<\/p>/.exec(body || "")?.[1] || "";
+	const words = para.replace(/<[^>]*>/g, "").replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" })[e]).replace(/\s+/g, " ").trim();
+	if (words.length <= 280) return words;
+	const cut = words.slice(0, 280);
+	return cut.slice(0, cut.lastIndexOf(" ") > 200 ? cut.lastIndexOf(" ") : 280).replace(/[\s,;:.]+$/, "") + "…";
+}
+
+const FEED_SIZE = 50;
+// Characters XML can't hold at all.
+const xml = (s) => esc(String(s ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, ""));
+
+// The site's Atom feed: its newest dated posts, newest first, or "" when
+// nothing has a date. posts: [{ file, title, date, tags, description, body }].
+// Dates, not the time of publishing, set every timestamp, so publishing again
+// with nothing new leaves the feed unchanged.
+export function atomFeed(posts, { title, tagline = "", address = "", full = false } = {}) {
+	const base = siteAddress(address) || "";
+	const dated = posts.filter((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.date || "")).sort((a, b) => b.date.localeCompare(a.date) || a.title.localeCompare(b.title)).slice(0, FEED_SIZE);
+	if (!dated.length) return "";
+	const url = (file) => base + relativeURL(SITE_FILES.index, file);
+	const when = (d) => `${d}T00:00:00Z`;
+	const entry = (p) => [
+		"<entry>",
+		`<title>${xml(p.title)}</title>`,
+		`<link rel="alternate" type="text/html" href="${xml(url(p.file))}"/>`,
+		`<id>${xml(url(p.file))}</id>`,
+		`<published>${when(p.date)}</published>`,
+		`<updated>${when(p.date)}</updated>`,
+		...(p.tags || []).map((t) => `<category term="${xml(t)}"/>`),
+		`<summary>${xml(summaryOf(p.description, p.body))}</summary>`,
+		...(full ? [`<content type="html" xml:base="${xml(url(p.file))}">${xml(p.body)}</content>`] : []),
+		"</entry>",
+	].join("\n");
+	return [
+		'<?xml version="1.0" encoding="utf-8"?>',
+		'<feed xmlns="http://www.w3.org/2005/Atom">',
+		`<title>${xml(title)}</title>`,
+		...(tagline ? [`<subtitle>${xml(tagline)}</subtitle>`] : []),
+		`<link rel="alternate" type="text/html" href="${xml(base || SITE_FILES.index)}"/>`,
+		...(base ? [`<link rel="self" type="application/atom+xml" href="${xml(base + SITE_FILES.feed)}"/>`] : []),
+		`<id>${xml(base || SITE_FILES.index)}</id>`,
+		`<updated>${when(dated[0].date)}</updated>`,
+		`<author><name>${xml(title)}</name></author>`,
+		'<generator uri="https://wr1t3r.app">wr1t3r</generator>',
+		...dated.map(entry),
+		"</feed>",
+		"",
+	].join("\n");
 }
 
 // The address of the person's own stylesheet, or null: a web address, a path
@@ -732,7 +813,7 @@ function supportBox(s) {
 	return `<section class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</section>\n`;
 }
 
-function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
+function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex, post, feed }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
 	const brand = `<a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly && !tagline ? "" : `<span class="name">${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}${tagline ? `<span class="tagline">${esc(tagline)}</span>` : ""}</span>`}</a>`;
 	// The notebook layout has no header: the title and logo top the folders, as in the app's sidebar.
@@ -745,13 +826,13 @@ function html({ title, date, tags, props, open, cover, coverShape, coverPosition
 <title>${esc(pageTitle)}</title>
 ${description || (isIndex && tagline) ? `<meta name="description" content="${esc(description || tagline)}">\n` : ""}<meta property="og:title" content="${esc(title)}">
 <link rel="stylesheet" href="${esc(css)}">
-${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
+${feed ? `<link rel="alternate" type="application/atom+xml" title="${esc(siteTitle)}" href="${esc(feed)}">\n` : ""}${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 </head>
 <body class="${tree ? "layout-notebook" : "layout-top"}${side ? " has-side" : ""}">
 ${tree ? "" : `<header class="site">${brand}${menu || ""}</header>\n`}${banner ? `<div class="banner"><img src="${esc(banner)}" alt="" style="object-position: center ${bannerPosition}%"></div>\n` : ""}<main>
-${tree || ""}<article>
-<h1>${esc(title)}</h1>
-${(date || tags.length) && !(props && open) ? `<p class="meta">${[date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : "", ...tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`)].filter(Boolean).join(" ")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !props) ? `<img class="cover${open ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
+${tree || ""}<article${post ? ' class="h-entry"' : ""}>
+<h1${post ? ' class="p-name"' : ""}>${esc(title)}</h1>
+${(date || tags.length) && !(props && open) ? `<p class="meta">${[date ? `<time${post ? ' class="dt-published"' : ""} datetime="${date}">${esc(longDate(date))}</time>` : "", ...tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`)].filter(Boolean).join(" ")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !props) ? `<img class="cover${open ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
 ${side ? `<aside class="side">\n${side}</aside>\n` : ""}</main>
 ${footer ? `<footer class="site">Made with <a href="https://wr1t3r.app">wr1t3r</a></footer>\n` : ""}</body>

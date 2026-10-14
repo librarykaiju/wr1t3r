@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { blueskyPost, buildSite, isPublished, ownStylesheet, pageFiles, relativeURL, slug, socialLinks, supportLinks, tagHue, themeCss, webMarkdown } from "../src/website.js";
+import { atomFeed, blueskyPost, buildSite, isPublished, ownStylesheet, pageFiles, relativeURL, siteAddress, slug, summaryOf, socialLinks, supportLinks, tagHue, themeCss, webMarkdown } from "../src/website.js";
 
 const note = (props, body) => `---\n${props}\n---\n${body}`;
 
@@ -32,7 +32,7 @@ test("the site: pages, links, pictures, front page, and what stays private", () 
 	];
 	const site = buildSite(notes, ["pics/trail.jpg", "song.mp3"], { title: "Brandon's notes", support: { kofi: "brandon" } });
 	const walk = site.files.get("essays/walking.html");
-	assert.ok(walk.includes("<h1>Walking</h1>"));
+	assert.ok(walk.includes('<h1 class="p-name">Walking</h1>'));
 	assert.ok(!walk.includes("<h1>Walking</h1>\n<p class=\"meta\"><time datetime=\"2026-03-04\">March 4, 2026</time><span class=\"tag\">#outdoors</span></p>\n<img class=\"cover\" src=\"../files/trail.jpg\" alt=\"\">\n<h1>"), "the note's own title heading goes");
 	assert.ok(walk.includes('src="../files/trail.jpg"'));
 	assert.ok(walk.includes("Secret plans") && !walk.includes("secret-plans"), "unpublished notes are words, not links");
@@ -227,7 +227,7 @@ test("a log's page looks as it does in the notebook: cover beside the properties
 	const box = page.indexOf('<details class="props" open>');
 	const cover = page.indexOf('<span class="cover vertical-cover left"><img src="../../files/dune.jpg" alt=""></span>');
 	const rows = page.indexOf("<dl>", box);
-	const notesAt = page.indexOf('<div class="note">');
+	const notesAt = page.indexOf('<div class="note e-content">');
 	assert.ok(box > 0 && cover > box && rows > cover && notesAt > rows, "box, cover, rows, then the notes");
 	assert.match(page, /<div class="props-body cover-left" style="--cover-w: 200px">/);
 	assert.doesNotMatch(page, /<img class="cover"/);
@@ -240,7 +240,7 @@ test("a log's page looks as it does in the notebook: cover beside the properties
 	assert.match(page, new RegExp(`<span class="tag tag-${tagHue("reread")}">#reread</span>`));
 	// Turning properties off brings back the date line and the plain cover.
 	const plain = buildSite(notes, ["content/attachments/dune.jpg"], { title: "S", properties: false }).files.get("logs/books/dune.html");
-	assert.match(plain, /<p class="meta"><time datetime="2026-09-01">/);
+	assert.match(plain, /<p class="meta"><time class="dt-published" datetime="2026-09-01">/);
 	assert.match(plain, /<img class="cover" src="..\/..\/files\/dune.jpg" alt="">/);
 });
 
@@ -300,4 +300,58 @@ test("the person's own stylesheet: linked from every page, no theme, plain pages
 	assert.equal(ownStylesheet('x.css" onload="y'), null);
 	assert.equal(ownStylesheet("javascript:alert(1)"), null);
 	assert.ok(buildSite(notes, [], { ...opts, stylesheet: "  " }).files.has("style.css"), "empty means a theme");
+});
+
+test("the feed: dated posts, newest first, a line or two and a link each", () => {
+	const notes = [
+		{ path: "Home.md", text: note("publish: true\ndate: 2026-01-01", "The front page stays out.") },
+		{ path: "Essays/Walking.md", text: note("publish: true\ndate: 2026-03-04\ntags: [outdoors]", "A walk & a <b>talk</b> by the [[River]].\n\nSecond paragraph.") },
+		{ path: "Essays/River.md", text: note("publish: true\ndate: 2026-05-06\ndescription: Water, mostly.", "Long text.\n\n![[pic.png]]") },
+		{ path: "About.md", text: note("publish: true", "No date, so not a post in the feed.") },
+	];
+	const site = buildSite(notes, ["pic.png"], { title: "Brandon's notes", tagline: "Out walking" });
+	const feed = site.files.get("feed.xml");
+	assert.match(feed, /^<\?xml version="1.0" encoding="utf-8"\?>\n<feed xmlns="http:\/\/www.w3.org\/2005\/Atom">/);
+	assert.match(feed, /<title>Brandon's notes<\/title>/);
+	assert.match(feed, /<subtitle>Out walking<\/subtitle>/);
+	assert.match(feed, /<updated>2026-05-06T00:00:00Z<\/updated>/);
+	const entries = feed.split("<entry>").slice(1);
+	assert.equal(entries.length, 2, "only dated posts, not the front page or undated pages");
+	assert.match(entries[0], /<title>River<\/title>[\s\S]*href="essays\/river.html"[\s\S]*<summary>Water, mostly.<\/summary>/);
+	assert.match(entries[1], /<category term="outdoors"\/>/);
+	assert.match(entries[1], /<summary>A walk &amp; a talk by the River.<\/summary>/, "the first paragraph as plain text when there's no description");
+	assert.doesNotMatch(feed, /<content|Second paragraph|rel="self"/, "summaries only, and no self link without an address");
+	// Every page names the feed, relative to itself; posts are h-entries.
+	assert.ok(site.files.get("index.html").includes(`<link rel="alternate" type="application/atom+xml" title="Brandon's notes" href="feed.xml">`));
+	const walk = site.files.get("essays/walking.html");
+	assert.ok(walk.includes('href="../feed.xml"'));
+	assert.match(walk, /<article class="h-entry">\n<h1 class="p-name">Walking<\/h1>\n<p class="meta"><time class="dt-published" datetime="2026-03-04">/);
+	assert.ok(walk.includes('<div class="note e-content">'));
+	assert.ok(!site.files.get("index.html").includes("h-entry"), "the front page isn't a post");
+	// Publishing again with nothing new leaves the feed as it was.
+	assert.equal(buildSite(notes, ["pic.png"], { title: "Brandon's notes", tagline: "Out walking" }).files.get("feed.xml"), feed);
+});
+
+test("the feed with the site's address, and whole posts when asked", () => {
+	const notes = [{ path: "Essays/River.md", text: note("publish: true\ndate: 2026-05-06", "Text.\n\n![[pic.png]]") }];
+	const feed = buildSite(notes, ["pic.png"], { title: "S", address: "you.neocities.org", feedFull: true }).files.get("feed.xml");
+	assert.match(feed, /<link rel="self" type="application\/atom\+xml" href="https:\/\/you.neocities.org\/feed.xml"\/>/);
+	assert.match(feed, /<id>https:\/\/you.neocities.org\/essays\/river.html<\/id>/);
+	assert.match(feed, /<content type="html" xml:base="https:\/\/you.neocities.org\/essays\/river.html">&lt;div class=&quot;note&quot;&gt;/);
+	assert.ok(feed.includes("../files/pic.png"), "pictures stay relative to the post, which xml:base resolves");
+	// No dated posts, no feed and no link to one.
+	const none = buildSite([{ path: "About.md", text: note("publish: true", "x") }], [], { title: "S" });
+	assert.equal(none.files.has("feed.xml"), false);
+	assert.ok(!none.files.get("index.html").includes("application/atom+xml"));
+});
+
+test("site addresses and summaries", () => {
+	assert.equal(siteAddress("you.neocities.org"), "https://you.neocities.org/");
+	assert.equal(siteAddress(" https://you.github.io/site?x=1#top "), "https://you.github.io/site/");
+	for (const bad of ["", "localhost", "ftp://x.org", "javascript:alert(1)", "a b.org"]) assert.equal(siteAddress(bad), null, bad);
+	assert.equal(summaryOf("Given.", "<p>Ignored</p>"), "Given.");
+	const long = summaryOf("", `<p>${"word ".repeat(100)}</p>`);
+	assert.ok(long.length <= 281 && long.endsWith("word…"));
+	assert.equal(atomFeed([{ file: "a.html", title: "A", date: "", body: "" }], { title: "S" }), "");
+	assert.ok(!atomFeed([{ file: "a.html", title: "Bad\u0001char", date: "2026-01-01", body: "" }], { title: "S" }).includes("\u0001"));
 });

@@ -18,9 +18,9 @@
 // }
 
 import appCss from "./style.css?raw";
-import { buildSite, ownStylesheet, themeCss, SITE_FILES } from "./website.js";
+import { buildSite, ownStylesheet, siteAddress, themeCss, SITE_FILES } from "./website.js";
 import { FAMILIES, familyOf, themeVariants } from "./theme.js";
-import { publishToGitHub } from "./githubpublish.js";
+import { pagesUrl, parseRepo, publishToGitHub } from "./githubpublish.js";
 
 const FAMILY_NAMES = { default: "Default", gruvbox: "Gruvbox", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", shire: "Shire", mixtape: "Mixtape" };
 
@@ -116,6 +116,10 @@ export function openWebsite(host) {
 	field("Find me on: one link or email address per line", social);
 	// What plain pages leave out.
 	const themed = [family, mode, tones, layout, share, properties, sidebar, kofi, patreon, label, url, note, social];
+	sub("Feed");
+	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "The site gets a feed (feed.xml), so people can follow it from a feed reader. Posts with a date go in it, newest first, each with a line or two and a link to read the rest on your site." }));
+	const address = field("Your site's address", text(saved.address, "you.neocities.org"), "Where the site lives, so the feed's links point there. Left empty, a site published to GitHub Pages uses that address.");
+	const feedFull = check("Put whole posts in the feed, not just a line or two", saved.feedFull);
 	sub("Files");
 	const media = check("Include audio and video (a free Neocities site won't take them)", saved.media);
 	const footer = check("Say “Made with wr1t3r” at the bottom", saved.footer);
@@ -160,13 +164,17 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, family: family.value, mode: mode.value, tones: tones.value, headings: headings.value });
+	const settings = () => ({ ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), address: address.value.trim(), feedFull: feedFull.checked, family: family.value, mode: mode.value, tones: tones.value, headings: headings.value });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
 	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font(), tones: tones.value, headings: headings.value, mixtape: family.value === "mixtape" ? now.mixtape : null }) + (family.value === "synthwave" ? GLOW : "");
+	// The address the feed links to: the one given, else GitHub Pages' for a
+	// site published there (not when it goes on to Neocities, whose address
+	// wr1t3r doesn't know).
+	const feedAddress = (s) => siteAddress(s.address) || (!s.ghNeocities && parseRepo(s.ghRepo) ? pagesUrl(parseRepo(s.ghRepo)) : "");
 	const build = () => {
 		const s = settings();
-		return buildSite(host.notes(), host.attachments(), { title: s.title, tagline: s.tagline, css: css(), stylesheet: s.plain ? ownStylesheet(s.stylesheet) || "main.css" : "", footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
+		return buildSite(host.notes(), host.attachments(), { title: s.title, tagline: s.tagline, css: css(), stylesheet: s.plain ? ownStylesheet(s.stylesheet) || "main.css" : "", footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, address: feedAddress(s), feedFull: s.feedFull, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
 	};
 
 	let site = null, timer;
