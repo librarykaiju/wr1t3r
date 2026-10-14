@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<opml version="2.0">
+<head><title>Indieweb Neighborbood</title></head>
+<body>
+<outline type="rss" text="brandonjsblog.neocities.org" title="brandonjsblog.neocities.org" xmlUrl="https://brandonjsblog.neocities.org/" htmlUrl="https://brandonjsblog.neocities.org/"/>
+<outline type="rss" text="lupinus.neocities.org" title="lupinus.neocities.org" xmlUrl="https://lupinus.neocities.org/" htmlUrl="https://lupinus.neocities.org/"/>
+<outline type="rss" text="freaksaint.neocities.org" title="freaksaint.neocities.org" xmlUrl="https://freaksaint.neocities.org/" htmlUrl="https://freaksaint.neocities.org/"/>
+</body>
+</opml>
