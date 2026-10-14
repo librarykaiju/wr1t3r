@@ -70,7 +70,7 @@ export { isPublished, siteAddress, webAddress };
 // Where "Follow in wr1t3r" goes: the app opens Neighbors with the site filled in.
 export const FOLLOW_APP = "https://my.wr1t3r.app/";
 
-export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html", feed: "feed.xml", neighbors: "neighbors.html", blogroll: "neighbors.opml", ring: "ring.html", ringList: "ring.opml" };
+export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html", feed: "feed.xml", feedStyle: "feed-style.xml", neighbors: "neighbors.html", blogroll: "neighbors.opml", ring: "ring.html", ringList: "ring.opml" };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const first = (v) => (Array.isArray(v) ? v.find((x) => x != null && String(x).trim() !== "") : v);
@@ -459,8 +459,11 @@ export function buildSite(notes, attachments, opts = {}) {
 		entries.push({ file: site, title: r.info.title, date: r.info.date, tags: r.info.tags, description: r.info.description, body: r.body, replyTo: r.info.replyTo });
 	}
 	const address = siteAddress(opts.address) || "";
-	const feed = atomFeed(entries, { title, tagline, address, full: !!opts.feedFull });
-	if (feed) out.set(SITE_FILES.feed, feed);
+	const feed = atomFeed(entries, { title, tagline, address, full: !!opts.feedFull, style: SITE_FILES.feedStyle });
+	if (feed) {
+		out.set(SITE_FILES.feed, feed);
+		out.set(SITE_FILES.feedStyle, FEED_STYLE);
+	}
 
 	// The front page: Home's text, then every page by folder, newest first.
 	const lead = front ? render(front, SITE_FILES.index) : null;
@@ -661,7 +664,7 @@ const xml = (s) => esc(String(s ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E
 // nothing has a date. posts: [{ file, title, date, tags, description, body }].
 // Dates, not the time of publishing, set every timestamp, so publishing again
 // with nothing new leaves the feed unchanged.
-export function atomFeed(posts, { title, tagline = "", address = "", full = false } = {}) {
+export function atomFeed(posts, { title, tagline = "", address = "", full = false, style = "" } = {}) {
 	const base = siteAddress(address) || "";
 	const dated = posts.filter((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.date || "")).sort((a, b) => b.date.localeCompare(a.date) || a.title.localeCompare(b.title)).slice(0, FEED_SIZE);
 	if (!dated.length) return "";
@@ -682,6 +685,7 @@ export function atomFeed(posts, { title, tagline = "", address = "", full = fals
 	].join("\n");
 	return [
 		'<?xml version="1.0" encoding="utf-8"?>',
+		...(style ? [`<?xml-stylesheet type="text/xsl" href="${xml(style)}"?>`] : []),
 		'<feed xmlns="http://www.w3.org/2005/Atom" xmlns:thr="http://purl.org/syndication/thread/1.0">',
 		`<title>${xml(title)}</title>`,
 		...(tagline ? [`<subtitle>${xml(tagline)}</subtitle>`] : []),
@@ -696,6 +700,57 @@ export function atomFeed(posts, { title, tagline = "", address = "", full = fals
 		"",
 	].join("\n");
 }
+
+// What a browser shows for feed.xml, instead of bare XML: what a feed is, how
+// to follow this one, and its posts with links. Feed readers ignore it. Named
+// .xml, not .xsl, since a free Neocities site won't take an .xsl file.
+export const FEED_STYLE = `<?xml version="1.0" encoding="utf-8"?>
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:atom="http://www.w3.org/2005/Atom">
+<xsl:output method="html" encoding="utf-8"/>
+<xsl:template match="/atom:feed">
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title><xsl:value-of select="atom:title"/>: feed</title>
+<style>
+:root { color-scheme: light dark; --ink: #222; --soft: #666; --paper: #fdfcf9; --box: #f0ede6; --link: #2a5db0; }
+@media (prefers-color-scheme: dark) { :root { --ink: #e8e6e1; --soft: #a5a29b; --paper: #1b1b1d; --box: #2a2a2e; --link: #8ab4f8; } }
+body { margin: 0 auto; max-width: 42rem; padding: 2rem 1rem; font: 17px/1.55 Georgia, serif; color: var(--ink); background: var(--paper); }
+a { color: var(--link); }
+.about { background: var(--box); border-radius: 8px; padding: 1rem 1.2rem; font-family: system-ui, sans-serif; font-size: 15px; }
+.about p { margin: 0.4rem 0; }
+.address { font-family: ui-monospace, monospace; word-break: break-all; }
+.button { display: inline-block; margin-top: 0.4rem; padding: 0.35rem 0.8rem; border-radius: 6px; background: var(--link); color: var(--paper); text-decoration: none; }
+ol { list-style: none; padding: 0; }
+li { margin: 1.4rem 0; }
+li h2 { font-size: 1.15rem; margin: 0; }
+.when { color: var(--soft); font-size: 0.9rem; font-family: system-ui, sans-serif; }
+li p { margin: 0.3rem 0 0; }
+</style>
+</head>
+<body>
+<div class="about">
+<p><strong>This is a feed.</strong> Paste its address into a feed reader to see new posts from <xsl:value-of select="atom:title"/> as they come out.</p>
+<xsl:if test="atom:link[@rel='self']"><p class="address"><xsl:value-of select="atom:link[@rel='self']/@href"/></p></xsl:if>
+<xsl:if test="starts-with(atom:link[@rel='alternate']/@href, 'http')"><p><a class="button" href="${FOLLOW_APP}#follow={atom:link[@rel='alternate']/@href}">Follow in wr1t3r</a></p></xsl:if>
+</div>
+<h1><a href="{atom:link[@rel='alternate']/@href}"><xsl:value-of select="atom:title"/></a></h1>
+<xsl:if test="atom:subtitle"><p><xsl:value-of select="atom:subtitle"/></p></xsl:if>
+<ol>
+<xsl:for-each select="atom:entry">
+<li>
+<h2><a href="{atom:link[@rel='alternate']/@href}"><xsl:value-of select="atom:title"/></a></h2>
+<div class="when"><xsl:value-of select="substring(atom:published, 1, 10)"/></div>
+<p><xsl:value-of select="atom:summary"/></p>
+</li>
+</xsl:for-each>
+</ol>
+</body>
+</html>
+</xsl:template>
+</xsl:stylesheet>
+`;
 
 // The address of the person's own stylesheet, or null: a web address, a path
 // from the web host's root ("/css/main.css"), or one from the site's top
