@@ -12,7 +12,18 @@
 // private is named by its path. Pictures and PDFs it uses are copied into
 // files/; audio and video only when asked (a free Neocities site won't take
 // them). A published note named Home or Index (at the top of the notebook)
-// becomes the front page's text, above the list of pages. A menu at the top
+// becomes the front page's text. Where it has a posts block, that block
+// becomes a list of the newest posts:
+//
+//   ```posts
+//   folder: microblog      (left out or "all": every folder)
+//   count: 5               (how many, newest first; 10 if left out)
+//   show: summary          (title, summary, or full: the whole post)
+//   ```
+//
+// A Home note with no posts block is followed by what opts.front says:
+// { folder: "all" | "" (nothing) | a folder, count } as a posts block would,
+// or, left out, every page by folder. A menu at the top
 // links each top-level folder's own list of pages (folder/index.html), and
 // each page ends with links to the pages before and after it in its folder.
 //
@@ -504,7 +515,31 @@ export function buildSite(notes, attachments, opts = {}) {
 		const ps = pages.filter((p) => p.folder === f).sort(newest);
 		ps.forEach((p, i) => pagerOf.set(p.file, { prev: ps[i - 1], next: ps[i + 1] }));
 	}
-	page(SITE_FILES.index, front?.path ?? "", { title: lead?.info.title || title, tags: [], date: "", cover: lead?.info.cover, banner: lead?.info.banner, bannerPosition: lead?.info.bannerPosition, description: lead?.info.description }, (lead?.body || "") + (pages.length ? `<nav class="contents" aria-label="Pages">\n${list}\n</nav>` : `<p class="empty">Nothing published yet.</p>`));
+	// posts blocks: the newest posts of a folder, as the Home note places them.
+	const entryOf = new Map(entries.map((e) => [e.file, e]));
+	const postList = ({ folder = "all", count = 10, show = "summary" } = {}) => {
+		const f = String(folder).trim().replace(/^\/+|\/+$/g, "").toLowerCase();
+		const n = Math.max(1, Math.min(200, parseInt(count, 10) || 10));
+		const how = /^(title|summary|full)$/i.test(show) ? show.toLowerCase() : "summary";
+		const chosen = pages.filter((p) => !f || f === "all" || p.folder.toLowerCase() === f || p.folder.toLowerCase().startsWith(f + "/")).sort(newest).slice(0, n);
+		if (!chosen.length) return `<p class="empty">Nothing posted here yet.</p>\n`;
+		const item = (p) => {
+			const e = entryOf.get(p.file) || {};
+			const link = `<a href="${esc(relativeURL(SITE_FILES.index, p.file))}">${esc(p.title)}</a>`;
+			const when = p.date ? `<time datetime="${p.date}">${esc(longDate(p.date))}</time>` : "";
+			if (how === "full") return `<article class="h-entry">\n<h3 class="p-name">${link}</h3>\n${when ? `<p class="post-date">${when}</p>\n` : ""}${rebase(e.body || "", p.file, SITE_FILES.index)}</article>`;
+			const summary = how === "summary" ? summaryOf(e.description, e.body || "") : "";
+			return `<li>${link}${when ? ` ${when}` : ""}${summary ? `\n<p class="post-summary">${esc(summary)}</p>` : ""}</li>`;
+		};
+		return how === "full" ? `<div class="post-list post-list-full">\n${chosen.map(item).join("\n")}\n</div>\n` : `<ul class="post-list post-list-${how}">\n${chosen.map(item).join("\n")}\n</ul>\n`;
+	};
+	const settingsOf = (code) => Object.fromEntries(code.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").split("\n").map((l) => /^\s*(\w+)\s*:\s*(.*?)\s*$/.exec(l)).filter(Boolean).map((m) => [m[1].toLowerCase(), m[2].replace(/^["']|["']$/g, "")]));
+	const POSTS_BLOCK = /<pre><code class="language-posts">([\s\S]*?)<\/code><\/pre>\n?/g;
+	const designed = !!lead?.body.includes('<code class="language-posts">');
+	const leadBody = designed ? lead.body.replace(POSTS_BLOCK, (all, code) => postList(settingsOf(code))) : lead?.body || "";
+	const fp = opts.front;
+	const rest = designed ? "" : !pages.length ? `<p class="empty">Nothing published yet.</p>` : !fp || fp.folder == null ? `<nav class="contents" aria-label="Pages">\n${list}\n</nav>` : fp.folder === "" ? "" : postList({ folder: fp.folder, count: fp.count, show: fp.show || "summary" });
+	page(SITE_FILES.index, front?.path ?? "", { title: lead?.info.title || title, tags: [], date: "", cover: lead?.info.cover, banner: lead?.info.banner, bannerPosition: lead?.info.bannerPosition, description: lead?.info.description }, leadBody + rest);
 	if (front) pages.unshift({ path: front.path, file: SITE_FILES.index, title: lead.info.title, date: lead.info.date, folder: "" });
 	// Who this site reads, and the webring it runs.
 	const neighbors = opts.neighbors === false ? [] : (opts.following || []).filter((f) => f && !yes(f.private) && webAddress(f.url));
@@ -1033,6 +1068,12 @@ header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: con
 .responses h2 { font-size: 1em; margin: 0 0 0.5em; }
 .responses ul { margin: 0; padding-left: 1.2em; }
 .responses li { margin: 0 0 0.8em; }
+.post-list { padding: 0; list-style: none; }
+.post-list li { margin: 0 0 1em; }
+.post-list time, .post-date { font: 0.85em/1.4 var(--sans); opacity: 0.75; }
+.post-summary { margin: 0.25em 0 0; }
+.post-list-full article { margin: 0 0 2.5em; padding-bottom: 1.5em; border-bottom: 1px solid var(--line); }
+.post-list-full h3 { margin: 0; }
 .response-excerpt { margin: 0.2em 0 0; }
 .response-own { list-style: none; margin-left: -1.2em; padding: 0.6em 0.9em; border-left: 3px solid var(--line); }
 .response-own .e-content > .note > :first-child { margin-top: 0; }

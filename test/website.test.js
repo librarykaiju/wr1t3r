@@ -387,3 +387,30 @@ test("responses show their first words, and your own replies whole", () => {
 	assert.match(page, /class="h-cite u-comment response-own">[\s\S]*Sick drawing\. See <a href="other\.html">Other<\/a>/, "your own reply whole, its links pointed from here");
 	assert.doesNotMatch(page.match(/<section class="responses"[\s\S]*?<\/section>/)[0], /In reply to/);
 });
+
+test("the front page: a Home note designs it, posts blocks list a folder's newest", () => {
+	const note = (fm, body) => `---\n${fm}\n---\n${body}`;
+	const notes = (home) => [
+		...(home ? [{ path: "Home.md", text: note("publish: true", home) }] : []),
+		{ path: "Microblog/One.md", text: note("publish: true\ndate: 2026-10-01", "First little post.") },
+		{ path: "Microblog/Two.md", text: note("publish: true\ndate: 2026-10-05", "Second little post.") },
+		{ path: "Microblog/Three.md", text: note("publish: true\ndate: 2026-10-09\ndescription: Third, described.", "Body.") },
+		{ path: "Sketches/Pic.md", text: note("publish: true\ndate: 2026-10-10", "A sketch.") },
+	];
+	const front = (home, opts = {}) => buildSite(notes(home), [], { title: "T", ...opts }).files.get("index.html");
+
+	const designed = front("# Hi\n\nWelcome!\n\n## Latest\n\n```posts\nfolder: microblog\ncount: 2\n```\n\n## Art\n\n```posts\nfolder: Sketches\nshow: full\n```\n");
+	assert.match(designed, /Welcome!/);
+	const latest = designed.match(/<ul class="post-list post-list-summary">[\s\S]*?<\/ul>/)[0];
+	assert.match(latest, /three\.html">Three<\/a>[\s\S]*Third, described\.[\s\S]*two\.html">Two</, "newest first, with a line each");
+	assert.doesNotMatch(latest, /one\.html/, "only as many as asked");
+	assert.match(designed, /<div class="post-list post-list-full">[\s\S]*A sketch\./, "a whole post");
+	assert.doesNotMatch(designed, /class="contents"/, "no list of every page");
+	assert.doesNotMatch(designed, /language-posts/);
+
+	assert.match(front("Hello"), /<nav class="contents"/, "no block and no setting: every page, as before");
+	const one = front("Hello", { front: { folder: "microblog", count: 1 } });
+	assert.match(one, /three\.html">Three</);
+	assert.doesNotMatch(one, /two\.html|pic\.html"/);
+	assert.doesNotMatch(front("Hello", { front: { folder: "" } }), /post-list|class="contents"/, "just the Home note");
+});

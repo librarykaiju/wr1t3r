@@ -110,6 +110,19 @@ export function openWebsite(host) {
 	const layout = document.createElement("select");
 	layout.append(new Option("Top menu: a link per folder across the top", "top", false, saved.layout !== "notebook"), new Option("Notebook: folders down the left, as in the app", "notebook", false, saved.layout === "notebook"));
 	field("Layout", layout);
+	sub("Front page");
+	const frontFolder = document.createElement("select");
+	const folders = [...new Set(host.notes().map((n) => n.path.replace(/^content\//, "").split("/")).filter((p) => p.length > 1 && !/^[_.]/.test(p[0])).map((p) => p[0]))].sort((a, b) => a.localeCompare(b));
+	const pickedFront = saved.frontFolder ?? "all";
+	frontFolder.append(new Option("Every page, by folder", "*", false, pickedFront === "*"), new Option("The newest posts from every folder", "all", false, pickedFront === "all"), ...folders.map((f) => new Option(`The newest posts in ${f}`, f, false, pickedFront === f)), new Option("Nothing: just my Home note", "", false, pickedFront === ""));
+	field("Under your Home note, show", frontFolder);
+	const frontCount = field("How many posts", Object.assign(document.createElement("input"), { type: "number", min: 1, max: 200, value: saved.frontCount || 10 }));
+	const frontShow = document.createElement("select");
+	for (const [v, label] of [["summary", "Each post's title and a line or two"], ["title", "Just the titles"], ["full", "The whole posts"]]) frontShow.append(new Option(label, v, false, v === (saved.frontShow || "summary")));
+	field("Show", frontShow);
+	const designHint = Object.assign(document.createElement("p"), { className: "hint", textContent: "To design the front page yourself, write a note called Home with publish: true; its text is the front page. Put a posts block in it wherever you want a list, and the setting above is set aside. show can be title, summary or full; use as many blocks as you like." });
+	const designCode = Object.assign(document.createElement("pre"), { className: "hint website-code", textContent: "```posts\nfolder: microblog\ncount: 5\nshow: summary\n```" });
+	form.append(designHint, designCode);
 	const share = check("Share buttons under each post", saved.share !== false);
 	const properties = check("Each note's properties in a box under its title", saved.properties !== false);
 	sub("Right sidebar");
@@ -193,7 +206,7 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
-	const settings = () => ({ neoSite: saved.neoSite || "", ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), address: address.value.trim(), feedFull: feedFull.checked, neighbors: neighbors.checked, ringUrl: ringUrl.value.trim(), ringName: ringName.value.trim(), ringMembers: ringMembers.value.trim(), family: family.value, mode: mode.value, tones: tones.value, headings: headings.value });
+	const settings = () => ({ frontFolder: frontFolder.value, frontCount: Number(frontCount.value) || 10, frontShow: frontShow.value, neoSite: saved.neoSite || "", ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), address: address.value.trim(), feedFull: feedFull.checked, neighbors: neighbors.checked, ringUrl: ringUrl.value.trim(), ringName: ringName.value.trim(), ringMembers: ringMembers.value.trim(), family: family.value, mode: mode.value, tones: tones.value, headings: headings.value });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
 	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font(), tones: tones.value, headings: headings.value, mixtape: family.value === "mixtape" ? now.mixtape : null }) + (family.value === "synthwave" ? GLOW : "");
@@ -223,7 +236,7 @@ export function openWebsite(host) {
 	}
 	const build = () => {
 		const s = settings();
-		return buildSite(host.notes(), host.attachments(), { title: s.title, tagline: s.tagline, css: css(), stylesheet: s.plain ? ownStylesheet(s.stylesheet) || "main.css" : "", footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, address: siteOf(s), feedFull: s.feedFull, following: host.following?.() || [], neighbors: s.neighbors, ringName: s.ringName, ringMembers: s.ringMembers.split(/\s+/).filter(Boolean), ring: ringNow(s), support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
+		return buildSite(host.notes(), host.attachments(), { title: s.title, tagline: s.tagline, css: css(), stylesheet: s.plain ? ownStylesheet(s.stylesheet) || "main.css" : "", footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, address: siteOf(s), feedFull: s.feedFull, following: host.following?.() || [], neighbors: s.neighbors, ringName: s.ringName, ringMembers: s.ringMembers.split(/\s+/).filter(Boolean), ring: ringNow(s), front: s.frontFolder === "*" ? null : { folder: s.frontFolder, count: s.frontCount, show: s.frontShow }, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
 	};
 
 	let site = null, timer;

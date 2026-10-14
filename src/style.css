@@ -2411,3 +2411,4 @@ body.no-health .planner-buttons { display: none !important; }
 	.stats-cols { height: 140px; gap: 3px; }
 	.stats-col .v { font-size: 10px; }
 }
+.website-code { font: 12px/1.4 var(--mono, monospace); background: var(--bg2, rgba(127,127,127,0.1)); padding: 6px 8px; border-radius: 4px; white-space: pre; overflow-x: auto; }
