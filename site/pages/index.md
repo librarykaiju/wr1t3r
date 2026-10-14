@@ -55,7 +55,7 @@ Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your
 
 --- planner
 
-## A planner for your days, weeks and months
+## A flexible planner for your life
 
 The Today button opens a note for the day: your tasks, a timeline, your habits and a row of buttons for the things you track. A week-ahead note lays out the next seven days, and the calendar shows the whole month. Medicines, health logs and reviews live in the same notebook as your writing, and you decide how much of it you want.
 
