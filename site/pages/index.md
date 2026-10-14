@@ -120,7 +120,7 @@ Create medication schedules as a caregiver for the people in your life. wr1t3r k
 
 ### Look back on what you wrote
 
-On this day shows what you wrote on today's date in earlier years, on Home and on the day's planner. Mood, sleep and weight puts the last month, three months or year of your logs on one page, with your average sleep on good days and bad ones. At the end of a week, month or year, one command writes a review: your entries, habits, moods, sleep and what you finished, with a few questions to answer underneath.
+See what you wrote on this day in past years. Mood and sleep charts show how past seasons have changed and how sleep patterns line up with good and bad days. At the end of a week, month or year, wr1t3r gathers your entries, habits and moods into a reflection, with a few prompts to get you writing.
 
 ### Stats for your logs
 
