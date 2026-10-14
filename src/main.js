@@ -1044,7 +1044,15 @@ function appSettings() {
 	if (text !== settingsCache.text) settingsCache = { text, value: readSettings(text) };
 	return settingsCache.value;
 }
-const featureOn = (id) => !id || appSettings().features[id] !== false;
+// An auto area nobody's switched on or off (null) follows the notebook: the
+// website is on once a note is published. Worked out in applyFeatures.
+let autoWebsite = false;
+const featureOn = (id) => {
+	if (!id) return true;
+	const v = appSettings().features[id];
+	return v == null ? id === "website" && autoWebsite : v !== false;
+};
+const featuresNow = () => Object.fromEntries(FEATURE_AREAS.map((a) => [a.id, featureOn(a.id)]));
 // One of wr1t3r's own folders (or the Inbox note), under the notes' folder.
 const ownFolder = (id) => commonFolder(visible()) + appSettings().folders[id];
 
@@ -1106,7 +1114,7 @@ async function finishWelcome(start) {
 async function openGuide() {
 	const path = "Welcome.md", here = (p) => notes.get(p) && !notes.get(p).deleted;
 	if (!here(path)) {
-		const text = guideText(appSettings().features, { worker: !onDropbox, story: here("My Story/01 Opening.md") });
+		const text = guideText(featuresNow(), { worker: !onDropbox, story: here("My Story/01 Opening.md") });
 		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 		renderTree();
 		renderStatus();
@@ -1320,11 +1328,12 @@ function renderLicenseSettings() {
 let featuresShown = "";
 function applyFeatures() {
 	const s = appSettings();
-	const key = JSON.stringify(s);
+	if (s.features.website == null) autoWebsite = visible().some((n) => !n.binary && /^publish\s*:/im.test(n.text || "") && isPublished(n.path, n.text));
+	const key = JSON.stringify([s, autoWebsite]);
 	if (key === featuresShown) return;
 	featuresShown = key;
 	const calendarWasOff = document.body.classList.contains("no-calendar");
-	for (const a of FEATURE_AREAS) document.body.classList.toggle("no-" + a.id, !s.features[a.id]);
+	for (const a of FEATURE_AREAS) document.body.classList.toggle("no-" + a.id, !featureOn(a.id));
 	renderFeatureSettings(); // also what Search settings looks through
 	if (s.features.calendar && calendarWasOff) loadAgenda();
 }
@@ -1353,7 +1362,7 @@ function renderFeatureSettings() {
 			const b = document.createElement("button");
 			b.type = "button";
 			b.textContent = label;
-			b.setAttribute("aria-pressed", String(s.features[a.id] === on));
+			b.setAttribute("aria-pressed", String(featureOn(a.id) === on));
 			b.addEventListener("click", () => { if (s.features[a.id] !== on) saveSettings({ ...s, features: { ...s.features, [a.id]: on } }).then(renderFeatureSettings); });
 			seg.append(b);
 		}
@@ -3525,9 +3534,9 @@ function allCommands() {
 		...(ocrOn() ? [["Stop reading new pictures and PDFs", () => { setOcrOn(false); toast("New pictures and PDFs won't be read. Ones already read stay searchable."); }, "ocr off"]] : []),
 		["Version history", showHistory, "versions snapshots restore undo earlier backup recover diff compare", true],
 		["Export or print this note", () => exportNote(editor.path), "print pdf word docx html download save", true],
-		["Export as website", exportWebsite, "publish site web neocities html zip blog garden static share"],
-		["Publish this note", () => setPublished(editor.path, true), "website site web share public", true],
-		["Unpublish this note", () => setPublished(editor.path, false), "website site web private hide", true],
+		["Export as website", exportWebsite, "publish site web neocities github pages html zip blog garden static share"],
+		["Add this note to my website", () => setPublished(editor.path, true), "publish website site web share public", true],
+		["Remove this note from my website", () => setPublished(editor.path, false), "unpublish website site web private hide", true],
 		["Settings", () => openSettings($("settings").hidden), "preferences theme gear"],
 		["Getting started", openGuide, "help guide welcome tips how to tutorial manual"],
 		...[...document.querySelectorAll("#setTabs [data-tab]")].map((b) => ["Settings: " + b.textContent, () => openSettings(true, b.dataset.tab), "preferences options"]),
@@ -6629,7 +6638,7 @@ async function setPublished(path, on) {
 	await dataviewVault.write(path, (t) => setProperty(t, "publish", on));
 	refreshPublish();
 	const why = on && notPublishedWhy(path, dataviewVault.text(path));
-	toast(why ? "Marked publish: true, but it won't be on the site. " + why : on ? "This note will be on the website next time you export it." : "This note won't be on the website. If it's online now, delete its page from your host after the next export.", why ? 8000 : 4000);
+	toast(why ? "Marked publish: true, but it won't be on the site. " + why : on ? "Added. It goes online the next time you publish or export the site (the globe, then Export as website)." : "This note won't be on the website. If it's online now, delete its page from your host after the next export.", why ? 8000 : 4000);
 }
 
 // The toolbar's globe: whether this note is on the website, and the site.
@@ -6645,7 +6654,7 @@ function publishMenu(view, btn) {
 	const status = () => Object.assign(document.createElement("p"), { className: "menu-note", textContent: !path ? "No note open." : on ? "This note is on your website." : "This note isn't on your website." });
 	showMenu([
 		status,
-		...(path && !view.state.readOnly ? [[on ? "Unpublish this note" : "Publish this note", () => setPublished(path, !on)]] : []),
+		...(path && !view.state.readOnly ? [[on ? "Remove from my website" : "Add to my website", () => setPublished(path, !on)]] : []),
 		["Export as website…", exportWebsite],
 	], b.left, b.bottom + 4);
 }

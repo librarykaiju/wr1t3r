@@ -21,6 +21,8 @@ export const SETTINGS_NAME = "Settings.md";
 // Areas that can be turned off as a whole. here: [label, detail] on a build
 // with no Worker, where the part that needs one isn't offered. What isn't listed (the editor,
 // sync, search, links, properties, tags, templates, themes...) is always on.
+// auto: an area that's neither on nor off until someone picks (null), and
+// main.js decides from the notebook (the website: on once a note is published).
 export const FEATURE_AREAS = [
 	{ id: "longform", label: "Long-form writing", detail: "New projects, storyboard, outliner, draft and compile. Right-click a folder in the sidebar to open it in one" },
 	{ id: "boards", label: "Boards", detail: "Board files and board blocks in notes" },
@@ -32,6 +34,7 @@ export const FEATURE_AREAS = [
 	{ id: "ocr", label: "Searchable pictures and PDFs", detail: "Read the text in pictures and PDFs so search finds them" },
 	{ id: "capture", label: "Capture and clipping", detail: "The Inbox, quick capture and the web clipper", },
 	{ id: "reminders", label: "Reminders", detail: "Notifications for tasks with a time" },
+	{ id: "website", label: "Website", detail: "The globe in the toolbar: pick the notes that go on your website, then export the site or publish it to GitHub Pages", auto: true },
 ];
 
 // wr1t3r's own folders, relative to the notes' folder ("content/" or the top).
@@ -57,6 +60,7 @@ const COMMAND_AREAS = [
 	["ocr", ["Make pictures and PDFs searchable", "Stop reading new pictures and PDFs"]],
 	["capture", ["Capture to the Inbox", "Clip a web page"]],
 	["reminders", ["Turn on reminders on this device", "Turn off reminders on this device"]],
+	["website", ["Export as website", "Add this note to my website", "Remove this note from my website"]],
 ];
 const byLabel = new Map(COMMAND_AREAS.flatMap(([area, labels]) => labels.map((l) => [l, area])));
 
@@ -87,7 +91,7 @@ export function cleanFolder(id, value) {
 }
 
 // The settings in a Settings note's text, defaults filled in:
-// { features: {id: bool}, folders: {id: path}, icons: {folder: icon} }.
+// { features: {id: bool, or null for an auto area nobody's set}, folders: {id: path}, icons: {folder: icon} }.
 export function readSettings(text) {
 	const lines = String(text || "").split("\n");
 	const f = fence(lines);
@@ -97,7 +101,7 @@ export function readSettings(text) {
 	const dirs = isMap(y?.folders) ? y.folders : {};
 	const icons = isMap(y?.icons) ? Object.entries(y.icons).map(([k, v]) => [String(k).replace(/^\/+|\/+$/g, ""), cleanIcon(v)]).filter(([k, v]) => k && v) : [];
 	return {
-		features: Object.fromEntries(FEATURE_AREAS.map((a) => [a.id, feats[a.id] !== false])),
+		features: Object.fromEntries(FEATURE_AREAS.map((a) => [a.id, a.auto ? (typeof feats[a.id] === "boolean" ? feats[a.id] : null) : feats[a.id] !== false])),
 		folders: Object.fromEntries(FOLDER_SETTINGS.map((s) => [s.id, typeof dirs[s.id] === "string" ? cleanFolder(s.id, dirs[s.id]) : s.dflt])),
 		icons: Object.fromEntries(icons),
 	};
@@ -108,8 +112,8 @@ const yamlString = (s) => (/^[\w./ -]+$/.test(s) && !/^[\s-]|\s$/.test(s) && !/^
 // The YAML lines for settings, leaving out every default.
 function settingsYaml(settings) {
 	const out = [];
-	const feats = FEATURE_AREAS.filter((a) => settings.features?.[a.id] === false);
-	if (feats.length) out.push("features:", ...feats.map((a) => `  ${a.id}: false`));
+	const feats = FEATURE_AREAS.filter((a) => settings.features?.[a.id] === false || (a.auto && settings.features?.[a.id] === true));
+	if (feats.length) out.push("features:", ...feats.map((a) => `  ${a.id}: ${settings.features[a.id]}`));
 	const dirs = FOLDER_SETTINGS.map((s) => [s, cleanFolder(s.id, settings.folders?.[s.id])]).filter(([s, v]) => v !== s.dflt);
 	if (dirs.length) out.push("folders:", ...dirs.map(([s, v]) => `  ${s.id}: ${yamlString(v)}`));
 	const icons = Object.entries(settings.icons || {}).map(([k, v]) => [k, cleanIcon(v)]).filter(([k, v]) => k && v);

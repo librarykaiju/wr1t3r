@@ -5,7 +5,7 @@ import { readSettings, writeSettings, cleanFolder, commandArea, settingsPath, FE
 const defaults = readSettings("");
 
 test("no Settings note means everything on and today's folders", () => {
-	assert.ok(FEATURE_AREAS.every((a) => defaults.features[a.id] === true));
+	assert.ok(FEATURE_AREAS.every((a) => defaults.features[a.id] === (a.auto ? null : true)));
 	assert.deepEqual(defaults.folders, { inbox: "Inbox.md", uploads: "_uploads/", clippings: "_clippings/", compiled: "_compiled/", lists: "_docs/" });
 	assert.deepEqual(readSettings("just text, no properties"), defaults);
 });
@@ -67,4 +67,15 @@ test("commands map to their areas; core commands to none", () => {
 test("the Settings note sits beside Home unless one exists", () => {
 	assert.equal(settingsPath(["content/a.md"], "content/_wr1t3r/"), "content/_wr1t3r/Settings.md");
 	assert.equal(settingsPath(["x/_wr1t3r/settings.md", "content/a.md"], "content/_wr1t3r/"), "x/_wr1t3r/settings.md");
+});
+
+test("the website is unset until someone picks, and both picks are written", () => {
+	assert.equal(defaults.features.website, null);
+	for (const on of [true, false]) {
+		const text = writeSettings("", { ...defaults, features: { ...defaults.features, website: on } });
+		assert.equal(text, `---\nfeatures:\n  website: ${on}\n---\n${SETTINGS_BODY}`);
+		assert.equal(readSettings(text).features.website, on);
+	}
+	assert.equal(readSettings("---\nfeatures:\n  website: maybe\n---\n").features.website, null);
+	assert.equal(commandArea("Add this note to my website"), "website");
 });

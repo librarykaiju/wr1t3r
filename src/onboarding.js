@@ -7,7 +7,8 @@ import { FEATURE_AREAS } from "./features.js";
 import { HOME_BODY } from "./home.js";
 
 // What someone might want wr1t3r for, and the areas each one needs. Every
-// area is in at least one, so picking them all leaves everything on. here:
+// area but the auto ones (the website) is in at least one, so picking them
+// all leaves everything on. here:
 // [label, detail] for a build with no Worker (no clipping or recordings).
 export const USES = [
 	{ id: "writing", label: "Writing", detail: "Stories, books, essays: chapters on a storyboard, compiled into one file", areas: ["longform", "boards"] },
@@ -21,11 +22,11 @@ export const DEFAULT_USES = ["writing"];
 
 // The features map for the chosen uses: an area is on when any chosen use
 // needs it. No uses at all means everything on, as before.
+// Auto areas stay unset (null), to come on by themselves when they're used.
 export function featuresFor(uses) {
 	const chosen = USES.filter((u) => uses.includes(u.id));
-	if (!chosen.length) return Object.fromEntries(FEATURE_AREAS.map((a) => [a.id, true]));
 	const on = new Set(chosen.flatMap((u) => u.areas));
-	return Object.fromEntries(FEATURE_AREAS.map((a) => [a.id, on.has(a.id)]));
+	return Object.fromEntries(FEATURE_AREAS.map((a) => [a.id, a.auto ? null : !chosen.length || on.has(a.id)]));
 }
 
 const has = (uses, id) => uses.includes(id);
@@ -142,11 +143,17 @@ export function guideText(features, { worker = true, story = false } = {}) {
 		"",
 		"A note listing what came in, and anything that didn't, opens when each one is done.",
 	);
-	lines.push(
+	if (features.website === true) lines.push(
 		"",
-		"## Publishing",
+		"## Your website",
 		"",
-		"The globe button in the toolbar publishes the note you're on (it sets `publish: true`) and has **Export as website…**, which makes a ready-to-upload site from every published note, in your theme, for Neocities or any other host.",
+		"The globe button in the toolbar adds the note you're on to your website (it sets `publish: true`); nothing goes online yet. **Export as website…** builds the site from every note you've added, in your theme. From there, **Publish to GitHub** puts it on GitHub Pages in one click (and on to Neocities, if you set that up), or **Download** gives you a .zip to upload to Neocities or any other host yourself.",
+	);
+	else lines.push(
+		"",
+		"## Your website",
+		"",
+		"wr1t3r can make a website from the notes you choose. Turn on **Website** in Settings > Features for the globe button in the toolbar.",
 	);
 	return lines.join("\n") + "\n";
 }
