@@ -91,9 +91,9 @@ wr1t3r makes it easy to track your medications, with prescription and dosage loo
 
 ### For the people you look after
 
-Add someone you give medicines to, and they get a Meds button of their own, with their own list, reminders and calendar. Each dose logged says who gave it, and if someone else already gave a dose on another device, wr1t3r asks before you log it again.
+Create medication schedules as a caregiver for the people in your life. wr1t3r keeps these separate from each other so nothing gets confused.
 
-![Mom's medicines open from her own Meds button: today's doses with who gave each and when, and an as-needed medicine with a Take button](/shots/planner-caregiver.webp)
+![Mom's medicines open from her own Meds button: today's doses and when each was given, and an as-needed medicine with a Take button](/shots/planner-caregiver.webp)
 
 ### Targets worked out for you
 
