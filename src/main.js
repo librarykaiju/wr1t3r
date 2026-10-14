@@ -72,6 +72,10 @@ import { Text } from "@codemirror/state";
 import { drawHome, onMenu } from "./homeview.js";
 import { setCardsHost } from "./cardsblock.js";
 import { setPlannerHost, importEvents } from "./plannerview.js";
+import { setWeekHost, forgetWeekEvents } from "./weekview.js";
+import { setCalendarHost, forgetCalendarEvents } from "./calendarview.js";
+import { marksPath, newMarks, addMark, removeMark, inkedEvent } from "./calmarks.js";
+import { weekOf, weekNote, weeklyPath, noteWeek, reflectSection, hasReflect, addReflect } from "./weekly.js";
 import { openPropertyCleanup } from "./propcleanview.js";
 import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
 import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder, setWords, healthDay, healthDayOf } from "./planner.js";
@@ -2038,6 +2042,9 @@ const plannerHost = {
 		return path;
 	},
 	settings: (tab) => openSettings(true, tab),
+	weekOn: () => featureOn("weekly"),
+	openWeek: (day) => openWeekly(day),
+	reflectWeek: (day) => reflectWeek(null, weekOf(day).from),
 	async events(date) {
 		if (!readRaw(DAILY_CAL_KEY)) {
 			openSettings(true, "tasks");
@@ -3499,7 +3506,10 @@ function allCommands() {
 		["Add this recipe to the Nutrition Database", syncRecipe, "recipe ingredients nutrition database calories per serving sync"],
 		["Add a food from a nutrition label photo", foodFromLabelPhoto, "photo picture camera nutrition facts label scan food database calories"],
 		...(featureOn("daily") ? [["Mood, sleep and weight", moodTrends, "trends chart graph health stats tracker mood sleep weight history"]] : []),
-		["Write this week's review", () => writeReview("week"), "weekly review reflect journal recap"],
+		["Open the calendar", () => openCalendar(), "calendar month week planner stickers pencil plans agenda"],
+		["Open this week's note", () => openWeekly(), "weekly planner week ahead plan agenda periodic"],
+		["Reflect on this week", () => reflectWeek(null, weekOf(isoDate(new Date())).from), "weekly review reflect recover rest journal recap"],
+		["Write this week's review", () => writeReview("week"), "weekly review journal recap"],
 		["Write this month's review", () => writeReview("month"), "monthly review reflect journal recap"],
 		["Write this year's review", () => writeReview("year"), "yearly annual review reflect journal recap year in review"],
 		["Insert board", insertBoard, "grid gallery kanban list table view properties filter database base", true],
@@ -4102,11 +4112,10 @@ function templateFor(name = "_templates/daily.md") {
 	return text == null ? null : { path: null, root: commonFolder(visible()), text };
 }
 
-async function openDaily({ quiet = true } = {}) {
+async function openDaily({ quiet = true, date = new Date() } = {}) {
 	const paths = visible().map((n) => n.path);
 	const tmpl = templateFor();
 	if (!tmpl) return toast("There's no _templates/Daily.md in the vault.");
-	const date = new Date();
 	const title = isoDate(date);
 	const folder = tmpl.root + DAILY_FOLDER;
 	const path = folder + title + ".md";
@@ -4129,6 +4138,115 @@ async function openDaily({ quiet = true } = {}) {
 	scheduleSync();
 	await fillTimeline(path, { quiet });
 }
+
+// ---- The weekly note (src/weekly.js, src/weekview.js) -----------------------
+// "2026-W42.md" in _weekly/ beside _daily/, made the first time it's opened.
+async function openWeekly(day = isoDate(new Date())) {
+	const tmpl = templateFor();
+	const root = tmpl?.root ?? commonFolder(visible());
+	const path = weeklyPath(root, day);
+	const have = visible().find((n) => n.path.toLowerCase() === path.toLowerCase());
+	if (have) { openNote(have.path); return have.path; }
+	const text = weekNote(day);
+	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+	renderTree();
+	openNote(path);
+	scheduleSync();
+	return path;
+}
+
+// Reflect & recover at the end of the weekly note: the week in numbers, then
+// the questions. In the open note when it's that week's; otherwise that
+// week's note is opened (made if needed) and it goes there.
+async function reflectWeek(view, from) {
+	const list = visible().filter((n) => !n.binary);
+	const days = new Map();
+	for (const n of list) { const d = healthDayOf(n.path); if (d) days.set(d, healthDay(n.text, [])); }
+	const section = reflectSection(from, { notes: list, days, habits: featureOn("daily") ? sharedHabits() : [], today: isoDate(new Date()) });
+	if (!view || noteWeek(editor.path) !== from) {
+		await openWeekly(from);
+		view = editor.view;
+		if (!view || noteWeek(editor.path) !== from) return;
+	}
+	const text = view.state.sliceDoc();
+	if (hasReflect(text)) return toast("This week already has Reflect & recover.");
+	const next = addReflect(text, section);
+	view.dispatch({ changes: { from: 0, to: text.length, insert: next }, selection: { anchor: next.length }, scrollIntoView: true });
+	view.focus();
+}
+
+setWeekHost({
+	on: () => featureOn("weekly"),
+	async events(from) {
+		if (!featureOn("calendar") || calState === "setup" || (!navigator.onLine && !calNotebook)) return null;
+		const ids = shownIds();
+		const events = await rangeEvents(agenda.startOfDay(new Date(from + "T12:00")), 7);
+		return events.filter((e) => e.calendar !== MEDS_CALENDAR && (!ids.size || ids.has(e.calendar)));
+	},
+	openDay: (day) => openDaily({ date: new Date(day + "T12:00") }),
+	reflect: (view, from) => reflectWeek(view, from),
+	openWeek: (day) => openWeekly(day),
+});
+
+// ---- The calendar page (src/calendarview.js, src/calmarks.js) ----------------
+// _wr1t3r/Calendar.md holds the page's block; penciled-in plans and stickers
+// go in a note per month in "Calendar marks/" beside it.
+const calendarPage = () => homeFile().replace(/[^/]*$/, "Calendar.md");
+const marksFolder = () => homeFile().replace(/[^/]*$/, "Calendar marks/");
+
+async function openCalendar() {
+	const path = calendarPage();
+	const have = visible().find((n) => n.path.toLowerCase() === path.toLowerCase());
+	if (!have) {
+		await change(path, (cur) => ({ path, text: "```wr1t3r-calendar\n```\n", base: cur?.base ?? null, dirty: true, deleted: false }));
+		scheduleSync();
+	}
+	openNote(have?.path ?? path);
+}
+
+async function writeMarks(day, fn) {
+	const path = marksPath(marksFolder(), day);
+	const have = visible().find((n) => n.path.toLowerCase() === path.toLowerCase());
+	const now = have ? (have.path === editor.path ? editor.text() : have.text) : newMarks(day);
+	const next = fn(now);
+	if (next === now && have) return;
+	await change(have?.path ?? path, (cur) => ({ path: have?.path ?? path, text: next, base: cur?.base ?? null, dirty: true, deleted: false }));
+	renderTree();
+	scheduleSync();
+	editor.view?.dispatch({ effects: vaultChanged.of(null) });
+}
+
+// A penciled-in plan being inked: it goes once the add-event form adds it.
+let inking = null;
+
+setCalendarHost({
+	on: () => featureOn("monthly"),
+	async events(from, days) {
+		if (!featureOn("calendar") || calState === "setup" || (!navigator.onLine && !calNotebook)) return null;
+		const ids = shownIds();
+		const events = await rangeEvents(agenda.startOfDay(new Date(from + "T12:00")), days);
+		return events.filter((e) => e.calendar !== MEDS_CALENDAR && (!ids.size || ids.has(e.calendar)));
+	},
+	openDay: (day) => openDaily({ date: new Date(day + "T12:00") }),
+	addEvent(day) {
+		if (!featureOn("calendar")) return toast("Turn on Calendar under Settings > Features to add events.");
+		openAgenda(true);
+		showAddEvent(true, new Date(day + "T12:00"));
+	},
+	ink(mark) {
+		if (!featureOn("calendar")) return toast("Turn on Calendar under Settings > Features to ink plans into it.");
+		openAgenda(true);
+		showAddEvent(true, new Date(mark.day + "T12:00"));
+		const ev = inkedEvent(mark);
+		$("evTitle").value = ev.title;
+		$("evAllDay").checked = ev.allDay;
+		if (!ev.allDay) { $("evStart").value = ev.startTime; $("evEnd").value = ev.endTime; evPrevStart = ev.startTime; }
+		allDayFields();
+		inking = mark;
+	},
+	mark: (day, kind, text, time) => writeMarks(day, (t) => addMark(t, day, kind, text, time)),
+	unmark: (mark) => writeMarks(mark.day, (t) => removeMark(t, mark)),
+});
 
 // The Timeline's calendar (Settings > Daily note timeline): off until one is
 // picked, per device like the other settings.
@@ -5038,11 +5156,11 @@ const FONTS = {
 	serif: "var(--serif)",
 	sans: "var(--sans)",
 	mono: "var(--mono)",
-	georgia: "Georgia, serif",
-	palatino: '"Palatino Linotype", Palatino, "Book Antiqua", serif',
-	garamond: 'Garamond, "EB Garamond", "Adobe Garamond Pro", serif',
-	humanist: 'Optima, Candara, "Avenir Next", "Noto Sans", sans-serif',
-	typewriter: '"Courier Prime", "American Typewriter", "Courier New", Courier, monospace',
+	georgia: "OpenMoji, Georgia, serif",
+	palatino: 'OpenMoji, "Palatino Linotype", Palatino, "Book Antiqua", serif',
+	garamond: 'OpenMoji, Garamond, "EB Garamond", "Adobe Garamond Pro", serif',
+	humanist: 'OpenMoji, Optima, Candara, "Avenir Next", "Noto Sans", sans-serif',
+	typewriter: 'OpenMoji, "Courier Prime", "American Typewriter", "Courier New", Courier, monospace',
 };
 const FONT_NAMES = { serif: "Serif", sans: "Sans", mono: "Mono", georgia: "Georgia", palatino: "Palatino", garamond: "Garamond", humanist: "Humanist sans", typewriter: "Typewriter" };
 let fontName = "serif", toolbarUi = null;
@@ -6239,6 +6357,7 @@ function openAgenda(on) {
 }
 
 function showAddEvent(on, day = null) {
+	inking = null;
 	$("addEvent").hidden = !on;
 	$("evError").textContent = "";
 	if (!on) return;
@@ -6376,7 +6495,11 @@ async function addEvent(e) {
 		if (calendarId) { body.calendarId = calendarId; storeRaw("wr1t3rEventCal", calendarId); }
 		if (calNotebook && $("evRepeat").value) body.repeat = $("evRepeat").value;
 		await calendarDo((c) => c.addEvent(body));
+		const inked = inking;
 		showAddEvent(false);
+		if (inked) await writeMarks(inked.day, (t) => removeMark(t, inked));
+		forgetCalendarEvents();
+		forgetWeekEvents();
 		const where = cal?.calendars?.find((c) => c.id === calendarId);
 		toast(calNotebook ? `Added “${body.title}”.` : `Added “${body.title}” to ${where && !where.primary ? agenda.calendarLabel(where) : "Google Calendar"}.`);
 		cal = cal && { ...cal, at: 0 };
@@ -6419,6 +6542,7 @@ function setupAgenda() {
 	$("monthToday").addEventListener("click", () => showMonth(0));
 	desk.addEventListener("change", () => { renderAgenda(); loadMonth(); });
 	$("addEventBtn").addEventListener("click", () => showAddEvent($("addEvent").hidden));
+	$("calPageBtn").addEventListener("click", () => { if (!wide.matches) openAgenda(false); openCalendar(); });
 	$("evImport").addEventListener("click", importIcs);
 	$("evCancel").addEventListener("click", () => showAddEvent(false));
 	$("evAllDay").addEventListener("change", allDayFields);

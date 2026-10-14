@@ -47,6 +47,7 @@ export const COMMANDS = [
 	{ label: "Reminder", run: reminderCommand, keywords: "remind alarm notify notification alert time task" },
 	{ label: "Critical Tasks", template: "```wr1t3r-tasks\nlist: crit\n```\n${}", keywords: "crit critical master task list planner todo" },
 	{ label: "To Do's", template: "```wr1t3r-tasks\nlist: todo\n```\n${}", keywords: "todo to do master task list planner" },
+	{ label: "Week ahead", template: "```wr1t3r-week\n```\n\n${}", keywords: "week weekly planner periodic agenda plan" },
 	{ label: "Planner", template: "```wr1t3r-planner\n```\n\n# Notes\n\n${}", keywords: "planner daily day agenda health food water meds mood tasks" },
 	{ label: "Cards", template: "```wr1t3r-cards\n```\n${}", keywords: "tiles cards pins links home grid" },
 	// Only offered with the cursor in a table.

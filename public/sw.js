@@ -12,6 +12,11 @@ async function cacheShell() {
 	await cache.put("/", res);
 	let missed = false;
 	await Promise.all([...assets, SANDBOX].map((a) => cache.add(a).catch(() => { missed = true; })));
+	// The fonts the stylesheets load (the emoji font), so emoji show offline.
+	for (const a of assets.filter((x) => x.endsWith(".css"))) {
+		const css = await (await cache.match(a))?.text();
+		for (const m of css?.matchAll(/url\(["']?\/?(assets\/[\w.-]+\.woff2)/g) || []) await cache.add("/" + m[1]).catch(() => { missed = true; });
+	}
 	// Pruning reads the new scripts from the cache; with one missing it could
 	// drop lazy parts that are still current, so it waits for a clean pass.
 	if (!missed) await prune(cache, assets);
@@ -28,10 +33,10 @@ async function prune(cache, assets) {
 		const path = queue.pop();
 		if (keep.has(path)) continue;
 		keep.add(path);
-		if (!/\.m?js$/.test(path)) continue;
+		if (!/\.(?:m?js|css)$/.test(path)) continue;
 		const hit = await cache.match(path);
 		if (!hit) continue;
-		for (const m of (await hit.text()).matchAll(/(?:\.\/|\/?assets\/)([\w.-]+\.(?:m?js|css|wasm))/g)) queue.push("/assets/" + m[1]);
+		for (const m of (await hit.text()).matchAll(/(?:\.\/|\/?assets\/)([\w.-]+\.(?:m?js|css|wasm|woff2))/g)) queue.push("/assets/" + m[1]);
 	}
 	for (const req of await cache.keys()) {
 		if (!keep.has(new URL(req.url).pathname)) await cache.delete(req);
