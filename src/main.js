@@ -57,7 +57,7 @@ import { rerunDataview } from "./dataview.js";
 import { makeMediaNote, coverDialog } from "./media.js";
 import { coverQuery } from "./medianote.js";
 import { parseFrontmatter } from "./dvpage.js";
-import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
+import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, pinSize, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
 import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
 import { reorder } from "./drag.js";
 import { drawBoard, drawOutline, folderWords, stopViews } from "./folderview.js";
@@ -1936,6 +1936,7 @@ function tileMenu(i, x, y, store = homeStore) {
 		...(views.length ? [["Show in the notes list", () => revealFolder(k.folder)]] : []),
 		["Color…", () => colorMenu(pin, set, x, y)],
 		["Cover…", () => pickCover(pin, set)],
+		["Size…", () => sizeMenu(pin, set, x, y)],
 		["Rename…", () => {
 			const t = prompt("Tile name (empty for the usual one):", pin.title ?? "");
 			if (t != null) set({ title: t.trim() || null });
@@ -2164,6 +2165,13 @@ function colorMenu(pin, set, x, y) {
 		}
 		return row;
 	}], x, y);
+}
+
+// A tile's size: one grid cell, two wide, or two by two (src/home.js).
+function sizeMenu(pin, set, x, y) {
+	const now = pinSize(pin);
+	showMenu([[null, "Small (1×1)"], ["2x1", "Wide (2×1)"], ["2x2", "Large (2×2)"]]
+		.map(([size, label]) => [(size === now ? "✓ " : "") + label, () => set({ size })]), x, y);
 }
 
 // Cover: the note's own, none, a web image, or any image in the vault.

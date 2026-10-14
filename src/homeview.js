@@ -5,7 +5,7 @@
 // menu too.
 
 import { isBoardPath } from "./paths.js";
-import { pinKind, pinPath, pinTitle, pinColor, pinCover, isSection, tileOrdinals } from "./home.js";
+import { pinKind, pinPath, pinTitle, pinColor, pinCover, pinSize, isSection, tileOrdinals } from "./home.js";
 import { linePoints, pieChart } from "./charts.js";
 
 const ICONS = {
@@ -74,17 +74,21 @@ function draggable(el, i, grid, host, header = false) {
 
 // A stats tile's face: this year's count, two totals and a bar per month (or
 // a line, or a pie of its top genres: the pin's chart:), from glance() in
-// src/mediastats.js.
-function glanceFace(g, chart) {
+// src/mediastats.js. size (pinSize) gives a bigger tile more: a 2x1 puts the
+// chart beside the numbers; a 2x2 adds the chart's first and last labels, the
+// pie's legend, and the Habits tile's habits one by one.
+function glanceFace(g, chart, size) {
 	const box = document.createElement("span");
 	box.className = "tile-glance";
+	const nums = document.createElement("span");
+	nums.className = "tile-glance-nums";
 	const n = document.createElement("span");
 	n.className = "tile-glance-n";
 	n.textContent = Number(g.done).toLocaleString();
 	const l = document.createElement("span");
 	l.className = "tile-glance-l";
 	l.textContent = g.label;
-	box.append(n, l);
+	nums.append(n, l);
 	if (g.extras.length) {
 		const row = document.createElement("span");
 		row.className = "tile-glance-row";
@@ -96,18 +100,23 @@ function glanceFace(g, chart) {
 			if (x.title) e.title = x.title;
 			row.append(e);
 		}
-		box.append(row);
+		nums.append(row);
 	}
+	box.append(nums);
+	const big = size === "2x2";
 	if (chart === "pie" && g.pie) {
 		const row = document.createElement("span");
 		row.className = "tile-glance-pie";
-		row.append(pieChart(g.pie.items, { bare: true, size: 34 }));
-		const top = g.pie.items[0];
-		const share = document.createElement("span");
-		const total = g.pie.items.reduce((n, i) => n + i.value, 0);
-		share.textContent = `${top.label} ${Math.round((top.value / total) * 100)}%`;
-		share.title = g.pie.items.map((i) => `${i.label}: ${i.value}`).join("\n");
-		row.append(share);
+		if (big) row.append(pieChart(g.pie.items, { size: 96 }));
+		else {
+			row.append(pieChart(g.pie.items, { bare: true, size: size ? 56 : 34 }));
+			const top = g.pie.items[0];
+			const share = document.createElement("span");
+			const total = g.pie.items.reduce((n, i) => n + i.value, 0);
+			share.textContent = `${top.label} ${Math.round((top.value / total) * 100)}%`;
+			share.title = g.pie.items.map((i) => `${i.label}: ${i.value}`).join("\n");
+			row.append(share);
+		}
 		box.append(row);
 	} else if (chart === "line" && g.bars.length) {
 		const W = 100, H = 18;
@@ -119,6 +128,7 @@ function glanceFace(g, chart) {
 		line.title = g.bars.map((b) => `${b.label}: ${b.count}`).join("\n");
 		line.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${d}L${pts.at(-1)[0]},${H}L${pts[0][0]},${H}Z" class="area"/><path d="${d}" class="stroke" vector-effect="non-scaling-stroke"/></svg>`;
 		box.append(line);
+		if (big) box.append(ends(g.bars));
 	} else if (g.bars.length) {
 		const bars = document.createElement("span");
 		bars.className = "tile-glance-bars";
@@ -131,8 +141,42 @@ function glanceFace(g, chart) {
 			bars.append(bar);
 		}
 		box.append(bars);
+		if (big) box.append(ends(g.bars));
+	}
+	if (big && g.items?.length) {
+		const list = document.createElement("span");
+		list.className = "tile-glance-list";
+		for (const it of g.items) {
+			const li = document.createElement("span");
+			li.classList.toggle("done", !!it.done);
+			const dot = document.createElement("i");
+			const name = document.createElement("span");
+			name.textContent = it.label;
+			li.append(dot, name);
+			if (it.n) {
+				const v = document.createElement("b");
+				v.textContent = it.n;
+				v.title = `${it.n} day${it.n === 1 ? "" : "s"} in a row`;
+				li.append(v);
+			}
+			li.title = `${it.label}: ${it.done ? "done" : "not done"} today`;
+			list.append(li);
+		}
+		box.append(list);
 	}
 	return box;
+}
+
+// The first and last labels under a 2x2 tile's chart.
+function ends(bars) {
+	const row = document.createElement("span");
+	row.className = "tile-glance-ends";
+	row.setAttribute("aria-hidden", "true");
+	const a = document.createElement("span"), b = document.createElement("span");
+	a.textContent = bars[0].label;
+	b.textContent = bars.at(-1).label;
+	row.append(a, b);
+	return row;
 }
 
 // host: { pins, homeFile, paths, text(path), image(ref, from) -> Promise<src>|null,
@@ -164,6 +208,8 @@ export function drawHome(grid, host) {
 		tile.className = "tile";
 		tile.setAttribute("role", "listitem");
 		tile.style.setProperty("--tc", pinColor(pin, ordinal[i]));
+		const size = pinSize(pin);
+		if (size) tile.classList.add("size-" + size);
 		const missing = k.kind === "note" && !path;
 		tile.classList.toggle("missing", missing);
 		const title = pinTitle(pin, path);
@@ -188,7 +234,7 @@ export function drawHome(grid, host) {
 		const g = k.kind === "view" && k.view === "stats" && host.glance ? host.glance(k.folder) : k.kind === "habits" && host.habits ? host.habits() : null;
 		if (g) {
 			tile.classList.add("has-glance");
-			tile.append(label, glanceFace(g, pin.chart));
+			tile.append(label, glanceFace(g, pin.chart, size));
 		} else tile.append(icon(ICONS[kind] ? kind : "view"), label);
 		tile.addEventListener("click", () => host.open(pin, path));
 		onMenu(tile, (x, y) => host.menu(i, x, y));

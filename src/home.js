@@ -14,6 +14,7 @@
 //     - link: "habits:"                  today's habits and streaks (opens today's note)
 //     - link: "https://example.com"      a web page
 //       title: Example                   the tile's name, for any kind
+//       size: 2x1                        2x1 (two wide) or 2x2 (two by two); 1x1 when left out
 //     - section: Reading                 a header; the tiles after it are its
 //   ---
 //
@@ -90,7 +91,7 @@ export function writeCards(pins) {
 	return pins.length ? pinsYaml(pins).slice(1).map((l) => l.slice(2)).join("\n") : "";
 }
 
-const ORDER = ["section", "link", "title", "color", "cover"];
+const ORDER = ["section", "link", "title", "color", "cover", "size"];
 
 function yamlValue(v) {
 	if (typeof v === "number" || typeof v === "boolean") return String(v);
@@ -174,6 +175,15 @@ export function linkFor(path, paths) {
 
 export const folderLink = (folder) => "folder:" + folder.replace(/\/+$/, "");
 export const viewLink = (view, folder) => view + ":" + folder.replace(/\/+$/, "");
+
+// How many grid cells the tile takes: "2x1", "2x2", or null for one. Takes
+// "wide" and "large" too, for hand-edited pins.
+export function pinSize(pin) {
+	const s = String(pin?.size ?? "").trim().toLowerCase().replace(/\s+/g, "").replace("×", "x");
+	if (s === "2x1" || s === "wide") return "2x1";
+	if (s === "2x2" || s === "large" || s === "big") return "2x2";
+	return null;
+}
 
 // The tile's name when the pin doesn't give one.
 export function pinTitle(pin, path) {

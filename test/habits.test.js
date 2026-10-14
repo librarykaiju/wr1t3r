@@ -70,6 +70,8 @@ test("the glance for a Home tile", () => {
 	assert.equal(g.extras[0].n, "🔥2");
 	assert.equal(g.bars.length, 14);
 	assert.equal(g.bars.at(-1).count, 2);
+	assert.equal(g.items.length, 2);
+	assert.ok(g.items.every((it) => it.done));
 	assert.equal(habitsGlance([], days, "2026-10-08"), null);
 });
 
