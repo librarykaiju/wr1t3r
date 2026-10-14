@@ -87,6 +87,12 @@ The Habits card ticks off each habit, counts the ones you do more than once, add
 
 ![The Meds button open: today's doses with times, Take buttons, a Take all due now button and as-needed medicines](/shots/planner-meds.webp)
 
+### Targets worked out for you
+
+Give your height, weight, activity and goal, and wr1t3r works out daily targets for calories, water and steps, with protein, fat, carbs and fiber if you want them. Every number comes from [published nutrition guidelines and peer-reviewed research](/health-data.html). Every button shows how far along you are. Log a new weight and it offers to update the targets.
+
+![The targets step of the planner setup: units, age, height, weight, activity and goal, with the calories, water, steps and sleep targets worked out](/shots/planner-targets.webp)
+
 ### Medicines, without the guesswork
 
 wr1t3r makes it easy to track your medications, with prescription and dosage lookup from the National Library of Medicine. You can also import a spreadsheet or clinic chart to get started. Mark doses "Taken" with a button click, and add your medication schedule to Google Calendar for reminders even when you're away from wr1t3r. The "chart view" lets you easily see your medication schedule for the day, so you can see what's coming up and what you may have missed.
@@ -98,12 +104,6 @@ wr1t3r makes it easy to track your medications, with prescription and dosage loo
 Create medication schedules as a caregiver for the people in your life. wr1t3r keeps these separate from each other so nothing gets confused.
 
 ![Mom's medicines open from her own Meds button: today's doses and when each was given, and an as-needed medicine with a Take button](/shots/planner-caregiver.webp)
-
-### Targets worked out for you
-
-Give your height, weight, activity and goal, and wr1t3r works out daily targets for calories, water and steps, with protein, fat, carbs and fiber if you want them. Every number comes from [published nutrition guidelines and peer-reviewed research](/health-data.html). Every button shows how far along you are. Log a new weight and it offers to update the targets.
-
-![The targets step of the planner setup: units, age, height, weight, activity and goal, with the calories, water, steps and sleep targets worked out](/shots/planner-targets.webp)
 
 ### Tasks that don't get lost
 
