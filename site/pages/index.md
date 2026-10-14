@@ -65,6 +65,12 @@ The first daily note asks a few questions: which buttons you want, your daily ta
 
 ![The day planner with a setup card above a row of buttons for food, water, meds, exercise and mood, a timeline and two task lists](/shots/planner-setup.webp)
 
+### Tasks that don't get lost
+
+Keep your Critical Tasks and To Do's as primary lists, or write a task in any note. Each day shows the tasks due that day, so do the week ahead and the calendar, and anything unticked from earlier days carries over until it's done. Add a time to a task and wr1t3r reminds you while it's open on your computer. Connect Google Calendar and those reminders reach your phone too.
+
+![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
+
 ### Plan the week ahead
 
 Each week gets a note with its seven days side by side: the events on your calendar and every task due that day, wherever you wrote it. Tap + on a day to add a plan. At the end of the week, Reflect & recover adds the week in numbers and a few questions to reflect on the week and plan your rest.
@@ -104,12 +110,6 @@ wr1t3r makes it easy to track your medications, with prescription and dosage loo
 Create medication schedules as a caregiver for the people in your life. wr1t3r keeps these separate from each other so nothing gets confused.
 
 ![Mom's medicines open from her own Meds button: today's doses and when each was given, and an as-needed medicine with a Take button](/shots/planner-caregiver.webp)
-
-### Tasks that don't get lost
-
-Keep your Critical Tasks and To Do's as primary lists, or write a task in any note. Each day shows the tasks due that day, so do the week ahead and the calendar, and anything unticked from earlier days carries over until it's done. Add a time to a task and wr1t3r reminds you while it's open on your computer. Connect Google Calendar and those reminders reach your phone too.
-
-![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
 
 ### Look back on what you wrote
 
