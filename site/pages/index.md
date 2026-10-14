@@ -1,6 +1,6 @@
 ---
 title: "wr1t3r: write, publish and keep your notes in your own Dropbox or Google Drive"
-description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, a planner with a month calendar, a week ahead, habits, health and medication tracking, thirteen color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox or Google Drive as plain files.
+description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, a planner with a month calendar, a week ahead, habits, health and medication tracking, thirteen color themes, and a website made from the notes you publish, sent straight to Neocities in one click. Your notes stay in your own Dropbox or Google Drive as plain files.
 buy:
 ---
 
@@ -8,7 +8,7 @@ buy:
 
 - [Features](#features)
 - [Planner](#planner)
-- [Publishing](#publish)
+- [Your website](/website.html)
 - [Themes](#themes)
 - [Pricing](#pricing)
 - [Help](/help.html)
@@ -152,9 +152,11 @@ Create medication schedules as a caregiver for the people in your life. wr1t3r k
 
 --- publish
 
-## Publish a website from your notes
+## Publish a website from your notes, straight to Neocities
 
-Turn on Website in Settings, then click the globe on any note to add it to your site. Export as website turns those notes into a finished site, in your colors. Publish it to GitHub Pages in one click, and from there to [Neocities](https://neocities.org), Netlify or Cloudflare Pages, which update each time you publish. Or download it as a .zip and upload it to any web host yourself. No server, no wr1t3r account, no monthly fee.
+Click the globe on the notes you want online, then click Publish to Neocities. wr1t3r turns them into a finished site in your colors and sends only what changed. Design your front page with blocks, follow other people's sites, and reply to their posts from your own. Or publish to GitHub Pages, Netlify or Cloudflare Pages, or download a .zip for any host. No server, no wr1t3r account, no monthly fee.
+
+[See what your website can do](/website.html)
 
 ![An exported site: a notebook-style folder menu on the left, an essay in the middle, and a sidebar with a calendar of posts, Ko-fi and Patreon buttons and social links](/shots/site-notebook.webp)
 
@@ -165,7 +167,9 @@ Turn on Website in Settings, then click the globe on any note to add it to your 
 - **An archive by month.** A calendar in the sidebar and a page for each month, for notes with a date.
 - **Find me on.** Links to Bluesky, Mastodon, Instagram and the rest, plus an email link written so spam bots have a harder time reading your address.
 - **Share and reply.** A share button on every post. Link a post to Bluesky and its likes and replies show on your page.
-- **Made for Neocities.** Plain pages with links that work on any host, and a preview before you publish.
+- **Made for Neocities.** One click sends it to your Neocities site, and pages you unpublish come down.
+- **Neighbors.** Follow the sites you love, see their new posts, and reply from your own site.
+- **A front page you design.** Build it from blocks, or show your newest posts from the folder you choose.
 - **Or bring your own look.** Export plain HTML pages that link your `main.css`, so they match a site you already have.
 
 ### One button, right in the toolbar
@@ -265,7 +269,7 @@ Yes. Email me at [hello@wr1t3r.app](mailto:hello@wr1t3r.app) with questions abou
 
 ### Do I need a web host to publish?
 
-You need somewhere for it to live, and free ones work. A free GitHub account gives you one-click publishing to GitHub Pages, and Neocities can be updated from there too. Or download the .zip and drag the files into a free [Neocities](https://neocities.org) site's uploader. Free Neocities accounts don't take audio or video files, so wr1t3r leaves those out unless you ask for them.
+You need somewhere for it to live, and free ones work. A free [Neocities](https://neocities.org) site works: paste its API key into wr1t3r once and publish with one click. A free GitHub account gives you one-click publishing to GitHub Pages too. Or download the .zip and upload it anywhere. Free Neocities accounts don't take audio or video files, so wr1t3r leaves those out unless you ask for them.
 
 ### Can I get a refund?
 
@@ -273,4 +277,4 @@ Try it free first. If it isn't working out after you buy, ask within 30 days for
 
 --- footer
 
-wr1t3r · [Help](/help.html) · [Host it free](/self-host.html) · [Health data sources](/health-data.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
+wr1t3r · [Help](/help.html) · [Your website](/website.html) · [Host it free](/self-host.html) · [Health data sources](/health-data.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)

@@ -427,3 +427,15 @@ test("only media logs put the cover beside the properties", () => {
 	assert.match(sketch, /<\/details>\n<img class="cover wide" src="https:\/\/img\.example\/pk\.jpg"/, "a wide picture under the box");
 	assert.doesNotMatch(sketch, /<span class="cover/);
 });
+
+test("the front page doesn't title itself Home, or repeat its own heading", () => {
+	const note = (fm, body) => `---\n${fm}\n---\n${body}`;
+	const plain = buildSite([{ path: "Home.md", text: note("publish: true", "Welcome.") }], [], { title: "Field notes" }).files.get("index.html");
+	assert.match(plain, /<h1>Field notes<\/h1>/);
+	assert.doesNotMatch(plain, /<h1>Home<\/h1>/);
+	const own = buildSite([{ path: "Home.md", text: note("publish: true", "# Hello there\n\nWelcome.") }], [], { title: "Field notes" }).files.get("index.html");
+	assert.equal(own.match(/<h1/g).length, 1);
+	assert.match(own, /<h1[^>]*>Hello there<\/h1>/);
+	const titled = buildSite([{ path: "Home.md", text: note("publish: true\ntitle: Welcome in", "Hi.") }], [], { title: "Field notes" }).files.get("index.html");
+	assert.match(titled, /<h1>Welcome in<\/h1>/);
+});
