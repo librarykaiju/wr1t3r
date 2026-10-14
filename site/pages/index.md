@@ -108,7 +108,7 @@ Give your height, weight, activity and goal, and wr1t3r works out daily targets 
 
 ### Medicines, without the guesswork
 
-wr1t3r makes it easy to track your medications, with prescription and dosage lookup from the National Library of Medicine. You can also import a spreadsheet or clinic chart to get started. Mark doses "Taken" with a button click, and add your medication schedule to Google Calendar for reminders even when you're away from wr1t3r. The "chart view" lets you easily see your medication schedule for the day, so you can see what's coming up and what you may have missed.
+wr1t3r makes it easy to track your medications, with prescription and dosage lookup from the [National Library of Medicine](https://lhncbc.nlm.nih.gov/RxNav/applications/RxTerms.html). You can also import a spreadsheet or clinic chart to get started. Mark doses "Taken" with a button click, and add your medication schedule to Google Calendar for reminders even when you're away from wr1t3r. The "chart view" lets you easily see your medication schedule for the day, so you can see what's coming up and what you may have missed.
 
 ![The medication chart: each medicine's purpose and schedule with a column for each time of day, and the doses given ticked off with the time and who gave them](/shots/planner-med-chart.webp)
 
