@@ -17,7 +17,8 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 - [Setting up wr1t3r](#setup)
 - [Getting back in, and your devices](#devices)
 - [Publishing your notes as a website](#publishing)
-- [Putting the site on Neocities](#neocities)
+- [Publishing straight to Neocities](#neocities-direct)
+- [Putting the site on Neocities by hand](#neocities)
 - [Putting the site on GitHub Pages](#github)
 - [Sending it on to Neocities from GitHub](#neocities-github)
 - [Cloudflare Pages, Netlify or Porkbun, from the same GitHub repo](#cloudflare)
@@ -75,17 +76,36 @@ wr1t3r builds a website from the notes you choose, as plain web pages you can pu
 
     ![The Export as website window: site title, logo, theme, light or dark, layout and other settings on the left, and a preview of the front page on the right](/shots/help-export.webp)
 
-4.  **Put it online.** There are two ways, both free:
+4.  **Put it online.** There are three ways, all free:
+    - **Publish to Neocities** sends it straight to your [Neocities](#neocities-direct) site with your Neocities API key, one click each time.
     - **Publish to GitHub** sends it straight to [GitHub Pages](#github), one click each time after the first setup. GitHub can pass it on to [Neocities](#neocities-github), and Netlify or Cloudflare Pages can watch the same repository.
     - **Download website (.zip)** gives you the files to upload yourself, to [Neocities](#neocities) or any host that takes a folder of web pages. You do this again each time you change the site.
 
-    wr1t3r can't upload to Neocities directly. It's either through GitHub or by hand.
-
 _Links to other notes stay links when those notes are published too. `%% comments %%` never go on the site. To show a note's likes and replies from Bluesky, add a `bluesky` property with the Bluesky post's address._
+
+--- neocities-direct
+
+## Publishing straight to Neocities
+
+1.  **Make a site** at [neocities.org](https://neocities.org/). The free plan is plenty. The name you pick becomes the address: _yourname.neocities.org_.
+
+2.  **Copy your API key.** On neocities.org, open _Settings_ for your site, then _API_ (or go to _neocities.org/settings_), and generate a key. Copy it.
+
+3.  **Paste it into wr1t3r.** In Export as website, under _Publish to Neocities_, paste the key. Tick _Remember the key on this device_ so you don't have to paste it again. Leave _Include audio and video_ off; Neocities' free plan won't take those files.
+
+4.  **Click _Publish to Neocities_.** wr1t3r sends the site and tells you its address.
+
+Each time after that, click _Publish to Neocities_ again. Only the files that changed are sent, and pages you've unpublished are taken off your Neocities site. Files you put there yourself are left alone.
+
+wr1t3r also learns your site's address this way, so your feed's links point to it and replies to your posts show up in Neighbors.
+
+_About the key:_ Neocities won't take uploads straight from a web page, so wr1t3r's server passes them on. Your key goes through it on the way to Neocities each time you publish, and isn't kept there. With _Remember the key_ ticked, it's kept on your device only. To shut it off, generate a new key on neocities.org; the old one stops working.
+
+If Neocities turns a file away, wr1t3r lists it and sends the rest.
 
 --- neocities
 
-## Putting the site on Neocities
+## Putting the site on Neocities by hand
 
 1.  **Make a site** at [neocities.org](https://neocities.org/). The free plan is plenty. The name you pick becomes the address: _yourname.neocities.org_.
 
@@ -147,7 +167,7 @@ _The token goes from your browser straight to GitHub. wr1t3r never sees it or yo
 
 ## Sending it on to Neocities from GitHub
 
-Neocities doesn't take uploads straight from a web page, so wr1t3r can't send to it directly. It can go through GitHub instead: one click publishes to GitHub Pages and your Neocities site together. Set up [GitHub Pages](#github) first, then:
+If your site is on GitHub Pages too, you can send it on to Neocities from there instead of [publishing straight to Neocities](#neocities-direct): one click publishes to GitHub Pages and your Neocities site together, and your Neocities key stays with GitHub. Set up [GitHub Pages](#github) first, then:
 
 1.  **Copy your Neocities API key.** On neocities.org, open _Settings_ for your site, then _API_ (or go to _neocities.org/settings_), and generate a key. Copy it.
 

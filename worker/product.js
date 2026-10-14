@@ -1,9 +1,11 @@
 // The product build's Worker (wrangler.product.toml): the page's files, plus
-// Google sign-in's token swap (worker/googleauth.js) and the feed relay for
-// Neighbors (worker/feed.js). Nothing else runs here and nothing is stored.
+// Google sign-in's token swap (worker/googleauth.js), the feed relay for
+// Neighbors (worker/feed.js) and the pass-through for Publish to Neocities
+// (worker/neocities.js). Nothing else runs here and nothing is stored.
 
 import { googleAuthApi } from "./googleauth.js";
 import { feedApi } from "./feed.js";
+import { neocitiesApi } from "./neocities.js";
 import { HttpError } from "./util.js";
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -16,9 +18,11 @@ export default {
 		const origin = request.headers.get("Origin");
 		if (origin && origin !== url.origin) return json({ error: "Not allowed" }, 403);
 		try {
-			// The feed relay answers only this page's own requests (browsers
-			// mark a same-origin fetch; a GET may carry no Origin).
-			if ((url.pathname === "/api/feed" || url.pathname === "/api/sites") && request.headers.get("Sec-Fetch-Site") !== "same-origin" && origin !== url.origin) return json({ error: "Not allowed" }, 403);
+			// The feed relay and Neocities answer only this page's own requests
+			// (browsers mark a same-origin fetch; a GET may carry no Origin).
+			if ((url.pathname === "/api/feed" || url.pathname === "/api/sites" || url.pathname.startsWith("/api/neocities/")) && request.headers.get("Sec-Fetch-Site") !== "same-origin" && origin !== url.origin) return json({ error: "Not allowed" }, 403);
+			const neo = await neocitiesApi(request, env, url);
+			if (neo) return neo;
 			const out = (await googleAuthApi(request, env, url)) || (await feedApi(request, env, url));
 			return out ? json(out) : json({ error: "Not found" }, 404);
 		} catch (e) {

@@ -6939,6 +6939,7 @@ async function exportWebsite() {
 		font: () => FONTS[fontName] && fontName !== "serif" ? FONTS[fontName] : "",
 		following: follows,
 		sites: lookupSites,
+		worker: (path, init = {}) => fetch(path, { ...init, headers: { ...(init.headers || {}), ...(token() ? { Authorization: "Bearer " + token() } : {}) } }),
 		toast,
 	});
 }

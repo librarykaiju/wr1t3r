@@ -9,9 +9,10 @@
 // published last time and the site doesn't have now are deleted; anything
 // else in the repo (a README, a CNAME) is left alone.
 //
-// Neocities, Cloudflare and Netlify don't take uploads from a web page, so
-// other hosts get the site through this repo: Cloudflare Pages, Netlify and
-// Porkbun can watch it themselves, and for Neocities we add a GitHub Action
+// Cloudflare and Netlify don't take uploads from a web page, so other hosts
+// get the site through this repo: Cloudflare Pages, Netlify and Porkbun can
+// watch it themselves. Neocities can be published to directly through the
+// Worker (src/neocitiespublish.js), or from here: we add a GitHub Action
 // (bcomnes/deploy-to-neocities) that uploads each publish with the person's
 // Neocities API key, kept as a secret in the repo. Adding a workflow file
 // needs the token to have Workflows read and write too.

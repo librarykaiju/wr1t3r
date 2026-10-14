@@ -43,6 +43,7 @@ export function siteAddress(v) {
 }
 
 // Where the website lives, from the Export as website settings: the address
-// given, else GitHub Pages' for a site published there (not when it goes on
-// to Neocities, whose address wr1t3r doesn't know). "" when unknown.
-export const siteOf = (s = {}) => siteAddress(s.address) || (!s.ghNeocities && parseRepo(s.ghRepo) ? pagesUrl(parseRepo(s.ghRepo)) : "") || "";
+// given, else the Neocities site wr1t3r last published to, else GitHub Pages'
+// for a site published there (not when GitHub sends it on to Neocities, whose
+// address wr1t3r doesn't know then). "" when unknown.
+export const siteOf = (s = {}) => siteAddress(s.address) || siteAddress(s.neoSite) || (!s.ghNeocities && parseRepo(s.ghRepo) ? pagesUrl(parseRepo(s.ghRepo)) : "") || "";
