@@ -1,6 +1,7 @@
 // Looking back over the journal: On this day (entries from today's date in
-// earlier years), the mood, sleep and weight logged in the health notes over
-// a stretch of days, and the weekly, monthly and year reviews made from both.
+// earlier years), the mood, sleep, exercise and weight logged in the health
+// notes over a stretch of days, and the weekly, monthly and year reviews made
+// from both.
 // Everything here works on note text, so the paid app and the Worker build
 // read the same notebook the same way.
 
@@ -107,11 +108,12 @@ export function onThisDay(list, today) {
 
 export const yearsAgo = (n) => (n === 1 ? "1 year ago" : `${n} years ago`);
 
-// ---- Mood, sleep and weight ----------------------------------------------------
+// ---- Mood, sleep, exercise and weight ------------------------------------------
 
-// One day's mood, sleep and weight from src/planner.js healthDay(): { mood
-// ([emoji, label] of the last mood logged, or null), moods (every one), sleep
-// (hours, or null), weight ({ value, unit } or null) }.
+// One day's mood, sleep, exercise and weight from src/planner.js healthDay():
+// { mood ([emoji, label] of the last mood logged, or null), moods (every one),
+// sleep (hours, or null), active (any exercise logged), steps (the day's
+// steps, or null when none were logged), weight ({ value, unit } or null) }.
 export function dayHealth(h) {
 	const moods = (h?.moods || []).map((m) => moodChoice(m.mood)).filter((m) => m[1]);
 	const w = h?.weights?.at(-1);
@@ -119,6 +121,8 @@ export function dayHealth(h) {
 		mood: moods.at(-1) || null,
 		moods,
 		sleep: h?.sleep?.length && h.sleepHours > 0 ? h.sleepHours : null,
+		active: !!h?.logged?.any,
+		steps: h?.logged?.steps > 0 ? h.logged.steps : null,
 		weight: w && w.value != null ? { value: w.value, unit: w.unit || null } : null,
 	};
 }
@@ -129,7 +133,9 @@ const moodKey = (m) => m[1].toLowerCase();
 
 // The days from..to (both "YYYY-MM-DD") of days (Map day -> dayHealth())
 // -> { days: [{ day, ...dayHealth }], moods: [{ emoji, label, n }] most
-// logged first (each day's last mood), sleep: { avg, nights }, weight: {
+// logged first (each day's last mood), sleep: { avg, nights }, exercise: {
+// active (days with exercise logged), steps (average on the days with steps),
+// stepDays } or null, weight: {
 // first, last, change, unit, n (days weighed) } or null, byMood: [{ emoji, label, sleep,
 // nights }] (average sleep on the days of each mood, two nights or more) }.
 export function trends(days, from, to) {
@@ -145,18 +151,20 @@ export function trends(days, from, to) {
 	}
 	const nights = list.filter((d) => d.sleep != null).map((d) => d.sleep);
 	const weights = list.filter((d) => d.weight);
+	const active = list.filter((d) => d.active).length, steps = list.filter((d) => d.steps != null).map((d) => d.steps);
 	const unit = weights.at(-1)?.weight.unit || weights[0]?.weight.unit || null;
 	return {
 		days: list,
 		moods: [...tally.values()].sort((a, b) => b.n - a.n || a.label.localeCompare(b.label)).map(({ emoji, label, n }) => ({ emoji, label, n })),
 		sleep: { avg: avg(nights), nights: nights.length },
+		exercise: active ? { active, steps: steps.length ? Math.round(avg(steps)) : null, stepDays: steps.length } : null,
 		weight: weights.length ? { first: weights[0].weight.value, last: weights.at(-1).weight.value, change: round1(weights.at(-1).weight.value - weights[0].weight.value), unit, n: weights.length } : null,
 		byMood: [...tally.values()].filter((t) => t.sleeps.length >= 2).map((t) => ({ emoji: t.emoji, label: t.label, sleep: avg(t.sleeps), nights: t.sleeps.length })).sort((a, b) => b.sleep - a.sleep),
 	};
 }
 
-// A line chart's points for one of trends().days' numbers ("sleep" or
-// "weight"): each day's, each week's average or each month's (by), leaving
+// A line chart's points for one of trends().days' numbers ("sleep", "steps"
+// or "weight"): each day's, each week's average or each month's (by), leaving
 // out stretches with nothing logged -> [{ label, value, title }].
 export function series(days, key, by = "day") {
 	const val = (d) => (key === "weight" ? d.weight?.value : d[key]);
@@ -168,10 +176,10 @@ export function series(days, key, by = "day") {
 		(groups.get(k) || groups.set(k, []).get(k)).push(v);
 	}
 	return [...groups].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([k, vs]) => {
-		const value = avg(vs);
+		const value = key === "steps" ? Math.round(avg(vs)) : avg(vs);
 		const label = by === "month" ? MONTHS[Number(k.slice(5)) - 1].slice(0, 3) : short(k);
 		const what = by === "month" ? `${MONTHS[Number(k.slice(5)) - 1]} ${k.slice(0, 4)}` : by === "week" ? `Week of ${short(k)}` : short(k);
-		return { label, value, title: `${what}: ${value}${key === "sleep" ? " h" : ""}${vs.length > 1 ? ` (average of ${vs.length})` : ""}` };
+		return { label, value, title: `${what}: ${key === "steps" ? value.toLocaleString() : value}${key === "sleep" ? " h" : key === "steps" ? " steps" : ""}${vs.length > 1 ? ` (average of ${vs.length})` : ""}` };
 	});
 }
 

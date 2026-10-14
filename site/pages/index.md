@@ -1,6 +1,6 @@
 ---
 title: "wr1t3r: write, publish and keep your notes in your own Dropbox or Google Drive"
-description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, a day planner with habit, health and medication tracking, thirteen color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox or Google Drive as plain files.
+description: A Markdown writing app for stories, journals and notes. Storyboard, outliner, draft view, a planner with a month calendar, a week ahead, habits, health and medication tracking, thirteen color themes, and a website made from the notes you publish, ready for Neocities. Your notes stay in your own Dropbox or Google Drive as plain files.
 buy:
 ---
 
@@ -18,7 +18,7 @@ buy:
 
 # Write the thing.<br>Publish it online. Keep it yours.
 
-wr1t3r is a app for creative writing, journaling, and notetaking. Plan & stay organized with the built-in day planner, and publish the notes you choose on the web with Neocities. Every note is a plain Markdown file in your Dropbox or Google Drive, so nothing is locked in and nobody else holds your work.
+wr1t3r is a app for creative writing, journaling, and notetaking. Plan your days, weeks and months with the built-in planner, and publish the notes you choose on the web with Neocities. Every note is a plain Markdown file in your Dropbox or Google Drive, so nothing is locked in and nobody else holds your work.
 
 [Try it free for 14 days](https://my.wr1t3r.app/) [Buy for $20](buy)
 
@@ -55,19 +55,68 @@ Add wr1t3r to your Home Screen and it opens like an app. Notes sync through your
 
 --- planner
 
-## A day planner that fits your days
+## A flexible planner for your life
 
-The Today button opens a note for the day: your tasks, a timeline of the day, the calendar, and a row of buttons for the things you track. It's a bullet journal and habit tracker in the same notebook as your writing, and you decide how much of it you want.
+The Today button opens a note for the day: your tasks, a timeline, your habits and a row of buttons for the things you track. A week-ahead note and calendar view allow you to take your planner further.
 
 ### Set it up once, your way
 
-The first daily note asks a few questions: which buttons you want, your daily targets and your medications. Pick only what you'll use. Change your mind later from the planner's menu, or turn the whole health side off in Settings > Features and keep just the tasks and timeline.
+The first daily note asks a few questions: which buttons you want, your daily targets and your medications. Pick only what you'll use, and fill the Mood and Exercise buttons with your own choices. Change your mind later from the planner's menu, or turn any part off in Settings > Features: the health side, the weekly planner or the calendar page.
 
 ![The day planner with a setup card above a row of buttons for food, water, meds, exercise and mood, a timeline and two task lists](/shots/planner-setup.webp)
 
+### Tasks that don't get lost
+
+Keep your Critical Tasks and To Do's as primary lists, or write a task in any note. Manage your daily tasks in the Today note. Tasks left undone carry over so you always see them. Add a time to a task and wr1t3r reminds you while it's open on your computer. Connect Google Calendar and those reminders reach your phone too.
+
+![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
+
+### Plan the week ahead
+
+A weekly agenda helps you plan ahead or add plans as things come up. At the end of the week Reflect & recover lets you see how much you've accomplished, with journal prompts to help you process and make time to rest.
+
+![The week-ahead note: a card for each day from Monday to Sunday with its tasks and calendar events, a This week badge and a Reflect & recover button](/shots/planner-week.webp)
+
+### See the whole month
+
+Calendar view provides flexibility in taking your planning even further.
+
+- Pencil in tentative plans to review and confirm at a later date.
+- Ink those plans to turn them into calendar events with reminders.
+- Erase plans when they change.
+- Add stickers to the calendar for fun visual reminders.
+
+Use the built-in calendar, which syncs like your notes, or connect Google Calendar.
+
+![The calendar page for October: a month grid with tasks, penciled-in plans and stickers on the days](/shots/planner-month.webp)
+
+### Look back on what you wrote
+
+See what you wrote on this day in past years. Mood, sleep and exercise charts show how past seasons have changed and how sleep patterns line up with good and bad days. At the end of a week, month or year, wr1t3r gathers your entries, habits and moods into a reflection, with a few prompts to get you writing.
+
+## Bullet journal logs
+
+Track your media obsessions with the bullet journal logs: books, films, TV, anime, music, games and podcasts.
+
+### Log it in seconds
+
+Search a title and wr1t3r fills in the details, like the author, genre and a summary. Pick a cover, give it a rating and write down what you thought.
+
+![A book log: its cover beside the author, pages, genre, moods, a five-star rating and a summary, with notes and a favorite quote underneath](/shots/log-book.webp)
+
+### Stats for your logs
+
+Your logs add up on their own: how many you finished each month and year, pages read, average rating, and what's next, in line, bar and pie charts. Pin the numbers to your Home screen as tiles.
+
+![Stats for a books log in 2026: 37 books read and 13,956 pages, line charts of books and pages read each month, and pie charts of ratings, genres and moods](/shots/stats-books.webp)
+
+## Optional health and habit tracking
+
+Medicines, health logs and reflections live in the same notebook as your writing, and you decide how much of it you want.
+
 ### Track the habits you care about
 
-One tap logs a glass of water, a walk, your mood, last night's sleep or this morning's weight. Medications get a list of their own with the times you take each one, a Take button for every dose, and a reminder when one is due. Each log is a line in the day's health note, and the day's totals are saved as properties, so a board can line your days up side by side.
+Build and add habit cards to your Today note that you can complete with the click of a button. Each click adds toward the goals you set in the day's health note. Track your streaks with stat cards on the Home screen or a habit board.
 
 ![The Meds button open: today's doses with times, Take buttons, a Take all due now button and as-needed medicines](/shots/planner-meds.webp)
 
@@ -77,27 +126,29 @@ Give your height, weight, activity and goal, and wr1t3r works out daily targets 
 
 ![The targets step of the planner setup: units, age, height, weight, activity and goal, with the calories, water, steps and sleep targets worked out](/shots/planner-targets.webp)
 
-### Tasks that don't get lost
+### Log what you eat
 
-Keep your Critical Tasks and To Do's as primary lists, or write a task in any note. Each day shows the tasks due that day, and anything unticked from earlier days carries over to the next day until it's marked 'done. Add a time to a task and wr1t3r reminds you while it's open on your commputer. Connect your Google Calendar, and those reminders will roll to the app.
-![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
+Log a meal from your own list of foods in a couple of taps. For anything new, search about 13,000 USDA foods, scan a barcode or snap the Nutrition Facts label. Each meal counts toward the day's calories, protein, carbs, fat and fiber. [Where the numbers come from](/health-data.html).
 
-### Look back on what you wrote
+![The Food button's panel on the day planner: a search for "gr" listing foods with their servings and calories, and today's breakfast and lunch underneath with 689 of 2,000 calories](/shots/planner-food.webp)
 
-On this day shows what you wrote on today's date in earlier years, on Home and on the day's planner. Mood, sleep and weight puts the last month, three months or year of your logs on one page, with your average sleep on good days and bad ones. At the end of a week, month or year, one command writes a review: your entries, habits, moods, sleep and what you finished, with a few questions to answer underneath.
+### Recipes, counted per serving
 
-### Stats for your logs
+Write a recipe as a note and wr1t3r works out its nutrition per serving. Ingredients it doesn't know yet are matched to the closest USDA foods for you to confirm, and the recipe joins your food list, ready to log.
 
-Book, film, TV and game logs add up on their own: how many you finished each year, pages read, average rating, what you're on now and what's next, in bar, line and pie charts. Pin the numbers to your Home screen as tiles.
+![A turkey chili recipe note with a dialog matching four new ingredients to USDA foods, each with its serving and calories](/shots/planner-recipe.webp)
 
-![Stats for a books log: 51 books read, 21,775 pages, a 4.1 average rating, and a chart of books read per year](/shots/stats-books.webp)
+### Medicines, without the guesswork
 
-### Also on the planner
+wr1t3r makes it easy to track your medications, with prescription and dosage lookup from the [National Library of Medicine](https://lhncbc.nlm.nih.gov/RxNav/applications/RxTerms.html). You can also import a spreadsheet or clinic chart to get started. Mark doses "Taken" with a button click, and add your medication schedule to Google Calendar for reminders even when you're away from wr1t3r. The "chart view" lets you easily see your medication schedule for the day, so you can see what's coming up and what you may have missed.
 
-- **Food and recipes.** Log meals from USDA's table of about 7,800 common foods, or build recipes from wr1t3r's connected nutrition databases. Each logged item tracks your calories and nutrition for the day. [Where the numbers come from](/health-data.html).
-- **Moods and exercises your way.** Change the choices on the Mood and Exercise buttons to your own.
-- **A timeline for the day.** Block out your hours, and add events from your calendar.
-- **Everything is a note.** Your planner, health log and medication list are plain Markdown files in your Dropbox or Google Drive like the rest of your notes.
+![The medication chart: each medicine's purpose and schedule with a column for each time of day, and the doses given ticked off with the time and who gave them](/shots/planner-med-chart.webp)
+
+### For the people you look after
+
+Create medication schedules as a caregiver for the people in your life. wr1t3r keeps these separate from each other so nothing gets confused.
+
+![Mom's medicines open from her own Meds button: today's doses and when each was given, and an as-needed medicine with a Take button](/shots/planner-caregiver.webp)
 
 --- publish
 
