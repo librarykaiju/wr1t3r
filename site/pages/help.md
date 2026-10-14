@@ -109,7 +109,7 @@ _Links to other notes stay links when those notes are published too. `%% comment
 
 4.  **Click _Publish to Neocities_.** wr1t3r sends the site and tells you its address.
 
-Each time after that, click _Publish to Neocities_ again. Only the files that changed are sent, and pages you've unpublished are taken off your Neocities site. Files you put there yourself are left alone.
+Each time after that, choose _Publish to Neocities_ from the globe menu (or the command palette). It opens Export as website and publishes straight away. It's there once you've ticked _Remember the key on this device_; otherwise click _Publish to Neocities_ in Export as website again. Only the files that changed are sent, and pages you've unpublished are taken off your Neocities site. Files you put there yourself are left alone.
 
 wr1t3r also learns your site's address this way, so your feed's links point to it and replies to your posts show up in Neighbors.
 

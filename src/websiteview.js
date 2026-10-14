@@ -21,6 +21,8 @@
 //   worker(path, init) fetch from wr1t3r's Worker, signed in, for Publish to Neocities
 //   toast(text)
 // }
+// now: "neocities" starts Publish to Neocities as it opens (the globe's
+// Publish to Neocities, with the key remembered on this device).
 
 import appCss from "./style.css?raw";
 import { buildSite, ownStylesheet, ringPlace, themeCss, SITE_FILES } from "./website.js";
@@ -28,7 +30,7 @@ import { siteOf } from "./published.js";
 import { siteUrl, hostOf } from "./feeds.js";
 import { FAMILIES, familyOf, themeVariants } from "./theme.js";
 import { publishToGitHub } from "./githubpublish.js";
-import { neocitiesSite, publishToNeocities } from "./neocitiespublish.js";
+import { neocitiesSite, publishToNeocities, NEOCITIES_KEY } from "./neocitiespublish.js";
 
 const FAMILY_NAMES = { default: "Default", gruvbox: "Gruvbox", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", shire: "Shire", mixtape: "Mixtape" };
 
@@ -44,11 +46,11 @@ const save = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catc
 const TOKEN = "wr1t3r-github-token";
 const readToken = () => { try { return localStorage.getItem(TOKEN) || ""; } catch { return ""; } };
 const keepToken = (t) => { try { t ? localStorage.setItem(TOKEN, t) : localStorage.removeItem(TOKEN); } catch {} };
-const NEO_KEY = "wr1t3r-neocities-key";
+const NEO_KEY = NEOCITIES_KEY;
 const readNeoKey = () => { try { return localStorage.getItem(NEO_KEY) || ""; } catch { return ""; } };
 const keepNeoKey = (k) => { try { k ? localStorage.setItem(NEO_KEY, k) : localStorage.removeItem(NEO_KEY); } catch {} };
 
-export function openWebsite(host) {
+export function openWebsite(host, { now: publishNow = "" } = {}) {
 	open?.close();
 	const saved = { footer: true, media: false, ...readSaved() };
 	const back = document.activeElement;
@@ -424,6 +426,10 @@ export function openWebsite(host) {
 	open = { close };
 	title.focus();
 	refresh();
+	if (publishNow === "neocities" && neoKey.value.trim()) {
+		neoGo.scrollIntoView({ block: "center" });
+		neoGo.click();
+	}
 }
 
 // The guides on the product site (site/public/help.html).
