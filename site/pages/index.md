@@ -126,7 +126,7 @@ On this day shows what you wrote on today's date in earlier years, on Home and o
 
 Book, film, TV and game logs add up on their own: how many you finished each year, pages read, average rating, what you're on now and what's next, in bar, line and pie charts. Pin the numbers to your Home screen as tiles, small, wide or large.
 
-![Stats for a books log: 51 books read, 21,775 pages, a 4.1 average rating, and a chart of books read per year](/shots/stats-books.webp)
+![Stats for a books log in 2026: 37 books read and 13,956 pages, line charts of books and pages read each month, and pie charts of ratings, genres and moods](/shots/stats-books.webp)
 
 ### Also on the planner
 
