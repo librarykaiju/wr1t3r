@@ -134,9 +134,19 @@ Create medication schedules as a caregiver for the people in your life. wr1t3r k
 
 See what you wrote on this day in past years. Mood, sleep and exercise charts show how past seasons have changed and how sleep patterns line up with good and bad days. At the end of a week, month or year, wr1t3r gathers your entries, habits and moods into a reflection, with a few prompts to get you writing.
 
+## Bullet journal logs
+
+Track your media obsessions with the bullet journal logs: books, films, TV, anime, music, games and podcasts.
+
+### Log it in seconds
+
+Search a title and wr1t3r fills in the details, like the author, genre and a summary. Pick a cover, give it a rating and write down what you thought.
+
+![A book log: its cover beside the author, pages, genre, moods, a five-star rating and a summary, with notes and a favorite quote underneath](/shots/log-book.webp)
+
 ### Stats for your logs
 
-Book, film, TV and game logs add up on their own: how many you finished each year, pages read, average rating, what you're on now and what's next, in bar, line and pie charts. Pin the numbers to your Home screen as tiles, small, wide or large.
+Your logs add up on their own: how many you finished each month and year, pages read, average rating, and what's next, in line, bar and pie charts. Pin the numbers to your Home screen as tiles.
 
 ![Stats for a books log in 2026: 37 books read and 13,956 pages, line charts of books and pages read each month, and pie charts of ratings, genres and moods](/shots/stats-books.webp)
 
