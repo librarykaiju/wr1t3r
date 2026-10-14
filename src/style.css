@@ -1521,6 +1521,87 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .md-cards-edit { position: absolute; top: 10px; right: 4px; z-index: 1; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); cursor: pointer; opacity: 0; }
 .md-cards:hover .md-cards-edit, .md-cards-edit:focus-visible { opacity: 1; }
 @media (hover: none) { .md-cards-edit { opacity: 0.6; } }
+/* The calendar page (calendarview.js): the title, ‹ Today ›, Month/Week,
+   then the days. Month: a grid of six weeks. Week: seven columns. In a narrow
+   column, one week as a list with the weeks as tabs down the right edge.
+   Penciled-in plans are dashed and handwritten; stickers sit by the date. */
+.cal { padding: 4px 0 10px; font: 15px/1.5 var(--sans); }
+.cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0 12px; }
+.cal-title { margin: 0 auto 0 0; font: 700 26px/1.2 var(--sans); color: var(--heading, var(--fg)); }
+.cal-nav { display: flex; gap: 6px; }
+.cal-step { min-width: 30px; font-size: 14px; line-height: 1.2; }
+.cal-modes { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.cal-mode { padding: 2px 12px; border: 0; background: var(--bg); color: var(--muted); font: 12px/1.5 var(--sans); cursor: pointer; }
+.cal-mode.on { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); color: var(--accent); font-weight: 600; }
+.cal-body { display: flex; gap: 8px; }
+.cal-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-dow-head { padding: 0 6px 2px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.cal-day { position: relative; min-width: 0; min-height: 104px; padding: 4px 5px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.cal-week .cal-day { min-height: 220px; padding: 6px 7px 8px; }
+.cal-week .cal-day-head { flex-wrap: wrap; }
+.cal-day.other { background: transparent; opacity: 0.55; }
+.cal-day.past:not(.other) .cal-num { color: var(--muted); }
+.cal-day.today { border-color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+.cal-day-head { display: flex; align-items: center; gap: 3px; min-width: 0; margin-bottom: 2px; }
+.cal-date { display: flex; align-items: baseline; gap: 4px; padding: 0 2px; border: 0; border-radius: 6px; background: none; color: var(--fg); font: inherit; white-space: nowrap; cursor: pointer; }
+.cal-date:hover .cal-num, .cal-date:focus-visible .cal-num { color: var(--accent); }
+.cal-dow { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.cal-num { font-size: 15px; font-weight: 700; }
+.cal-week .cal-num { font-size: 18px; }
+.cal-day.today .cal-num { color: var(--accent); }
+.cal-stickers { display: flex; gap: 1px; min-width: 0; margin-left: auto; overflow: hidden; }
+.cal-sticker { padding: 0; border: 0; background: none; font: 20px/1 var(--sans); cursor: pointer; transition: transform 0.1s; }
+.cal-week .cal-sticker { font-size: 24px; }
+.cal-agenda .cal-sticker { font-size: 21px; }
+.cal-sticker:hover { transform: scale(1.15) rotate(-6deg); }
+.cal-add { flex: none; width: 22px; height: 22px; padding: 0; border: 1px dashed var(--line); border-radius: 6px; background: none; color: var(--muted); font: 15px/1 var(--sans); cursor: pointer; opacity: 0; }
+.cal-stickers:empty + .cal-add { margin-left: auto; }
+.cal-day:hover .cal-add, .cal-add:focus-visible, .cal-week .cal-add, .cal-agenda .cal-add { opacity: 1; }
+@media (hover: none) { .cal-add { opacity: 1; } }
+.cal-add:hover, .cal-add:focus-visible { color: var(--accent); border-color: var(--accent); border-style: solid; outline: none; }
+.cal-items { list-style: none; margin: 0; padding: 0; }
+.cal-item { display: flex; align-items: flex-start; gap: 4px; margin: 0 0 3px; font-size: 12.5px; line-height: 1.3; overflow-wrap: break-word; min-width: 0; }
+.cal-week .cal-item, .cal-agenda .cal-item { font-size: 13px; }
+.cal-month .cal-item .cal-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-text { min-width: 0; }
+.cal-time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cal-event { --c: var(--accent); padding: 1px 5px; border-left: 3px solid var(--c); border-radius: 4px; background: color-mix(in srgb, var(--c) 12%, transparent); }
+.cal-pencil { padding: 0 5px; border: 1.5px dashed color-mix(in srgb, var(--fg) 35%, transparent); border-radius: 5px; color: color-mix(in srgb, var(--fg) 70%, transparent); font-family: OpenMoji, "Bradley Hand", "Segoe Print", "Chalkboard SE", "Comic Neue", cursive; cursor: pointer; }
+.cal-pencil:hover, .cal-pencil:focus-visible { border-color: var(--accent); color: var(--fg); outline: none; }
+.cal-task input { flex: none; margin: 1px 0 0; accent-color: var(--accent); }
+.cal-task.done .cal-text { color: var(--muted); text-decoration: line-through; }
+.cal-task.overdue .cal-text { color: var(--bad); }
+.cal-more-btn { padding: 0 4px; border: 0; background: none; color: var(--accent); font: 12px var(--sans); cursor: pointer; }
+.cal-tabs { flex: none; display: flex; flex-direction: column; gap: 4px; width: 40px; margin-right: -4px; }
+.cal-tab { flex: 1; min-height: 56px; padding: 6px 0; border: 1px solid var(--line); border-right: 0; border-radius: 8px 0 0 8px; background: var(--panel); color: var(--muted); font: 600 11px/1.1 var(--sans); writing-mode: vertical-rl; cursor: pointer; }
+.cal-tab.now { color: var(--accent); }
+.cal-tab.on { background: var(--card); color: var(--fg); border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.cal-agenda { grid-template-columns: 1fr; gap: 6px; }
+.cal-agenda .cal-day { min-height: 0; display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 8px; padding: 8px 10px; }
+.cal-agenda .cal-day-head { grid-row: span 2; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; }
+.cal-agenda .cal-date { flex-direction: column; gap: 0; }
+.cal-agenda .cal-num { font-size: 18px; }
+.cal-agenda .cal-stickers { margin-left: 0; flex-wrap: wrap; max-width: 52px; }
+.cal-agenda .cal-stickers:empty + .cal-add { margin-left: 0; }
+.cal-agenda .cal-items { grid-column: 2; }
+.cal-panel-title { font-weight: 700; }
+.cal-pencil-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.cal-pencil-input { flex: 1 1 160px; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: 14px var(--sans); }
+.cal-pencil-time { flex: none; padding: 5px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: 14px var(--sans); }
+.cal-panel-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.cal-btn { padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: 13px var(--sans); cursor: pointer; }
+.cal-btn:hover { border-color: var(--accent); color: var(--accent); }
+.cal-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.sticker-search { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: 14px var(--sans); }
+.sticker-tabs { display: flex; gap: 2px; overflow-x: auto; }
+.sticker-tab { flex: none; padding: 3px 5px; border: 0; border-radius: 6px; background: none; font: 20px/1 var(--sans); cursor: pointer; opacity: 0.6; }
+.sticker-tab.on, .sticker-tab:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); opacity: 1; }
+.sticker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 2px; min-height: 120px; max-height: 300px; overflow-y: auto; }
+.sticker { aspect-ratio: 1; padding: 0; border: 0; border-radius: 8px; background: none; font: 28px/1 var(--sans); cursor: pointer; }
+.sticker:hover, .sticker:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
+.sticker-none { grid-column: 1 / -1; margin: 12px 0; color: var(--muted); text-align: center; }
+.sticker-credit { margin: 0; color: var(--muted); font-size: 11px; }
+.sticker-credit a { color: inherit; }
 /* The week ahead (weekview.js): the title and week buttons, then the seven
    days side by side; in a narrow column, one day under another with the
    weeks as tabs down the right edge. */
@@ -2199,6 +2280,7 @@ main > header { background: var(--panel); }
 /* Areas turned off in Settings > Features (src/features.js). */
 body.no-longform [data-feature~="longform"], body.no-boards [data-feature~="boards"],
 body.no-daily [data-feature~="daily"], body.no-health [data-feature~="health"],
+body.no-weekly [data-feature~="weekly"], body.no-monthly [data-feature~="monthly"],
 body.no-media [data-feature~="media"], body.no-calendar [data-feature~="calendar"],
 body.no-audio [data-feature~="audio"], body.no-ocr [data-feature~="ocr"],
 body.no-capture [data-feature~="capture"], body.no-reminders [data-feature~="reminders"],

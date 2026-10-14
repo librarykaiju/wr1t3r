@@ -45,6 +45,7 @@ const shown = new Map();
 // Events by week (Monday -> { at, events }), so redraws don't fetch again.
 const eventCache = new Map();
 const FRESH = 5 * 60000;
+export const forgetWeekEvents = () => eventCache.clear();
 
 const shortDay = (day) => { const d = new Date(day + "T12:00"); return `${MONTHS[d.getMonth()]} ${d.getDate()}`; };
 

@@ -12,7 +12,7 @@ import { HOME_BODY } from "./home.js";
 // [label, detail] for a build with no Worker (no clipping or recordings).
 export const USES = [
 	{ id: "writing", label: "Writing", detail: "Stories, books, essays: chapters on a storyboard, compiled into one file", areas: ["longform", "boards"] },
-	{ id: "planner", label: "Journal and day planner", detail: "A note for each day, tasks, reminders and a calendar", areas: ["daily", "weekly", "calendar", "reminders"] },
+	{ id: "planner", label: "Journal and day planner", detail: "A note for each day, tasks, reminders and a calendar", areas: ["daily", "weekly", "monthly", "calendar", "reminders"] },
 	{ id: "health", label: "Health and food", detail: "Log meals, recipes and nutrition from the day planner", areas: ["health", "daily"] },
 	{ id: "media", label: "Books, films and other media", detail: "Notes for what you read, watch, play and listen to", areas: ["media", "boards"] },
 	{ id: "research", label: "Research and clipping", detail: "Clip web pages, capture ideas, search the text in pictures and recordings", here: ["Research and clipping", "Clip web pages, capture ideas to an Inbox, and search the text in pictures and PDFs"], areas: ["capture", "ocr", "audio"] },

@@ -8,7 +8,7 @@ import { StateField, StateEffect, EditorState } from "@codemirror/state";
 import { EditorView, Decoration } from "@codemirror/view";
 import { dataviewBlocks } from "./dataview.js";
 
-export const DRAWN_FENCES = ["wr1t3r-planner", "wr1t3r-week", "wr1t3r-tasks", "board", "base"];
+export const DRAWN_FENCES = ["wr1t3r-planner", "wr1t3r-week", "wr1t3r-calendar", "wr1t3r-tasks", "board", "base"];
 
 // Opens the block starting at pos as text.
 export const openBlock = StateEffect.define();
