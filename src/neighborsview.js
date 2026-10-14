@@ -102,7 +102,7 @@ export function openNeighbors(host, { follow = "" } = {}) {
 			const li = el("li");
 			const f = feeds[s.url];
 			const a = Object.assign(el("a", null, s.name || f?.title || hostOf(s.url)), { href: s.url, target: "_blank", rel: "noopener" });
-			const note = f?.error ? el("span", "neighbors-error", `Couldn't read its feed: ${f.error}`) : null;
+			const note = f?.error ? el("span", "neighbors-error", `Couldn't read it: ${f.error}`) : f?.page ? el("span", "neighbors-via", "No feed, so this shows when the site changes") : null;
 			const priv = Object.assign(el("button", "quiet", s.private ? "Private" : "Listed"), { type: "button" });
 			priv.title = s.private ? "Left off your site's list of sites you read. Click to list it." : "On your site's list of sites you read. Click to keep it private.";
 			priv.setAttribute("aria-pressed", String(!!s.private));
@@ -148,6 +148,7 @@ export function openNeighbors(host, { follow = "" } = {}) {
 			if (p.date) meta.append(" · ", Object.assign(el("time", null, when(p.date)), { dateTime: p.date }));
 			li.append(a, meta);
 			if (p.summary) li.append(el("p", "neighbors-summary", p.summary));
+			if (p.update) return li;
 			const acts = el("p", "neighbors-acts");
 			if (reply) {
 				const shown = host.responded(p);
@@ -194,12 +195,12 @@ export function openNeighbors(host, { follow = "" } = {}) {
 			if (next === host.list() || next.length === host.list().length) status.textContent = "You follow that site already.";
 			else {
 				await host.save(next);
-				status.textContent = `Following ${f.title || hostOf(site)}.`;
+				status.textContent = f.feed ? `Following ${f.title || hostOf(site)}.` : `Following ${f.title || hostOf(site)}. It has no feed, so Neighbors shows when the site changes rather than each post.`;
 				address.value = "";
 				await doRefresh();
 			}
 		} catch (err) {
-			status.textContent = /No feed/.test(err.message) ? "That site has no feed wr1t3r can find, so there's nothing to follow yet." : "Couldn't reach it: " + err.message;
+			status.textContent = "Couldn't reach it: " + err.message;
 		}
 		go.disabled = false;
 		draw();

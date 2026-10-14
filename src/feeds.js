@@ -139,6 +139,18 @@ export const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./
 // be read (its last good posts kept from old) and reads: [{ url, feed, name }],
 // and list with any newly found feed addresses filled in (the same list when
 // none were).
+//
+// A site with no feed (the relay's answer has page: { hash, updated? }) gets
+// one post, "Updated their site", dated when it last changed: by Neocities'
+// word for a Neocities site, else the first read that found its front page's
+// words different from the read before (nothing until then).
+export const UPDATED = "Updated their site";
+function pageUpdate(s, f, old, at) {
+	const prev = old?.page;
+	const updated = f.page.updated || (prev && prev.hash === f.page.hash ? prev.updated || "" : prev ? new Date(at).toISOString() : "");
+	return { page: { hash: f.page.hash, ...(updated ? { updated } : {}) }, items: updated ? [{ title: UPDATED, url: f.site || s.url, date: updated, update: true }] : [] };
+}
+
 export async function readFeeds(list, fetchFeed, { old = {}, at = Date.now(), together = 4, fetchSites = null } = {}) {
 	const feeds = {};
 	let next = list;
@@ -147,7 +159,7 @@ export async function readFeeds(list, fetchFeed, { old = {}, at = Date.now(), to
 		for (let s = queue.shift(); s; s = queue.shift()) {
 			try {
 				const f = await fetchFeed(s.feed || s.url);
-				feeds[s.url] = { title: f.title || "", items: Array.isArray(f.items) ? f.items : [], at };
+				feeds[s.url] = f.page && !f.feed ? { title: f.title || "", at, ...pageUpdate(s, f, old[s.url], at) } : { title: f.title || "", items: Array.isArray(f.items) ? f.items : [], at };
 				if (f.feed && f.feed !== s.feed) next = next.map((x) => (x.url === s.url ? { ...x, feed: f.feed } : x));
 			} catch (e) {
 				feeds[s.url] = { ...(old[s.url] || { title: "", items: [] }), error: String(e?.message || e) };
