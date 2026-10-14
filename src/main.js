@@ -36,7 +36,7 @@ import { googleCalendar } from "./gcal.js";
 import { driveStorage, DRIVE_SCOPES } from "./gdrive.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
-import { isPublished, notPublishedWhy } from "./published.js";
+import { isPublished, notPublishedWhy, siteOf } from "./published.js";
 import { USES, DEFAULT_USES, featuresFor, starterNotes, guideText, needsHomeScreen } from "./onboarding.js";
 import { DEFAULT_API, licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, maskKey, cleanKey, readLicenseNote, writeLicenseNote, withDevice, withoutDevice } from "./license.js";
 import { sync, conflictPath } from "./sync.js";
@@ -57,6 +57,7 @@ import { rerunDataview } from "./dataview.js";
 import { makeMediaNote, coverDialog } from "./media.js";
 import { coverQuery } from "./medianote.js";
 import { parseFrontmatter } from "./dvpage.js";
+import { followingPath, readFollowing, writeFollowing, refreshDue, readFeeds, neighborsList, newSince, onSite } from "./feeds.js";
 import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, pinSize, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
 import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
 import { reorder } from "./drag.js";
@@ -1595,6 +1596,7 @@ function renderHome(force = false) {
 	if (!editor || editor.path) return;
 	renderHomeBoards();
 	renderLookback();
+	maybeRefreshNeighbors();
 	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
 	// Redraw only when something a tile shows changed (a sync redraws the
 	// sidebar often; the pictures would flicker).
@@ -1603,6 +1605,7 @@ function renderHome(force = false) {
 		const k = pinKind(p.link);
 		if (k.kind === "view" && k.view === "stats") return tileGlance(k.folder);
 		if (k.kind === "habits") return habitsTileGlance();
+		if (k.kind === "neighbors") return neighborsTileGlance();
 		const q = pinPath(p, paths, file);
 		return q && notes.get(q)?.text?.slice(0, 1500);
 	})]);
@@ -1618,6 +1621,7 @@ function renderHome(force = false) {
 		add: addTile,
 		glance: tileGlance,
 		habits: habitsTileGlance,
+		neighbors: neighborsTileGlance,
 		reorder: (from, to) => {
 			const next = pins();
 			const [moved] = next.splice(from, 1);
@@ -1873,6 +1877,7 @@ function openPin(pin, path) {
 	// A pinned folder opens as a corkboard; an outliner: or scrivenings: pin as that.
 	if (k.kind === "folder" || k.kind === "view") return openFolderView(k.folder, k.kind === "view" ? k.view : "corkboard");
 	if (k.kind === "habits") return void openDaily();
+	if (k.kind === "neighbors") return void openNeighborsView();
 	const want = k.command.toLowerCase() === "open corkboard" ? "open storyboard" : k.command.toLowerCase(); // its old name
 	const c = allCommands().find((x) => x.label.toLowerCase() === want);
 	if (!c) return toast(`There's no command called “${k.command}”.`);
@@ -1962,6 +1967,7 @@ setCardsHost({
 	add: (store) => addTile(store),
 	glance: (folder) => tileGlance(folder),
 	habits: () => habitsTileGlance(),
+	neighbors: () => neighborsTileGlance(),
 });
 
 // Planner blocks: the day's health note (made the way Today makes it, from
@@ -2148,6 +2154,174 @@ function habitsTileGlance() {
 	return habitsGlance(habits, days, isoDate(new Date()));
 }
 
+// ---- Neighbors: the sites you follow (src/feeds.js, src/neighborsview.js) -----
+//
+// Who you follow is _wr1t3r/Following.md, beside the Home note, so every
+// device follows the same sites. What they posted is read through the feed
+// relay (/api/feed, worker/feed.js) each morning and evening while wr1t3r is
+// open, and kept on this device only.
+
+const NEIGHBORS_KEY = "wr1t3r-neighbors"; // { at, feeds } from the last read
+const NEIGHBORS_SEEN = "wr1t3r-neighbors-seen"; // when Neighbors was last closed
+const followingFile = () => { const list = visible(); return followingPath(list.map((n) => n.path), commonFolder(list)); };
+function followingText() {
+	const path = followingFile(), n = notes.get(path);
+	if (!n || n.deleted || n.binary) return null;
+	return path === editor?.path ? editor.text() : n.text;
+}
+const follows = () => readFollowing(followingText() || "");
+
+async function saveFollows(list) {
+	const path = followingFile();
+	if (followingText() != null) await dataviewVault.write(path, (t) => writeFollowing(t, list));
+	else {
+		if (!visible().length) return toast("The vault hasn't loaded yet.");
+		const text = writeFollowing("", list);
+		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+		renderStatus();
+		renderTree();
+		scheduleSync();
+	}
+	renderHome(true);
+}
+
+// One site's feed through the relay: { feed, title, site, items }.
+const lookupFeed = (address) => relay("/api/feed", address);
+// A site's list of sites (its blogroll, or a webring's members): { list, title, sites }.
+const lookupSites = (address) => relay("/api/sites", address);
+async function relay(path, address) {
+	const res = await fetch(path + "?url=" + encodeURIComponent(address), { headers: token() ? { Authorization: "Bearer " + token() } : {}, cache: "no-store" });
+	const type = res.headers.get("Content-Type") || "";
+	// A copy of wr1t3r on GitHub Pages has no Worker to ask.
+	if (!/json/i.test(type)) throw new Error("this copy of wr1t3r can't read other sites' feeds (it needs wr1t3r.app, or a copy on Cloudflare)");
+	const data = await res.json().catch(() => ({}));
+	if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+	return data;
+}
+
+let neighborsReading = null;
+function refreshNeighbors() {
+	if (neighborsReading) return neighborsReading;
+	neighborsReading = (async () => {
+		const list = follows();
+		const last = readJSON(NEIGHBORS_KEY, {});
+		const { feeds, list: found } = await readFeeds(list, lookupFeed, { old: last.feeds || {}, fetchSites: lookupSites });
+		writeJSON(NEIGHBORS_KEY, { at: Date.now(), feeds });
+		// Feed addresses found along the way go into Following.md, onto the
+		// list as it is now (it may have changed while the feeds were read).
+		const feedOf = new Map(found.filter((s, i) => s !== list[i]).map((s) => [s.url, s.feed]));
+		if (feedOf.size) {
+			const now = follows();
+			if (now.some((s) => feedOf.has(s.url) && s.feed !== feedOf.get(s.url))) await saveFollows(now.map((s) => (feedOf.has(s.url) ? { ...s, feed: feedOf.get(s.url) } : s)));
+		}
+		renderHome(true);
+		return readJSON(NEIGHBORS_KEY, {});
+	})().finally(() => { neighborsReading = null; });
+	return neighborsReading;
+}
+
+// Reads the feeds when the morning or evening time has passed since the last read.
+function maybeRefreshNeighbors() {
+	if (neighborsReading || !follows().length || !refreshDue(readJSON(NEIGHBORS_KEY, {}).at)) return;
+	refreshNeighbors().catch(() => {});
+}
+
+async function openNeighborsView(follow = "") {
+	const { openNeighbors } = await import("./neighborsview.js");
+	openNeighbors({
+		list: follows,
+		save: (list) => saveFollows(list),
+		feeds: () => readJSON(NEIGHBORS_KEY, {}),
+		refresh: refreshNeighbors,
+		lookup: lookupFeed,
+		seen: (ms) => { writeJSON(NEIGHBORS_SEEN, ms); renderHome(true); },
+		me: mySite,
+		reply: replyTo,
+		responded: (post) => !!responseNote(post.url, true),
+		addResponse,
+		toast,
+	}, { follow });
+}
+
+// This notebook's own website, from Export as website's settings on this device.
+const mySite = () => siteOf(readJSON("wr1t3r-website", {}));
+
+// Reply: a new note that answers post, with reply-to: its address. Publishing
+// it puts the reply on this site and in its feed, where the other site's
+// reader finds it.
+function replyTo(post) {
+	const title = ("Re " + post.title).replace(/[\\/:*?"<>|#^[\]]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+	newNote(commonFolder(visible()) + "Replies/" + title + ".md", (path) => {
+		const date = new Date().toLocaleDateString("en-CA");
+		let text = withTitleHeading(newNoteFrontmatter(name(path), date), name(path));
+		text = setProperty(text, "reply-to", post.url);
+		toast("Set publish: true when your reply is ready; it goes out with the site's next publish.", 8000);
+		return text + `\nIn reply to [${post.title.replace(/[[\]]/g, "")}](${post.url}) by ${post.name}.\n\n`;
+	});
+}
+
+// The note on this site whose page is address (a published note), or, with
+// hasResponse, the note that already lists address in its responses.
+function responseNote(address, hasResponse = false) {
+	for (const n of visible()) {
+		if (n.binary || !n.text || !isPublished(n.path, n.text)) continue;
+		if (hasResponse) {
+			if (!n.text.includes(address)) continue;
+			const r = parseFrontmatter(n.text).responses;
+			if ((Array.isArray(r) ? r : [r]).some((x) => String(x ?? "").includes(address))) return n.path;
+		}
+	}
+	return null;
+}
+
+// Shows a reply from a neighbor under the post it answers: adds it to that
+// note's responses: list.
+async function addResponse(post) {
+	const me = mySite();
+	if (!me || !onSite(post.inReplyTo, me)) throw new Error("set your site's address in Export as website first");
+	const { pageFiles, relativeURL } = await import("./website.js");
+	const published = visible().filter((n) => !n.binary && isPublished(n.path, n.text));
+	const files = pageFiles(published.map((n) => n.path));
+	const front = published.find((n) => /^(content\/)?(home|index)\.md$/i.test(n.path));
+	const want = post.inReplyTo.replace(/[#?].*$/, "").replace(/\/$/, "/index.html");
+	const at = (n) => me + relativeURL("index.html", n === front ? "index.html" : files.get(n.path));
+	const note = published.find((n) => at(n) === want || at(n).replace(/\.html$/, "") === want);
+	if (!note) throw new Error("that post isn't one of the notes published here any more");
+	const entry = `[${post.name}: ${post.title}](${post.url})`.replace(/\n/g, " ");
+	await dataviewVault.write(note.path, (t) => {
+		const now = parseFrontmatter(t).responses;
+		const list = (Array.isArray(now) ? now : now ? [now] : []).map(String);
+		return list.some((x) => x.includes(post.url)) ? t : setProperty(t, "responses", [...list, entry]);
+	});
+	toast(`It shows under “${name(note.path)}” the next time the site is published.`, 8000);
+}
+
+// The Neighbors tile on Home (a "neighbors:" pin): how many posts are new
+// since Neighbors was last open, and on a big tile the latest few.
+function neighborsTileGlance() {
+	const list = follows();
+	if (!list.length) return null;
+	const posts = neighborsList(list, readJSON(NEIGHBORS_KEY, {}).feeds || {});
+	return {
+		done: newSince(posts, readJSON(NEIGHBORS_SEEN, 0)),
+		label: "new from neighbors",
+		extras: [{ n: list.length, label: list.length === 1 ? "site followed" : "sites followed" }],
+		bars: [],
+		items: posts.slice(0, 4).map((p) => ({ label: `${p.name}: ${p.title}`, done: false })),
+	};
+}
+
+// wr1t3r opened at #follow=<a site's address> (a published page's Follow link).
+function followFromHash() {
+	const m = location.hash.match(/^#follow=(.+)$/);
+	if (!m) return false;
+	history.replaceState(null, "", location.pathname);
+	let address = m[1];
+	try { address = decodeURIComponent(address); } catch {}
+	openNeighborsView(address);
+	return true;
+}
+
 // Drops keys set to nothing, so they come out of the file.
 const clean = (p) => Object.fromEntries(Object.entries(p).filter(([, v]) => v != null && v !== ""));
 
@@ -2234,6 +2408,7 @@ function addTile(store = homeStore) {
 	const items = [
 		{ label: "Web page…", detail: "link", keywords: "url https website", run: () => { const u = prompt("Web page address:"); if (u) webLink(u); } },
 		...(featureOn("daily") && !have.some((p) => pinKind(p.link).kind === "habits") ? [{ label: "Habits", detail: "today's habits and streaks", keywords: "habit streak tracker stats", run: () => addPin({ link: "habits:", title: "Habits" }, "Habits") }] : []),
+		...(!have.some((p) => pinKind(p.link).kind === "neighbors") ? [{ label: "Neighbors", detail: "what the sites you follow posted", keywords: "follow feed rss atom reader blogs sites neocities friends webring", run: () => addPin({ link: "neighbors:", title: "Neighbors" }, "Neighbors") }] : []),
 		{ label: "Section header…", detail: "a label over the tiles after it", keywords: "section header heading group label divider", run: () => { const t = askSection(); if (t) { store.save([...store.list(), { section: t }]); toast(`Added the section “${t}”; tiles added after it go under it.`); } } },
 		...order.filter((p) => !pinned(p)).map((p) => ({ label: name(p), detail: folderOf(p) || "note", keywords: folderOf(p), run: () => pinItem(p) })),
 		...[...folders].filter((f) => f !== home && f.startsWith(home) && !pinned(f) && !isAppFile(f)).sort()
@@ -3506,6 +3681,7 @@ function allCommands() {
 		["Add this recipe to the Nutrition Database", syncRecipe, "recipe ingredients nutrition database calories per serving sync"],
 		["Add a food from a nutrition label photo", foodFromLabelPhoto, "photo picture camera nutrition facts label scan food database calories"],
 		...(featureOn("daily") ? [["Mood, sleep, exercise and weight", moodTrends, "trends chart graph health stats tracker mood sleep exercise steps weight history"]] : []),
+		["Neighbors: what the sites you follow posted", () => openNeighborsView(), "follow feed rss atom reader blogs sites neocities friends webring opml"],
 		["Open the calendar", () => openCalendar(), "calendar month week planner stickers pencil plans agenda"],
 		["Open this week's note", () => openWeekly(), "weekly planner week ahead plan agenda periodic"],
 		["Reflect on this week", () => reflectWeek(null, weekOf(isoDate(new Date())).from), "weekly review reflect recover rest journal recap"],
@@ -6761,6 +6937,8 @@ async function exportWebsite() {
 		},
 		theme: () => ({ ...readTheme(readRaw("wr1t3rThemeFamily"), readRaw("wr1t3rTheme")), tones: readTones(readRaw("wr1t3rColors")), headings: readHeadings(readRaw("wr1t3rHeadings")), mixtape: mixtapeVars(readMixtape(readRaw("wr1t3rMixtape"))) }),
 		font: () => FONTS[fontName] && fontName !== "serif" ? FONTS[fontName] : "",
+		following: follows,
+		sites: lookupSites,
 		toast,
 	});
 }
@@ -7006,7 +7184,7 @@ async function start() {
 		openNote(path);
 	});
 	window.addEventListener("hashchange", () => {
-		if (clipFromHash()) return;
+		if (clipFromHash() || followFromHash()) return;
 		const p = decodeURIComponent(location.hash.slice(1));
 		if (p && p !== activeTab()) openNote(p);
 	});
@@ -7031,8 +7209,10 @@ async function start() {
 	$("welcomeForm").addEventListener("submit", (e) => { e.preventDefault(); finishWelcome(true); });
 	$("welcomeSkip").addEventListener("click", () => finishWelcome(false));
 	setInterval(() => document.visibilityState === "visible" && runSync(), 60000);
+	// Neighbors' morning and evening read, for a wr1t3r left open across one.
+	setInterval(() => document.visibilityState === "visible" && maybeRefreshNeighbors(), 15 * 60000);
 
-	if (!clipFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || tabs.find(tabOpen) || null);
+	if (!clipFromHash() && !followFromHash()) openNote(decodeURIComponent(location.hash.slice(1)) || tabs.find(tabOpen) || null);
 	if (ref.on) showRef(true);
 	renderStatus();
 	runSync();

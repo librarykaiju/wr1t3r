@@ -39,6 +39,9 @@
 //                                  useMarkdownLinks, newLinkFormat} (those set)
 //   GET    /api/fetch?url=         a public web page for the clipper -> its body and
 //                                  Content-Type, and X-Final-URL after redirects
+//   GET    /api/feed?url=          a site's feed for Neighbors -> its posts' titles,
+//                                  links, dates and summaries; see worker/feed.js
+//   GET    /api/sites?url=         a site's blogroll or a webring's members; same file
 //   /api/calendar/...              Google Calendar agenda; see worker/calendar.js
 //   /api/media/...                 movie, book, music, game, comic and podcast
 //                                  lookups for media notes; see worker/media.js
@@ -59,6 +62,7 @@
 
 import { r2Backend } from "./r2.js";
 import { githubBackend } from "./github.js";
+import { feedApi } from "./feed.js";
 import { proxyFetch } from "./fetch.js";
 import { calendarApi } from "./calendar.js";
 import { mediaApi } from "./media.js";
@@ -87,6 +91,8 @@ export default {
 		if (!(await authorized(request, env))) return json({ error: "Unauthorized" }, 401);
 		try {
 			if (url.pathname === "/api/fetch" && request.method === "GET") return await proxyFetch(url.searchParams.get("url"), env);
+			const feed = await feedApi(request, env, url);
+			if (feed) return json(feed);
 			const cal = await calendarApi(request, env, url);
 			if (cal) return json(cal);
 			const media = await mediaApi(request, env, url);

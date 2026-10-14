@@ -29,11 +29,35 @@
 // header, nav, main, article and footer, without the parts that need wr1t3r's
 // own styles (the sidebar, the folders down the left, share buttons, the
 // Properties box, Bluesky replies).
+//
+// Every site with dated posts gets an Atom feed (feed.xml, atomFeed below), so
+// anyone can follow it from a feed reader, and each page names it in its head.
+// Entries carry a summary and a link, so readers come to the site to read;
+// opts.feedFull puts the whole post in instead. opts.address, the site's own
+// address, makes the feed's links and ids absolute; without it they're
+// relative to the feed, which readers resolve. Post pages are also marked up
+// as h-entry (title, date, text) for IndieWeb tools. Under each page a line
+// offers the feed, and, when the address is known, following the site in
+// wr1t3r (FOLLOW_APP, its #follow= link).
+//
+// The sites the person follows (opts.following, from _wr1t3r/Following.md,
+// those marked private left out) become a neighbors page and neighbors.opml,
+// named in each page's head as its blogroll, so other readers can find who
+// this site reads. A webring the person runs (opts.ringName, ringMembers)
+// becomes ring.html and ring.opml; one they're in (opts.ring: { name, home,
+// prev, next }, worked out from the ring's list before building) puts its
+// previous and next links under every page.
+//
+// A note with reply-to: <a post's address> says so above its text, and its
+// feed entry carries the link (thr:in-reply-to), so the other site's reader
+// can tell its author. Replies they chose to show are in the note's
+// responses: list, "[words](address)" or a bare address each, listed under
+// the post.
 
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
 import { parseFrontmatter } from "./dvpage.js";
-import { isPublished } from "./published.js";
+import { isPublished, siteAddress, webAddress } from "./published.js";
 import { cleanNote } from "./compile.js";
 import { resolveNote } from "./links.js";
 import { resolveAttachment, attachmentKind } from "./attachments.js";
@@ -41,9 +65,12 @@ import { calloutLook } from "./blocks.js";
 import { COVER_SHAPES, COVER_POSITIONS, COVER_WIDTHS } from "./pretty.js";
 import { SHOWN_FOLDERS } from "./frontmatter.js";
 
-export { isPublished };
+export { isPublished, siteAddress, webAddress };
 
-export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html" };
+// Where "Follow in wr1t3r" goes: the app opens Neighbors with the site filled in.
+export const FOLLOW_APP = "https://my.wr1t3r.app/";
+
+export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html", feed: "feed.xml", neighbors: "neighbors.html", blogroll: "neighbors.opml", ring: "ring.html", ringList: "ring.opml" };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const first = (v) => (Array.isArray(v) ? v.find((x) => x != null && String(x).trim() !== "") : v);
@@ -261,6 +288,8 @@ export function pageInfo(path, text) {
 		bannerPosition: /^\d+(\.\d+)?$/.test(s(p.banner_position)) ? Math.min(100, Number(s(p.banner_position))) : 50,
 		description: s(p.description) || s(p.summary),
 		bluesky: blueskyPost(s(p.bluesky)),
+		replyTo: webAddress(s(p["reply-to"]) || s(p.in_reply_to) || s(p["in-reply-to"])),
+		responses: responseList(p.responses),
 		props: propRows(p, SHOWN_FOLDERS.test(path)),
 		open: SHOWN_FOLDERS.test(path),
 	};
@@ -270,7 +299,7 @@ export function pageInfo(path, text) {
 // the site: left out of the page's Properties box. The date and tags are in
 // it when it starts open (DATE_KEYS), as in the app.
 const DATE_KEYS = new Set(["tags", "tag", "date", "created"]);
-const OWN_KEYS = new Set(["title", "publish", "draft", "tags", "tag", "date", "created", "cover", "coverimage", "image", "thumbnail", "banner", "banner_position", "banner_y", "cover_shape", "cover_position", "description", "summary", "bluesky", "cssclasses", "cssclass", "aliases", "alias", "compile", "sticky", "eyebrow", "permalink", "layout", "eleventyexcludefromcollections", "position"]);
+const OWN_KEYS = new Set(["title", "publish", "draft", "tags", "tag", "date", "created", "cover", "coverimage", "image", "thumbnail", "banner", "banner_position", "banner_y", "cover_shape", "cover_position", "description", "summary", "bluesky", "cssclasses", "cssclass", "aliases", "alias", "compile", "sticky", "eyebrow", "permalink", "layout", "eleventyexcludefromcollections", "position", "reply-to", "in_reply_to", "in-reply-to", "responses"]);
 
 // The note's other properties, in their order: [[key, value]], empty values
 // left out. open: with the date and tags.
@@ -351,7 +380,8 @@ export function allowedKind(kind, { media = false } = {}) {
 // vaultPath }), pages: [{ path, file, title }], skipped: [vaultPath] }.
 // notes: [{ path, text }] (every note; only published ones get pages),
 // attachments: every vault file's path. opts: { title, css, footer, media },
-// or { stylesheet } in place of css.
+// or { stylesheet } in place of css; address (the site's https address) and
+// feedFull for the feed.
 export function buildSite(notes, attachments, opts = {}) {
 	const title = String(opts.title || "").trim() || "My notebook";
 	const tagline = String(opts.tagline || "").trim();
@@ -377,6 +407,7 @@ export function buildSite(notes, attachments, opts = {}) {
 
 	const out = new Map();
 	const pages = [];
+	const entries = []; // the posts, for the feed
 	const support = supportBox(opts.support);
 	const social = socialBox(opts.social);
 	const own = ownStylesheet(opts.stylesheet);
@@ -425,7 +456,11 @@ export function buildSite(notes, attachments, opts = {}) {
 		const r = render(n, site);
 		page(site, n.path, r.info, r.body);
 		pages.push({ path: n.path, file: site, title: r.info.title, date: r.info.date, folder: sitePath(n.path).split("/").slice(0, -1).join("/") });
+		entries.push({ file: site, title: r.info.title, date: r.info.date, tags: r.info.tags, description: r.info.description, body: r.body, replyTo: r.info.replyTo });
 	}
+	const address = siteAddress(opts.address) || "";
+	const feed = atomFeed(entries, { title, tagline, address, full: !!opts.feedFull });
+	if (feed) out.set(SITE_FILES.feed, feed);
 
 	// The front page: Home's text, then every page by folder, newest first.
 	const lead = front ? render(front, SITE_FILES.index) : null;
@@ -463,6 +498,19 @@ export function buildSite(notes, attachments, opts = {}) {
 	}
 	page(SITE_FILES.index, front?.path ?? "", { title: lead?.info.title || title, tags: [], date: "", cover: lead?.info.cover, banner: lead?.info.banner, bannerPosition: lead?.info.bannerPosition, description: lead?.info.description }, (lead?.body || "") + (pages.length ? `<nav class="contents" aria-label="Pages">\n${list}\n</nav>` : `<p class="empty">Nothing published yet.</p>`));
 	if (front) pages.unshift({ path: front.path, file: SITE_FILES.index, title: lead.info.title, date: lead.info.date, folder: "" });
+	// Who this site reads, and the webring it runs.
+	const neighbors = opts.neighbors === false ? [] : (opts.following || []).filter((f) => f && !yes(f.private) && webAddress(f.url));
+	if (neighbors.length) {
+		out.set(SITE_FILES.blogroll, opml(`Sites ${title} reads`, neighbors));
+		page(SITE_FILES.neighbors, "", { title: "Sites I read", tags: [], date: "" }, `<p>Other people's sites I follow. <a href="${SITE_FILES.blogroll}" type="text/x-opml">The list for a feed reader</a> (OPML).</p>\n${siteList(neighbors)}`);
+	}
+	const ringName = String(opts.ringName || "").trim();
+	const members = [...new Set((opts.ringMembers || []).map(siteAddress).filter(Boolean))];
+	if (ringName && members.length) {
+		out.set(SITE_FILES.ringList, opml(ringName, members.map((url) => ({ url }))));
+		page(SITE_FILES.ring, "", { title: ringName, tags: [], date: "" }, `<p>A webring: each member's pages link to the next and previous site in the ring. To join, ask the person who runs it; members put <code>${esc(address ? address + SITE_FILES.ringList : SITE_FILES.ringList)}</code> in their site's settings.</p>\n${siteList(members.map((url) => ({ url })))}`);
+	}
+	const ring = opts.ring && webAddress(opts.ring.home) ? opts.ring : null;
 	page(SITE_FILES.missing, "", { title: "Page not found", tags: [], date: "" }, `<p>There's no page here. It may have been moved or taken down.</p>\n<p><a href="/">Go to the front page</a></p>`);
 
 	// The calendar: a page per month with something posted, and an index of months.
@@ -540,11 +588,113 @@ export function buildSite(notes, attachments, opts = {}) {
 		const post = pages.some((p) => p.file === site && site !== SITE_FILES.index);
 		const extras = own ? "" : (post && info.bluesky ? blueskyBox(info.bluesky) : "") + (post && opts.share !== false ? SHARE : "");
 		const css = !own ? relativeURL(site, SITE_FILES.style) : /^(https?:)?\/\/|^\//i.test(own) ? own : "../".repeat(site.split("/").length - 1) + own;
-		out.set(site, html({ ...info, props: own || opts.properties === false ? null : info.props, body: body + extras + pagerFor(site), menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css, footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
+		const feedURL = feed && relativeURL(site, SITE_FILES.feed);
+		const readsURL = neighbors.length ? relativeURL(site, SITE_FILES.neighbors) : "";
+		const follow = (feed || readsURL) && !own ? `<p class="follow">${feed ? `Follow this site: <a href="${esc(feedURL)}" type="application/atom+xml">its feed</a>${address ? ` or <a href="${esc(FOLLOW_APP + "#follow=" + encodeURIComponent(address))}">in wr1t3r</a>` : ""}` : ""}${feed && readsURL ? " · " : ""}${readsURL ? `<a href="${esc(readsURL)}">Sites I read</a>` : ""}</p>\n` : "";
+		const ringLine = ring ? `<nav class="ring" aria-label="Webring">${webAddress(ring.prev) ? `<a href="${esc(webAddress(ring.prev))}" rel="prev">← Previous</a>` : "<span></span>"}<a href="${esc(webAddress(ring.home))}">${esc(ring.name || "Webring")}</a>${webAddress(ring.next) ? `<a href="${esc(webAddress(ring.next))}" rel="next">Next →</a>` : "<span></span>"}</nav>\n` : "";
+		const reply = post && info.replyTo ? `<p class="reply-to">In reply to <a class="u-in-reply-to" href="${esc(info.replyTo)}">${esc(shortAddress(info.replyTo))}</a></p>\n` : "";
+		const responses = post && info.responses?.length ? `<section class="responses" aria-label="Responses">\n<h2>Responses</h2>\n<ul>\n${info.responses.map((r) => `<li class="h-cite u-comment"><a class="u-url" href="${esc(r.url)}">${esc(r.text || shortAddress(r.url))}</a></li>`).join("\n")}\n</ul>\n</section>\n` : "";
+		const text = post ? body.replace(/^<div class="note">/, '<div class="note e-content">') : body;
+		out.set(site, html({ ...info, props: own || opts.properties === false ? null : info.props, body: reply + text + responses + extras + pagerFor(site) + follow + ringLine, post, feed: feedURL, blogroll: neighbors.length ? relativeURL(site, SITE_FILES.blogroll) : "", menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css, footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
 	}
 	if (!own) out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
 	return { files: out, pages, skipped: [...skipped].sort(), title };
+}
+
+// "someone.neocities.org/winter-beds.html": an address without its scheme.
+const shortAddress = (u) => String(u).replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
+
+// A note's responses: property as [{ text, url }]: each "[words](address)"
+// or a bare address. Anything else is left out.
+export function responseList(v) {
+	const out = [];
+	for (const r of Array.isArray(v) ? v : v == null ? [] : [v]) {
+		const t = String(r ?? "").trim();
+		const m = /^\[([^\]]*)\]\((\S+)\)$/.exec(t);
+		const url = webAddress(m ? m[2] : t);
+		if (url && !out.some((x) => x.url === url)) out.push({ text: m ? m[1].trim() : "", url });
+	}
+	return out;
+}
+
+// sites ([{ url, feed?, name? }]) as an OPML list, the format feed readers
+// import and export.
+function opml(title, sites) {
+	const rows = sites.map((s) => {
+		const name = String(s.name || "").trim() || shortAddress(s.url);
+		const feedUrl = webAddress(s.feed) || webAddress(s.url);
+		return `<outline type="rss" text="${xml(name)}" title="${xml(name)}" xmlUrl="${xml(feedUrl)}" htmlUrl="${xml(webAddress(s.url))}"/>`;
+	});
+	return ['<?xml version="1.0" encoding="utf-8"?>', '<opml version="2.0">', `<head><title>${xml(title)}</title></head>`, "<body>", ...rows, "</body>", "</opml>", ""].join("\n");
+}
+
+// The sites as a list of links on a page.
+const siteList = (sites) => `<ul class="pages">\n${sites.map((s) => `<li><a href="${esc(webAddress(s.url))}">${esc(String(s.name || "").trim() || shortAddress(s.url))}</a></li>`).join("\n")}\n</ul>`;
+
+// Where a site sits in a webring's list of members: { prev, next } (each
+// wraps around), or null when it isn't in it.
+export function ringPlace(members, me) {
+	const key = (u) => String(u || "").toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "");
+	const list = members.map((m) => (typeof m === "string" ? m : m?.url)).filter(Boolean);
+	const i = list.findIndex((u) => key(u) === key(me));
+	if (i < 0 || list.length < 2) return null;
+	return { prev: list[(i - 1 + list.length) % list.length], next: list[(i + 1) % list.length] };
+}
+
+// A post's line or two for the feed: its description, else the start of its
+// first paragraph as plain text, cut at a word near 280 characters.
+export function summaryOf(description, body) {
+	if (description) return description;
+	const para = /<p>([\s\S]*?)<\/p>/.exec(body || "")?.[1] || "";
+	const words = para.replace(/<[^>]*>/g, "").replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" })[e]).replace(/\s+/g, " ").trim();
+	if (words.length <= 280) return words;
+	const cut = words.slice(0, 280);
+	return cut.slice(0, cut.lastIndexOf(" ") > 200 ? cut.lastIndexOf(" ") : 280).replace(/[\s,;:.]+$/, "") + "…";
+}
+
+const FEED_SIZE = 50;
+// Characters XML can't hold at all.
+const xml = (s) => esc(String(s ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, ""));
+
+// The site's Atom feed: its newest dated posts, newest first, or "" when
+// nothing has a date. posts: [{ file, title, date, tags, description, body }].
+// Dates, not the time of publishing, set every timestamp, so publishing again
+// with nothing new leaves the feed unchanged.
+export function atomFeed(posts, { title, tagline = "", address = "", full = false } = {}) {
+	const base = siteAddress(address) || "";
+	const dated = posts.filter((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.date || "")).sort((a, b) => b.date.localeCompare(a.date) || a.title.localeCompare(b.title)).slice(0, FEED_SIZE);
+	if (!dated.length) return "";
+	const url = (file) => base + relativeURL(SITE_FILES.index, file);
+	const when = (d) => `${d}T00:00:00Z`;
+	const entry = (p) => [
+		"<entry>",
+		`<title>${xml(p.title)}</title>`,
+		`<link rel="alternate" type="text/html" href="${xml(url(p.file))}"/>`,
+		`<id>${xml(url(p.file))}</id>`,
+		`<published>${when(p.date)}</published>`,
+		`<updated>${when(p.date)}</updated>`,
+		...(p.tags || []).map((t) => `<category term="${xml(t)}"/>`),
+		`<summary>${xml(summaryOf(p.description, p.body))}</summary>`,
+		...(full ? [`<content type="html" xml:base="${xml(url(p.file))}">${xml(p.body)}</content>`] : []),
+		...(webAddress(p.replyTo) ? [`<thr:in-reply-to ref="${xml(p.replyTo)}" href="${xml(p.replyTo)}" type="text/html"/>`] : []),
+		"</entry>",
+	].join("\n");
+	return [
+		'<?xml version="1.0" encoding="utf-8"?>',
+		'<feed xmlns="http://www.w3.org/2005/Atom" xmlns:thr="http://purl.org/syndication/thread/1.0">',
+		`<title>${xml(title)}</title>`,
+		...(tagline ? [`<subtitle>${xml(tagline)}</subtitle>`] : []),
+		`<link rel="alternate" type="text/html" href="${xml(base || SITE_FILES.index)}"/>`,
+		...(base ? [`<link rel="self" type="application/atom+xml" href="${xml(base + SITE_FILES.feed)}"/>`] : []),
+		`<id>${xml(base || SITE_FILES.index)}</id>`,
+		`<updated>${when(dated[0].date)}</updated>`,
+		`<author><name>${xml(title)}</name></author>`,
+		'<generator uri="https://wr1t3r.app">wr1t3r</generator>',
+		...dated.map(entry),
+		"</feed>",
+		"",
+	].join("\n");
 }
 
 // The address of the person's own stylesheet, or null: a web address, a path
@@ -732,7 +882,7 @@ function supportBox(s) {
 	return `<section class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</section>\n`;
 }
 
-function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex }) {
+function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex, post, feed, blogroll }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
 	const brand = `<a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly && !tagline ? "" : `<span class="name">${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}${tagline ? `<span class="tagline">${esc(tagline)}</span>` : ""}</span>`}</a>`;
 	// The notebook layout has no header: the title and logo top the folders, as in the app's sidebar.
@@ -745,13 +895,13 @@ function html({ title, date, tags, props, open, cover, coverShape, coverPosition
 <title>${esc(pageTitle)}</title>
 ${description || (isIndex && tagline) ? `<meta name="description" content="${esc(description || tagline)}">\n` : ""}<meta property="og:title" content="${esc(title)}">
 <link rel="stylesheet" href="${esc(css)}">
-${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
+${feed ? `<link rel="alternate" type="application/atom+xml" title="${esc(siteTitle)}" href="${esc(feed)}">\n` : ""}${blogroll ? `<link rel="blogroll" type="text/xml" href="${esc(blogroll)}">\n` : ""}${logo ? `<link rel="icon" href="${esc(logo)}">\n` : ""}
 </head>
 <body class="${tree ? "layout-notebook" : "layout-top"}${side ? " has-side" : ""}">
 ${tree ? "" : `<header class="site">${brand}${menu || ""}</header>\n`}${banner ? `<div class="banner"><img src="${esc(banner)}" alt="" style="object-position: center ${bannerPosition}%"></div>\n` : ""}<main>
-${tree || ""}<article>
-<h1>${esc(title)}</h1>
-${(date || tags.length) && !(props && open) ? `<p class="meta">${[date ? `<time datetime="${date}">${esc(longDate(date))}</time>` : "", ...tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`)].filter(Boolean).join(" ")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !props) ? `<img class="cover${open ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
+${tree || ""}<article${post ? ' class="h-entry"' : ""}>
+<h1${post ? ' class="p-name"' : ""}>${esc(title)}</h1>
+${(date || tags.length) && !(props && open) ? `<p class="meta">${[date ? `<time${post ? ' class="dt-published"' : ""} datetime="${date}">${esc(longDate(date))}</time>` : "", ...tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`)].filter(Boolean).join(" ")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !props) ? `<img class="cover${open ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
 ${side ? `<aside class="side">\n${side}</aside>\n` : ""}</main>
 ${footer ? `<footer class="site">Made with <a href="https://wr1t3r.app">wr1t3r</a></footer>\n` : ""}</body>
@@ -780,6 +930,16 @@ header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: con
 .pager a { text-decoration: none; color: var(--fg); }
 .pager a span { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
 .pager .next { text-align: right; }
+.reply-to { margin: 0 0 1.2em; font: 15px/1.5 var(--sans); color: var(--muted); }
+.reply-to a { color: var(--muted); }
+.responses { margin: 2.5em 0 0; padding-top: 1em; border-top: 1px solid var(--line); font: 15px/1.5 var(--sans); }
+.responses h2 { font-size: 1em; margin: 0 0 0.5em; }
+.responses ul { margin: 0; padding-left: 1.2em; }
+.ring { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; margin: 1em 0 0; font: 14px/1.5 var(--sans); }
+.ring a { color: var(--muted); }
+.ring a[rel="next"] { text-align: right; }
+.follow { margin: 2.5em 0 0; font: 14px/1.5 var(--sans); color: var(--muted); }
+.follow a { color: var(--muted); }
 footer.site { font-weight: normal; color: var(--muted); border-top: 1px solid var(--line); margin-top: 3em; }
 footer.site a { color: var(--muted); }
 main { margin: 0 auto; padding: 0 20px 4em; }

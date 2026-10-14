@@ -2090,8 +2090,33 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .website-side { display: flex; flex-direction: column; min-height: 0; }
 .website-side select { margin: 8px; font-size: 14px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
 .website-side .compile-preview { flex: 1; min-height: 0; }
+/* Neighbors (src/neighborsview.js): following on the left, posts on the right. */
+.neighbors .compile-form h3 { margin: 6px 0 -4px; font-size: 13px; font-weight: 600; color: var(--fg); }
+.neighbors-sites { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.neighbors-sites li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.neighbors-sites li > a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
+.neighbors-sites li > button { font-size: 12px; padding: 2px 8px; min-height: 0; color: var(--muted); }
+.neighbors-error { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.neighbors-posts { min-height: 0; overflow-y: auto; }
+.neighbors-list { list-style: none; margin: 0 auto; padding: 8px 20px 24px; max-width: 46rem; }
+.neighbors-post { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.neighbors-title { display: block; font: 600 17px/1.35 var(--sans); color: var(--fg); text-decoration: none; }
+.neighbors-title:hover { text-decoration: underline; }
+.neighbors-meta { margin: 3px 0 0; font-size: 13px; color: var(--muted); }
+.neighbors-meta a { color: var(--muted); }
+.neighbors-summary { margin: 6px 0 0; font: 15px/1.5 var(--serif); color: var(--fg); }
+.neighbors-empty { padding: 24px 0; color: var(--muted); font-size: 15px; }
+.neighbors-via { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.neighbors-sites li > button[aria-pressed="true"] { color: var(--fg); }
+.neighbors-acts { display: flex; gap: 6px; margin: 6px 0 0; }
+.neighbors-acts button { font-size: 13px; padding: 3px 10px; min-height: 0; color: var(--muted); }
+.neighbors-heading { margin: 16px 0 0; font: 600 13px/1.4 var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 @media (max-width: 720px) {
 	.compile-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+	/* The posts first on a phone; following below them. */
+	.neighbors .compile-grid { grid-template-rows: 1fr auto; }
+	.neighbors .neighbors-posts { order: -1; border-bottom: 1px solid var(--line); }
+	.neighbors .compile-form { border-bottom: 0; max-height: 40vh; }
 	.compile-form { border-right: 0; border-bottom: 1px solid var(--line); max-height: 52vh; }
 	.compile-preview { min-height: 40vh; }
 }
