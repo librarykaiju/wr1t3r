@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { homePath, readPins, writePins, pinKind, pinPath, linkFor, pinTitle, pinColor, pinCover, retargetPins, pinOpens, folderLink, isAppFile, tileOrdinals, readCards, writeCards } from "../src/home.js";
+import { homePath, readPins, writePins, pinKind, pinPath, linkFor, pinTitle, pinColor, pinCover, pinSize, retargetPins, pinOpens, folderLink, isAppFile, tileOrdinals, readCards, writeCards } from "../src/home.js";
 
 const HOME = "content/_wr1t3r/Home.md";
 const paths = ["content/Reading log.md", "content/_docs/Books.base", "content/a/Idea.md", "content/b/Idea.md", HOME];
@@ -157,4 +157,16 @@ test("a cards block is a bare list of the same entries", () => {
 
 test("a storyboard: pin is the folder's storyboard, kept as corkboard inside", () => {
 	assert.deepEqual(pinKind("storyboard:content/Novel"), { kind: "view", view: "corkboard", folder: "content/Novel/" });
+});
+
+test("a tile's size is 1x1, 2x1 or 2x2, and writes back with the pin", () => {
+	assert.equal(pinSize({}), null);
+	assert.equal(pinSize({ size: "2x1" }), "2x1");
+	assert.equal(pinSize({ size: "2 × 2" }), "2x2");
+	assert.equal(pinSize({ size: "wide" }), "2x1");
+	assert.equal(pinSize({ size: "large" }), "2x2");
+	assert.equal(pinSize({ size: "3x3" }), null);
+	const text = writePins("", [{ link: "habits:", size: "2x2" }]);
+	assert.match(text, /size: "2x2"/);
+	assert.equal(pinSize(readPins(text)[0]), "2x2");
 });

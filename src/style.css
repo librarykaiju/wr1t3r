@@ -1471,6 +1471,42 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .tile.dragging { opacity: 0.4; }
 .tile.drop-before { box-shadow: -4px 0 0 var(--accent); }
 .tile.drop-after { box-shadow: 4px 0 0 var(--accent); }
+/* Bigger tiles (a pin's size:): 2x1 spans two columns, 2x2 two columns and
+   two rows. Every tile stretches to its row, so a big tile's rows and the
+   small tiles beside it line up; on a phone's two columns a 2x1 is a full row. */
+.home-grid > .tile { align-self: stretch; }
+.tile.size-2x1 { grid-column: span 2; aspect-ratio: 8 / 3; }
+.tile.size-2x2 { grid-column: span 2; grid-row: span 2; aspect-ratio: 4 / 3; }
+.tile.size-2x1.has-glance .tile-glance, .tile.size-2x2.has-glance .tile-glance { flex: 1; min-height: 0; justify-content: flex-end; }
+.tile.size-2x1.has-glance .tile-glance { flex-direction: row; align-items: stretch; gap: 16px; }
+.tile.size-2x1 .tile-glance-nums { flex: 0 1 auto; max-width: 50%; justify-content: flex-end; }
+.tile.size-2x1 :is(.tile-glance-bars, .tile-glance-line) { flex: 1; height: auto; min-height: 24px; margin-top: 0; }
+.tile.size-2x1 .tile-glance-pie { flex: 1; align-self: flex-end; margin-top: 0; }
+.tile-glance-nums { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.tile.size-2x1 .tile-glance-n { font-size: 34px; }
+.tile.size-2x2.has-glance { gap: 6px; padding: 16px; }
+.tile.size-2x2.has-glance .tile-name { font-size: 15px; }
+.tile.size-2x2 .tile-glance { gap: 4px; }
+.tile.size-2x2 .tile-glance-n { font-size: 44px; }
+.tile.size-2x2 .tile-glance-l, .tile.size-2x2 .tile-glance-row { font-size: 13px; }
+.tile.size-2x2 :is(.tile-glance-bars, .tile-glance-line) { flex: 1 1 40px; height: auto; min-height: 30px; max-height: 120px; margin-top: 8px; }
+.tile.size-2x2 .tile-glance-pie { margin-top: 8px; }
+.tile.size-2x2 .tile-glance-pie .chart-pie { gap: 12px; width: 100%; min-width: 0; }
+.tile.size-2x2 .tile-glance-pie .chart-pie-legend { font-size: 12px; gap: 3px; }
+.tile-glance-ends { display: flex; justify-content: space-between; font-size: 11px; opacity: 0.75; }
+.tile-glance-list { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; font-size: 13px; min-height: 0; overflow: hidden; flex: 0 1 auto; }
+.tile-glance-list > span { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tile-glance-list > span > span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-glance-list i { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--tc) 75%, var(--fg)); }
+.tile-glance-list .done i { background: color-mix(in srgb, var(--tc) 75%, var(--fg)); }
+.tile-glance-list .done > span { opacity: 0.7; }
+.tile.has-glance.has-cover .tile-glance-list i { border-color: #fff; }
+.tile.has-glance.has-cover .tile-glance-list .done i { background: #fff; }
+@media (max-width: 480px) {
+	.tile.size-2x1 .tile-glance-n { font-size: 26px; }
+	.tile.size-2x2 .tile-glance-n { font-size: 34px; }
+	.tile.size-2x2.has-glance { padding: 12px; }
+}
 /* Master task lists (src/tasklistview.js). */
 .md-tl { margin: 6px 0; padding: 10px 12px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font: 15px/1.5 var(--sans); }
 .md-tl-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }

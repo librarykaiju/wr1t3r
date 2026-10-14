@@ -180,7 +180,8 @@ export function streak(h, days, today, { weeks = 12 } = {}) {
 }
 
 // For a stats tile (src/homeview.js): today's count and the longest current
-// streak, with a bar per day for the last two weeks (habits done that day).
+// streak, with a bar per day for the last two weeks (habits done that day),
+// and today's habits one by one for a 2x2 tile.
 export function habitsGlance(habits, days, today) {
 	if (!habits.length) return null;
 	const due = habits.filter((h) => dueOn(h, today));
@@ -203,5 +204,6 @@ export function habitsGlance(habits, days, today) {
 		],
 		bars,
 		pie: null,
+		items: due.map((h) => ({ label: h.name, done: progress(h, days.get(today)).done, n: runs.find((r) => r.h === h)?.s.current || 0 })),
 	};
 }
