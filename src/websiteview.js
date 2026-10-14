@@ -17,6 +17,7 @@
 //   font()         the editor font, as CSS
 //   following()    the sites followed (src/feeds.js), for the "Sites I read" page
 //   sites(address) a list of sites through the relay -> Promise<{ list, title, sites }>, for a webring
+//   saveNote(path, text) writes a note, making it if need be -> Promise (the front page builder's Home note)
 //   worker(path, init) fetch from wr1t3r's Worker, signed in, for Publish to Neocities
 //   toast(text)
 // }
@@ -33,6 +34,10 @@ const FAMILY_NAMES = { default: "Default", gruvbox: "Gruvbox", dracula: "Dracula
 
 const KEY = "wr1t3r-website";
 let open = null;
+
+// The website's Home note: Home.md or Index.md at the top of the notes,
+// else where a new one goes.
+const homePathIn = (paths) => paths.find((p) => /^(content\/)?(home|index)\.md$/i.test(p)) || (paths.some((p) => p.startsWith("content/")) ? "content/Home.md" : "Home.md");
 
 const readSaved = () => { try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch { return {}; } };
 const save = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} };
@@ -122,7 +127,20 @@ export function openWebsite(host) {
 	field("Show", frontShow);
 	const designHint = Object.assign(document.createElement("p"), { className: "hint", textContent: "To design the front page yourself, write a note called Home with publish: true; its text is the front page. Put a posts block in it wherever you want a list, and the setting above is set aside. show can be title, summary or full; use as many blocks as you like." });
 	const designCode = Object.assign(document.createElement("pre"), { className: "hint website-code", textContent: "```posts\nfolder: microblog\ncount: 5\nshow: summary\n```" });
-	form.append(designHint, designCode);
+	const designGo = Object.assign(document.createElement("button"), { type: "button", textContent: "Design the front page…" });
+	designGo.addEventListener("click", async () => {
+		const { openFrontBuilder } = await import("./frontbuilder.js");
+		const text = host.notes().find((n) => n.path === homePath())?.text || "";
+		openFrontBuilder({
+			text: () => text,
+			async save(t) { await host.saveNote(homePath(), t); refresh(); },
+			preview: (t) => pageHtml(build(t), SITE_FILES.index),
+			pictures: () => host.attachments().filter((p) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(p)).sort(),
+			folders: () => folders,
+			toast: host.toast,
+		});
+	});
+	form.append(designHint, designCode, designGo);
 	const share = check("Share buttons under each post", saved.share !== false);
 	const properties = check("Each note's properties in a box under its title", saved.properties !== false);
 	sub("Right sidebar");
@@ -206,6 +224,7 @@ export function openWebsite(host) {
 	wrap.append(box);
 	document.body.append(wrap);
 
+	const homePath = () => homePathIn(host.notes().map((n) => n.path));
 	const settings = () => ({ frontFolder: frontFolder.value, frontCount: Number(frontCount.value) || 10, frontShow: frontShow.value, neoSite: saved.neoSite || "", ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), address: address.value.trim(), feedFull: feedFull.checked, neighbors: neighbors.checked, ringUrl: ringUrl.value.trim(), ringName: ringName.value.trim(), ringMembers: ringMembers.value.trim(), family: family.value, mode: mode.value, tones: tones.value, headings: headings.value });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
@@ -234,9 +253,10 @@ export function openWebsite(host) {
 		}
 		return null;
 	}
-	const build = () => {
+	const build = (homeText = null) => {
 		const s = settings();
-		return buildSite(host.notes(), host.attachments(), { title: s.title, tagline: s.tagline, css: css(), stylesheet: s.plain ? ownStylesheet(s.stylesheet) || "main.css" : "", footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, address: siteOf(s), feedFull: s.feedFull, following: host.following?.() || [], neighbors: s.neighbors, ringName: s.ringName, ringMembers: s.ringMembers.split(/\s+/).filter(Boolean), ring: ringNow(s), front: s.frontFolder === "*" ? null : { folder: s.frontFolder, count: s.frontCount, show: s.frontShow }, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
+		const notes = homeText == null ? host.notes() : [...host.notes().filter((n) => n.path !== homePath()), { path: homePath(), text: homeText }];
+		return buildSite(notes, host.attachments(), { title: s.title, tagline: s.tagline, css: css(), stylesheet: s.plain ? ownStylesheet(s.stylesheet) || "main.css" : "", footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, address: siteOf(s), feedFull: s.feedFull, following: host.following?.() || [], neighbors: s.neighbors, ringName: s.ringName, ringMembers: s.ringMembers.split(/\s+/).filter(Boolean), ring: ringNow(s), front: s.frontFolder === "*" ? null : { folder: s.frontFolder, count: s.frontCount, show: s.frontShow }, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
 	};
 
 	let site = null, timer;
@@ -258,10 +278,15 @@ export function openWebsite(host) {
 	}
 	const blobs = new Map(); // vault path -> data: URL, for the preview's pictures (a sandboxed frame can't read blob: URLs)
 	async function show() {
-		// The page with its stylesheet inlined and its pictures from this device.
-		// The person's own stylesheet is left off: the app's security policy
-		// won't load another site's styles, even in the preview.
-		const file = pick.value, dir = file.split("/").slice(0, -1);
+		const file = pick.value;
+		const page = await pageHtml(site, file);
+		if (pick.value === file) preview.srcdoc = page;
+	}
+	// A built page with its stylesheet inlined and its pictures from this
+	// device. The person's own stylesheet is left off: the app's security
+	// policy won't load another site's styles, even in the preview.
+	async function pageHtml(site, file) {
+		const dir = file.split("/").slice(0, -1);
 		let page = (site.files.get(file) || "").replace(/<link rel="stylesheet" href="[^"]*">/, () => (site.files.has(SITE_FILES.style) ? `<style>${site.files.get(SITE_FILES.style)}</style>` : ""));
 		const srcs = [...new Set([...page.matchAll(/src="([^"]+)"/g)].map((m) => m[1]))];
 		for (const src of srcs) {
@@ -273,7 +298,7 @@ export function openWebsite(host) {
 			const url = await blobs.get(v.attachment);
 			if (url) page = page.split(`src="${src}"`).join(`src="${url}"`);
 		}
-		if (pick.value === file) preview.srcdoc = page;
+		return page;
 	}
 	pick.addEventListener("change", show);
 	form.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(refresh, 250); });
@@ -391,7 +416,8 @@ export function openWebsite(host) {
 		open = null;
 		back?.focus?.();
 	}
-	const esc = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+	// The front page builder, open over this window, closes first.
+	const esc = (e) => { if (e.key === "Escape" && !document.querySelector(".front-builder")) { e.preventDefault(); e.stopPropagation(); close(); } };
 	x.addEventListener("click", close);
 	wrap.addEventListener("mousedown", (e) => { if (e.target === wrap) close(); });
 	document.addEventListener("keydown", esc, true);

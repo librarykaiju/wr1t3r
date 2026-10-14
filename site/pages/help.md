@@ -84,6 +84,8 @@ wr1t3r builds a website from the notes you choose, as plain web pages you can pu
 
     `show` can be `title`, `summary` (the title and a line or two) or `full` (the whole post). Leave out `folder` for posts from every folder.
 
+    Rather build it from blocks? Click _Design the front page…_ under _Front page_. Add headings, text, pictures, lists of your latest posts, links and dividers, put them in order, and see the page as you go. It's saved as your Home note, so you can switch between the two.
+
         Already have a site with its own look? Tick _Plain HTML pages that use your own stylesheet_. The pages come without a theme and link `main.css` at the top of the site (or another address you give), so put your stylesheet there and they match the rest of your site. The sidebar, share buttons and Properties box are left out.
 
     ![The Export as website window: site title, logo, theme, light or dark, layout and other settings on the left, and a preview of the front page on the right](/shots/help-export.webp)

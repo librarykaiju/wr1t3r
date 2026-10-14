@@ -6941,6 +6941,16 @@ async function exportWebsite() {
 		font: () => FONTS[fontName] && fontName !== "serif" ? FONTS[fontName] : "",
 		following: follows,
 		sites: lookupSites,
+		async saveNote(path, text) {
+			if (dataviewVault.text(path) != null) await dataviewVault.write(path, () => text);
+			else {
+				if (!visible().length) throw new Error("the notebook hasn't loaded yet");
+				await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
+				renderStatus();
+				renderTree();
+				scheduleSync();
+			}
+		},
 		worker: (path, init = {}) => fetch(path, { ...init, headers: { ...(init.headers || {}), ...(token() ? { Authorization: "Bearer " + token() } : {}) } }),
 		toast,
 	});

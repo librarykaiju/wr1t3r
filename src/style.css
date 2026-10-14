@@ -2412,3 +2412,12 @@ body.no-health .planner-buttons { display: none !important; }
 	.stats-col .v { font-size: 10px; }
 }
 .website-code { font: 12px/1.4 var(--mono, monospace); background: var(--bg2, rgba(127,127,127,0.1)); padding: 6px 8px; border-radius: 4px; white-space: pre; overflow-x: auto; }
+.front-builder .fb-blocks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.front-builder .fb-block { border: 1px solid var(--line, rgba(127,127,127,0.3)); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.front-builder .fb-top { display: flex; align-items: center; gap: 4px; }
+.front-builder .fb-top strong { flex: 1; font-size: 13px; }
+.front-builder .fb-fields { display: flex; flex-direction: column; gap: 6px; }
+.front-builder .fb-fields textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.front-builder .fb-link { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 4px; }
+.front-builder .fb-add { display: flex; gap: 6px; margin-top: 10px; }
+.front-builder .fb-add select { flex: 1; }
