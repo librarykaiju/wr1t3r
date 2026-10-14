@@ -61,7 +61,7 @@ The Today button opens a note for the day: your tasks, a timeline, your habits a
 
 ### Set it up once, your way
 
-The first daily note asks a few questions: which buttons you want, your daily targets and your medications. Pick only what you'll use. Change your mind later from the planner's menu, or turn any part off in Settings > Features: the health side, the weekly planner or the calendar page.
+The first daily note asks a few questions: which buttons you want, your daily targets and your medications. Pick only what you'll use, and fill the Mood and Exercise buttons with your own choices. Change your mind later from the planner's menu, or turn any part off in Settings > Features: the health side, the weekly planner or the calendar page.
 
 ![The day planner with a setup card above a row of buttons for food, water, meds, exercise and mood, a timeline and two task lists](/shots/planner-setup.webp)
 
@@ -106,6 +106,18 @@ Give your height, weight, activity and goal, and wr1t3r works out daily targets 
 
 ![The targets step of the planner setup: units, age, height, weight, activity and goal, with the calories, water, steps and sleep targets worked out](/shots/planner-targets.webp)
 
+### Log what you eat
+
+Log a meal from your own list of foods in a couple of taps. For anything new, search about 13,000 USDA foods, scan a barcode or snap the Nutrition Facts label. Each meal counts toward the day's calories, protein, carbs, fat and fiber. [Where the numbers come from](/health-data.html).
+
+![The Food button's panel on the day planner: a search for "gr" listing foods with their servings and calories, and today's breakfast and lunch underneath with 689 of 2,000 calories](/shots/planner-food.webp)
+
+### Recipes, counted per serving
+
+Write a recipe as a note and wr1t3r works out its nutrition per serving. Ingredients it doesn't know yet are matched to the closest USDA foods for you to confirm, and the recipe joins your food list, ready to log.
+
+![A turkey chili recipe note with a dialog matching four new ingredients to USDA foods, each with its serving and calories](/shots/planner-recipe.webp)
+
 ### Medicines, without the guesswork
 
 wr1t3r makes it easy to track your medications, with prescription and dosage lookup from the [National Library of Medicine](https://lhncbc.nlm.nih.gov/RxNav/applications/RxTerms.html). You can also import a spreadsheet or clinic chart to get started. Mark doses "Taken" with a button click, and add your medication schedule to Google Calendar for reminders even when you're away from wr1t3r. The "chart view" lets you easily see your medication schedule for the day, so you can see what's coming up and what you may have missed.
@@ -127,13 +139,6 @@ See what you wrote on this day in past years. Mood, sleep and exercise charts sh
 Book, film, TV and game logs add up on their own: how many you finished each year, pages read, average rating, what you're on now and what's next, in bar, line and pie charts. Pin the numbers to your Home screen as tiles, small, wide or large.
 
 ![Stats for a books log in 2026: 37 books read and 13,956 pages, line charts of books and pages read each month, and pie charts of ratings, genres and moods](/shots/stats-books.webp)
-
-### Also on the planner
-
-- **Food and recipes.** Log meals from USDA's table of about 7,800 common foods, scan a barcode, or photograph a Nutrition Facts label to add a food. Build recipes from wr1t3r's connected nutrition databases. Each logged item tracks your calories and nutrition for the day. [Where the numbers come from](/health-data.html).
-- **Moods and exercises your way.** Change the choices on the Mood and Exercise buttons to your own.
-- **A timeline for the day.** Block out your hours, and add events from your calendar.
-- **Everything is a note.** Your planner, week notes, calendar, health log and medicine lists are plain Markdown files in your Dropbox or Google Drive like the rest of your notes.
 
 --- publish
 
