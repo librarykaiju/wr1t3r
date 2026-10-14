@@ -2,9 +2,9 @@
 // week's title with buttons to step a week back or on, then the seven days,
 // each with its calendar events, the tasks due that day (ticking one ticks
 // its line wherever it's written) and a + to plan something on that day,
-// which goes into this note as a task due then. Side by side on a wide
-// screen; on a phone, one day under another with tabs down the right edge for
-// the weeks around this one (a swipe steps a week too). Stepping only changes
+// which goes into this note as a task due then. The days are agenda cards,
+// one under another; on a phone, tabs down the right edge step to the weeks
+// around this one (a swipe steps a week too). Stepping only changes
 // what's shown; the note stays this week's.
 
 import { StateField, RangeSetBuilder } from "@codemirror/state";
@@ -108,11 +108,10 @@ class WeekWidget extends WidgetType {
 			else if (day < this.today) cell.classList.add("past");
 			const top = el("div", "week-day-head");
 			top.append(button("week-day-name", "", "Open this day's daily note", () => host?.openDay(day)));
-			top.firstChild.append(el("span", "week-dow", WEEKDAYS[i]), el("span", "week-date", String(new Date(day + "T12:00").getDate())));
-			if (!ro && own) top.append(button("week-add", "+", "Plan something on this day", () => this.adder(cell, day)));
+			top.firstChild.append(el("span", "week-dow", WEEKDAYS[i]), el("span", "week-date", String(new Date(day + "T12:00").getDate())), el("span", "week-month", MONTHS[new Date(day + "T12:00").getMonth()]));
 			cell.append(top);
+			const main = el("div", "week-day-main");
 			const evs = el("ul", "week-events");
-			cell.append(evs);
 			const list = el("ul", "week-tasks");
 			for (const t of byTask.get(day)) {
 				const li = el("li", "week-task" + (t.done ? " done" : "") + (t.overdue ? " overdue" : ""));
@@ -131,7 +130,9 @@ class WeekWidget extends WidgetType {
 				li.append(box, label);
 				list.append(li);
 			}
-			cell.append(list);
+			main.append(evs, list, el("p", "week-empty", "Nothing planned"));
+			cell.append(main);
+			if (!ro && own) cell.append(button("week-add", "+", "Plan something on this day", () => this.adder(cell, day)));
 			cells.set(day, { cell, evs });
 			days.append(cell);
 		});
