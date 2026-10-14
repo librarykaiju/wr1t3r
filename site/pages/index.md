@@ -85,7 +85,7 @@ The Habits card ticks off each habit, counts the ones you do more than once, add
 
 ### Medicines, without the guesswork
 
-Type a medicine's name and pick it and its strength from the National Library of Medicine's list, take a photo of each pill, or import a list from a spreadsheet or a clinic's chart. Every dose gets a Take button and a reminder when it's due, and the doses show on your calendar. Send them to Google Calendar and your phone reminds you even with wr1t3r closed. The medication chart lays out the day like a clinic's sheet, filled in from what you took, or prints blank to fill in by hand.
+wr1t3r makes it easy to track your medications, with prescription and dosage lookup from the National Library of Medicine. You can also import a spreadsheet or clinic chart to get started. Every dose gets a Take button and a reminder when it's due, and the doses show on your calendar. Send them to Google Calendar and your phone reminds you even with wr1t3r closed. The medication chart lays out the day like a clinic's sheet, filled in from what you took, or prints blank to fill in by hand.
 
 ![The medication chart: each medicine's purpose and schedule with a column for each time of day, and the doses given ticked off with the time and who gave them](/shots/planner-med-chart.webp)
 
