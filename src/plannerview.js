@@ -20,7 +20,7 @@ import {
 	dailyPathFor, healthDayOf, BUTTONS, SLEEP, WEIGHT, MEDS, sleepLine, hoursText, weightLine, HABITS, untick, LABEL_TARGETS, itemsUnder, syncMedsLog,
 } from "./planner.js";
 import { readHabits, parseHabit, habitLine, habitTickLine, progress, streak, dueOn, addDays } from "./habits.js";
-import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText, medEntry, alreadyGiven, personMedsPath, personLogPath, personFolder, cleanPerson, newMedsNote, newMedsLog, activeOn, parseDate, shortDate } from "./meds.js";
+import { parseMeds, dosesOn, doseStatus, overdue, medTakenLine, putMed, removeMed, parseTime, daysText, medEntry, alreadyGiven, personMedsPath, personLogPath, personFolder, inPersonFolder, cleanPerson, newMedsNote, newMedsLog, activeOn, parseDate, shortDate } from "./meds.js";
 import { searchMeds, strengthDose, dailyMedLink } from "./rxterms.js";
 import { choosePhoto, chooseFile, shrinkPhoto } from "./photo.js";
 import { readMedRows, addMeds, fileRows } from "./medimport.js";
@@ -110,7 +110,7 @@ function personMeds(vault, who, day) {
 }
 
 function medsList(state, cfg) {
-	const vault = state.facet(vaultHost), paths = vault.paths();
+	const vault = state.facet(vaultHost), paths = vault.paths().filter((p) => !inPersonFolder(p));
 	const path = (cfg.medications
 		? resolveNote({ note: cfg.medications.replace(/^\[\[|\]\]$/g, "").split("|")[0], heading: "", wiki: true }, state.facet(notePath), paths)
 		: paths.filter((p) => MEDS_PATH.test(p) && !/(^|\/)_templates\//i.test(p)).sort((a, b) => a.length - b.length)[0]) || null;
