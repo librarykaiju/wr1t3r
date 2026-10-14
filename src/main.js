@@ -5085,11 +5085,11 @@ const FONTS = {
 	serif: "var(--serif)",
 	sans: "var(--sans)",
 	mono: "var(--mono)",
-	georgia: "Georgia, serif",
-	palatino: '"Palatino Linotype", Palatino, "Book Antiqua", serif',
-	garamond: 'Garamond, "EB Garamond", "Adobe Garamond Pro", serif',
-	humanist: 'Optima, Candara, "Avenir Next", "Noto Sans", sans-serif',
-	typewriter: '"Courier Prime", "American Typewriter", "Courier New", Courier, monospace',
+	georgia: "OpenMoji, Georgia, serif",
+	palatino: 'OpenMoji, "Palatino Linotype", Palatino, "Book Antiqua", serif',
+	garamond: 'OpenMoji, Garamond, "EB Garamond", "Adobe Garamond Pro", serif',
+	humanist: 'OpenMoji, Optima, Candara, "Avenir Next", "Noto Sans", sans-serif',
+	typewriter: 'OpenMoji, "Courier Prime", "American Typewriter", "Courier New", Courier, monospace',
 };
 const FONT_NAMES = { serif: "Serif", sans: "Sans", mono: "Mono", georgia: "Georgia", palatino: "Palatino", garamond: "Garamond", humanist: "Humanist sans", typewriter: "Typewriter" };
 let fontName = "serif", toolbarUi = null;
