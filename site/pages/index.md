@@ -73,7 +73,7 @@ Keep your Critical Tasks and To Do's as primary lists, or write a task in any no
 
 ### Plan the week ahead
 
-Each week gets a note with a card for each of its seven days: the events on your calendar and every task due that day, wherever you wrote it. Tap + on a day to add a plan. At the end of the week, Reflect & recover adds the week in numbers and a few questions to reflect on the week and plan your rest.
+A weekly agenda helps you plan ahead or add things as things come up. At the end of the week Reflect & recover lets you see how much you've accomplished, with journal prompts to help you process and make time to rest.
 
 ![The week-ahead note: a card for each day from Monday to Sunday with its tasks and calendar events, a This week badge and a Reflect & recover button](/shots/planner-week.webp)
 
