@@ -356,3 +356,17 @@ test("site addresses and summaries", () => {
 	assert.equal(atomFeed([{ file: "a.html", title: "A", date: "", body: "" }], { title: "S" }), "");
 	assert.ok(!atomFeed([{ file: "a.html", title: "Bad\u0001char", date: "2026-01-01", body: "" }], { title: "S" }).includes("\u0001"));
 });
+
+test("a reply to one of the site's own posts is listed under that post", () => {
+	const note = (fm, body) => `---\n${fm}\n---\n${body}`;
+	const site = buildSite([
+		{ path: "Sketches/Gandalf.md", text: note("publish: true\ndate: 2026-09-25", "A wizard.") },
+		{ path: "Replies/Re Gandalf.md", text: note("publish: true\ndate: 2026-10-14\nreply-to: https://me.neocities.org/sketches/gandalf.html", "Nice!") },
+		{ path: "Replies/Theirs.md", text: note("publish: true\ndate: 2026-10-14\nreply-to: https://friend.example/post.html", "Hi") },
+	], [], { title: "T", address: "me.neocities.org" });
+	const post = site.files.get("sketches/gandalf.html");
+	assert.match(post, /<section class="responses"[\s\S]*href="https:\/\/me\.neocities\.org\/replies\/re-gandalf\.html">Re Gandalf</);
+	assert.match(site.files.get("replies/re-gandalf.html"), /In reply to <a class="u-in-reply-to" href="[^"]+">Gandalf<\/a>/, "named by its title");
+	assert.doesNotMatch(site.files.get("replies/theirs.html"), /class="responses"/);
+	assert.match(site.files.get("replies/theirs.html"), /In reply to <a class="u-in-reply-to" href="https:\/\/friend\.example\/post\.html">friend\.example\/post\.html</);
+});

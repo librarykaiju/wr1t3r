@@ -585,6 +585,19 @@ export function buildSite(notes, attachments, opts = {}) {
 		const a = (p, cls, word) => (p ? `<a class="${cls}" href="${esc(relativeURL(site, p.file))}"><span>${word}</span> ${esc(p.title)}</a>` : `<span class="${cls}"></span>`);
 		return `<nav class="pager" aria-label="More in this folder">${a(pn.prev, "prev", "Previous")}${a(pn.next, "next", "Next")}</nav>\n`;
 	};
+	// Replies to this site's own posts: listed under the post they answer, and
+	// the reply names that post by its title.
+	const ownPage = (u) => {
+		if (!address || !u) return null;
+		const k = (x) => x.toLowerCase().replace(/^https?:\/\/(www\.)?/, "");
+		const rest = k(u).split("#")[0];
+		return rest.startsWith(k(address)) ? pages.find((p) => p.file === decodeURI(rest.slice(k(address).length)) || p.file === decodeURI(rest.slice(k(address).length)) + "index.html") || null : null;
+	};
+	const ownReplies = new Map();
+	for (const e of entries) {
+		const to = ownPage(e.replyTo);
+		if (to && to.file !== e.file) ownReplies.set(to.file, [...(ownReplies.get(to.file) || []), e]);
+	}
 	for (const { site, info, body } of pending) {
 		const side = own || opts.sidebar === false ? "" : calendarFor(site, info) + support + social;
 		const tree = notebook ? treeFor(site) : "";
@@ -595,7 +608,12 @@ export function buildSite(notes, attachments, opts = {}) {
 		const readsURL = neighbors.length ? relativeURL(site, SITE_FILES.neighbors) : "";
 		const follow = (feed || readsURL) && !own ? `<p class="follow">${feed ? `Follow this site: <a href="${esc(feedURL)}" type="application/atom+xml">its feed</a>${address ? ` or <a href="${esc(FOLLOW_APP + "#follow=" + encodeURIComponent(address))}">in wr1t3r</a>` : ""}` : ""}${feed && readsURL ? " · " : ""}${readsURL ? `<a href="${esc(readsURL)}">Sites I read</a>` : ""}</p>\n` : "";
 		const ringLine = ring ? `<nav class="ring" aria-label="Webring">${webAddress(ring.prev) ? `<a href="${esc(webAddress(ring.prev))}" rel="prev">← Previous</a>` : "<span></span>"}<a href="${esc(webAddress(ring.home))}">${esc(ring.name || "Webring")}</a>${webAddress(ring.next) ? `<a href="${esc(webAddress(ring.next))}" rel="next">Next →</a>` : "<span></span>"}</nav>\n` : "";
-		const reply = post && info.replyTo ? `<p class="reply-to">In reply to <a class="u-in-reply-to" href="${esc(info.replyTo)}">${esc(shortAddress(info.replyTo))}</a></p>\n` : "";
+		const answers = post && info.replyTo ? ownPage(info.replyTo) : null;
+		// Not when the note says it itself (Neighbors' Reply starts it with "In reply to [title](address)").
+		const reply = post && info.replyTo && !body.includes(`href="${esc(info.replyTo)}"`) ? `<p class="reply-to">In reply to <a class="u-in-reply-to" href="${esc(info.replyTo)}">${esc(answers ? answers.title : shortAddress(info.replyTo))}</a></p>\n` : "";
+		const mine = (ownReplies.get(site) || []).map((e) => ({ text: e.title, url: address + e.file }));
+		const all = [...(info.responses || []), ...mine.filter((m) => !(info.responses || []).some((r) => r.url === m.url))];
+		info.responses = all;
 		const responses = post && info.responses?.length ? `<section class="responses" aria-label="Responses">\n<h2>Responses</h2>\n<ul>\n${info.responses.map((r) => `<li class="h-cite u-comment"><a class="u-url" href="${esc(r.url)}">${esc(r.text || shortAddress(r.url))}</a></li>`).join("\n")}\n</ul>\n</section>\n` : "";
 		const text = post ? body.replace(/^<div class="note">/, '<div class="note e-content">') : body;
 		out.set(site, html({ ...info, props: own || opts.properties === false ? null : info.props, body: reply + text + responses + extras + pagerFor(site) + follow + ringLine, post, feed: feedURL, blogroll: neighbors.length ? relativeURL(site, SITE_FILES.blogroll) : "", menu: notebook ? "" : menuFor(site), tree, siteTitle: title, tagline, home: relativeURL(site, SITE_FILES.index), css, footer: opts.footer, side, logo: logo && relativeURL(site, logo), logoOnly: !!(logo && opts.logoOnly), isIndex: site === SITE_FILES.index }));
