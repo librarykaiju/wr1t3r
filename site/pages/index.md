@@ -83,6 +83,9 @@ Calendar view provides flexibility in taking your planning even further.
 
 - Pencil in tentative plans to review and confirm at a later date.
 - Ink those plans to turn them into calendar events with reminders.
+- Erase plans when they change.
+
+Use the built-in calendar, which syncs like your notes, or connect Google Calendar.
 
 ![The calendar page for October: a month grid with tasks, penciled-in plans and stickers on the days](/shots/planner-month.webp)
 
