@@ -414,3 +414,16 @@ test("the front page: a Home note designs it, posts blocks list a folder's newes
 	assert.doesNotMatch(one, /two\.html|pic\.html"/);
 	assert.doesNotMatch(front("Hello", { front: { folder: "" } }), /post-list|class="contents"/, "just the Home note");
 });
+
+test("only media logs put the cover beside the properties", () => {
+	const note = (fm, body) => `---\n${fm}\n---\n${body}`;
+	const site = buildSite([
+		{ path: "Logs/Books/Dune.md", text: note("publish: true\ndate: 2026-09-01\ncoverImage: https://img.example/dune.jpg\nrating: 5", "Spice.") },
+		{ path: "Sketchbooks/Pk Stride.md", text: note("publish: true\ndate: 2026-09-25\ncoverImage: https://img.example/pk.jpg", "A sketch.") },
+	], [], { title: "T" });
+	const log = site.files.get("logs/books/dune.html");
+	assert.match(log, /<div class="props-body[^>]*>\n<span class="cover[^>]*><img src="https:\/\/img\.example\/dune\.jpg"/, "in the box, beside the rows");
+	const sketch = site.files.get("sketchbooks/pk-stride.html");
+	assert.match(sketch, /<\/details>\n<img class="cover wide" src="https:\/\/img\.example\/pk\.jpg"/, "a wide picture under the box");
+	assert.doesNotMatch(sketch, /<span class="cover/);
+});

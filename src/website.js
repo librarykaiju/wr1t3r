@@ -76,7 +76,7 @@ import { resolveNote } from "./links.js";
 import { resolveAttachment, attachmentKind } from "./attachments.js";
 import { calloutLook } from "./blocks.js";
 import { COVER_SHAPES, COVER_POSITIONS, COVER_WIDTHS } from "./pretty.js";
-import { SHOWN_FOLDERS } from "./frontmatter.js";
+import { SHOWN_FOLDERS, COVER_BESIDE } from "./frontmatter.js";
 import { shorten } from "./feedparse.js";
 
 export const RESPONSE_EXCERPT = 200;
@@ -308,6 +308,7 @@ export function pageInfo(path, text) {
 		responses: responseList(p.responses),
 		props: propRows(p, SHOWN_FOLDERS.test(path)),
 		open: SHOWN_FOLDERS.test(path),
+		beside: COVER_BESIDE.test(path),
 	};
 }
 
@@ -1014,7 +1015,7 @@ function supportBox(s) {
 	return `<section class="support" aria-label="${esc(heading)}">\n<h2>${esc(heading)}</h2>\n${String(s?.note || "").trim() ? `<p>${esc(s.note.trim())}</p>\n` : ""}${links.map((l) => `<a class="support-${l.kind}" href="${esc(l.url)}" rel="noopener">${esc(l.text)}</a>`).join("\n")}\n</section>\n`;
 }
 
-function html({ title, date, tags, props, open, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex, post, feed, blogroll }) {
+function html({ title, date, tags, props, open, beside, cover, coverShape, coverPosition, banner, bannerPosition = 50, description, body, siteTitle, tagline, home, css, footer, side, menu, tree, logo, logoOnly, isIndex, post, feed, blogroll }) {
 	const pageTitle = isIndex || title === siteTitle ? siteTitle : `${title} · ${siteTitle}`;
 	const brand = `<a class="home" href="${esc(home)}">${logo ? `<img class="logo" src="${esc(logo)}" alt="${logoOnly ? esc(siteTitle) : ""}">` : ""}${logoOnly && !tagline ? "" : `<span class="name">${logoOnly ? "" : `<span>${esc(siteTitle)}</span>`}${tagline ? `<span class="tagline">${esc(tagline)}</span>` : ""}</span>`}</a>`;
 	// The notebook layout has no header: the title and logo top the folders, as in the app's sidebar.
@@ -1033,7 +1034,7 @@ ${feed ? `<link rel="alternate" type="application/atom+xml" title="${esc(siteTit
 ${tree ? "" : `<header class="site">${brand}${menu || ""}</header>\n`}${banner ? `<div class="banner"><img src="${esc(banner)}" alt="" style="object-position: center ${bannerPosition}%"></div>\n` : ""}<main>
 ${tree || ""}<article${post ? ' class="h-entry"' : ""}>
 <h1${post ? ' class="p-name"' : ""}>${esc(title)}</h1>
-${(date || tags.length) && !(props && open) ? `<p class="meta">${[date ? `<time${post ? ' class="dt-published"' : ""} datetime="${date}">${esc(longDate(date))}</time>` : "", ...tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`)].filter(Boolean).join(" ")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !props) ? `<img class="cover${open ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
+${(date || tags.length) && !(props && open) ? `<p class="meta">${[date ? `<time${post ? ' class="dt-published"' : ""} datetime="${date}">${esc(longDate(date))}</time>` : "", ...tags.map((t) => `<span class="tag tag-${tagHue(t)}">#${esc(t)}</span>`)].filter(Boolean).join(" ")}</p>\n` : ""}${props ? propsBox(props, { open, cover: open && beside ? cover : null, shape: coverShape, position: coverPosition }) : ""}${cover && (!open || !beside || !props) ? `<img class="cover${open && beside ? "" : " wide"}" src="${esc(cover)}" alt="">\n` : ""}${body}
 </article>
 ${side ? `<aside class="side">\n${side}</aside>\n` : ""}</main>
 ${footer ? `<footer class="site">Made with <a href="https://wr1t3r.app">wr1t3r</a></footer>\n` : ""}</body>
