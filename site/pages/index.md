@@ -67,7 +67,7 @@ The first daily note asks a few questions: which buttons you want, your daily ta
 
 ### Tasks that don't get lost
 
-Keep your Critical Tasks and To Do's as primary lists, or write a task in any note. Each day shows the tasks due that day, so do the week ahead and the calendar, and anything unticked from earlier days carries over until it's done. Add a time to a task and wr1t3r reminds you while it's open on your computer. Connect Google Calendar and those reminders reach your phone too.
+Keep your Critical Tasks and To Do's as primary lists, or write a task in any note. Manage your daily tasks in the Today note. Tasks left undone carry over so you always see them. Add a time to a task and wr1t3r reminds you while it's open on your computer. Connect Google Calendar and those reminders reach your phone too.
 
 ![Today's note with a planner showing a timeline, critical tasks and a to-do list](/shots/today.webp)
 
