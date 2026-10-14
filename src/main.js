@@ -1641,7 +1641,7 @@ function renderLookback() {
 	$("lookbackList").replaceChildren(...hits.map((e) => lookbackItem(e, () => openNote(e.path))));
 }
 
-// Mood, sleep and weight from the palette: the planner's panel, opened at
+// Mood, sleep, exercise and weight from the palette: the planner's panel, opened at
 // the top of the page.
 function moodTrends() {
 	const view = editor.view;
@@ -3505,7 +3505,7 @@ function allCommands() {
 		["Import foods into the Nutrition Database", importFoods, "csv spreadsheet foods nutrition database calories import cronometer"],
 		["Add this recipe to the Nutrition Database", syncRecipe, "recipe ingredients nutrition database calories per serving sync"],
 		["Add a food from a nutrition label photo", foodFromLabelPhoto, "photo picture camera nutrition facts label scan food database calories"],
-		...(featureOn("daily") ? [["Mood, sleep and weight", moodTrends, "trends chart graph health stats tracker mood sleep weight history"]] : []),
+		...(featureOn("daily") ? [["Mood, sleep, exercise and weight", moodTrends, "trends chart graph health stats tracker mood sleep exercise steps weight history"]] : []),
 		["Open the calendar", () => openCalendar(), "calendar month week planner stickers pencil plans agenda"],
 		["Open this week's note", () => openWeekly(), "weekly planner week ahead plan agenda periodic"],
 		["Reflect on this week", () => reflectWeek(null, weekOf(isoDate(new Date())).from), "weekly review reflect recover rest journal recap"],

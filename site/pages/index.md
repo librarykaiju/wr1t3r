@@ -120,7 +120,7 @@ Create medication schedules as a caregiver for the people in your life. wr1t3r k
 
 ### Look back on what you wrote
 
-See what you wrote on this day in past years. Mood and sleep charts show how past seasons have changed and how sleep patterns line up with good and bad days. At the end of a week, month or year, wr1t3r gathers your entries, habits and moods into a reflection, with a few prompts to get you writing.
+See what you wrote on this day in past years. Mood, sleep and exercise charts show how past seasons have changed and how sleep patterns line up with good and bad days. At the end of a week, month or year, wr1t3r gathers your entries, habits and moods into a reflection, with a few prompts to get you writing.
 
 ### Stats for your logs
 

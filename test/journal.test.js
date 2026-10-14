@@ -46,25 +46,35 @@ test("On this day finds earlier years' entries for today", () => {
 	assert.equal(onThisDay(leap, "2028-02-29").length, 1);
 });
 
-const healthNote = (mood, sleep, weight) => [
+const healthNote = (mood, sleep, weight, exercise) => [
 	"## Mood Log", `- 09:00 | ${mood}`, "",
 	...(sleep ? ["## 😴 Sleep", `- ${sleep}`, ""] : []),
 	...(weight ? ["## ⚖️ Weight", `- 07:00 | ${weight}`, ""] : []),
+	...(exercise ? ["## 🏃 Exercise", `- ${exercise}`, ""] : []),
 ].join("\n");
 
-test("trends read mood, sleep and weight over the days", () => {
+test("trends read mood, sleep, exercise and weight over the days", () => {
 	const days = new Map([
-		["2026-10-01", dayHealth(healthDay(healthNote("🙂 Good", "8h", "180 lb"), []))],
+		["2026-10-01", dayHealth(healthDay(healthNote("🙂 Good", "8h", "180 lb", "07:30 | 🚶 Walk | 3200 steps"), []))],
 		["2026-10-02", dayHealth(healthDay(healthNote("😕 Low", "5.5h"), []))],
-		["2026-10-03", dayHealth(healthDay(healthNote("🙂 Good", "7h", "178.5 lb"), []))],
+		["2026-10-03", dayHealth(healthDay(healthNote("🙂 Good", "7h", "178.5 lb", "18:00 | 🧘 Yoga"), []))],
+		["2026-10-05", dayHealth(healthDay(healthNote("🙂 Good", null, null, "07:00 | 🏃 Run | 6801 steps"), []))],
 		["2026-10-04", dayHealth(healthDay(healthNote("😕 Low", "6.5h"), []))],
 	]);
 	assert.deepEqual(days.get("2026-10-01").mood, ["🙂", "Good"]);
 	assert.equal(days.get("2026-10-01").sleep, 8);
-	const t = trends(days, "2026-10-01", "2026-10-05");
-	assert.equal(t.days.length, 5);
-	assert.equal(t.days[4].mood, null);
-	assert.deepEqual(t.moods, [{ emoji: "🙂", label: "Good", n: 2 }, { emoji: "😕", label: "Low", n: 2 }]);
+	assert.equal(days.get("2026-10-01").steps, 3200);
+	assert.equal(days.get("2026-10-03").active, true);
+	assert.equal(days.get("2026-10-03").steps, null);
+	assert.equal(days.get("2026-10-02").active, false);
+	const t = trends(days, "2026-10-01", "2026-10-06");
+	assert.equal(t.days.length, 6);
+	assert.equal(t.days[5].mood, null);
+	assert.deepEqual(t.moods, [{ emoji: "🙂", label: "Good", n: 3 }, { emoji: "😕", label: "Low", n: 2 }]);
+	assert.deepEqual(t.exercise, { active: 3, steps: 5001, stepDays: 2 });
+	assert.equal(trends(days, "2026-10-02", "2026-10-02").exercise, null);
+	assert.deepEqual(series(t.days, "steps", "week"), [{ label: "Sep 28", value: 3200, title: "Week of Sep 28: 3,200 steps" }, { label: "Oct 5", value: 6801, title: "Week of Oct 5: 6,801 steps" }]);
+	assert.deepEqual(series(t.days, "steps", "month"), [{ label: "Oct", value: 5001, title: "October 2026: 5,001 steps (average of 2)" }]);
 	assert.deepEqual(t.sleep, { avg: 6.8, nights: 4 });
 	assert.deepEqual(t.weight, { first: 180, last: 178.5, change: -1.5, unit: "lb", n: 2 });
 	assert.deepEqual(t.byMood, [{ emoji: "🙂", label: "Good", sleep: 7.5, nights: 2 }, { emoji: "😕", label: "Low", sleep: 6, nights: 2 }]);

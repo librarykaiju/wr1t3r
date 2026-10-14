@@ -1861,7 +1861,7 @@ a.planner-link { text-decoration: none; }
 #empty .home-lookback { width: min(34em, 100%); padding: 8px 14px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font: 15px/1.5 var(--sans); }
 #empty .home-lookback h3 { margin: 0 0 2px; font: 600 0.88em/1.4 var(--sans); color: var(--fg); text-align: center; }
 #empty .home-lookback ul { list-style: none; margin: 0; padding: 0; }
-/* Mood, sleep and weight (src/plannerview.js openTrends). */
+/* Mood, sleep, exercise and weight (src/plannerview.js openTrends). */
 .planner-trends { width: min(560px, calc(100vw - 24px)); }
 .planner-trends-range { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 6px 0 4px; }
 .planner-trends-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 14px 0 6px; }

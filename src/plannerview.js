@@ -150,7 +150,7 @@ export function journalEntries(vault) {
 	return out;
 }
 
-// Every health note's mood, sleep and weight (Map "YYYY-MM-DD" ->
+// Every health note's mood, sleep, exercise and weight (Map "YYYY-MM-DD" ->
 // src/journal.js dayHealth), each read again only when its text changes.
 const healthCache = new Map();
 function healthHistory(vault) {
@@ -300,7 +300,7 @@ class PlannerWidget extends WidgetType {
 				["Medications…", () => this.medsPanel(view, anchor, { edit: !medsList(view.state, this.cfg).meds.length })],
 				["Someone else's medicines…", () => this.addPerson(view, anchor)],
 				["Habits…", () => this.habitsPanel(view, anchor)],
-				["Mood, sleep and weight…", () => openTrends(view, anchor, this.day)],
+				["Mood, sleep, exercise and weight…", () => openTrends(view, anchor, this.day)],
 				null,
 				["Set up the planner…", () => this.setupPanel(view, anchor)],
 			], r.left, r.bottom + 6);
@@ -1794,7 +1794,7 @@ export function lookbackItem(e, open) {
 	return li;
 }
 
-// Mood, sleep and weight over the last 30 days, 90 days or year up to `day`
+// Mood, sleep, exercise and weight over the last 30 days, 90 days or year up to `day`
 // (today when not given), read from the health notes. anchor: anything with
 // getBoundingClientRect(), under which it opens.
 const RANGES = [["30 days", 30, "day"], ["90 days", 90, "week"], ["Year", 365, "month"]];
@@ -1833,7 +1833,7 @@ export function openTrends(view, anchor, day = null) {
 		const [, n, by] = RANGES[trendRange];
 		const from = addDays(today, -(n - 1));
 		const t = trends(healthHistory(vault), from, today);
-		box.append(el("div", "planner-panel-title", "Mood, sleep and weight"));
+		box.append(el("div", "planner-panel-title", "Mood, sleep, exercise and weight"));
 		const tabs = el("div", "planner-trends-range");
 		RANGES.forEach(([label], i) => {
 			const b = panelButton("planner-day", label, () => { trendRange = i; redrawPanel("trends"); });
@@ -1841,9 +1841,9 @@ export function openTrends(view, anchor, day = null) {
 			tabs.append(b);
 		});
 		box.append(tabs);
-		const logged = t.moods.length || t.sleep.nights || t.weight;
+		const logged = t.moods.length || t.sleep.nights || t.exercise || t.weight;
 		if (!logged) {
-			box.append(el("p", "planner-panel-empty", "Nothing logged yet. The Mood, Sleep and Weight buttons on the daily planner write to each day's health note, and it all shows up here."));
+			box.append(el("p", "planner-panel-empty", "Nothing logged yet. The Mood, Sleep, Exercise and Weight buttons on the daily planner write to each day's health note, and it all shows up here."));
 			return;
 		}
 		const section = (title, sub) => { const h = el("div", "planner-trends-head"); h.append(el("b", null, title)); if (sub) h.append(el("span", null, sub)); box.append(h); };
@@ -1884,6 +1884,11 @@ export function openTrends(view, anchor, day = null) {
 				}
 				box.append(rows);
 			}
+		}
+		if (t.exercise) {
+			const x = t.exercise;
+			section("Exercise", `${x.active} of ${t.days.length} days active` + (x.steps != null ? ` · ${x.steps.toLocaleString()} steps on average` : ""));
+			if (x.stepDays) box.append(trendChart(series(t.days, "steps", by), "var(--f4)"));
 		}
 		if (t.weight) {
 			const w = t.weight, u = w.unit ? " " + w.unit : "";
