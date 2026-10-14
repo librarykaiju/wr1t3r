@@ -77,7 +77,7 @@ import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath
 import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder, setWords, healthDay, healthDayOf } from "./planner.js";
 import { readHabits, habitProps, habitsGlance } from "./habits.js";
 import { proseWords, countsTowardWords, addWords } from "./wordlog.js";
-import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE, photoTarget, personMedsPath, personLogPath, medsCalendar, medEvents, MEDS_CALENDAR } from "./meds.js";
+import { parseMeds, medEntry, medReminders, newMedsNote, MEDS_NOTE, photoTarget, personMedsPath, personLogPath, inPersonFolder, medsCalendar, medEvents, MEDS_CALENDAR } from "./meds.js";
 import { openFoodPanel, openTrends, journalEntries, lookbackItem } from "./plannerview.js";
 import { onThisDay, period, reviewNote } from "./journal.js";
 import { TASK_TAGS, itemTags, listName, tagFor } from "./tasklists.js";
@@ -3138,7 +3138,7 @@ function dailyPlanner() {
 // The medicine list's path: the one the Daily template's planner names, else
 // the vault's Medications.md.
 function medsNotePath() {
-	const paths = visible().map((n) => n.path).filter((p) => /\.md$/i.test(p) && !/(^|\/)_templates\//i.test(p));
+	const paths = visible().map((n) => n.path).filter((p) => /\.md$/i.test(p) && !/(^|\/)_templates\//i.test(p) && !inPersonFolder(p));
 	const named = dailyPlanner().medications?.replace(/^\[\[|\]\]$/g, "").split("|")[0].replace(/\.md$/i, "").toLowerCase();
 	const want = named ? (p) => p.toLowerCase() === named + ".md" || p.toLowerCase().endsWith("/" + named.split("/").pop() + ".md") : (p) => /(^|\/)Medications\.md$/i.test(p);
 	return paths.filter(want).sort((a, b) => a.length - b.length)[0] || null;

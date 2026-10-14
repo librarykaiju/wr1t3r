@@ -206,3 +206,13 @@ test("medEvents: each dose as a quarter-hour event, given ones ticked", () => {
 	assert.equal(new Date(ev[1].end) - new Date(ev[1].start), 15 * 60000);
 	assert.equal(new Set(ev.map((e) => e.id)).size, ev.length);
 });
+
+test("a person's list is never taken for yours", async () => {
+	const { inPersonFolder, personMedsPath, personLogPath } = await import("../src/meds.js");
+	assert.ok(inPersonFolder(personMedsPath("Mom")));
+	assert.ok(inPersonFolder(personLogPath("Mom", "2026-10-13")));
+	assert.ok(inPersonFolder("people/Dad/Medications.md"));
+	assert.ok(!inPersonFolder("Medications.md"));
+	assert.ok(!inPersonFolder("Health/Medications.md"));
+	assert.ok(!inPersonFolder("People.md"));
+});

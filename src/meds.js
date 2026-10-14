@@ -191,6 +191,9 @@ export const cleanPerson = (name) => String(name ?? "").replace(/[\\/:*?"<>|#^[\
 export const personFolder = (who) => `${PEOPLE}/${cleanPerson(who)}/`;
 export const personMedsPath = (who) => personFolder(who) + MEDS_NOTE;
 export const personLogPath = (who, day) => `${personFolder(who)}Meds/${day} meds.md`;
+// True for a note in someone's People/<who>/ folder, so their list is never
+// taken for yours.
+export const inPersonFolder = (path) => new RegExp(`^${PEOPLE}/[^/]+/`, "i").test(String(path ?? ""));
 
 export function newMedsLog(who, day) {
 	return `---\ntitle: ${JSON.stringify(`${who}'s medicines, ${day}`)}\nperson: ${JSON.stringify(who)}\ndate: "${day}"\n---\n\n## ${MEDS.heading}\n\n`;
