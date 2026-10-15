@@ -280,6 +280,21 @@ button {
 button:hover { border-color: var(--mark); }
 button.quiet { background: none; border-color: transparent; color: var(--muted); }
 button:disabled { opacity: 0.4; cursor: default; }
+/* Drop-downs draw their own chevron: the browser's ignores padding and sits
+   against the right edge, inside rounded corners. The longhands are
+   !important because each select's own rule sets the background and padding
+   shorthands. Small selects set --sel-pad and --sel-x for a tighter inset. */
+select:not([multiple]):not([size]) {
+	-webkit-appearance: none; appearance: none;
+	padding-right: var(--sel-pad, 32px) !important;
+	background-image:
+		linear-gradient(45deg, transparent calc(50% - 1px), var(--muted) calc(50% - 1px) calc(50% + 0.75px), transparent calc(50% + 0.75px)),
+		linear-gradient(135deg, transparent calc(50% - 1px), var(--muted) calc(50% - 1px) calc(50% + 0.75px), transparent calc(50% + 0.75px)) !important;
+	background-size: 5px 5px !important;
+	background-repeat: no-repeat !important;
+	background-position: right calc(var(--sel-x, 13px) + 4.5px) center, right var(--sel-x, 13px) center !important;
+}
+#toolbar .tb-font, .md-props-new select, .base-panel select, .md-tl-addto, #addEvent select, .planner-food-opts select { --sel-pad: 22px; --sel-x: 8px; }
 input {
 	background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; min-width: 0;
 }
