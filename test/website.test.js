@@ -371,6 +371,33 @@ test("a reply to one of the site's own posts is listed under that post", () => {
 	assert.match(site.files.get("replies/theirs.html"), /In reply to <a class="u-in-reply-to" href="https:\/\/friend\.example\/post\.html">friend\.example\/post\.html</);
 });
 
+test("replies stay out of the folders and lists, and are on the Conversations page", () => {
+	const note = (fm, body) => `---\n${fm}\n---\n${body}`;
+	const notes = [
+		{ path: "Home.md", text: note("publish: true", "Hi.\n\n```posts\nfolder: all\n```") },
+		{ path: "Sketches/Gandalf.md", text: note("publish: true\ndate: 2026-09-25", "A wizard.") },
+		{ path: "Replies/Re Gandalf.md", text: note("publish: true\ndate: 2026-10-14\ntitle: \"Re: Gandalf\"\nreply-to: https://me.neocities.org/sketches/gandalf.html", "Nice!") },
+		{ path: "Replies/Re Beds.md", text: note("publish: true\ndate: 2026-10-12\ntitle: \"Re: Winter beds\"\nreply-to: https://friend.example/beds.html", "In reply to [Winter beds](https://friend.example/beds.html) by Ann.\n\nMine too.") },
+	];
+	for (const layout of ["notebook", "top"]) {
+		const site = buildSite(notes, [], { title: "T", address: "me.neocities.org", layout, calendar: true });
+		const home = site.files.get("index.html");
+		assert.doesNotMatch(home.replace(/<nav class="(tree|menu)"[\s\S]*?<\/nav>|<aside[\s\S]*?<\/aside>/g, ""), /Re: /, "not in posts blocks (the calendar still has it)");
+		assert.doesNotMatch(home, /<summary>Replies<\/summary>|>Replies<\/a>/, "no Replies folder");
+		assert.match(home, /href="conversations\.html"[^>]*>Conversations<\/a>/);
+		assert.equal(site.files.has("replies/index.html"), false);
+	}
+	const site = buildSite(notes, [], { title: "T", address: "me.neocities.org", calendar: true });
+	const c = site.files.get("conversations.html");
+	assert.ok(c.indexOf("Re: Gandalf") < c.indexOf("Re: Winter beds"), "newest first");
+	assert.match(c, /In reply to <a class="u-in-reply-to" href="sketches\/gandalf\.html">Gandalf<\/a><\/p>/, "its own post, by title");
+	assert.match(c, /In reply to <a class="u-in-reply-to" href="https:\/\/friend\.example\/beds\.html">Winter beds<\/a> on friend\.example/);
+	assert.match(c, /<p class="post-summary">Mine too\.<\/p>/, "its first words, not the reply line");
+	assert.match(site.files.get("replies/re-beds.html"), /class="pager[^"]*"[\s\S]*href="\.\.\/conversations\.html"/, "a reply leads back to Conversations");
+	assert.match(site.files.get("archive/2026-10.html"), /Re: Gandalf<\/a> <span class="count">reply<\/span>/, "still in the archive");
+	assert.match(site.files.get("feed.xml"), /Re: Winter beds/, "and the feed");
+});
+
 test("responses show their first words, and your own replies whole", () => {
 	const note = (fm, body) => `---\n${fm}\n---\n${body}`;
 	const long = "word ".repeat(80).trim();

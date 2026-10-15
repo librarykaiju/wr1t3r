@@ -2254,7 +2254,9 @@ function replyTo(post) {
 	const title = ("Re " + post.title).replace(/[\\/:*?"<>|#^[\]]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 	newNote(commonFolder(visible()) + "Replies/" + title + ".md", (path) => {
 		const date = new Date().toLocaleDateString("en-CA");
-		let text = withTitleHeading(newNoteFrontmatter(name(path), date), name(path));
+		// A file name can't hold the colon, so "Re: " is the title's (unless the note was named something else).
+		const heading = name(path) === title ? "Re: " + post.title.replace(/\s+/g, " ").trim() : name(path);
+		let text = withTitleHeading(newNoteFrontmatter(heading, date), heading);
 		text = setProperty(text, "reply-to", post.url);
 		toast("Set publish: true when your reply is ready; it goes out with the site's next publish.", 8000);
 		return text + `\nIn reply to [${post.title.replace(/[[\]]/g, "")}](${post.url}) by ${post.name}.\n\n`;
