@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { atomFeed, blueskyPost, buildSite, isPublished, ownStylesheet, pageFiles, relativeURL, siteAddress, slug, summaryOf, socialLinks, supportLinks, tagHue, themeCss, webMarkdown } from "../src/website.js";
+import { atomFeed, blueskyPost, buildSite, isGallery, isPublished, ownStylesheet, pageFiles, relativeURL, siteAddress, slug, summaryOf, socialLinks, supportLinks, tagHue, themeCss, webMarkdown } from "../src/website.js";
 
 const note = (props, body) => `---\n${props}\n---\n${body}`;
 
@@ -438,4 +438,48 @@ test("the front page doesn't title itself Home, or repeat its own heading", () =
 	assert.match(own, /<h1[^>]*>Hello there<\/h1>/);
 	const titled = buildSite([{ path: "Home.md", text: note("publish: true\ntitle: Welcome in", "Hi.") }], [], { title: "Field notes" }).files.get("index.html");
 	assert.match(titled, /<h1>Welcome in<\/h1>/);
+});
+
+test("sketchbooks and media logs are galleries: a page of cards, one link in the folders", () => {
+	const notes = [
+		{ path: "content/sketchbooks/Moleskine/Heron.md", text: note("publish: true\ndate: 2026-05-02", "![[heron.png]]\n\nInk.") },
+		{ path: "content/sketchbooks/Moleskine/Fern.md", text: note("publish: true\ndate: 2026-05-01", "Just words.") },
+		{ path: "content/logs/books/Piranesi.md", text: note("publish: true\ndate: 2026-04-01\ncover: https://covers.example/piranesi.jpg\ncover_shape: square", "Loved it.") },
+		{ path: "content/essays/Walking.md", text: note("publish: true\ndate: 2026-03-04", "A walk.") },
+	];
+	const site = buildSite(notes, ["art/heron.png"], { title: "S", layout: "notebook" });
+	assert.deepEqual(site.galleries.map((g) => g.file), ["logs/index.html", "logs/books/index.html", "sketchbooks/index.html", "sketchbooks/moleskine/index.html"]);
+	const book = site.files.get("sketchbooks/moleskine/index.html");
+	assert.ok(book.includes('<ul class="gallery sketches">'));
+	assert.ok(book.includes('<a href="heron.html"><img src="../../files/heron.png" alt="" loading="lazy"><span class="card-title">Heron</span>'), "the first picture in the page is its card");
+	assert.ok(book.includes('<span class="blank" aria-hidden="true">F</span><span class="card-title">Fern</span>'), "a page with no picture shows its initial");
+	assert.ok(book.indexOf("Heron") < book.indexOf("Fern"), "newest first");
+	const sketchbooks = site.files.get("sketchbooks/index.html");
+	assert.ok(sketchbooks.includes('<a href="moleskine/index.html">Moleskine</a> <span class="count">2</span>'));
+	const books = site.files.get("logs/books/index.html");
+	assert.ok(books.includes('<ul class="gallery shelf">') && books.includes('<li style="--ar: 1"><a href="piranesi.html"><img src="https://covers.example/piranesi.jpg"'), "logs are a shelf, each cover its own shape");
+	const heron = site.files.get("sketchbooks/moleskine/heron.html");
+	assert.ok(heron.includes('<a class="gallery-link" href="../index.html" aria-current="page">sketchbooks</a>'), "the folders link the gallery");
+	assert.ok(!heron.includes('>Fern</a></li>'), "and don't list every page in it");
+	assert.ok(heron.includes('<a class="up" href="index.html"><span>Gallery</span> Moleskine</a>'), "a page leads back to its gallery");
+	assert.ok(heron.includes("<summary>essays</summary>"), "other folders open as before");
+});
+
+test("the front page shows a gallery's newest cards, and a folder can be set either way", () => {
+	const notes = [];
+	for (let i = 1; i <= 14; i++) notes.push({ path: `sketchbooks/S ${i}.md`, text: note(`publish: true\ndate: 2026-01-${String(i).padStart(2, "0")}`, "x") });
+	notes.push({ path: "art/Owl.md", text: note("publish: true", "x") });
+	const front = buildSite(notes, [], { title: "S" }).files.get("index.html");
+	assert.ok(front.includes('<a href="sketchbooks/index.html">sketchbooks</a> <span class="count">14</span>'));
+	assert.equal((front.match(/<li><a href="sketchbooks\//g) || []).length, 12);
+	assert.ok(front.includes('<p class="more"><a href="sketchbooks/index.html">See all 14</a></p>'));
+	const set = buildSite(notes, [], { title: "S", galleries: { Art: "gallery", sketchbooks: "list" }, front: null });
+	assert.deepEqual(set.galleries.map((g) => g.folder), ["art"]);
+	assert.ok(set.files.get("sketchbooks/index.html").includes('<ul class="pages">'));
+	assert.equal(isGallery("logs/books"), true);
+	assert.equal(isGallery("logs/books", { logs: "list" }), false);
+	assert.equal(isGallery("logs/books", { logs: "list", "logs/books": "gallery" }), true);
+	assert.equal(isGallery("essays"), false);
+	const own = buildSite(notes, [], { title: "S", stylesheet: "main.css" });
+	assert.deepEqual(own.galleries, [], "plain pages with the person's own stylesheet keep lists");
 });

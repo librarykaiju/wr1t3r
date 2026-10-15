@@ -25,7 +25,7 @@
 // Publish to Neocities, with the key remembered on this device).
 
 import appCss from "./style.css?raw";
-import { buildSite, ownStylesheet, ringPlace, themeCss, SITE_FILES } from "./website.js";
+import { buildSite, isGallery, isPublished, ownStylesheet, ringPlace, themeCss, SITE_FILES } from "./website.js";
 import { siteOf } from "./published.js";
 import { siteUrl, hostOf } from "./feeds.js";
 import { FAMILIES, familyOf, themeVariants } from "./theme.js";
@@ -117,6 +117,26 @@ export function openWebsite(host, { now: publishNow = "" } = {}) {
 	const layout = document.createElement("select");
 	layout.append(new Option("Top menu: a link per folder across the top", "top", false, saved.layout !== "notebook"), new Option("Notebook: folders down the left, as in the app", "notebook", false, saved.layout === "notebook"));
 	field("Layout", layout);
+	sub("Galleries");
+	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "A gallery folder gets a page of its notes' covers or first pictures, newest first, and the folders on the left link that page instead of listing every note. Sketchbooks and logs are galleries unless you say otherwise; a folder's choice goes for the folders inside it too." }));
+	// Folders with published notes, two levels deep: "Auto" follows isGallery.
+	const galleryChoices = { ...(saved.galleries || {}) };
+	const galleryPicks = [];
+	const shelves = [...new Set(host.notes().filter((n) => isPublished(n.path, n.text)).flatMap((n) => {
+		const parts = n.path.replace(/^content\//, "").split("/").slice(0, -1);
+		return parts.slice(0, 2).map((_, i) => parts.slice(0, i + 1).join("/"));
+	}))].sort((a, b) => a.localeCompare(b));
+	for (const f of shelves) {
+		const pickOne = document.createElement("select");
+		const auto = new Option("", "", false, !galleryChoices[f]);
+		pickOne.append(auto, new Option("Gallery", "gallery", false, galleryChoices[f] === "gallery"), new Option("List", "list", false, galleryChoices[f] === "list"));
+		galleryPicks.push({ f, pickOne, auto });
+		field(f.split("/").join(" / "), pickOne);
+	}
+	// "Auto" says what it comes to, given the folders above it.
+	const galleries = () => Object.fromEntries(galleryPicks.filter((g) => g.pickOne.value).map((g) => [g.f, g.pickOne.value]));
+	const autoWords = () => { const set = galleries(); for (const g of galleryPicks) g.auto.textContent = `Auto (${isGallery(g.f, { ...set, [g.f]: undefined }) ? "gallery" : "list"})`; };
+	autoWords();
 	sub("Front page");
 	const frontFolder = document.createElement("select");
 	const folders = [...new Set(host.notes().map((n) => n.path.replace(/^content\//, "").split("/")).filter((p) => p.length > 1 && !/^[_.]/.test(p[0])).map((p) => p[0]))].sort((a, b) => a.localeCompare(b));
@@ -158,7 +178,7 @@ export function openWebsite(host, { now: publishNow = "" } = {}) {
 	Object.assign(social, { rows: 3, value: saved.social || "", placeholder: "https://bsky.app/profile/you\n@you@mastodon.social\nyou@example.com" });
 	field("Find me on: one link or email address per line", social);
 	// What plain pages leave out.
-	const themed = [family, mode, tones, layout, share, properties, sidebar, kofi, patreon, label, url, note, social];
+	const themed = [family, mode, tones, layout, share, properties, sidebar, kofi, patreon, label, url, note, social, ...galleryPicks.map((g) => g.pickOne)];
 	sub("Feed");
 	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "The site gets a feed (feed.xml), so people can follow it from a feed reader. Posts with a date go in it, newest first, each with a line or two and a link to read the rest on your site." }));
 	const address = field("Your site's address", text(saved.address, "you.neocities.org"), "Where the site lives, so the feed's links point there. Left empty, a site published to GitHub Pages uses that address.");
@@ -227,7 +247,7 @@ export function openWebsite(host, { now: publishNow = "" } = {}) {
 	document.body.append(wrap);
 
 	const homePath = () => homePathIn(host.notes().map((n) => n.path));
-	const settings = () => ({ frontFolder: frontFolder.value, frontCount: Number(frontCount.value) || 10, frontShow: frontShow.value, neoSite: saved.neoSite || "", ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), address: address.value.trim(), feedFull: feedFull.checked, neighbors: neighbors.checked, ringUrl: ringUrl.value.trim(), ringName: ringName.value.trim(), ringMembers: ringMembers.value.trim(), family: family.value, mode: mode.value, tones: tones.value, headings: headings.value });
+	const settings = () => ({ frontFolder: frontFolder.value, frontCount: Number(frontCount.value) || 10, frontShow: frontShow.value, neoSite: saved.neoSite || "", ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), address: address.value.trim(), feedFull: feedFull.checked, neighbors: neighbors.checked, ringUrl: ringUrl.value.trim(), ringName: ringName.value.trim(), ringMembers: ringMembers.value.trim(), family: family.value, mode: mode.value, tones: tones.value, headings: headings.value, galleries: galleries() });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
 	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font(), tones: tones.value, headings: headings.value, mixtape: family.value === "mixtape" ? now.mixtape : null }) + (family.value === "synthwave" ? GLOW : "");
@@ -258,7 +278,7 @@ export function openWebsite(host, { now: publishNow = "" } = {}) {
 	const build = (homeText = null) => {
 		const s = settings();
 		const notes = homeText == null ? host.notes() : [...host.notes().filter((n) => n.path !== homePath()), { path: homePath(), text: homeText }];
-		return buildSite(notes, host.attachments(), { title: s.title, tagline: s.tagline, css: css(), stylesheet: s.plain ? ownStylesheet(s.stylesheet) || "main.css" : "", footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, address: siteOf(s), feedFull: s.feedFull, following: host.following?.() || [], neighbors: s.neighbors, ringName: s.ringName, ringMembers: s.ringMembers.split(/\s+/).filter(Boolean), ring: ringNow(s), front: s.frontFolder === "*" ? null : { folder: s.frontFolder, count: s.frontCount, show: s.frontShow }, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
+		return buildSite(notes, host.attachments(), { title: s.title, tagline: s.tagline, css: css(), stylesheet: s.plain ? ownStylesheet(s.stylesheet) || "main.css" : "", footer: s.footer, media: s.media, calendar: s.calendar, logo: s.logo, logoOnly: s.logoOnly, layout: s.layout, sidebar: s.sidebar, social: s.social, share: s.share, properties: s.properties, address: siteOf(s), feedFull: s.feedFull, following: host.following?.() || [], neighbors: s.neighbors, ringName: s.ringName, ringMembers: s.ringMembers.split(/\s+/).filter(Boolean), ring: ringNow(s), galleries: s.galleries, front: s.frontFolder === "*" ? null : { folder: s.frontFolder, count: s.frontCount, show: s.frontShow }, support: { kofi: s.kofi, patreon: s.patreon, label: s.label, url: s.url, note: s.note } });
 	};
 
 	let site = null, timer;
@@ -274,7 +294,8 @@ export function openWebsite(host, { now: publishNow = "" } = {}) {
 		const n = site.pages.length;
 		count.textContent = n ? `${n} published note${n === 1 ? "" : "s"}${site.skipped.length ? ` · ${site.skipped.length} audio or video file${site.skipped.length === 1 ? "" : "s"} left out` : ""}` : "No notes are published yet. Set a note's publish property to true to put it on the site.";
 		const was = pick.value || SITE_FILES.index;
-		pick.replaceChildren(new Option("Front page", SITE_FILES.index), ...site.pages.filter((p) => p.file !== SITE_FILES.index).map((p) => new Option(p.title, p.file)));
+		autoWords();
+		pick.replaceChildren(new Option("Front page", SITE_FILES.index), ...(site.galleries || []).map((g) => new Option(`Gallery: ${g.folder.split("/").join(" / ")}`, g.file)), ...site.pages.filter((p) => p.file !== SITE_FILES.index).map((p) => new Option(p.title, p.file)));
 		pick.value = [...pick.options].some((o) => o.value === was) ? was : SITE_FILES.index;
 		show();
 	}

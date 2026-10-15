@@ -26,6 +26,10 @@
 // or, left out, every page by folder. A menu at the top
 // links each top-level folder's own list of pages (folder/index.html), and
 // each page ends with links to the pages before and after it in its folder.
+// Sketchbooks and media logs are galleries (isGallery): their folder pages
+// are grids of each note's cover or first picture, the notebook layout's
+// folders link those pages instead of opening into every note, and a page
+// in one links back to it.
 //
 // Two layouts: "top", a menu of top-level folders across the top, and
 // "notebook", the folders down the left as in the app, folding open (plain
@@ -393,6 +397,46 @@ export function allowedKind(kind, { media = false } = {}) {
 	return kind === "image" || kind === "pdf" || (media && (kind === "audio" || kind === "video"));
 }
 
+// Folders whose pages are mostly pictures: their folder page is a gallery of
+// the pages' covers (or first pictures) instead of a list of titles, and the
+// notebook layout's folders link that page instead of opening into every
+// note. By default sketchbooks and media logs (books, games, movies...), as
+// the app shows them; opts.galleries ({ "folder/path": "gallery" | "list" })
+// says otherwise for a folder and the ones inside it.
+export const GALLERY_FOLDERS = /(^|\/)(sketchbooks?|logs)(\/|$)/i;
+// Media logs' covers are posters and book jackets: tall cards, like a shelf.
+const SHELF_FOLDERS = /(^|\/)logs(\/|$)/i;
+export const GALLERY_CARDS = 12; // the newest shown where a gallery is one part of a page
+
+export function isGallery(folder, choices = {}) {
+	if (!folder) return false;
+	const chosen = new Map(Object.entries(choices || {}).map(([k, v]) => [k.toLowerCase().replace(/^\/+|\/+$/g, ""), v]));
+	const parts = folder.split("/");
+	for (let i = parts.length; i > 0; i--) {
+		const c = chosen.get(parts.slice(0, i).join("/").toLowerCase());
+		if (c === "gallery" || c === "list") return c === "gallery";
+	}
+	return GALLERY_FOLDERS.test(folder);
+}
+
+// A page's picture for its card: the cover or banner, else the first picture
+// in its text; as a path from the top of the site (or a web address).
+function thumbOf(file, info, body) {
+	const src = info.cover || info.banner || /<img [^>]*?src="([^"]+)"/.exec(body)?.[1];
+	if (!src) return null;
+	const u = src.replace(/&amp;/g, "&");
+	if (/^([a-z][\w+.-]*:|\/)/i.test(u)) return u;
+	const parts = file.split("/").slice(0, -1);
+	for (const seg of u.split("/")) {
+		let s = seg;
+		try { s = decodeURIComponent(seg); } catch {}
+		s === ".." ? parts.pop() : s !== "." && parts.push(s);
+	}
+	return { path: parts.join("/") };
+}
+
+const ASPECTS = { square: "1", circle: "1", "vertical-cover": "2 / 3", "vertical-contain": "2 / 3", "horizontal-cover": "4 / 3", "horizontal-contain": "4 / 3" };
+
 // The whole site as a plan: { files: Map(sitePath -> string | { attachment:
 // vaultPath }), pages: [{ path, file, title }], skipped: [vaultPath] }.
 // notes: [{ path, text }] (every note; only published ones get pages),
@@ -472,7 +516,7 @@ export function buildSite(notes, attachments, opts = {}) {
 		const site = files.get(n.path);
 		const r = render(n, site);
 		page(site, n.path, r.info, r.body);
-		pages.push({ path: n.path, file: site, title: r.info.title, date: r.info.date, folder: sitePath(n.path).split("/").slice(0, -1).join("/") });
+		pages.push({ path: n.path, file: site, title: r.info.title, date: r.info.date, folder: sitePath(n.path).split("/").slice(0, -1).join("/"), thumb: thumbOf(site, r.info, r.body), shape: r.info.coverShape });
 		entries.push({ file: site, title: r.info.title, date: r.info.date, tags: r.info.tags, description: r.info.description, body: r.body, replyTo: r.info.replyTo });
 	}
 	const address = siteAddress(opts.address) || "";
@@ -485,36 +529,92 @@ export function buildSite(notes, attachments, opts = {}) {
 	// The front page: Home's text, then every page by folder, newest first.
 	const lead = front ? render(front, SITE_FILES.index) : null;
 	const newest = (a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title);
-	// Pages grouped by folder (under `under`, whose name is left off), newest first.
+	// (archive/ and files/ are the site's own, so folders by those names list elsewhere)
+	const topFile = (f) => { const d = slug(f, "folder"); return `${/^(archive|files)$/.test(d) ? d + "-2" : d}/index.html`; };
+	// Any folder's own page: "logs/books" -> logs/books/index.html.
+	const folderFile = (f) => { const [top, ...rest] = f.split("/"); return topFile(top).replace(/index\.html$/, "") + rest.map((s) => slug(s, "folder") + "/").join("") + "index.html"; };
+	// Galleries (isGallery): every gallery folder with pages gets its own page,
+	// and a gallery inside another is part of it in the lists.
+	const gallery = (f) => !own && isGallery(f, opts.galleries);
+	const galleryTop = (f) => {
+		if (!gallery(f)) return null;
+		const parts = f.split("/");
+		let top = f;
+		for (let i = parts.length - 1; i > 0 && gallery(parts.slice(0, i).join("/")); i--) top = parts.slice(0, i).join("/");
+		return top;
+	};
+	const galleryFolders = new Set();
+	for (const p of pages) {
+		const parts = p.folder.split("/");
+		for (let i = parts.length; i > 0 && gallery(parts.slice(0, i).join("/")); i--) galleryFolders.add(parts.slice(0, i).join("/"));
+	}
+	// Pages as cards: each its picture (or its initial), title and date.
+	// cap: only the newest that many, then a link to the folder's own page.
+	const cardsOf = (site, folder, ps, cap = 0) => {
+		const shown = cap ? ps.slice(0, cap) : ps;
+		const card = (p) => {
+			const src = p.thumb && (typeof p.thumb === "string" ? p.thumb : relativeURL(site, p.thumb.path));
+			const ar = ASPECTS[p.shape];
+			return `<li${ar ? ` style="--ar: ${ar}"` : ""}><a href="${esc(relativeURL(site, p.file))}">${src ? `<img src="${esc(src)}" alt="" loading="lazy">` : `<span class="blank" aria-hidden="true">${esc([...p.title.trim()][0] || "·")}</span>`}<span class="card-title">${esc(p.title)}</span>${p.date ? `<time datetime="${p.date}">${esc(longDate(p.date))}</time>` : ""}</a></li>`;
+		};
+		const more = cap && ps.length > cap ? `\n<p class="more"><a href="${esc(relativeURL(site, folderFile(folder)))}">See all ${ps.length}</a></p>` : "";
+		return `<ul class="gallery ${SHELF_FOLDERS.test(folder) ? "shelf" : "sketches"}">\n${shown.map(card).join("\n")}\n</ul>${more}`;
+	};
+	// Pages grouped by folder (under `under`, whose name is left off), newest
+	// first; a gallery as its newest cards and a link to the rest.
 	const listOf = (site, ps, under = "") => {
 		const groups = new Map();
 		for (const p of [...ps].sort(newest)) {
-			const f = under ? p.folder.slice(under.length).replace(/^\//, "") : p.folder;
-			if (!groups.has(f)) groups.set(f, []);
-			groups.get(f).push(p);
+			const top = galleryTop(p.folder);
+			const key = top ?? p.folder;
+			const f = under ? key.slice(under.length).replace(/^\//, "") : key;
+			if (!groups.has(f)) groups.set(f, { top, ps: [] });
+			groups.get(f).ps.push(p);
 		}
-		return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([folder, ps]) => [
+		return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([folder, { top, ps }]) => top && folder ? [
+			`<h2 class="folder"><a href="${esc(relativeURL(site, folderFile(top)))}">${esc(folder.split("/").join(" / "))}</a> <span class="count">${ps.length}</span></h2>`,
+			cardsOf(site, top, ps, GALLERY_CARDS),
+		].join("\n") : [
 			folder ? `<h2 class="folder">${esc(folder.split("/").join(" / "))}</h2>` : "",
 			`<ul class="pages">`,
 			...ps.map((p) => `<li><a href="${esc(relativeURL(site, p.file))}">${esc(p.title)}</a>${p.date ? ` <time datetime="${p.date}">${esc(longDate(p.date))}</time>` : ""}</li>`),
 			`</ul>`,
 		].filter(Boolean).join("\n")).join("\n");
 	};
+	// A gallery folder's page: its own pages as cards, then each folder in it.
+	const galleryBody = (site, g) => {
+		const direct = pages.filter((p) => p.folder === g).sort(newest);
+		const kids = new Map();
+		for (const p of pages) if (p.folder.startsWith(g + "/")) {
+			const k = g + "/" + p.folder.slice(g.length + 1).split("/")[0];
+			if (!kids.has(k)) kids.set(k, []);
+			kids.get(k).push(p);
+		}
+		const parts = direct.length ? [cardsOf(site, g, direct)] : [];
+		for (const [k, ps] of [...kids].sort(([a], [b]) => a.localeCompare(b))) {
+			ps.sort(newest);
+			parts.push(gallery(k)
+				? `<section class="gallery-group">\n<h2 class="folder"><a href="${esc(relativeURL(site, folderFile(k)))}">${esc(k.split("/").pop())}</a> <span class="count">${ps.length}</span></h2>\n${cardsOf(site, k, ps, GALLERY_CARDS)}\n</section>`
+				: `<nav class="contents">\n${listOf(site, ps, g)}\n</nav>`);
+		}
+		return `<div class="galleries">\n${parts.join("\n")}\n</div>`;
+	};
 	const list = listOf(SITE_FILES.index, pages);
 	// Each top-level folder's list of pages.
 	const tops = [...new Set(pages.map((p) => p.folder.split("/")[0]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-	// (archive/ and files/ are the site's own, so folders by those names list elsewhere)
 	// Top-level folders take the theme's rainbow in turn, counting the
 	// notebook's folders as the app's sidebar does, so each keeps its color.
 	const allTops = [...new Set(notes.map((n) => sitePath(n.path).split("/")).filter((p) => p.length > 1 && !/^[_.]/.test(p[0])).map((p) => p[0]))].sort((a, b) => a.localeCompare(b));
 	const hueOf = (f) => { const i = allTops.indexOf(f); return `var(--f${((i < 0 ? tops.indexOf(f) : i) % 7) + 1})`; };
-	const topFile = (f) => { const d = slug(f, "folder"); return `${/^(archive|files)$/.test(d) ? d + "-2" : d}/index.html`; };
-	for (const f of tops) page(topFile(f), "", { title: f, tags: [], date: "" }, `<nav class="contents">\n${listOf(topFile(f), pages.filter((p) => p.folder === f || p.folder.startsWith(f + "/")), f)}\n</nav>`);
-	// Previous and next within a folder, in the lists' order.
+	for (const f of tops) page(topFile(f), "", { title: f, tags: [], date: "" }, galleryFolders.has(f) ? galleryBody(topFile(f), f) : `<nav class="contents">\n${listOf(topFile(f), pages.filter((p) => p.folder === f || p.folder.startsWith(f + "/")), f)}\n</nav>`);
+	for (const g of galleryFolders) if (g.includes("/")) page(folderFile(g), "", { title: g.split("/").pop(), tags: [], date: "" }, galleryBody(folderFile(g), g));
+	// Previous and next within a folder, in the lists' order, and in a
+	// gallery, the way back to it.
 	const pagerOf = new Map();
 	for (const f of new Set(pages.map((p) => p.folder))) {
 		const ps = pages.filter((p) => p.folder === f).sort(newest);
-		ps.forEach((p, i) => pagerOf.set(p.file, { prev: ps[i - 1], next: ps[i + 1] }));
+		const up = galleryFolders.has(f) ? { file: folderFile(f), title: f.split("/").pop() } : null;
+		ps.forEach((p, i) => pagerOf.set(p.file, { prev: ps[i - 1], next: ps[i + 1], up }));
 	}
 	// posts blocks: the newest posts of a folder, as the Home note places them.
 	const entryOf = new Map(entries.map((e) => [e.file, e]));
@@ -614,6 +714,12 @@ export function buildSite(notes, attachments, opts = {}) {
 			const items = [];
 			for (const [name, sub] of [...node.folders].sort(([a], [b]) => a.localeCompare(b))) {
 				const here = path ? `${path}/${name}` : name;
+				// A gallery is one link, to its page, not every note in it.
+				if (galleryFolders.has(here)) {
+					const at = site === folderFile(here) || pages.some((p) => p.file === site && (p.folder === here || p.folder.startsWith(here + "/")));
+					items.push(`<li${path ? "" : ` class="top" style="--fc: ${hueOf(name)}"`}><a class="gallery-link" href="${esc(relativeURL(site, folderFile(here)))}"${at ? ' aria-current="page"' : ""}>${esc(name)}</a></li>`);
+					continue;
+				}
 				const open = pages.some((p) => p.file === site && (p.folder === here || p.folder.startsWith(here + "/"))) || (!path && site === topFile(name));
 				items.push(`<li${path ? "" : ` class="top" style="--fc: ${hueOf(name)}"`}><details${open ? " open" : ""}><summary>${esc(name)}</summary>${draw(sub, here)}</details></li>`);
 			}
@@ -625,9 +731,9 @@ export function buildSite(notes, attachments, opts = {}) {
 	};
 	const pagerFor = (site) => {
 		const pn = pagerOf.get(site);
-		if (!pn || (!pn.prev && !pn.next)) return "";
+		if (!pn || (!pn.prev && !pn.next && !pn.up)) return "";
 		const a = (p, cls, word) => (p ? `<a class="${cls}" href="${esc(relativeURL(site, p.file))}"><span>${word}</span> ${esc(p.title)}</a>` : `<span class="${cls}"></span>`);
-		return `<nav class="pager" aria-label="More in this folder">${a(pn.prev, "prev", "Previous")}${a(pn.next, "next", "Next")}</nav>\n`;
+		return `<nav class="pager${pn.up ? " has-up" : ""}" aria-label="More in this folder">${a(pn.prev, "prev", "Previous")}${pn.up ? a(pn.up, "up", "Gallery") : ""}${a(pn.next, "next", "Next")}</nav>\n`;
 	};
 	// Replies to this site's own posts: listed under the post they answer, and
 	// the reply names that post by its title.
@@ -666,7 +772,7 @@ export function buildSite(notes, attachments, opts = {}) {
 	}
 	if (!own) out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
-	return { files: out, pages, skipped: [...skipped].sort(), title };
+	return { files: out, pages, galleries: [...galleryFolders].sort().map((f) => ({ folder: f, file: folderFile(f) })), skipped: [...skipped].sort(), title };
 }
 
 // "someone.neocities.org/winter-beds.html": an address without its scheme.
@@ -1065,6 +1171,24 @@ header.site .logo { height: 36px; width: auto; max-width: 200px; object-fit: con
 .pager a { text-decoration: none; color: var(--fg); }
 .pager a span { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
 .pager .next { text-align: right; }
+.pager.has-up { grid-template-columns: 1fr auto 1fr; }
+.pager .up { text-align: center; }
+.galleries > .gallery:first-child { margin-top: 0; }
+.gallery { --ar: 1; list-style: none; padding: 0; margin: 0.6em 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px 14px; align-items: start; }
+.gallery.shelf { --ar: 2 / 3; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.contents .gallery li, .gallery li { display: block; padding: 0; border: 0; }
+.gallery a { display: block; color: var(--fg); text-decoration: none; }
+.gallery img, .gallery .blank { display: block; width: 100%; height: auto; aspect-ratio: var(--ar); object-fit: cover; border-radius: 8px; background: var(--card, var(--box)); border: 1px solid var(--line); }
+.gallery .blank { display: flex; align-items: center; justify-content: center; font: 600 2.4em/1 var(--sans); color: var(--muted); }
+.gallery a:hover img, .gallery a:hover .blank, .gallery a:focus-visible img { outline: 2px solid var(--link, var(--accent)); outline-offset: 2px; }
+.gallery .card-title { display: block; margin-top: 6px; font: 600 14px/1.3 var(--sans); overflow-wrap: anywhere; }
+.gallery time { display: block; margin-top: 2px; font: 12px/1.3 var(--sans); color: var(--muted); }
+h2.folder a { color: inherit; text-decoration: none; }
+h2.folder a:hover { text-decoration: underline; }
+h2.folder .count { font-weight: 400; letter-spacing: 0; text-transform: none; }
+.galleries h2.folder { font: 600 13px/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 2em 0 0.4em; }
+.more { margin: 0.6em 0 0; font: 14px/1.4 var(--sans); }
+@media (max-width: 600px) { .gallery { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 16px 10px; } .gallery.shelf { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } }
 .reply-to { margin: 0 0 1.2em; font: 15px/1.5 var(--sans); color: var(--muted); }
 .reply-to a { color: var(--muted); }
 .responses { margin: 2.5em 0 0; padding-top: 1em; border-top: 1px solid var(--line); font: 15px/1.5 var(--sans); }
@@ -1237,7 +1361,9 @@ body.layout-notebook main { padding-top: 20px; }
 .tree a, .tree summary { --tint: 10%; margin: 2px 0; background: color-mix(in srgb, var(--fc, transparent) var(--tint), var(--bg)); }
 .tree .tree-top a { background: none; }
 .tree summary { --tint: 18%; }
-.tree li.top > details > summary { --tint: 30%; }
+.tree li.top > details > summary, .tree li.top > a.gallery-link { --tint: 30%; }
+.tree a.gallery-link { font-weight: 600; }
+.tree a.gallery-link::before { content: "▦"; display: inline-block; width: 1.25em; font-size: 0.8em; color: var(--muted); }
 .tree a:hover, .tree summary:hover { background: color-mix(in srgb, var(--fc, var(--mark, var(--muted))) calc(var(--tint) + 8%), var(--bg)); }
 .tree a[aria-current] { --tint: 30%; font-weight: 600; background: color-mix(in srgb, var(--fc, var(--mark, var(--muted))) var(--tint), var(--bg)); }
 .menu a[style] { border-bottom: 3px solid color-mix(in srgb, var(--fc) 70%, transparent); text-decoration: none; padding-bottom: 1px; }
