@@ -3,20 +3,42 @@
    self-host builds leave it out. A cream dotted page with dusty-purple text
    and the site's candy rainbow, and a navy-purple dark mode with the
    rainbow at full strength. The light rainbow is the same hues deepened so
-   tags and folder names read on cream. */
-:root[data-theme=w3bz1n3] {
+   tags and folder names read on cream.
+   Each block's own selector comes last in its list: the website export
+   (themeCss in src/website.js) finds a theme by ":root[data-theme=…] {". */
+
+/* Light, and the editor column in Night: as on the site, the writing sits
+   on cream paper inside the dark frame. */
+:root[data-theme=w3bz1n3-night] main, :root[data-theme=w3bz1n3] {
 	--bg: #faf4ef; --fg: #34324a; --muted: #6c6681; --line: #e6d9cc; --card: #f1e8df; --sel: #f7dcef;
 	--accent: #c8245e; --link: #a8237f; --bad: #b3261e; --hl: #fde29b; --heading: #2a2840;
 	--panel: #e8ddd2; --mark: #b3a497; --code-bg: #efe5db;
 	--f1: #c8325a; --f2: #c2501f; --f3: #946600; --f4: #16804a; --f5: #0b7a8c; --f6: #4250d0; --f7: #a52a9c;
 	color-scheme: light;
 }
-:root[data-theme=w3bz1n3-night] {
+/* Night, and the focus bar in both modes. In Night the top bar stays dark
+   too, so only the page itself is paper. */
+:root[data-theme=w3bz1n3-night] main > header, :root[data-theme^=w3bz1n3] #bar, :root[data-theme=w3bz1n3-night] {
 	--bg: #24223a; --fg: #f2ecf3; --muted: #b4accb; --line: #3a3657; --card: #312d4b; --sel: #47406b;
 	--accent: #6deaf7; --link: #f97ce6; --bad: #ff8a9a; --hl: #6b3a66; --heading: #f7799a;
 	--panel: #1c1a2e; --mark: #8a82a8; --code-bg: #2d2a45;
 	--f1: #f7799a; --f2: #f89778; --f3: #f8be72; --f4: #6ef3a0; --f5: #6deaf7; --f6: #7891f7; --f7: #f97ce6;
 	color-scheme: dark;
 }
-/* The site's dot-grid paper, on the light page only. */
-:root[data-theme=w3bz1n3] body { background-image: radial-gradient(#d8c8ba 1.2px, transparent 1.4px); background-size: 20px 20px; }
+:root[data-theme^=w3bz1n3] #bar { background: var(--panel); color: var(--muted); border-top-color: var(--panel); }
+:root[data-theme=w3bz1n3-night] main { background-color: var(--bg); color: var(--fg); }
+/* The site's dot-grid paper. */
+:root[data-theme=w3bz1n3] body, :root[data-theme=w3bz1n3-night] main { background-image: radial-gradient(#d8c8ba 1.2px, transparent 1.4px); background-size: 20px 20px; }
+:root[data-theme=w3bz1n3-night] :is(main > header, #bar) { background-image: none; }
+
+/* The sidebar's top-level folders are solid candy buttons with dark text,
+   like the site's menu. The rainbow is the full-strength candy in the
+   sidebar in both modes; subfolders and notes keep their light tint of it. */
+:root[data-theme^=w3bz1n3] #tree {
+	--f1: #f7799a; --f2: #f89778; --f3: #f8be72; --f4: #6ef3a0; --f5: #6deaf7; --f6: #7891f7; --f7: #f97ce6;
+}
+:root[data-theme^=w3bz1n3] #tree > details:not(.side-section) > summary {
+	background: var(--fc, var(--mark)); color: #2a2840; padding: 8px 12px; border-radius: 6px;
+	box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+}
+:root[data-theme^=w3bz1n3] #tree > details:not(.side-section) > summary:hover { background: color-mix(in srgb, var(--fc, var(--mark)) 85%, #2a2840); }
