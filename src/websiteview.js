@@ -25,7 +25,7 @@
 // Publish to Neocities, with the key remembered on this device).
 
 import appCss from "./style.css?raw";
-import { buildSite, isGallery, isPublished, ownStylesheet, ringPlace, themeCss, SITE_FILES } from "./website.js";
+import { buildSite, folderMode, isPublished, ownStylesheet, ringPlace, themeCss, SITE_FILES } from "./website.js";
 import { siteOf } from "./published.js";
 import { siteUrl, hostOf } from "./feeds.js";
 import { FAMILIES, familyOf, themeVariants } from "./theme.js";
@@ -35,6 +35,7 @@ import { neocitiesSite, publishToNeocities, NEOCITIES_KEY } from "./neocitiespub
 const FAMILY_NAMES = { default: "Default", gruvbox: "Gruvbox", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", shire: "Shire", mixtape: "Mixtape" };
 
 const KEY = "wr1t3r-website";
+const MODE_WORDS = { gallery: "Gallery", posts: "Posts page", list: "Open in the sidebar" };
 let open = null;
 
 // The website's Home note: Home.md or Index.md at the top of the notes,
@@ -117,8 +118,8 @@ export function openWebsite(host, { now: publishNow = "" } = {}) {
 	const layout = document.createElement("select");
 	layout.append(new Option("Top menu: a link per folder across the top", "top", false, saved.layout !== "notebook"), new Option("Notebook: folders down the left, as in the app", "notebook", false, saved.layout === "notebook"));
 	field("Layout", layout);
-	sub("Galleries");
-	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "A gallery folder gets a page of its notes' covers or first pictures, newest first, and the folders on the left link that page instead of listing every note. Sketchbooks and logs are galleries unless you say otherwise; a folder's choice goes for the folders inside it too." }));
+	sub("Folders");
+	form.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "Gallery: the folder's page is its notes' covers or first pictures. Posts page: its page lists the posts, newest first. Either way the folders on the left go straight to that page instead of opening into every note. Open in the sidebar: the folder opens into its notes, as usual. Sketchbooks and logs are galleries unless you say otherwise; a folder's choice goes for the folders inside it too." }));
 	// Folders with published notes, two levels deep: "Auto" follows isGallery.
 	const galleryChoices = { ...(saved.galleries || {}) };
 	const galleryPicks = [];
@@ -129,13 +130,13 @@ export function openWebsite(host, { now: publishNow = "" } = {}) {
 	for (const f of shelves) {
 		const pickOne = document.createElement("select");
 		const auto = new Option("", "", false, !galleryChoices[f]);
-		pickOne.append(auto, new Option("Gallery", "gallery", false, galleryChoices[f] === "gallery"), new Option("List", "list", false, galleryChoices[f] === "list"));
+		pickOne.append(auto, ...Object.entries(MODE_WORDS).map(([v, w]) => new Option(w, v, false, galleryChoices[f] === v)));
 		galleryPicks.push({ f, pickOne, auto });
 		field(f.split("/").join(" / "), pickOne);
 	}
 	// "Auto" says what it comes to, given the folders above it.
 	const galleries = () => Object.fromEntries(galleryPicks.filter((g) => g.pickOne.value).map((g) => [g.f, g.pickOne.value]));
-	const autoWords = () => { const set = galleries(); for (const g of galleryPicks) g.auto.textContent = `Auto (${isGallery(g.f, { ...set, [g.f]: undefined }) ? "gallery" : "list"})`; };
+	const autoWords = () => { const set = galleries(); for (const g of galleryPicks) g.auto.textContent = `Auto (${MODE_WORDS[folderMode(g.f, { ...set, [g.f]: undefined })].toLowerCase()})`; };
 	autoWords();
 	sub("Front page");
 	const frontFolder = document.createElement("select");
@@ -295,7 +296,7 @@ export function openWebsite(host, { now: publishNow = "" } = {}) {
 		count.textContent = n ? `${n} published note${n === 1 ? "" : "s"}${site.skipped.length ? ` · ${site.skipped.length} audio or video file${site.skipped.length === 1 ? "" : "s"} left out` : ""}` : "No notes are published yet. Set a note's publish property to true to put it on the site.";
 		const was = pick.value || SITE_FILES.index;
 		autoWords();
-		pick.replaceChildren(new Option("Front page", SITE_FILES.index), ...(site.galleries || []).map((g) => new Option(`Gallery: ${g.folder.split("/").join(" / ")}`, g.file)), ...site.pages.filter((p) => p.file !== SITE_FILES.index).map((p) => new Option(p.title, p.file)));
+		pick.replaceChildren(new Option("Front page", SITE_FILES.index), ...(site.galleries || []).map((g) => new Option(`${g.gallery ? "Gallery" : "Posts"}: ${g.folder.split("/").join(" / ")}`, g.file)), ...site.pages.filter((p) => p.file !== SITE_FILES.index).map((p) => new Option(p.title, p.file)));
 		pick.value = [...pick.options].some((o) => o.value === was) ? was : SITE_FILES.index;
 		show();
 	}

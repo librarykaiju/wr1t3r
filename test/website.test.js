@@ -483,3 +483,24 @@ test("the front page shows a gallery's newest cards, and a folder can be set eit
 	const own = buildSite(notes, [], { title: "S", stylesheet: "main.css" });
 	assert.deepEqual(own.galleries, [], "plain pages with the person's own stylesheet keep lists");
 });
+
+test("a folder set to posts is one link to its list of posts, and the newest posts show sketches' pictures", () => {
+	const notes = [
+		{ path: "essays/2026/Walking.md", text: note("publish: true\ndate: 2026-03-04", "A walk.") },
+		{ path: "essays/2026/Gardens.md", text: note("publish: true\ndate: 2026-02-04", "Dirt.") },
+		{ path: "notes/Seed.md", text: note("publish: true\ndate: 2026-01-04", "x") },
+		{ path: "sketchbooks/Heron.md", text: note("publish: true\ndate: 2026-05-02", "![[heron.png]]\n\nInk.") },
+		{ path: "logs/books/Dune.md", text: note("publish: true\ndate: 2026-04-02", "Spice.") },
+	];
+	const site = buildSite(notes, ["heron.png"], { title: "S", layout: "notebook", galleries: { essays: "posts" }, front: { folder: "all", count: 10, show: "summary" } });
+	assert.deepEqual(site.galleries.map((g) => [g.file, g.gallery]), [["essays/index.html", false], ["essays/2026/index.html", false], ["logs/index.html", true], ["logs/books/index.html", true], ["sketchbooks/index.html", true]]);
+	const walk = site.files.get("essays/2026/walking.html");
+	assert.ok(walk.includes('<a class="gallery-link posts-link" href="../index.html" aria-current="page">essays</a>'), "the folder is one link");
+	assert.ok(walk.includes('<span>All posts</span> 2026</a>'));
+	assert.ok(walk.includes("<summary>notes</summary>"), "other folders still open");
+	assert.ok(site.files.get("essays/2026/index.html").includes('<ul class="pages">'));
+	const front = site.files.get("index.html");
+	assert.ok(front.includes('<li class="with-pic"><a class="post-pic" href="sketchbooks/heron.html" tabindex="-1" aria-hidden="true"><img src="files/heron.png" alt="" loading="lazy"></a><span><a href="sketchbooks/heron.html">Heron</a>'), "a sketch shows its picture and title");
+	assert.ok(front.includes('<li class="with-pic shelf"><span><a href="logs/books/dune.html">Dune</a>'), "no picture: just the title, no summary");
+	assert.ok(front.includes('<p class="post-summary">A walk.</p>'), "other posts keep their summary");
+});

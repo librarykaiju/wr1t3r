@@ -401,23 +401,28 @@ export function allowedKind(kind, { media = false } = {}) {
 // the pages' covers (or first pictures) instead of a list of titles, and the
 // notebook layout's folders link that page instead of opening into every
 // note. By default sketchbooks and media logs (books, games, movies...), as
-// the app shows them; opts.galleries ({ "folder/path": "gallery" | "list" })
-// says otherwise for a folder and the ones inside it.
+// the app shows them. A folder can instead be "posts": its page is the usual
+// list of titles, newest first, and the folders on the left link that page
+// too. Or "list", the way every other folder is: its page lists its notes and
+// the folders on the left open into them. opts.galleries ({ "folder/path":
+// "gallery" | "posts" | "list" }) chooses for a folder and the ones inside it.
 export const GALLERY_FOLDERS = /(^|\/)(sketchbooks?|logs)(\/|$)/i;
 // Media logs' covers are posters and book jackets: tall cards, like a shelf.
 const SHELF_FOLDERS = /(^|\/)logs(\/|$)/i;
 export const GALLERY_CARDS = 12; // the newest shown where a gallery is one part of a page
 
-export function isGallery(folder, choices = {}) {
-	if (!folder) return false;
+export const FOLDER_MODES = ["gallery", "posts", "list"];
+export function folderMode(folder, choices = {}) {
+	if (!folder) return "list";
 	const chosen = new Map(Object.entries(choices || {}).map(([k, v]) => [k.toLowerCase().replace(/^\/+|\/+$/g, ""), v]));
 	const parts = folder.split("/");
 	for (let i = parts.length; i > 0; i--) {
 		const c = chosen.get(parts.slice(0, i).join("/").toLowerCase());
-		if (c === "gallery" || c === "list") return c === "gallery";
+		if (FOLDER_MODES.includes(c)) return c;
 	}
-	return GALLERY_FOLDERS.test(folder);
+	return GALLERY_FOLDERS.test(folder) ? "gallery" : "list";
 }
+export const isGallery = (folder, choices = {}) => folderMode(folder, choices) === "gallery";
 
 // A page's picture for its card: the cover or banner, else the first picture
 // in its text; as a path from the top of the site (or a web address).
@@ -548,6 +553,14 @@ export function buildSite(notes, attachments, opts = {}) {
 		const parts = p.folder.split("/");
 		for (let i = parts.length; i > 0 && gallery(parts.slice(0, i).join("/")); i--) galleryFolders.add(parts.slice(0, i).join("/"));
 	}
+	// Folders the notebook layout links instead of opening: galleries, and
+	// folders set to "posts", each with its own page.
+	const linked = (f) => !own && folderMode(f, opts.galleries) !== "list";
+	const linkedFolders = new Set();
+	for (const p of pages) {
+		const parts = p.folder.split("/");
+		for (let i = parts.length; i > 0 && linked(parts.slice(0, i).join("/")); i--) linkedFolders.add(parts.slice(0, i).join("/"));
+	}
 	// Pages as cards: each its picture (or its initial), title and date.
 	// cap: only the newest that many, then a link to the folder's own page.
 	const cardsOf = (site, folder, ps, cap = 0) => {
@@ -607,13 +620,13 @@ export function buildSite(notes, attachments, opts = {}) {
 	const allTops = [...new Set(notes.map((n) => sitePath(n.path).split("/")).filter((p) => p.length > 1 && !/^[_.]/.test(p[0])).map((p) => p[0]))].sort((a, b) => a.localeCompare(b));
 	const hueOf = (f) => { const i = allTops.indexOf(f); return `var(--f${((i < 0 ? tops.indexOf(f) : i) % 7) + 1})`; };
 	for (const f of tops) page(topFile(f), "", { title: f, tags: [], date: "" }, galleryFolders.has(f) ? galleryBody(topFile(f), f) : `<nav class="contents">\n${listOf(topFile(f), pages.filter((p) => p.folder === f || p.folder.startsWith(f + "/")), f)}\n</nav>`);
-	for (const g of galleryFolders) if (g.includes("/")) page(folderFile(g), "", { title: g.split("/").pop(), tags: [], date: "" }, galleryBody(folderFile(g), g));
+	for (const g of linkedFolders) if (g.includes("/")) page(folderFile(g), "", { title: g.split("/").pop(), tags: [], date: "" }, galleryFolders.has(g) ? galleryBody(folderFile(g), g) : `<nav class="contents">\n${listOf(folderFile(g), pages.filter((p) => p.folder === g || p.folder.startsWith(g + "/")), g)}\n</nav>`);
 	// Previous and next within a folder, in the lists' order, and in a
 	// gallery, the way back to it.
 	const pagerOf = new Map();
 	for (const f of new Set(pages.map((p) => p.folder))) {
 		const ps = pages.filter((p) => p.folder === f).sort(newest);
-		const up = galleryFolders.has(f) ? { file: folderFile(f), title: f.split("/").pop() } : null;
+		const up = linkedFolders.has(f) ? { file: folderFile(f), title: f.split("/").pop(), word: galleryFolders.has(f) ? "Gallery" : "All posts" } : null;
 		ps.forEach((p, i) => pagerOf.set(p.file, { prev: ps[i - 1], next: ps[i + 1], up }));
 	}
 	// posts blocks: the newest posts of a folder, as the Home note places them.
@@ -629,6 +642,11 @@ export function buildSite(notes, attachments, opts = {}) {
 			const link = `<a href="${esc(relativeURL(SITE_FILES.index, p.file))}">${esc(p.title)}</a>`;
 			const when = p.date ? `<time datetime="${p.date}">${esc(longDate(p.date))}</time>` : "";
 			if (how === "full") return `<article class="h-entry">\n<h3 class="p-name">${link}</h3>\n${when ? `<p class="post-date">${when}</p>\n` : ""}${rebase(e.body || "", p.file, SITE_FILES.index)}</article>`;
+			// A sketch or a log: its picture beside the title, not a line of text.
+			if (gallery(p.folder)) {
+				const src = p.thumb && (typeof p.thumb === "string" ? p.thumb : relativeURL(SITE_FILES.index, p.thumb.path));
+				return `<li class="with-pic${SHELF_FOLDERS.test(p.folder) ? " shelf" : ""}">${src ? `<a class="post-pic" href="${esc(relativeURL(SITE_FILES.index, p.file))}" tabindex="-1" aria-hidden="true"><img src="${esc(src)}" alt="" loading="lazy"></a>` : ""}<span>${link}${when ? ` ${when}` : ""}</span></li>`;
+			}
 			const summary = how === "summary" ? summaryOf(e.description, e.body || "") : "";
 			return `<li>${link}${when ? ` ${when}` : ""}${summary ? `\n<p class="post-summary">${esc(summary)}</p>` : ""}</li>`;
 		};
@@ -714,10 +732,10 @@ export function buildSite(notes, attachments, opts = {}) {
 			const items = [];
 			for (const [name, sub] of [...node.folders].sort(([a], [b]) => a.localeCompare(b))) {
 				const here = path ? `${path}/${name}` : name;
-				// A gallery is one link, to its page, not every note in it.
-				if (galleryFolders.has(here)) {
+				// A gallery or posts folder is one link, to its page, not every note in it.
+				if (linkedFolders.has(here)) {
 					const at = site === folderFile(here) || pages.some((p) => p.file === site && (p.folder === here || p.folder.startsWith(here + "/")));
-					items.push(`<li${path ? "" : ` class="top" style="--fc: ${hueOf(name)}"`}><a class="gallery-link" href="${esc(relativeURL(site, folderFile(here)))}"${at ? ' aria-current="page"' : ""}>${esc(name)}</a></li>`);
+					items.push(`<li${path ? "" : ` class="top" style="--fc: ${hueOf(name)}"`}><a class="gallery-link${galleryFolders.has(here) ? "" : " posts-link"}" href="${esc(relativeURL(site, folderFile(here)))}"${at ? ' aria-current="page"' : ""}>${esc(name)}</a></li>`);
 					continue;
 				}
 				const open = pages.some((p) => p.file === site && (p.folder === here || p.folder.startsWith(here + "/"))) || (!path && site === topFile(name));
@@ -733,7 +751,7 @@ export function buildSite(notes, attachments, opts = {}) {
 		const pn = pagerOf.get(site);
 		if (!pn || (!pn.prev && !pn.next && !pn.up)) return "";
 		const a = (p, cls, word) => (p ? `<a class="${cls}" href="${esc(relativeURL(site, p.file))}"><span>${word}</span> ${esc(p.title)}</a>` : `<span class="${cls}"></span>`);
-		return `<nav class="pager${pn.up ? " has-up" : ""}" aria-label="More in this folder">${a(pn.prev, "prev", "Previous")}${pn.up ? a(pn.up, "up", "Gallery") : ""}${a(pn.next, "next", "Next")}</nav>\n`;
+		return `<nav class="pager${pn.up ? " has-up" : ""}" aria-label="More in this folder">${a(pn.prev, "prev", "Previous")}${pn.up ? a(pn.up, "up", pn.up.word) : ""}${a(pn.next, "next", "Next")}</nav>\n`;
 	};
 	// Replies to this site's own posts: listed under the post they answer, and
 	// the reply names that post by its title.
@@ -772,7 +790,7 @@ export function buildSite(notes, attachments, opts = {}) {
 	}
 	if (!own) out.set(SITE_FILES.style, (opts.css || "") + SITE_CSS);
 	for (const [vault, site] of copies) out.set(site, { attachment: vault });
-	return { files: out, pages, galleries: [...galleryFolders].sort().map((f) => ({ folder: f, file: folderFile(f) })), skipped: [...skipped].sort(), title };
+	return { files: out, pages, galleries: [...linkedFolders].sort().map((f) => ({ folder: f, file: folderFile(f), gallery: galleryFolders.has(f) })), skipped: [...skipped].sort(), title };
 }
 
 // "someone.neocities.org/winter-beds.html": an address without its scheme.
@@ -1187,6 +1205,10 @@ h2.folder a { color: inherit; text-decoration: none; }
 h2.folder a:hover { text-decoration: underline; }
 h2.folder .count { font-weight: 400; letter-spacing: 0; text-transform: none; }
 .galleries h2.folder { font: 600 13px/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 2em 0 0.4em; }
+.post-list li.with-pic { display: flex; align-items: center; gap: 14px; }
+.post-list .post-pic { flex: none; width: 72px; display: flex; justify-content: center; }
+.post-list .shelf .post-pic img { width: 48px; }
+.post-list .post-pic img { display: block; width: 72px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
 .more { margin: 0.6em 0 0; font: 14px/1.4 var(--sans); }
 @media (max-width: 600px) { .gallery { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 16px 10px; } .gallery.shelf { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); } }
 .reply-to { margin: 0 0 1.2em; font: 15px/1.5 var(--sans); color: var(--muted); }
@@ -1363,7 +1385,9 @@ body.layout-notebook main { padding-top: 20px; }
 .tree summary { --tint: 18%; }
 .tree li.top > details > summary, .tree li.top > a.gallery-link { --tint: 30%; }
 .tree a.gallery-link { font-weight: 600; }
+.tree li.top > a.gallery-link[aria-current] { --tint: 45%; }
 .tree a.gallery-link::before { content: "▦"; display: inline-block; width: 1.25em; font-size: 0.8em; color: var(--muted); }
+.tree a.posts-link::before { content: "☰"; }
 .tree a:hover, .tree summary:hover { background: color-mix(in srgb, var(--fc, var(--mark, var(--muted))) calc(var(--tint) + 8%), var(--bg)); }
 .tree a[aria-current] { --tint: 30%; font-weight: 600; background: color-mix(in srgb, var(--fc, var(--mark, var(--muted))) var(--tint), var(--bg)); }
 .menu a[style] { border-bottom: 3px solid color-mix(in srgb, var(--fc) 70%, transparent); text-decoration: none; padding-bottom: 1px; }
