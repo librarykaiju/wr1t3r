@@ -26,7 +26,7 @@ DRIVE_BACKUP = "wr1t3r-vault-backup"
 
 # The bucket Remotely Save syncs Obsidian with. wr1t3r reads and writes it
 # directly, so an edit reaches every device on its next Remotely Save sync,
-# and the vault-sync workflow in librarykaiju/w3bz1n3 carries it into git.
+# and brandonj.ink builds from it (librarykaiju/w3bz1n3).
 [[r2_buckets]]
 binding = "VAULT"
 bucket_name = "w3bz1n3-vault"
