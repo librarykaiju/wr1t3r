@@ -86,6 +86,8 @@ wr1t3r builds a website from the notes you choose, as plain web pages you can pu
 
     Rather build it from blocks? Click _Design the front page…_ under _Front page_. Add headings, text, pictures, lists of your latest posts, links and dividers, put them in order, and see the page as you go. It's saved as your Home note, so you can switch between the two.
 
+    Sketchbooks and logs publish as galleries: the folder's page is a grid of each note's cover or first picture, newest first, and the folders on the left link that page instead of listing every note. Under _Folders_, set any folder to _Gallery_, _Posts page_ (a list of its posts, newest first, that the folders on the left go straight to) or _Open in the sidebar_ (as other folders do); the folders inside it follow. In a list of newest posts on the front page, sketches and logs show their picture beside the title.
+
         Already have a site with its own look? Tick _Plain HTML pages that use your own stylesheet_. The pages come without a theme and link `main.css` at the top of the site (or another address you give), so put your stylesheet there and they match the rest of your site. The sidebar, share buttons and Properties box are left out.
 
     ![The Export as website window: site title, logo, theme, light or dark, layout and other settings on the left, and a preview of the front page on the right](/shots/help-export.webp)
