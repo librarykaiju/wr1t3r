@@ -4,7 +4,11 @@
 // colors are in src/style.css. public/theme.js repeats this before the page
 // draws, so keep the two in step.
 
-export const FAMILIES = ["default", "gruvbox", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave", "bubblegum", "shire", "mixtape"];
+import { PRODUCT } from "./build.js";
+
+// w3bz1n3 is Brandon's own (src/w3bz1n3.css), in his build only: the product
+// and self-host builds don't list it, so a saved w3bz1n3 opens there as Default.
+export const FAMILIES = ["default", "gruvbox", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave", "bubblegum", "shire", ...(PRODUCT ? [] : ["w3bz1n3"]), "mixtape"];
 
 const VARIANTS = {
 	default: { light: "light", dark: "dark" },
@@ -20,6 +24,7 @@ const VARIANTS = {
 	synthwave: { light: "synthwave", dark: "synthwave" }, // dark only
 	bubblegum: { light: "bubblegum", dark: "bubblegum-night" },
 	shire: { light: "shire", dark: "shire-night" },
+	w3bz1n3: { light: "w3bz1n3", dark: "w3bz1n3-night" },
 	mixtape: { light: "mixtape", dark: "mixtape" }, // the reader's own colors, one mode
 };
 

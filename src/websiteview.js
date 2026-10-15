@@ -25,6 +25,7 @@
 // Publish to Neocities, with the key remembered on this device).
 
 import appCss from "./style.css?raw";
+import { personalCss } from "./personal.js";
 import { buildSite, folderMode, isPublished, ownStylesheet, ringPlace, themeCss, SITE_FILES } from "./website.js";
 import { siteOf } from "./published.js";
 import { siteUrl, hostOf } from "./feeds.js";
@@ -32,7 +33,7 @@ import { FAMILIES, familyOf, themeVariants } from "./theme.js";
 import { publishToGitHub } from "./githubpublish.js";
 import { neocitiesSite, publishToNeocities, NEOCITIES_KEY } from "./neocitiespublish.js";
 
-const FAMILY_NAMES = { default: "Default", gruvbox: "Gruvbox", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", shire: "Shire", mixtape: "Mixtape" };
+const FAMILY_NAMES = { default: "Default", gruvbox: "Gruvbox", dracula: "Dracula", rosepine: "Rosé Pine", tokyonight: "Tokyo Night", catppuccin: "Catppuccin", kanagawa: "Kanagawa", everforest: "Everforest", nord: "Nord", monokai: "Monokai", synthwave: "SynthWave '84", bubblegum: "Bubblegum", shire: "Shire", w3bz1n3: "w3bz1n3", mixtape: "Mixtape" };
 
 const KEY = "wr1t3r-website";
 const MODE_WORDS = { gallery: "Gallery", posts: "Posts page", list: "Open in the sidebar" };
@@ -251,7 +252,7 @@ export function openWebsite(host, { now: publishNow = "" } = {}) {
 	const settings = () => ({ frontFolder: frontFolder.value, frontCount: Number(frontCount.value) || 10, frontShow: frontShow.value, neoSite: saved.neoSite || "", ghRepo: ghRepo.value.trim(), ghBranch: ghBranch.value.trim(), ghNeocities: ghNeo.checked, title: title.value.trim(), tagline: tagline.value.trim(), kofi: kofi.value.trim(), patreon: patreon.value.trim(), label: label.value.trim(), url: url.value.trim(), note: note.value.trim(), media: media.checked, footer: footer.checked, calendar: calendar.checked, logo: logo.value, logoOnly: logoOnly.checked, layout: layout.value, sidebar: sidebar.checked, social: social.value.trim(), share: share.checked, properties: properties.checked, plain: plain.checked, stylesheet: stylesheet.value.trim(), address: address.value.trim(), feedFull: feedFull.checked, neighbors: neighbors.checked, ringUrl: ringUrl.value.trim(), ringName: ringName.value.trim(), ringMembers: ringMembers.value.trim(), family: family.value, mode: mode.value, tones: tones.value, headings: headings.value, galleries: galleries() });
 	// SynthWave '84's neon headings come along too.
 	const GLOW = "\nh1, h2, h3 { text-shadow: 0 0 2px #001716, 0 0 6px #f92aad99, 0 0 14px #f92aad55; }\n";
-	const css = () => themeCss(appCss, { ...themeVariants(family.value, mode.value), font: host.font(), tones: tones.value, headings: headings.value, mixtape: family.value === "mixtape" ? now.mixtape : null }) + (family.value === "synthwave" ? GLOW : "");
+	const css = () => themeCss(appCss + personalCss, { ...themeVariants(family.value, mode.value), font: host.font(), tones: tones.value, headings: headings.value, mixtape: family.value === "mixtape" ? now.mixtape : null }) + (family.value === "synthwave" ? GLOW : "");
 	// The address the feed links to: the one given, else GitHub Pages' for a
 	// site published there (not when it goes on to Neocities, whose address
 	// wr1t3r doesn't know).

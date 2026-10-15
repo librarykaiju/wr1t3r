@@ -3,6 +3,7 @@
 // the background and whenever the connection comes back.
 
 import { createEditor } from "./editor.js";
+import { personalCss } from "./personal.js";
 import { setupKeyboardBar } from "./kbbar.js";
 import { readLog, looksLikeLogs, stampFinished, glance } from "./mediastats.js";
 import { drawStats as drawLogStats } from "./mediastatsview.js";
@@ -136,6 +137,12 @@ const notes = new NoteMap();
 if (dropboxAppKey()) registerStorage("dropbox", () => dropboxStorage());
 if (googleClientId()) registerStorage("gdrive", () => driveStorage({ call: googleClient() }));
 const DROPBOX_ONLY = !!import.meta.env.VITE_DROPBOX_ONLY;
+// Brandon's own theme (src/personal.js): its colors and its place in the
+// theme menu, before Mixtape. Neither exists in the product or self-host builds.
+if (personalCss) {
+	document.head.append(Object.assign(document.createElement("style"), { textContent: personalCss }));
+	$("themeFamilies").querySelector('option[value="mixtape"]').before(new Option("w3bz1n3", "w3bz1n3"));
+}
 // A self-hosted copy (VITE_SELF_HOST) has its own Dropbox app, whose folder
 // is named after that app rather than wr1t3r.
 const DROPBOX_FOLDER = import.meta.env.VITE_SELF_HOST ? "your Dropbox app's folder under Apps" : "Apps › wr1t3r";
