@@ -16,16 +16,16 @@
 	--f1: #c8325a; --f2: #c2501f; --f3: #946600; --f4: #16804a; --f5: #0b7a8c; --f6: #4250d0; --f7: #a52a9c;
 	color-scheme: light;
 }
-/* Night, and the focus bar in both modes. In Night the top bar stays dark
-   too, so only the page itself is paper. */
-:root[data-theme=w3bz1n3-night] main > header, :root[data-theme^=w3bz1n3] #bar, :root[data-theme=w3bz1n3-night] {
+/* Night. The top bar and the focus bar stay dark
+   in it, so only the page itself is paper. */
+:root[data-theme=w3bz1n3-night] main > header, :root[data-theme=w3bz1n3-night] #bar, :root[data-theme=w3bz1n3-night] {
 	--bg: #24223a; --fg: #f2ecf3; --muted: #b4accb; --line: #3a3657; --card: #312d4b; --sel: #47406b;
 	--accent: #6deaf7; --link: #f97ce6; --bad: #ff8a9a; --hl: #6b3a66; --heading: #f7799a;
 	--panel: #1c1a2e; --mark: #8a82a8; --code-bg: #2d2a45;
 	--f1: #f7799a; --f2: #f89778; --f3: #f8be72; --f4: #6ef3a0; --f5: #6deaf7; --f6: #7891f7; --f7: #f97ce6;
 	color-scheme: dark;
 }
-:root[data-theme^=w3bz1n3] #bar { background: var(--panel); color: var(--muted); border-top-color: var(--panel); }
+:root[data-theme=w3bz1n3-night] #bar { background: var(--panel); color: var(--muted); border-top-color: var(--panel); }
 :root[data-theme=w3bz1n3-night] main { background-color: var(--bg); color: var(--fg); }
 /* The site's dot-grid paper. */
 :root[data-theme=w3bz1n3] body, :root[data-theme=w3bz1n3-night] main { background-image: radial-gradient(#d8c8ba 1.2px, transparent 1.4px); background-size: 20px 20px; }
