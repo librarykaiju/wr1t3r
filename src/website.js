@@ -70,6 +70,8 @@
 // followed by the reply's first words, listed under the post with those words
 // (at most RESPONSE_EXCERPT characters) and a link to the rest on its own
 // site. A reply on this site to one of its own posts is shown whole.
+// Replies aren't in the folders, lists or posts blocks: conversations.html
+// lists them, newest first, each with the post it answers and its first words.
 
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
@@ -90,7 +92,7 @@ export { isPublished, siteAddress, webAddress };
 // Where "Follow in wr1t3r" goes: the app opens Neighbors with the site filled in.
 export const FOLLOW_APP = "https://my.wr1t3r.app/";
 
-export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html", feed: "feed.xml", feedStyle: "feed-style.xml", neighbors: "neighbors.html", blogroll: "neighbors.opml", ring: "ring.html", ringList: "ring.opml" };
+export const SITE_FILES = { style: "style.css", index: "index.html", missing: "not_found.html", archive: "archive/index.html", conversations: "conversations.html", feed: "feed.xml", feedStyle: "feed-style.xml", neighbors: "neighbors.html", blogroll: "neighbors.opml", ring: "ring.html", ringList: "ring.opml" };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const first = (v) => (Array.isArray(v) ? v.find((x) => x != null && String(x).trim() !== "") : v);
@@ -521,9 +523,14 @@ export function buildSite(notes, attachments, opts = {}) {
 		const site = files.get(n.path);
 		const r = render(n, site);
 		page(site, n.path, r.info, r.body);
-		pages.push({ path: n.path, file: site, title: r.info.title, date: r.info.date, folder: sitePath(n.path).split("/").slice(0, -1).join("/"), thumb: thumbOf(site, r.info, r.body), shape: r.info.coverShape });
+		pages.push({ path: n.path, file: site, title: r.info.title, date: r.info.date, folder: sitePath(n.path).split("/").slice(0, -1).join("/"), thumb: thumbOf(site, r.info, r.body), shape: r.info.coverShape, reply: !!r.info.replyTo });
 		entries.push({ file: site, title: r.info.title, date: r.info.date, tags: r.info.tags, description: r.info.description, body: r.body, replyTo: r.info.replyTo });
 	}
+	// Replies (a reply-to: property) keep their own pages and stay in the feed,
+	// so the sites they answer can find them, but leave the folders, lists and
+	// posts blocks to the site's own writing: they're on the Conversations page.
+	const listed = pages.filter((p) => !p.reply);
+	const replies = pages.filter((p) => p.reply);
 	const address = siteAddress(opts.address) || "";
 	const feed = atomFeed(entries, { title, tagline, address, full: !!opts.feedFull, style: SITE_FILES.feedStyle });
 	if (feed) {
@@ -549,7 +556,7 @@ export function buildSite(notes, attachments, opts = {}) {
 		return top;
 	};
 	const galleryFolders = new Set();
-	for (const p of pages) {
+	for (const p of listed) {
 		const parts = p.folder.split("/");
 		for (let i = parts.length; i > 0 && gallery(parts.slice(0, i).join("/")); i--) galleryFolders.add(parts.slice(0, i).join("/"));
 	}
@@ -557,7 +564,7 @@ export function buildSite(notes, attachments, opts = {}) {
 	// folders set to "posts", each with its own page.
 	const linked = (f) => !own && folderMode(f, opts.galleries) !== "list";
 	const linkedFolders = new Set();
-	for (const p of pages) {
+	for (const p of listed) {
 		const parts = p.folder.split("/");
 		for (let i = parts.length; i > 0 && linked(parts.slice(0, i).join("/")); i--) linkedFolders.add(parts.slice(0, i).join("/"));
 	}
@@ -596,9 +603,9 @@ export function buildSite(notes, attachments, opts = {}) {
 	};
 	// A gallery folder's page: its own pages as cards, then each folder in it.
 	const galleryBody = (site, g) => {
-		const direct = pages.filter((p) => p.folder === g).sort(newest);
+		const direct = listed.filter((p) => p.folder === g).sort(newest);
 		const kids = new Map();
-		for (const p of pages) if (p.folder.startsWith(g + "/")) {
+		for (const p of listed) if (p.folder.startsWith(g + "/")) {
 			const k = g + "/" + p.folder.slice(g.length + 1).split("/")[0];
 			if (!kids.has(k)) kids.set(k, []);
 			kids.get(k).push(p);
@@ -612,30 +619,33 @@ export function buildSite(notes, attachments, opts = {}) {
 		}
 		return `<div class="galleries">\n${parts.join("\n")}\n</div>`;
 	};
-	const list = listOf(SITE_FILES.index, pages);
+	const list = listOf(SITE_FILES.index, listed);
 	// Each top-level folder's list of pages.
-	const tops = [...new Set(pages.map((p) => p.folder.split("/")[0]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+	const tops = [...new Set(listed.map((p) => p.folder.split("/")[0]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 	// Top-level folders take the theme's rainbow in turn, counting the
 	// notebook's folders as the app's sidebar does, so each keeps its color.
 	const allTops = [...new Set(notes.map((n) => sitePath(n.path).split("/")).filter((p) => p.length > 1 && !/^[_.]/.test(p[0])).map((p) => p[0]))].sort((a, b) => a.localeCompare(b));
 	const hueOf = (f) => { const i = allTops.indexOf(f); return `var(--f${((i < 0 ? tops.indexOf(f) : i) % 7) + 1})`; };
-	for (const f of tops) page(topFile(f), "", { title: f, tags: [], date: "" }, galleryFolders.has(f) ? galleryBody(topFile(f), f) : `<nav class="contents">\n${listOf(topFile(f), pages.filter((p) => p.folder === f || p.folder.startsWith(f + "/")), f)}\n</nav>`);
-	for (const g of linkedFolders) if (g.includes("/")) page(folderFile(g), "", { title: g.split("/").pop(), tags: [], date: "" }, galleryFolders.has(g) ? galleryBody(folderFile(g), g) : `<nav class="contents">\n${listOf(folderFile(g), pages.filter((p) => p.folder === g || p.folder.startsWith(g + "/")), g)}\n</nav>`);
+	for (const f of tops) page(topFile(f), "", { title: f, tags: [], date: "" }, galleryFolders.has(f) ? galleryBody(topFile(f), f) : `<nav class="contents">\n${listOf(topFile(f), listed.filter((p) => p.folder === f || p.folder.startsWith(f + "/")), f)}\n</nav>`);
+	for (const g of linkedFolders) if (g.includes("/")) page(folderFile(g), "", { title: g.split("/").pop(), tags: [], date: "" }, galleryFolders.has(g) ? galleryBody(folderFile(g), g) : `<nav class="contents">\n${listOf(folderFile(g), listed.filter((p) => p.folder === g || p.folder.startsWith(g + "/")), g)}\n</nav>`);
 	// Previous and next within a folder, in the lists' order, and in a
 	// gallery, the way back to it.
 	const pagerOf = new Map();
-	for (const f of new Set(pages.map((p) => p.folder))) {
-		const ps = pages.filter((p) => p.folder === f).sort(newest);
+	for (const f of new Set(listed.map((p) => p.folder))) {
+		const ps = listed.filter((p) => p.folder === f).sort(newest);
 		const up = linkedFolders.has(f) ? { file: folderFile(f), title: f.split("/").pop(), word: galleryFolders.has(f) ? "Gallery" : "All posts" } : null;
 		ps.forEach((p, i) => pagerOf.set(p.file, { prev: ps[i - 1], next: ps[i + 1], up }));
 	}
+	// A reply's previous and next are the other replies, and up is Conversations.
+	const byDate = [...replies].sort(newest);
+	byDate.forEach((p, i) => pagerOf.set(p.file, { prev: byDate[i - 1], next: byDate[i + 1], up: { file: SITE_FILES.conversations, title: "Conversations", word: "All" } }));
 	// posts blocks: the newest posts of a folder, as the Home note places them.
 	const entryOf = new Map(entries.map((e) => [e.file, e]));
 	const postList = ({ folder = "all", count = 10, show = "summary" } = {}) => {
 		const f = String(folder).trim().replace(/^\/+|\/+$/g, "").toLowerCase();
 		const n = Math.max(1, Math.min(200, parseInt(count, 10) || 10));
 		const how = /^(title|summary|full)$/i.test(show) ? show.toLowerCase() : "summary";
-		const chosen = pages.filter((p) => !f || f === "all" || p.folder.toLowerCase() === f || p.folder.toLowerCase().startsWith(f + "/")).sort(newest).slice(0, n);
+		const chosen = listed.filter((p) => !f || f === "all" || p.folder.toLowerCase() === f || p.folder.toLowerCase().startsWith(f + "/")).sort(newest).slice(0, n);
 		if (!chosen.length) return `<p class="empty">Nothing posted here yet.</p>\n`;
 		const item = (p) => {
 			const e = entryOf.get(p.file) || {};
@@ -696,7 +706,7 @@ export function buildSite(notes, attachments, opts = {}) {
 			if (!days.has(p.date)) days.set(p.date, []);
 			days.get(p.date).push(p);
 		}
-		const body = [...days].map(([d, ps]) => `<h2 id="d-${d.slice(8)}">${esc(longDate(d))}</h2>\n<ul class="pages">\n${ps.map((p) => `<li><a href="${esc(relativeURL(site, p.file))}">${esc(p.title)}</a></li>`).join("\n")}\n</ul>`).join("\n");
+		const body = [...days].map(([d, ps]) => `<h2 id="d-${d.slice(8)}">${esc(longDate(d))}</h2>\n<ul class="pages">\n${ps.map((p) => `<li><a href="${esc(relativeURL(site, p.file))}">${esc(p.title)}</a>${p.reply ? ' <span class="count">reply</span>' : ""}</li>`).join("\n")}\n</ul>`).join("\n");
 		page(site, "", { title: monthName(m), tags: [], date: "" }, `<nav class="contents archive">\n${body}\n</nav>`);
 	}
 	if (months.length) {
@@ -714,12 +724,12 @@ export function buildSite(notes, attachments, opts = {}) {
 	};
 	// The logo: a picture from the notebook, beside (or instead of) the title.
 	const logo = opts.logo && attachments.includes(opts.logo) && attachmentKind(opts.logo) === "image" ? fileOf(opts.logo) : null;
-	const menuItems = [...tops.map((f) => ({ file: topFile(f), label: f, hue: hueOf(f) })), ...(months.length ? [{ file: SITE_FILES.archive, label: "Archive" }] : [])];
-	const menuFor = (site) => (menuItems.length < 1 ? "" : `<nav class="menu" aria-label="Sections">${menuItems.map((m) => `<a href="${esc(relativeURL(site, m.file))}"${m.hue ? ` style="--fc: ${m.hue}"` : ""}${site === m.file || (m.file !== SITE_FILES.archive && site.startsWith(m.file.slice(0, -"index.html".length))) || (m.file === SITE_FILES.archive && site.startsWith("archive/")) ? ' aria-current="page"' : ""}>${esc(m.label)}</a>`).join("")}</nav>`);
+	const menuItems = [...tops.map((f) => ({ file: topFile(f), label: f, hue: hueOf(f) })), ...(months.length ? [{ file: SITE_FILES.archive, label: "Archive" }] : []), ...(replies.length ? [{ file: SITE_FILES.conversations, label: "Conversations" }] : [])];
+	const menuFor = (site) => (menuItems.length < 1 ? "" : `<nav class="menu" aria-label="Sections">${menuItems.map((m) => `<a href="${esc(relativeURL(site, m.file))}"${m.hue ? ` style="--fc: ${m.hue}"` : ""}${site === m.file || (m.file !== SITE_FILES.archive && site.startsWith(m.file.slice(0, -"index.html".length))) || (m.file === SITE_FILES.archive && site.startsWith("archive/")) || (m.file === SITE_FILES.conversations && replies.some((p) => p.file === site)) ? ' aria-current="page"' : ""}>${esc(m.label)}</a>`).join("")}</nav>`);
 	// The notebook layout's folders: each a <details>, open on the way to this page.
 	const treeFor = (site) => {
 		const root = { folders: new Map(), pages: [] };
-		for (const p of pages) {
+		for (const p of listed) {
 			if (p.file === SITE_FILES.index) continue;
 			let node = root;
 			for (const seg of p.folder ? p.folder.split("/") : []) {
@@ -744,7 +754,7 @@ export function buildSite(notes, attachments, opts = {}) {
 			for (const p of [...node.pages].sort((a, b) => a.title.localeCompare(b.title))) items.push(`<li><a href="${esc(relativeURL(site, p.file))}"${p.file === site ? ' aria-current="page"' : ""}>${esc(p.title)}</a></li>`);
 			return `<ul>${items.join("")}</ul>`;
 		};
-		const top = [`<li><a href="${esc(relativeURL(site, SITE_FILES.index))}"${site === SITE_FILES.index ? ' aria-current="page"' : ""}>Home</a></li>`, ...(months.length ? [`<li><a href="${esc(relativeURL(site, SITE_FILES.archive))}"${site.startsWith("archive/") ? ' aria-current="page"' : ""}>Archive</a></li>`] : [])];
+		const top = [`<li><a href="${esc(relativeURL(site, SITE_FILES.index))}"${site === SITE_FILES.index ? ' aria-current="page"' : ""}>Home</a></li>`, ...(months.length ? [`<li><a href="${esc(relativeURL(site, SITE_FILES.archive))}"${site.startsWith("archive/") ? ' aria-current="page"' : ""}>Archive</a></li>`] : []), ...(replies.length ? [`<li><a href="${esc(relativeURL(site, SITE_FILES.conversations))}"${site === SITE_FILES.conversations || replies.some((p) => p.file === site) ? ' aria-current="page"' : ""}>Conversations</a></li>`] : [])];
 		return `<ul class="tree-top">${top.join("")}</ul>${draw(root, "")}`;
 	};
 	const pagerFor = (site) => {
@@ -765,6 +775,20 @@ export function buildSite(notes, attachments, opts = {}) {
 	for (const e of entries) {
 		const to = ownPage(e.replyTo);
 		if (to && to.file !== e.file) ownReplies.set(to.file, [...(ownReplies.get(to.file) || []), e]);
+	}
+	// Conversations: every reply, newest first, with the post it answers and its first words.
+	if (replies.length) {
+		const site = SITE_FILES.conversations;
+		const item = (p) => {
+			const e = entryOf.get(p.file) || {};
+			const to = ownPage(e.replyTo);
+			// The post's title as the reply's own "In reply to [title](address)" line gives it.
+			const named = /<p>In reply to <a [^>]*>([\s\S]*?)<\/a>/.exec(e.body || "")?.[1].replace(/<[^>]*>/g, "");
+			const answered = `<a class="u-in-reply-to" href="${esc(to ? relativeURL(site, to.file) : e.replyTo)}">${to ? esc(to.title) : named || esc(shortAddress(e.replyTo))}</a>${to ? "" : ` on ${esc(hostOf(e.replyTo))}`}`;
+			const summary = summaryOf(e.description, withoutReplyLine(e.body || "", e.replyTo));
+			return `<li class="h-entry">\n<a class="p-name u-url" href="${esc(relativeURL(site, p.file))}">${esc(p.title)}</a>${p.date ? ` <time class="dt-published" datetime="${p.date}">${esc(longDate(p.date))}</time>` : ""}\n<p class="reply-to">In reply to ${answered}</p>${summary ? `\n<p class="post-summary">${esc(summary)}</p>` : ""}\n</li>`;
+		};
+		page(site, "", { title: "Conversations", tags: [], date: "" }, `<ul class="post-list post-list-summary conversations">\n${[...replies].sort(newest).map(item).join("\n")}\n</ul>\n`);
 	}
 	for (const { site, info, body } of pending) {
 		const side = own || opts.sidebar === false ? "" : calendarFor(site, info) + support + social;
@@ -795,6 +819,8 @@ export function buildSite(notes, attachments, opts = {}) {
 
 // "someone.neocities.org/winter-beds.html": an address without its scheme.
 const shortAddress = (u) => String(u).replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
+// "someone.neocities.org": just the site.
+const hostOf = (u) => shortAddress(u).split("/")[0];
 
 // A reply's page body (from file) shown under the page at site: its links
 // and pictures pointed from there instead.
@@ -1221,6 +1247,7 @@ h2.folder .count { font-weight: 400; letter-spacing: 0; text-transform: none; }
 .post-list li { margin: 0 0 1em; }
 .post-list time, .post-date { font: 0.85em/1.4 var(--sans); opacity: 0.75; }
 .post-summary { margin: 0.25em 0 0; }
+.conversations .reply-to { margin: 0.15em 0 0; }
 .post-list-full article { margin: 0 0 2.5em; padding-bottom: 1.5em; border-bottom: 1px solid var(--line); }
 .post-list-full h3 { margin: 0; }
 .response-excerpt { margin: 0.2em 0 0; }
