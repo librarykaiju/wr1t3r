@@ -1,5 +1,8 @@
 // Word-processor typing help, each a setting (on unless turned off):
 //  - Spellcheck: the browser's own, which CodeMirror turns off by default.
+//    Phone keyboards' autocorrect, word suggestions and capitals at the start
+//    of sentences go with it, as CodeMirror turns those off too (on iOS
+//    autocorrect="off" also hides the predictive text bar).
 //  - Smart punctuation: " and ' become curly quotes as you type, -- between
 //    words an em dash, and ... an ellipsis. Never in code, the properties,
 //    [[links]], link addresses or HTML tags, so nothing that has to stay plain
@@ -26,8 +29,12 @@ export function setSmartPunctuation(on) {
 	smart = !!on;
 }
 
+export const typingAttrs = (on) => on
+	? { spellcheck: "true", autocorrect: "on", autocapitalize: "sentences", writingsuggestions: "true" }
+	: { spellcheck: "false", autocorrect: "off", autocapitalize: "off", writingsuggestions: "false" };
+
 // Read on every update, so a change of setting shows at once.
-export const spellcheck = EditorView.contentAttributes.of(() => (spell ? { spellcheck: "true" } : { spellcheck: "false" }));
+export const spellcheck = EditorView.contentAttributes.of(() => typingAttrs(spell));
 
 const CODE = /^(FencedCode|CodeBlock|InlineCode|CodeText|HTMLBlock|HTMLTag|CommentBlock|URL|Autolink|Frontmatter|FrontmatterContent)$/;
 
