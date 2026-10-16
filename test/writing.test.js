@@ -4,7 +4,8 @@ import { EditorState } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
-import { smartEdit } from "../src/writing.js";
+import { smartEdit, spellcheck, setSpellcheck } from "../src/writing.js";
+import { EditorView } from "@codemirror/view";
 
 // Types text at the | in doc, as the smart punctuation handler would.
 const type = (doc, text) => {
@@ -44,4 +45,13 @@ test("markdown that must stay plain is left alone", () => {
 	assert.equal(type("| a --|", " "), "| a -- ", "a table row");
 	assert.equal(type("x --|", ">"), "x -->");
 	assert.equal(type("../|".replace("/|", "|"), "."), "...", "dots with no word before");
+});
+
+test("spellcheck turns phone autocorrect and suggestions on and off with it", () => {
+	const s = EditorState.create({ extensions: spellcheck });
+	const attrs = () => Object.assign({}, ...s.facet(EditorView.contentAttributes).map((a) => (typeof a == "function" ? a() : a)));
+	assert.deepEqual(attrs(), { spellcheck: "true", autocorrect: "on", autocapitalize: "sentences", writingsuggestions: "true" });
+	setSpellcheck(null, false);
+	assert.deepEqual(attrs(), { spellcheck: "false", autocorrect: "off", autocapitalize: "off", writingsuggestions: "false" });
+	setSpellcheck(null, true);
 });
