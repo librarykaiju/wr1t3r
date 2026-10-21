@@ -71,11 +71,26 @@ test("timeline entries: parsing, rows by hour, edits and imports", () => {
 	assert.equal(hourLabel(20), "8 PM");
 
 	const timeline = ["All day | Trip", "07:00 - 08:00 | Gym", "09:30 - 10:15 | Dentist", "22:00 | Late call", "call Sam"];
-	const { allDay, rows } = timelineRows(timeline, { start: 9, end: 21 });
-	assert.equal(rows.length, 12);
+	const { allDay, rows, spans } = timelineRows(timeline, { start: 9, end: 21 });
+	// the hours widen to take in the 7am gym and the 10pm call
+	assert.deepEqual([rows[0].hour, rows.at(-1).hour], [7, 22]);
 	assert.deepEqual(allDay.map((e) => e.text), ["Trip"]);
-	assert.deepEqual(rows[0].items.map((e) => e.text), ["Gym", "Dentist"]);
-	assert.deepEqual(rows[11].items.map((e) => e.text), ["Late call", "call Sam"]);
+	assert.deepEqual(rows[0].items.map((e) => e.text), ["Gym"]);
+	assert.deepEqual(rows.at(-1).items.map((e) => e.text), ["Late call", "call Sam"]);
+	// Dentist runs past 10, so it spans 9:30 to 10:15 instead of sitting in a row
+	assert.deepEqual(spans.map((s) => [s.e.text, s.from, s.to, s.lane, s.wide]), [["Dentist", 570, 615, 0, true]]);
+	assert.deepEqual(rows.find((r) => r.hour === 10).lanes, 1);
+
+	// overlapping spans take lanes; one sharing its hours with a row's entry isn't wide
+	const busy = timelineRows(["10:00 - 12:00 | Meeting", "11:00 - 13:00 | Call", "12:15 - 12:30 | Pills"], { start: 9, end: 21 });
+	assert.deepEqual(busy.spans.map((s) => [s.e.text, s.lane, s.wide]), [["Meeting", 0, false], ["Call", 1, false]]);
+	assert.equal(busy.lanes, 2);
+	assert.deepEqual(busy.rows.map((r) => r.lanes).slice(0, 5), [0, 1, 2, 2, 0]);
+	assert.deepEqual(timelineRows(["10:00 - 12:00 | Meeting"], { start: 9, end: 21 }).spans[0].wide, true);
+	assert.equal(timelineRows(["23:00 - 01:00 | Late"], { start: 9, end: 21 }).end, 24);
+	// entries at the same time share a line
+	const same = timelineRows(["09:00 - 09:15 | Pills", "09:00 - 09:15 | Lincoln's pills", "09:10 - 09:20 | Vitamins", "09:30 | Call", "untimed"], { start: 9, end: 10 });
+	assert.deepEqual(same.rows[0].groups.map((g) => g.map((e) => e.text)), [["Pills", "Lincoln's pills", "Vitamins"], ["Call"], ["untimed"]]);
 
 	let a = setEntry([], null, "Write", 14);
 	assert.deepEqual(a, ["14:00 - 15:00 | Write"]);

@@ -1665,39 +1665,61 @@ class PlannerWidget extends WidgetType {
 		card.append(head);
 		this.colored(view, ro, card, "timeline");
 
-		const { allDay, rows } = timelineRows(cfg.timeline, cfg);
+		const { allDay, rows, spans, lanes, start } = timelineRows(cfg.timeline, cfg);
 		const save = (i, text, hour) => {
 			const cur = readPlanner(dataviewBlocks(view.state, PLANNER)[this.n]?.code);
 			const next = setEntry(cur.timeline, i, text, hour);
 			if (JSON.stringify(next) !== JSON.stringify(cur.timeline)) saveBlock(view, this.n, { ...cur, timeline: next });
 		};
+		// A grid with a track per quarter hour, so an entry spanning hours is
+		// as tall as its time. Columns: the hour labels, one per lane of
+		// overlapping spans, then the hour's own entries.
 		const grid = el("div", "planner-hours");
-		const line = (label, items, hour) => {
-			const r = el("div", "planner-hour" + (hour != null && isNow(this.day, hour) ? " now" : ""));
-			r.append(el("span", "planner-hour-label", label));
+		grid.style.gridTemplateColumns = `52px ${"minmax(0, 1fr) ".repeat(lanes)}minmax(0, 1fr)`;
+		const top = allDay.length ? 2 : 1;
+		const at = (min) => top + (min - start * 60) / 15; // grid line for a time
+		const place = (node, col, from, to) => { node.style.gridColumn = col; node.style.gridRow = `${from} / ${to}`; grid.append(node); };
+		const entry = (e, hour, showTime) => {
+			const item = el("span", "planner-entry");
+			if (e.color) item.style.setProperty("--ev", e.color);
+			if (!ro && host) onMenu(item, (x, y) => colorPicker(e.color, x, y, (color) => {
+				const cur = readPlanner(dataviewBlocks(view.state, PLANNER)[this.n]?.code);
+				saveBlock(view, this.n, { ...cur, timeline: setEntryColor(cur.timeline, e.index, color) });
+			}));
+			if (showTime) item.append(el("span", "planner-entry-time", timeText(clock(e.start)) + (e.end != null ? `–${timeText(clock(e.end))}` : "")));
+			item.append(el("span", "planner-entry-text", e.text));
+			if (!ro) item.addEventListener("click", (ev) => { ev.stopPropagation(); this.editEntry(item, e, hour ?? cfg.start, save); });
+			return item;
+		};
+		const line = (label, groups, hour, from, to, lanesBeside) => {
+			place(el("div", "planner-hour" + (hour != null && isNow(this.day, hour) ? " now" : "")), "1 / -1", from, to);
+			const lab = el("span", "planner-hour-label", label);
+			place(lab, "1", from, to);
 			const cell = el("div", "planner-hour-items");
-			for (const e of items) {
-				const onSlot = hour != null && e.start === hour * 60 && (e.end == null || e.end === hour * 60 + 60);
-				const item = el("span", "planner-entry");
-				if (e.color) item.style.setProperty("--ev", e.color);
-				if (!ro && host) onMenu(item, (x, y) => colorPicker(e.color, x, y, (color) => {
-					const cur = readPlanner(dataviewBlocks(view.state, PLANNER)[this.n]?.code);
-					saveBlock(view, this.n, { ...cur, timeline: setEntryColor(cur.timeline, e.index, color) });
-				}));
-				if (!onSlot && !e.allDay && e.start != null) item.append(el("span", "planner-entry-time", timeText(clock(e.start)) + (e.end != null ? `–${timeText(clock(e.end))}` : "")));
-				item.append(el("span", "planner-entry-text", e.text));
-				if (!ro) item.addEventListener("click", (ev) => { ev.stopPropagation(); this.editEntry(item, e, hour ?? cfg.start, save); });
-				cell.append(item);
+			for (const group of groups) {
+				const nodes = group.map((e) => {
+					const onSlot = hour != null && e.start === hour * 60 && (e.end == null || e.end === hour * 60 + 60);
+					return entry(e, hour, !onSlot && !e.allDay && e.start != null);
+				});
+				if (nodes.length === 1) cell.append(nodes[0]);
+				else { const row = el("div", "planner-hour-line"); row.append(...nodes); cell.append(row); }
 			}
 			if (!ro && hour != null) {
-				cell.addEventListener("click", () => this.editEntry(null, null, hour, save, cell));
+				const add = () => this.editEntry(null, null, hour, save, cell);
+				cell.addEventListener("click", add);
 				cell.title = "Click to add";
+				lab.addEventListener("click", add); // the way in when a span covers the row
+				lab.classList.add("addable");
 			}
-			r.append(cell);
-			grid.append(r);
+			place(cell, `${2 + lanesBeside} / -1`, from, to);
 		};
-		if (allDay.length) line("All day", allDay, null);
-		for (const r of rows) line(hourLabel(r.hour), r.items, r.hour);
+		if (allDay.length) line("All day", allDay.map((e) => [e]), null, 1, 2, 0);
+		for (const r of rows) line(hourLabel(r.hour), r.groups, r.hour, at(r.hour * 60), at(r.hour * 60 + 60), r.lanes);
+		for (const s of spans) {
+			const wrap = el("div", "planner-span" + (s.wide ? " wide" : ""));
+			wrap.append(entry(s.e, Math.floor(s.e.start / 60), true));
+			place(wrap, `${2 + s.lane} / ${s.wide ? -1 : 3 + s.lane}`, at(s.from), at(s.to));
+		}
 		card.append(grid);
 		return card;
 	}
