@@ -1,4 +1,4 @@
-// The weekly note: one note per week ("2026-W42.md" in Weekly/), Monday to
+// The weekly note: one note per week ("2026-W42.md" in weekly/), Monday to
 // Sunday. Its ```wr1t3r-week block draws the week ahead (src/weekview.js):
 // each day's calendar events and the tasks due that day, wherever they're
 // written. Plans added on a day go into the weekly note itself as tasks due
@@ -12,7 +12,7 @@ import { listItems } from "./dvpage.js";
 import { addDays } from "./habits.js";
 
 export const WEEK_BLOCK = "wr1t3r-week";
-export const WEEKLY_FOLDER = "Weekly/"; // or an older "_weekly/" (src/build.js ownFolderIn)
+export const WEEKLY_FOLDER = "weekly/"; // or an older "_weekly/" or "Weekly/" (src/build.js ownFolderIn)
 export const PLANS = "Plans";
 export const REFLECT = "Reflect & recover";
 
