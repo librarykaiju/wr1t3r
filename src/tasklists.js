@@ -15,7 +15,7 @@
 //   color: 3          the card's color, 1-7 from the theme's rainbow
 //
 // Any tag is a list: "- [ ] coffee filters #shopping" in any note is on the
-// Shopping list, whose own note (Lists/Shopping.md) takes items added from
+// Shopping list, whose own note (docs/Shopping.md) takes items added from
 // the card.
 //   ```
 //
@@ -23,7 +23,7 @@
 // day's daily note, and (on today's note) open tasks that are overdue. The
 // tasks stay where they're written; ticking one in any view ticks its line,
 // and a task added from a view goes into the list's own note ("Critical
-// Tasks List", "To Do's List", made in Lists/), due that day when the view
+// Tasks List", "To Do's List", made in docs/), due that day when the view
 // is a day's. This file
 // works out the lists; src/tasklistview.js draws them.
 

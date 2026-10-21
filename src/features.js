@@ -42,10 +42,10 @@ export const FEATURE_AREAS = [
 // The inbox is a note; the rest are folders and end in "/".
 export const FOLDER_SETTINGS = [
 	{ id: "inbox", label: "Inbox note", detail: "Where captures and shared links go", dflt: "Inbox.md" },
-	{ id: "uploads", label: "Uploads", detail: "Notes made from uploaded files", dflt: "Uploads/" },
-	{ id: "clippings", label: "Clippings", detail: "Clipped web pages", dflt: "Clippings/" },
-	{ id: "compiled", label: "Compiled", detail: "Compiled folders saved as notes", dflt: "Compiled/" },
-	{ id: "lists", label: "Task lists", detail: "The Critical and To Do list notes", dflt: "Lists/" },
+	{ id: "uploads", label: "Uploads", detail: "Notes made from uploaded files", dflt: "uploads/" },
+	{ id: "clippings", label: "Clippings", detail: "Clipped web pages", dflt: "clippings/" },
+	{ id: "compiled", label: "Compiled", detail: "Compiled folders saved as notes", dflt: "compiled/" },
+	{ id: "lists", label: "Task lists", detail: "The Critical and To Do list notes", dflt: "docs/" },
 ];
 
 // Palette commands that belong to an area (by label, or a label's start).

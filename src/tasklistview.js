@@ -41,7 +41,7 @@ function saveConfig(view, n, cfg) {
 
 // Where a list's new items go: the block's inbox: note, else the list's own
 // note ("Shopping.md", "Critical Tasks.md", or the older "Critical Tasks
-// List.md") wherever it is, else made in Lists/. tag: which of the card's
+// List.md") wherever it is, else made in docs/. tag: which of the card's
 // lists it's for.
 async function addTask(view, cfg, tag, day, text) {
 	const host = view.state.facet(vaultHost);
@@ -57,7 +57,7 @@ async function addTask(view, cfg, tag, day, text) {
 	const target = cfg.inbox ? resolveNote({ note: cfg.inbox.replace(/^\[\[|\]\]$/g, "").split("|")[0], heading: "", wiki: true }, view.state.facet(notePath), paths)
 		: names.map((f) => paths.filter((p) => p.split("/").pop().toLowerCase() === f && !/(^|\/)_templates\//i.test(p)).sort((a, b) => a.length - b.length)[0]).find(Boolean);
 	if (target) await host.write(target, (t) => appendTask(t, line));
-	else await host.create(host.listsFolder?.() ?? root + "Lists/", file.slice(0, -3), () => `# ${title}\n\n${line}\n`, { open: false });
+	else await host.create(host.listsFolder?.() ?? root + "docs/", file.slice(0, -3), () => `# ${title}\n\n${line}\n`, { open: false });
 }
 
 function setTaskDue(view, t, day) {

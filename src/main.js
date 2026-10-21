@@ -4155,19 +4155,23 @@ async function convertBoards() {
 }
 
 // Notebooks from before publish: true alone decided what's on the website
-// keep wr1t3r's folders as "_daily/", "_docs/" and so on (src/build.js).
-// Offered once on each device after a sync, and in the palette: they move to
-// "Daily/", "Lists/"..., links, pins and icons following, as a rename does.
-const FOLDERS_OFFERED = "wr1t3r-plain-folders-offered";
+// keep wr1t3r's folders as "_daily/", "_docs/" and so on, or "Daily/",
+// "Lists/"... (src/build.js). Offered once on each device after a sync, and in
+// the palette: they move to "daily/", "docs/"..., links, pins and icons
+// following, as a rename does. A change of case only where notes sync to a
+// place that tells "Daily" from "daily" (GitHub, not Dropbox or Drive, and no
+// folder on this computer), or the move could delete what it moves.
+const FOLDERS_OFFERED = "wr1t3r-plain-folders-offered-2";
+const caseSafe = () => !onDropbox && !localFolder;
 function offerFolderRename() {
-	if (readRaw(FOLDERS_OFFERED) || !oldOwnFolders(visible().map((n) => n.path), commonFolder(visible())).length) return;
+	if (readRaw(FOLDERS_OFFERED) || !oldOwnFolders(visible().map((n) => n.path), commonFolder(visible()), caseSafe()).length) return;
 	storeRaw(FOLDERS_OFFERED, "1");
 	setTimeout(renameOldFolders, 0); // once this sync is done
 }
 
 async function renameOldFolders(fromPalette = false) {
 	const root = commonFolder(visible());
-	const old = oldOwnFolders(visible().map((n) => n.path), root);
+	const old = oldOwnFolders(visible().map((n) => n.path), root, caseSafe());
 	if (!old.length) return fromPalette && toast("wr1t3r's folders already have plain names.");
 	const list = old.map((o) => `${o.from.slice(root.length, -1)} → ${o.name}`).join("\n");
 	if (!confirm(`Rename wr1t3r's folders to plain names?\n\n${list}\n\nLinks and Home pins to the notes in them follow. Do this on one device; the others get it when they sync.`)) return;
@@ -4177,7 +4181,7 @@ async function renameOldFolders(fromPalette = false) {
 		const map = await moveItem(o.from, root, o.name);
 		if (!map) continue;
 		// A folder setting that named the old folder follows it.
-		for (const [id, f] of Object.entries(folders)) if (f.toLowerCase() === o.from.slice(root.length).toLowerCase()) folders[id] = o.name + "/";
+		for (const [id, f] of Object.entries(folders)) if (f === o.from.slice(root.length)) folders[id] = o.name + "/";
 	}
 	if (Object.entries(folders).some(([id, f]) => f !== s.folders[id])) await saveSettings({ ...appSettings(), folders });
 }
@@ -4334,7 +4338,7 @@ async function nameProject(kind, variant) {
 	toast(`Made “${title}”: ${files.length - 1} notes. Notes in its Notes folder stay out of Compile.`);
 }
 
-// Today's note in Daily, from _templates/Daily.md (and its companion notes,
+// Today's note in daily/, from _templates/Daily.md (and its companion notes,
 // like "<date> Health"), or the existing one. Made the way Obsidian would, so
 // both apps produce the same file.
 // A template: the notebook's own (findTemplate), else wr1t3r's built-in one
@@ -4374,7 +4378,7 @@ async function openDaily({ quiet = true, date = new Date() } = {}) {
 }
 
 // ---- The weekly note (src/weekly.js, src/weekview.js) -----------------------
-// "2026-W42.md" in Weekly/ beside Daily/, made the first time it's opened.
+// "2026-W42.md" in weekly/ beside daily/, made the first time it's opened.
 async function openWeekly(day = isoDate(new Date())) {
 	const tmpl = templateFor();
 	const root = tmpl?.root ?? commonFolder(visible());
