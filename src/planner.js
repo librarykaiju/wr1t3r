@@ -210,20 +210,53 @@ export function entryLine({ allDay, start, end, text, color }) {
 }
 
 // The timeline as the card shows it: all-day entries, then one row per hour
-// from cfg.start to cfg.end with the entries starting in it. Entries before
-// the first hour go in the first row, ones after the last in the last, and
-// ones without a time after the last. Each entry keeps its index in the list.
+// with the entries in it. The hours run from cfg.start to cfg.end, widened to
+// take in any entry outside them, and ones without a time go in the last row.
+// An entry that runs past the end of its first hour isn't in a row: it's a
+// span, drawn down every hour it covers. -> { allDay, rows, spans, lanes,
+// start, end }. Each entry keeps its index in the list.
+//   span: { e, from, to, lane, wide } - from/to in minutes, rounded out to the
+//     quarter hour; lane its column (0 first) among spans that overlap; wide
+//     when nothing else shares its hours, so it can take the whole width.
+//   row: { hour, items, lanes } - lanes is how many span columns sit beside
+//     the row's own entries.
 export function timelineRows(timeline, { start, end }) {
-	const allDay = [], rows = [];
-	for (let h = start; h < end; h++) rows.push({ hour: h, items: [] });
+	const allDay = [], timed = [], spans = [];
+	const endOf = (e) => (e.end != null && e.end < e.start ? e.end + 24 * 60 : e.end);
 	timeline.forEach((line, index) => {
 		const e = { ...parseEntry(line), index };
 		if (e.allDay) return allDay.push(e);
-		const h = e.start == null ? end - 1 : Math.min(end - 1, Math.max(start, Math.floor(e.start / 60)));
-		rows[h - start].items.push(e);
+		if (e.start != null) {
+			const f = Math.min(24 * 60, endOf(e) ?? e.start);
+			start = Math.min(start, Math.floor(e.start / 60));
+			end = Math.max(end, Math.min(24, Math.ceil(Math.max(f, e.start + 1) / 60)));
+			if (f > (Math.floor(e.start / 60) + 1) * 60) {
+				spans.push({ e, from: Math.floor(e.start / 15) * 15, to: Math.ceil(f / 15) * 15, lane: 0, wide: false });
+				return;
+			}
+		}
+		timed.push(e);
 	});
+	const rows = [];
+	for (let h = start; h < end; h++) rows.push({ hour: h, items: [], lanes: 0 });
+	for (const e of timed) rows[e.start == null ? rows.length - 1 : Math.floor(e.start / 60) - start].items.push(e);
 	for (const r of rows) r.items.sort((a, b) => (a.start ?? 1e9) - (b.start ?? 1e9) || a.index - b.index);
-	return { allDay, rows };
+
+	spans.sort((a, b) => a.from - b.from || b.to - a.to || a.e.index - b.e.index);
+	const laneEnds = [];
+	for (const s of spans) {
+		let l = laneEnds.findIndex((t) => t <= s.from);
+		if (l < 0) l = laneEnds.length;
+		laneEnds[l] = s.to;
+		s.lane = l;
+	}
+	const hoursOf = (s) => rows.filter((r) => r.hour * 60 < s.to && r.hour * 60 + 60 > s.from);
+	for (const s of spans) for (const r of hoursOf(s)) r.lanes = Math.max(r.lanes, s.lane + 1);
+	for (const s of spans) {
+		s.wide = hoursOf(s).every((r) => !r.items.length) &&
+			!spans.some((o) => o.lane > s.lane && o.from < s.to && o.to > s.from);
+	}
+	return { allDay, rows, spans, lanes: laneEnds.length, start, end };
 }
 
 export function hourLabel(h) {
