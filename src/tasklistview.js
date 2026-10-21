@@ -15,7 +15,7 @@ import { menu, cardColorPicker } from "./basesui.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
 import { isArchived } from "./search.js";
 
-const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
+const UNTRUSTED = /(^|\/)_?(clippings|uploads)\//i;
 const baseName = (p) => p.split("/").pop().replace(/\.md$/i, "");
 
 // Every note's text, the open one as it is in the editor.
@@ -41,7 +41,7 @@ function saveConfig(view, n, cfg) {
 
 // Where a list's new items go: the block's inbox: note, else the list's own
 // note ("Shopping.md", "Critical Tasks.md", or the older "Critical Tasks
-// List.md") wherever it is, else made in _docs/. tag: which of the card's
+// List.md") wherever it is, else made in Lists/. tag: which of the card's
 // lists it's for.
 async function addTask(view, cfg, tag, day, text) {
 	const host = view.state.facet(vaultHost);
@@ -57,7 +57,7 @@ async function addTask(view, cfg, tag, day, text) {
 	const target = cfg.inbox ? resolveNote({ note: cfg.inbox.replace(/^\[\[|\]\]$/g, "").split("|")[0], heading: "", wiki: true }, view.state.facet(notePath), paths)
 		: names.map((f) => paths.filter((p) => p.split("/").pop().toLowerCase() === f && !/(^|\/)_templates\//i.test(p)).sort((a, b) => a.length - b.length)[0]).find(Boolean);
 	if (target) await host.write(target, (t) => appendTask(t, line));
-	else await host.create(host.listsFolder?.() ?? root + "_docs/", file.slice(0, -3), () => `# ${title}\n\n${line}\n`, { open: false });
+	else await host.create(host.listsFolder?.() ?? root + "Lists/", file.slice(0, -3), () => `# ${title}\n\n${line}\n`, { open: false });
 }
 
 function setTaskDue(view, t, day) {

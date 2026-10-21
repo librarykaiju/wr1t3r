@@ -44,7 +44,7 @@ import { lineChart, sliceColor } from "./charts.js";
 // only straight from a tap, before anything is fetched.
 import { foodFromLabel } from "./labelview.js";
 
-const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
+const UNTRUSTED = /(^|\/)_?(clippings|uploads)\//i;
 
 // Where the targets' numbers come from.
 const HEALTH_DATA = "https://wr1t3r.app/health-data.html";

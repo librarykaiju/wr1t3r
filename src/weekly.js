@@ -1,4 +1,4 @@
-// The weekly note: one note per week ("2026-W42.md" in _weekly/), Monday to
+// The weekly note: one note per week ("2026-W42.md" in Weekly/), Monday to
 // Sunday. Its ```wr1t3r-week block draws the week ahead (src/weekview.js):
 // each day's calendar events and the tasks due that day, wherever they're
 // written. Plans added on a day go into the weekly note itself as tasks due
@@ -10,10 +10,9 @@
 import { period, reviewNote } from "./journal.js";
 import { listItems } from "./dvpage.js";
 import { addDays } from "./habits.js";
-import { ownFolderName } from "./build.js";
 
 export const WEEK_BLOCK = "wr1t3r-week";
-export const WEEKLY_FOLDER = ownFolderName("_weekly/");
+export const WEEKLY_FOLDER = "Weekly/"; // or an older "_weekly/" (src/build.js ownFolderIn)
 export const PLANS = "Plans";
 export const REFLECT = "Reflect & recover";
 
@@ -54,7 +53,7 @@ export function noteWeek(path) {
 	return weekStart(String(path || "").split("/").pop().replace(/\.md$/i, ""));
 }
 
-export const weeklyPath = (root, day) => `${root}${WEEKLY_FOLDER}${weekOf(day).name}.md`;
+export const weeklyPath = (root, day, folder = WEEKLY_FOLDER) => `${root}${folder}${weekOf(day).name}.md`;
 
 // A new weekly note's text.
 export function weekNote(day) {
@@ -68,7 +67,7 @@ export function weekNote(day) {
 	].join("\n");
 }
 
-const SKIP = /(^|\/)_(templates|clippings|uploads)\//i;
+const SKIP = /(^|\/)(_templates|_?clippings|_?uploads)\//i;
 const DUE = /📅️? ?(\d{4}-\d{2}-\d{2})/u;
 const DONE = /✅ ?(\d{4}-\d{2}-\d{2})/u;
 const cache = new Map(); // path -> { text, items }

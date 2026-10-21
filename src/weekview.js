@@ -19,7 +19,7 @@ import { addDays } from "./habits.js";
 import { byDay, timeLabel, EVENT_COLORS } from "./agenda.js";
 import { WEEK_BLOCK, weekOf, noteWeek, datedTasks, tasksByDay, taskLabel, addPlan, hasReflect } from "./weekly.js";
 
-const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
+const UNTRUSTED = /(^|\/)_?(clippings|uploads)\//i;
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

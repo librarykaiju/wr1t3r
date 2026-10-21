@@ -5,9 +5,8 @@
 // "2026-09-28 Health" from another template, and write a link to it) rather
 // than run. Nothing from a note is ever executed.
 
-import { ownFolderName } from "./build.js";
-
-export const DAILY_FOLDER = ownFolderName("_daily/");
+// Where daily notes go (src/build.js ownFolderIn finds an older "_daily/").
+export const DAILY_FOLDER = "Daily/";
 const TEMPLATE = "_templates/daily.md";
 
 const pad = (n) => String(n).padStart(2, "0");
