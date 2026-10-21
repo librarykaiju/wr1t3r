@@ -218,8 +218,9 @@ export function entryLine({ allDay, start, end, text, color }) {
 //   span: { e, from, to, lane, wide } - from/to in minutes, rounded out to the
 //     quarter hour; lane its column (0 first) among spans that overlap; wide
 //     when nothing else shares its hours, so it can take the whole width.
-//   row: { hour, items, lanes } - lanes is how many span columns sit beside
-//     the row's own entries.
+//   row: { hour, items, groups, lanes } - groups are the items in lines,
+//     the ones at the same time sharing one; lanes is how many span columns
+//     sit beside the row's own entries.
 export function timelineRows(timeline, { start, end }) {
 	const allDay = [], timed = [], spans = [];
 	const endOf = (e) => (e.end != null && e.end < e.start ? e.end + 24 * 60 : e.end);
@@ -238,9 +239,20 @@ export function timelineRows(timeline, { start, end }) {
 		timed.push(e);
 	});
 	const rows = [];
-	for (let h = start; h < end; h++) rows.push({ hour: h, items: [], lanes: 0 });
+	for (let h = start; h < end; h++) rows.push({ hour: h, items: [], groups: [], lanes: 0 });
 	for (const e of timed) rows[e.start == null ? rows.length - 1 : Math.floor(e.start / 60) - start].items.push(e);
-	for (const r of rows) r.items.sort((a, b) => (a.start ?? 1e9) - (b.start ?? 1e9) || a.index - b.index);
+	for (const r of rows) {
+		r.items.sort((a, b) => (a.start ?? 1e9) - (b.start ?? 1e9) || a.index - b.index);
+		// entries at the same time share a line: each group runs while the
+		// next entry starts before the group ends (or at its start)
+		let until = -1;
+		for (const e of r.items) {
+			const last = r.groups.at(-1);
+			if (last && e.start != null && (e.start === last[0].start || e.start < until)) last.push(e);
+			else { r.groups.push([e]); until = -1; }
+			if (e.start != null) until = Math.max(until, endOf(e) ?? e.start);
+		}
+	}
 
 	spans.sort((a, b) => a.from - b.from || b.to - a.to || a.e.index - b.e.index);
 	const laneEnds = [];

@@ -1758,6 +1758,8 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .planner-hour.now + .planner-hour-label { color: var(--accent); font-weight: 700; }
 .planner-hour.now { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent); }
 .planner-hour-items { display: flex; flex-direction: column; gap: 3px; padding: 4px 0; min-width: 0; cursor: text; }
+.planner-hour-line { display: flex; gap: 3px; min-width: 0; }
+.planner-hour-line > * { flex: 1 1 0; min-width: 0; }
 .planner-hour-items:focus-within { position: relative; z-index: 2; }
 .planner-span { position: relative; z-index: 1; display: flex; flex-direction: column; min-width: 0; padding: 4px 4px 4px 0; }
 .planner-span.wide { padding-right: 0; }

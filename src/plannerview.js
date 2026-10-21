@@ -1691,14 +1691,18 @@ class PlannerWidget extends WidgetType {
 			if (!ro) item.addEventListener("click", (ev) => { ev.stopPropagation(); this.editEntry(item, e, hour ?? cfg.start, save); });
 			return item;
 		};
-		const line = (label, items, hour, from, to, lanesBeside) => {
+		const line = (label, groups, hour, from, to, lanesBeside) => {
 			place(el("div", "planner-hour" + (hour != null && isNow(this.day, hour) ? " now" : "")), "1 / -1", from, to);
 			const lab = el("span", "planner-hour-label", label);
 			place(lab, "1", from, to);
 			const cell = el("div", "planner-hour-items");
-			for (const e of items) {
-				const onSlot = hour != null && e.start === hour * 60 && (e.end == null || e.end === hour * 60 + 60);
-				cell.append(entry(e, hour, !onSlot && !e.allDay && e.start != null));
+			for (const group of groups) {
+				const nodes = group.map((e) => {
+					const onSlot = hour != null && e.start === hour * 60 && (e.end == null || e.end === hour * 60 + 60);
+					return entry(e, hour, !onSlot && !e.allDay && e.start != null);
+				});
+				if (nodes.length === 1) cell.append(nodes[0]);
+				else { const row = el("div", "planner-hour-line"); row.append(...nodes); cell.append(row); }
 			}
 			if (!ro && hour != null) {
 				const add = () => this.editEntry(null, null, hour, save, cell);
@@ -1709,8 +1713,8 @@ class PlannerWidget extends WidgetType {
 			}
 			place(cell, `${2 + lanesBeside} / -1`, from, to);
 		};
-		if (allDay.length) line("All day", allDay, null, 1, 2, 0);
-		for (const r of rows) line(hourLabel(r.hour), r.items, r.hour, at(r.hour * 60), at(r.hour * 60 + 60), r.lanes);
+		if (allDay.length) line("All day", allDay.map((e) => [e]), null, 1, 2, 0);
+		for (const r of rows) line(hourLabel(r.hour), r.groups, r.hour, at(r.hour * 60), at(r.hour * 60 + 60), r.lanes);
 		for (const s of spans) {
 			const wrap = el("div", "planner-span" + (s.wide ? " wide" : ""));
 			wrap.append(entry(s.e, Math.floor(s.e.start / 60), true));

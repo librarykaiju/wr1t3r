@@ -88,6 +88,9 @@ test("timeline entries: parsing, rows by hour, edits and imports", () => {
 	assert.deepEqual(busy.rows.map((r) => r.lanes).slice(0, 5), [0, 1, 2, 2, 0]);
 	assert.deepEqual(timelineRows(["10:00 - 12:00 | Meeting"], { start: 9, end: 21 }).spans[0].wide, true);
 	assert.equal(timelineRows(["23:00 - 01:00 | Late"], { start: 9, end: 21 }).end, 24);
+	// entries at the same time share a line
+	const same = timelineRows(["09:00 - 09:15 | Pills", "09:00 - 09:15 | Lincoln's pills", "09:10 - 09:20 | Vitamins", "09:30 | Call", "untimed"], { start: 9, end: 10 });
+	assert.deepEqual(same.rows[0].groups.map((g) => g.map((e) => e.text)), [["Pills", "Lincoln's pills", "Vitamins"], ["Call"], ["untimed"]]);
 
 	let a = setEntry([], null, "Write", 14);
 	assert.deepEqual(a, ["14:00 - 15:00 | Write"]);
