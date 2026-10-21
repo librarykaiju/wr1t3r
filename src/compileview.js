@@ -171,7 +171,7 @@ export function openCompile(host) {
 		const blob = await ex.toDocx(r.markdown, { title: s.title, author: s.author, images: await pictures(r.markdown), layout: s.layout });
 		download(blob, fileName() + ".docx");
 	});
-	if (!host.single) button("Save to vault", "Keep the compiled markdown as a note in _compiled", async () => host.saveToVault(fileName(), md({}).markdown));
+	if (!host.single) button("Save to vault", "Keep the compiled markdown as a note in Compiled", async () => host.saveToVault(fileName(), md({}).markdown));
 
 	function close() {
 		clearTimeout(timer);

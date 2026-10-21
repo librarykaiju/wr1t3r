@@ -9,7 +9,9 @@ test("only notes marked publish: true, outside _ folders and not drafts", () => 
 	assert.equal(isPublished("a.md", note("publish: true", "x")), true);
 	assert.equal(isPublished("a.md", note("publish: false", "x")), false);
 	assert.equal(isPublished("a.md", "no properties"), false);
-	assert.equal(isPublished("_daily/a.md", note("publish: true", "x")), false);
+	assert.equal(isPublished("_daily/a.md", note("publish: true", "x")), true, "publish: true is the only gate, whatever the folder");
+	assert.equal(isPublished("content/_templates/Note.md", note("publish: true", "x")), false);
+	assert.equal(isPublished("content/_wr1t3r/Home.md", note("publish: true", "x")), false);
 	assert.equal(isPublished("a.md", note("publish: true\ndraft: true", "x")), false);
 });
 
@@ -181,9 +183,12 @@ test("the toolbar's published check matches the site's, and says why not", async
 	const { isPublished: own, notPublishedWhy } = await import("../src/published.js");
 	assert.equal(own("Posts/A.md", "---\npublish: true\n---\n"), true);
 	assert.equal(own("Posts/A.md", "---\npublish: true\ndraft: true\n---\n"), false);
-	assert.equal(own("_docs/A.md", "---\npublish: true\n---\n"), false);
+	assert.equal(own("_docs/A.md", "---\npublish: true\n---\n"), true);
+	assert.equal(own("_templates/A.md", "---\npublish: true\n---\n"), false);
 	assert.equal(own(null, ""), false);
-	assert.match(notPublishedWhy("_docs/A.md", ""), /folders starting with _/);
+	assert.match(notPublishedWhy("_templates/A.md", ""), /Templates/);
+	assert.match(notPublishedWhy("content/_wr1t3r/Home.md", ""), /own files/);
+	assert.equal(notPublishedWhy("_docs/A.md", "---\npublish: true\n---\n"), "");
 	assert.match(notPublishedWhy("A.md", "---\ndraft: yes\n---\n"), /draft/);
 	assert.equal(notPublishedWhy("A.md", "---\npublish: true\n---\n"), "");
 });

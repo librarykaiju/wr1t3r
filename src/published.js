@@ -1,15 +1,20 @@
-// Whether a note goes on the website (src/website.js): publish: true, not a
-// draft, and not in one of wr1t3r's own "_" folders. Its own module so the
-// toolbar can show it without loading the site builder.
+// Whether a note goes on the website (src/website.js): publish: true and not
+// a draft. Templates (which can hold publish: true for the notes made from
+// them) and wr1t3r's own files never go. Its own module so the toolbar can
+// show it without loading the site builder.
 
 import { parseFrontmatter } from "./dvpage.js";
 import { pagesUrl, parseRepo } from "./githubpublish.js";
+
+// src/templates.js isTemplatePath and src/home.js isAppFile, without loading either.
+const isTemplatePath = (path) => /(^|\/)_templates\//i.test(path);
+const isAppFile = (path) => /(^|\/)_wr1t3r\//i.test(path);
 
 const first = (v) => (Array.isArray(v) ? v.find((x) => x != null && String(x).trim() !== "") : v);
 const yes = (v) => v === true || /^(true|yes)$/i.test(String(first(v) ?? "").trim());
 
 export function isPublished(path, text) {
-	if (!path || path.split("/").some((seg) => seg.startsWith("_"))) return false;
+	if (!path || isTemplatePath(path) || isAppFile(path)) return false;
 	const p = parseFrontmatter(text || "");
 	return yes(p.publish) && !yes(p.draft);
 }
@@ -17,7 +22,8 @@ export function isPublished(path, text) {
 // Why a note with publish: true still isn't on the site, or "".
 export function notPublishedWhy(path, text) {
 	if (!path) return "";
-	if (path.split("/").some((seg) => seg.startsWith("_"))) return "Notes in folders starting with _ are never published.";
+	if (isTemplatePath(path)) return "Templates are never published.";
+	if (isAppFile(path)) return "wr1t3r's own files are never published.";
 	return yes(parseFrontmatter(text || "").draft) ? "It has draft: true, so it stays off the site." : "";
 }
 

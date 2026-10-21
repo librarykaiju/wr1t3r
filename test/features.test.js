@@ -6,7 +6,7 @@ const defaults = readSettings("");
 
 test("no Settings note means everything on and today's folders", () => {
 	assert.ok(FEATURE_AREAS.every((a) => defaults.features[a.id] === (a.auto ? null : true)));
-	assert.deepEqual(defaults.folders, { inbox: "Inbox.md", uploads: "_uploads/", clippings: "_clippings/", compiled: "_compiled/", lists: "_docs/" });
+	assert.deepEqual(defaults.folders, { inbox: "Inbox.md", uploads: "Uploads/", clippings: "Clippings/", compiled: "Compiled/", lists: "Lists/" });
 	assert.deepEqual(readSettings("just text, no properties"), defaults);
 });
 
@@ -16,13 +16,13 @@ test("only false turns an area off; folders are cleaned", () => {
 	assert.equal(s.features.calendar, true, "only false counts");
 	assert.equal(s.folders.uploads, "Imports/");
 	assert.equal(s.folders.inbox, "Captures/Inbox.md");
-	assert.equal(s.folders.clippings, "_clippings/", "a path climbing out falls back to the default");
+	assert.equal(s.folders.clippings, "Clippings/", "a path climbing out falls back to the default");
 });
 
 test("written settings leave out defaults and read back the same", () => {
-	const want = { features: { ...defaults.features, health: false, ocr: false }, folders: { ...defaults.folders, lists: "Lists/" }, icons: {} };
+	const want = { features: { ...defaults.features, health: false, ocr: false }, folders: { ...defaults.folders, lists: "Tasks/" }, icons: {} };
 	const text = writeSettings("", want);
-	assert.equal(text, `---\nfeatures:\n  health: false\n  ocr: false\nfolders:\n  lists: Lists/\n---\n${SETTINGS_BODY}`);
+	assert.equal(text, `---\nfeatures:\n  health: false\n  ocr: false\nfolders:\n  lists: Tasks/\n---\n${SETTINGS_BODY}`);
 	assert.deepEqual(readSettings(text), want);
 	assert.equal(writeSettings("", defaults), `---\n---\n${SETTINGS_BODY}`);
 });
@@ -48,7 +48,7 @@ test("odd folder names are quoted so they read back", () => {
 });
 
 test("cleanFolder", () => {
-	assert.equal(cleanFolder("uploads", ""), "_uploads/");
+	assert.equal(cleanFolder("uploads", ""), "Uploads/");
 	assert.equal(cleanFolder("uploads", " a\\b "), "a/b/");
 	assert.equal(cleanFolder("inbox", "Inbox.MD"), "Inbox.MD");
 	assert.equal(cleanFolder("inbox", "/"), "Inbox.md");

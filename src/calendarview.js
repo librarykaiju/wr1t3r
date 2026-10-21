@@ -22,7 +22,7 @@ import { readMarks, marksByDay, marksMonth } from "./calmarks.js";
 import { menu, openPanel, closePanel, redrawPanel } from "./basesui.js";
 
 export const CALENDAR_BLOCK = "wr1t3r-calendar";
-const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
+const UNTRUSTED = /(^|\/)_?(clippings|uploads)\//i;
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const NARROW = 620;

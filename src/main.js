@@ -78,7 +78,8 @@ import { setPlannerHost, importEvents } from "./plannerview.js";
 import { setWeekHost, forgetWeekEvents } from "./weekview.js";
 import { setCalendarHost, forgetCalendarEvents } from "./calendarview.js";
 import { marksPath, newMarks, addMark, removeMark, inkedEvent } from "./calmarks.js";
-import { weekOf, weekNote, weeklyPath, noteWeek, reflectSection, hasReflect, addReflect } from "./weekly.js";
+import { weekOf, weekNote, weeklyPath, noteWeek, reflectSection, hasReflect, addReflect, WEEKLY_FOLDER } from "./weekly.js";
+import { ownFolderIn, oldOwnFolders } from "./build.js";
 import { openPropertyCleanup } from "./propcleanview.js";
 import { NEW_NOTE_KINDS, kindForTemplate, kindFolder, noteFileName, freeNotePath } from "./newnotes.js";
 import { healthPathFor, MEALS, WATER, MOOD, MEDS, removeEvent, editPlannerBlock, readPlanner, itemsUnder, setWords, healthDay, healthDayOf } from "./planner.js";
@@ -195,6 +196,7 @@ async function runSync() {
 		uploadReminders();
 		sendCalendarReminders();
 		maybeWelcome();
+		offerFolderRename();
 		noteLicense();
 		lastError = null;
 		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
@@ -391,7 +393,7 @@ function onNote(path, note) {
 // never races an edit on its way from Obsidian; it's written only when the
 // order changes, and undoes like any edit.
 let sortPending = null;
-const sortable = (path) => !!path && /\.md$/i.test(path) && !/(^|\/)_(templates|clippings|uploads)\//i.test(path) && !dataviewVault.untrusted(path) && !isAppFile(path);
+const sortable = (path) => !!path && /\.md$/i.test(path) && !/(^|\/)(_templates|_?clippings|_?uploads)\//i.test(path) && !dataviewVault.untrusted(path) && !isAppFile(path);
 function sortOpenNote({ quiet = true } = {}) {
 	const view = editor.view;
 	if (!sortable(editor.path) || view.state.readOnly) return quiet || toast("This note's checklists aren't sorted.");
@@ -1066,8 +1068,22 @@ const featureOn = (id) => {
 	return v == null ? id === "website" && autoWebsite : v !== false;
 };
 const featuresNow = () => Object.fromEntries(FEATURE_AREAS.map((a) => [a.id, featureOn(a.id)]));
-// One of wr1t3r's own folders (or the Inbox note), under the notes' folder.
-const ownFolder = (id) => commonFolder(visible()) + appSettings().folders[id];
+// One of wr1t3r's own folders (or the Inbox note), under the notes' folder:
+// an older "_uploads/" while the notebook still has one (src/build.js).
+let ownCache = { version: null, folders: {} };
+function ownFolder(id) {
+	if (ownCache.version !== notes.version) ownCache = { version: notes.version, folders: {} };
+	return (ownCache.folders[id] ??= ((list) => {
+		const root = commonFolder(list);
+		return root + ownFolderIn(list.map((n) => n.path), root, appSettings().folders[id]);
+	})(visible()));
+}
+// Where daily or weekly notes go under root, the same way.
+const dailyFolder = (root) => ownFolderIn(visible().map((n) => n.path), root, DAILY_FOLDER);
+const weeklyFolder = (root) => ownFolderIn(visible().map((n) => n.path), root, WEEKLY_FOLDER);
+// Templates, wr1t3r's own files and binders start empty; any other new note
+// starts with the Note template's properties, so it's ready to publish.
+const startsBlank = (path) => isTemplatePath(path) || isAppFile(path) || isBinder(path);
 
 async function saveSettings(next) {
 	const path = settingsFile();
@@ -2125,8 +2141,8 @@ async function tallyWords() {
 	if (!habits.some((h) => h.words)) return;
 	const tmpl = templateFor();
 	if (!tmpl) return;
-	const want = (tmpl.root + DAILY_FOLDER + today + ".md").toLowerCase();
-	const daily = visible().find((n) => n.path.toLowerCase() === want)?.path || tmpl.root + DAILY_FOLDER + today + ".md";
+	const want = (tmpl.root + dailyFolder(tmpl.root) + today + ".md").toLowerCase();
+	const daily = visible().find((n) => n.path.toLowerCase() === want)?.path || tmpl.root + dailyFolder(tmpl.root) + today + ".md";
 	try {
 		const path = await plannerHost.healthNote(daily);
 		await dataviewVault.write(path, (t) => {
@@ -3038,7 +3054,7 @@ async function addCard(folder, at) {
 	const path = folder + nm + ".md";
 	if (!isNotePath(path) || nm.includes("/")) return toast("That isn't a usable note name.");
 	if (taken(path)) return toast(`There's already a note called “${nm}” here.`);
-	const text = /(^|\/)_/.test(path) ? "" : newNoteFrontmatter(nm, new Date().toLocaleDateString("en-CA"));
+	const text = startsBlank(path) ? "" : newNoteFrontmatter(nm, new Date().toLocaleDateString("en-CA"));
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	scheduleSync();
 	const order = orderOf(folder);
@@ -3647,7 +3663,7 @@ function logFood() {
 	if (!daily) {
 		const tmpl = findTemplate(paths) || findTemplate(paths, "_templates/Daily Health.md");
 		const root = tmpl ? tmpl.root : paths.some((p) => p.startsWith("content/")) ? "content/" : "";
-		daily = root + DAILY_FOLDER + isoDate(new Date()) + ".md";
+		daily = root + dailyFolder(root) + isoDate(new Date()) + ".md";
 	}
 	const have = paths.find((p) => p.toLowerCase() === daily.toLowerCase());
 	if (have) daily = have;
@@ -3685,6 +3701,7 @@ function allCommands() {
 		...NEW_NOTE_KINDS.map((k) => [k.label, () => newKindNote(k), `create template ${k.template.toLowerCase()} ${k.keywords}`]),
 		["New board file", () => newBase(), "create database table grid gallery kanban view bases base"],
 		["Rename .base files to .board", convertBoards, "convert boards bases obsidian extension"],
+		["Rename wr1t3r's _ folders to plain names", () => renameOldFolders(true), "underscore daily weekly uploads clippings compiled docs lists folders migrate"],
 		["Clean up properties", cleanUpProperties, "yaml frontmatter properties empty rename merge delete tidy vault"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
@@ -4137,6 +4154,34 @@ async function convertBoards() {
 	toast(`Renamed ${pairs.length} board${pairs.length === 1 ? "" : "s"} to ${BOARD_EXT}.`);
 }
 
+// Notebooks from before publish: true alone decided what's on the website
+// keep wr1t3r's folders as "_daily/", "_docs/" and so on (src/build.js).
+// Offered once on each device after a sync, and in the palette: they move to
+// "Daily/", "Lists/"..., links, pins and icons following, as a rename does.
+const FOLDERS_OFFERED = "wr1t3r-plain-folders-offered";
+function offerFolderRename() {
+	if (readRaw(FOLDERS_OFFERED) || !oldOwnFolders(visible().map((n) => n.path), commonFolder(visible())).length) return;
+	storeRaw(FOLDERS_OFFERED, "1");
+	setTimeout(renameOldFolders, 0); // once this sync is done
+}
+
+async function renameOldFolders(fromPalette = false) {
+	const root = commonFolder(visible());
+	const old = oldOwnFolders(visible().map((n) => n.path), root);
+	if (!old.length) return fromPalette && toast("wr1t3r's folders already have plain names.");
+	const list = old.map((o) => `${o.from.slice(root.length, -1)} → ${o.name}`).join("\n");
+	if (!confirm(`Rename wr1t3r's folders to plain names?\n\n${list}\n\nLinks and Home pins to the notes in them follow. Do this on one device; the others get it when they sync.`)) return;
+	const s = appSettings();
+	const folders = { ...s.folders };
+	for (const o of old) {
+		const map = await moveItem(o.from, root, o.name);
+		if (!map) continue;
+		// A folder setting that named the old folder follows it.
+		for (const [id, f] of Object.entries(folders)) if (f.toLowerCase() === o.from.slice(root.length).toLowerCase()) folders[id] = o.name + "/";
+	}
+	if (Object.entries(folders).some(([id, f]) => f !== s.folders[id])) await saveSettings({ ...appSettings(), folders });
+}
+
 function normalise(input) {
 	let p = input.trim().replace(/^\/+/, "");
 	if (!/\.(md|board|base)$/i.test(p)) p += ".md";
@@ -4154,9 +4199,9 @@ async function newNote(suggestion = currentFolder() + "Untitled.md", makeText = 
 	if (taken(path)) return openNote([...notes.keys()].find((p) => p.toLowerCase() === path.toLowerCase() && !notes.get(p).deleted));
 	// A tombstone of a deleted note with this name keeps its base, so the new
 	// note replaces it in the vault.
-	// Notes that could be published start with the Note template's properties,
-	// including today's date; "_" folders never publish, so they start empty.
-	const text = makeText ? makeText(path) : isBoardPath(path) ? NEW_BASE : /(^|\/)_/.test(path) ? "" : withTitleHeading(newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA")), name(path));
+	// New notes start with the Note template's properties, including today's
+	// date, so they're ready to publish (startsBlank's aren't).
+	const text = makeText ? makeText(path) : isBoardPath(path) ? NEW_BASE : startsBlank(path) ? "" : withTitleHeading(newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA")), name(path));
 	await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 	openNote(path);
 	// Focus goes back to the New button once the name prompt closes; take it
@@ -4289,7 +4334,7 @@ async function nameProject(kind, variant) {
 	toast(`Made “${title}”: ${files.length - 1} notes. Notes in its Notes folder stay out of Compile.`);
 }
 
-// Today's note in _daily, from _templates/Daily.md (and its companion notes,
+// Today's note in Daily, from _templates/Daily.md (and its companion notes,
 // like "<date> Health"), or the existing one. Made the way Obsidian would, so
 // both apps produce the same file.
 // A template: the notebook's own (findTemplate), else wr1t3r's built-in one
@@ -4306,7 +4351,7 @@ async function openDaily({ quiet = true, date = new Date() } = {}) {
 	const tmpl = templateFor();
 	if (!tmpl) return toast("There's no _templates/Daily.md in the vault.");
 	const title = isoDate(date);
-	const folder = tmpl.root + DAILY_FOLDER;
+	const folder = tmpl.root + dailyFolder(tmpl.root);
 	const path = folder + title + ".md";
 	const existing = paths.find((p) => p.toLowerCase() === path.toLowerCase());
 	if (existing) {
@@ -4329,11 +4374,11 @@ async function openDaily({ quiet = true, date = new Date() } = {}) {
 }
 
 // ---- The weekly note (src/weekly.js, src/weekview.js) -----------------------
-// "2026-W42.md" in _weekly/ beside _daily/, made the first time it's opened.
+// "2026-W42.md" in Weekly/ beside Daily/, made the first time it's opened.
 async function openWeekly(day = isoDate(new Date())) {
 	const tmpl = templateFor();
 	const root = tmpl?.root ?? commonFolder(visible());
-	const path = weeklyPath(root, day);
+	const path = weeklyPath(root, day, weeklyFolder(root));
 	const have = visible().find((n) => n.path.toLowerCase() === path.toLowerCase());
 	if (have) { openNote(have.path); return have.path; }
 	const text = weekNote(day);
@@ -5053,7 +5098,7 @@ async function importDayOne() {
 
 // ---- uploads -------------------------------------------------------------------
 
-// Uploads and clippings become notes here. content/_* folders stay out of the site build.
+// Uploads and clippings become notes here.
 
 // Saves a new note under folder, numbering the name if it's taken.
 async function addNote(folder, noteName, text) {
@@ -7086,7 +7131,7 @@ const dataviewVault = {
 	propertyUsage: () => propertyUsageNow(),
 	setPropertyType: (key, type) => setPropertyType(key, type),
 	// A base's "+ New": the note's text as New note would start it.
-	newNoteText: (path) => (/(^|\/)_/.test(path) ? "" : withTitleHeading(newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA")), name(path))),
+	newNoteText: (path) => (startsBlank(path) ? "" : withTitleHeading(newNoteFrontmatter(name(path), new Date().toLocaleDateString("en-CA")), name(path))),
 	// ...then saved (numbered if the name's taken) and opened.
 	// open: false (a task list's new note) saves it without leaving the note you're in.
 	async create(folder, noteName, makeText, { open = true } = {}) {

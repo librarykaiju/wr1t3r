@@ -26,7 +26,8 @@ test("a week name gives back its Monday, and only real weeks count", () => {
 	assert.equal(weekStart("Week 42"), null);
 	assert.equal(noteWeek("Notes/_weekly/2026-W42.md"), "2026-10-12");
 	assert.equal(noteWeek("Notes/2026-10-12.md"), null);
-	assert.equal(weeklyPath("Notes/", "2026-10-14"), "Notes/_weekly/2026-W42.md");
+	assert.equal(weeklyPath("Notes/", "2026-10-14"), "Notes/Weekly/2026-W42.md");
+	assert.equal(weeklyPath("Notes/", "2026-10-14", "_weekly/"), "Notes/_weekly/2026-W42.md");
 });
 
 test("a new weekly note has the week block, focus, plans and notes", () => {

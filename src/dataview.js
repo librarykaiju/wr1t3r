@@ -24,7 +24,7 @@ import { tickInText } from "./tasks.js";
 
 
 const SANDBOX = "/dv-sandbox"; // public/dv-sandbox.html
-const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
+const UNTRUSTED = /(^|\/)_?(clippings|uploads)\//i;
 // The default folders, or wherever Settings > Features puts them (host.untrusted).
 const untrusted = (host, p) => UNTRUSTED.test(p) || !!host?.untrusted?.(p);
 const MAX_PAGES = 300;

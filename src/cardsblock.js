@@ -23,7 +23,7 @@ import { drawHome } from "./homeview.js";
 import { notePath, vaultChanged } from "./vault.js";
 
 export const CARDS = "wr1t3r-cards";
-const UNTRUSTED = /(^|\/)_(clippings|uploads)\//i;
+const UNTRUSTED = /(^|\/)_?(clippings|uploads)\//i;
 
 // Set by main.js: { paths(), text(path), image(ref, from), open(pin, path),
 // menu(store, index, x, y), add(store), glance(folder), habits(), neighbors() }.
