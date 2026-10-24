@@ -31,3 +31,14 @@ test("the old folders to rename", () => {
 	]);
 	assert.deepEqual(oldOwnFolders(["daily/a.md"], "", true), []);
 });
+
+test("clippings move under docs/", () => {
+	assert.equal(ownFolderIn([], "content/", "docs/clippings/"), "docs/clippings/");
+	assert.equal(ownFolderIn(["content/clippings/a.md"], "content/", "docs/clippings/"), "clippings/", "kept while the notebook still has it");
+	assert.equal(ownFolderIn(["content/_clippings/a.md"], "content/", "docs/clippings/"), "_clippings/");
+	assert.equal(ownFolderIn(["content/clippings/a.md", "content/docs/clippings/b.md"], "content/", "docs/clippings/"), "docs/clippings/");
+	assert.deepEqual(oldOwnFolders(["content/clippings/a.md", "content/docs/To Do's.md"], "content/"), [{ from: "content/clippings/", name: "docs/clippings" }]);
+	assert.deepEqual(oldOwnFolders(["content/_docs/a.md", "content/_clippings/b.md"], "content/"), [{ from: "content/_docs/", name: "docs" }, { from: "content/_clippings/", name: "docs/clippings" }], "docs/ first");
+	assert.deepEqual(oldOwnFolders(["Clippings/a.md"], ""), [{ from: "Clippings/", name: "docs/clippings" }], "not just a change of case, so safe anywhere");
+	assert.deepEqual(oldOwnFolders(["docs/clippings/a.md"], "", true), []);
+});

@@ -3701,7 +3701,7 @@ function allCommands() {
 		...NEW_NOTE_KINDS.map((k) => [k.label, () => newKindNote(k), `create template ${k.template.toLowerCase()} ${k.keywords}`]),
 		["New board file", () => newBase(), "create database table grid gallery kanban view bases base"],
 		["Rename .base files to .board", convertBoards, "convert boards bases obsidian extension"],
-		["Rename wr1t3r's _ folders to plain names", () => renameOldFolders(true), "underscore daily weekly uploads clippings compiled docs lists folders migrate"],
+		["Rename wr1t3r's _ folders to plain names", () => renameOldFolders(true), "underscore daily weekly uploads clippings compiled docs lists folders migrate move"],
 		["Clean up properties", cleanUpProperties, "yaml frontmatter properties empty rename merge delete tidy vault"],
 		["Insert template", insertFromTemplate, "templater", true],
 		["Open today's daily note", () => openDaily(), "today journal daily"],
@@ -4156,12 +4156,13 @@ async function convertBoards() {
 
 // Notebooks from before publish: true alone decided what's on the website
 // keep wr1t3r's folders as "_daily/", "_docs/" and so on, or "Daily/",
-// "Lists/"... (src/build.js). Offered once on each device after a sync, and in
+// "Lists/"..., and older ones still have clippings in a top-level
+// "clippings/" (src/build.js). Offered once on each device after a sync, and in
 // the palette: they move to "daily/", "docs/"..., links, pins and icons
 // following, as a rename does. A change of case only where notes sync to a
 // place that tells "Daily" from "daily" (GitHub, not Dropbox or Drive, and no
 // folder on this computer), or the move could delete what it moves.
-const FOLDERS_OFFERED = "wr1t3r-plain-folders-offered-2";
+const FOLDERS_OFFERED = "wr1t3r-plain-folders-offered-3"; // -3: clippings moved under docs/
 const caseSafe = () => !onDropbox && !localFolder;
 function offerFolderRename() {
 	if (readRaw(FOLDERS_OFFERED) || !oldOwnFolders(visible().map((n) => n.path), commonFolder(visible()), caseSafe()).length) return;
@@ -4174,11 +4175,13 @@ async function renameOldFolders(fromPalette = false) {
 	const old = oldOwnFolders(visible().map((n) => n.path), root, caseSafe());
 	if (!old.length) return fromPalette && toast("wr1t3r's folders already have plain names.");
 	const list = old.map((o) => `${o.from.slice(root.length, -1)} → ${o.name}`).join("\n");
-	if (!confirm(`Rename wr1t3r's folders to plain names?\n\n${list}\n\nLinks and Home pins to the notes in them follow. Do this on one device; the others get it when they sync.`)) return;
+	if (!confirm(`Rename or move wr1t3r's folders?\n\n${list}\n\nLinks and Home pins to the notes in them follow. Do this on one device; the others get it when they sync.`)) return;
 	const s = appSettings();
 	const folders = { ...s.folders };
 	for (const o of old) {
-		const map = await moveItem(o.from, root, o.name);
+		// "docs/clippings" goes into docs/ as "clippings".
+		const cut = o.name.lastIndexOf("/") + 1;
+		const map = await moveItem(o.from, root + o.name.slice(0, cut), o.name.slice(cut));
 		if (!map) continue;
 		// A folder setting that named the old folder follows it.
 		for (const [id, f] of Object.entries(folders)) if (f === o.from.slice(root.length)) folders[id] = o.name + "/";

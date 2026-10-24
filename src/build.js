@@ -5,14 +5,16 @@ export const PRODUCT = (() => { try { return !!import.meta.env?.VITE_DROPBOX_ONL
 // wr1t3r's own folders went by "_daily/", "_docs/" and so on before
 // publish: true alone decided what goes on the website, and by "Daily/",
 // "Lists/"... in the product build. Notebooks made then keep theirs: plain
-// name -> [the underscore name, the capitalized name].
+// name -> [the underscore name, the capitalized name, any other]. Clippings
+// went in a top-level "clippings/" before they moved under "docs/"; "docs/"
+// comes first so an old "_docs/" has moved before clippings go into it.
 const OLD_NAMES = {
 	"daily/": ["_daily/", "Daily/"],
 	"weekly/": ["_weekly/", "Weekly/"],
 	"uploads/": ["_uploads/", "Uploads/"],
-	"clippings/": ["_clippings/", "Clippings/"],
 	"compiled/": ["_compiled/", "Compiled/"],
 	"docs/": ["_docs/", "Lists/"],
+	"docs/clippings/": ["_clippings/", "Clippings/", "clippings/"],
 };
 
 // The exact name of the folder under root that a notebook has for f, or null.

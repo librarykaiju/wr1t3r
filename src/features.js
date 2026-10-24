@@ -43,7 +43,7 @@ export const FEATURE_AREAS = [
 export const FOLDER_SETTINGS = [
 	{ id: "inbox", label: "Inbox note", detail: "Where captures and shared links go", dflt: "Inbox.md" },
 	{ id: "uploads", label: "Uploads", detail: "Notes made from uploaded files", dflt: "uploads/" },
-	{ id: "clippings", label: "Clippings", detail: "Clipped web pages", dflt: "clippings/" },
+	{ id: "clippings", label: "Clippings", detail: "Clipped web pages", dflt: "docs/clippings/" },
 	{ id: "compiled", label: "Compiled", detail: "Compiled folders saved as notes", dflt: "compiled/" },
 	{ id: "lists", label: "Task lists", detail: "The Critical and To Do list notes", dflt: "docs/" },
 ];

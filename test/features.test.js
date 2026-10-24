@@ -6,7 +6,7 @@ const defaults = readSettings("");
 
 test("no Settings note means everything on and today's folders", () => {
 	assert.ok(FEATURE_AREAS.every((a) => defaults.features[a.id] === (a.auto ? null : true)));
-	assert.deepEqual(defaults.folders, { inbox: "Inbox.md", uploads: "uploads/", clippings: "clippings/", compiled: "compiled/", lists: "docs/" });
+	assert.deepEqual(defaults.folders, { inbox: "Inbox.md", uploads: "uploads/", clippings: "docs/clippings/", compiled: "compiled/", lists: "docs/" });
 	assert.deepEqual(readSettings("just text, no properties"), defaults);
 });
 
@@ -16,7 +16,7 @@ test("only false turns an area off; folders are cleaned", () => {
 	assert.equal(s.features.calendar, true, "only false counts");
 	assert.equal(s.folders.uploads, "Imports/");
 	assert.equal(s.folders.inbox, "Captures/Inbox.md");
-	assert.equal(s.folders.clippings, "clippings/", "a path climbing out falls back to the default");
+	assert.equal(s.folders.clippings, "docs/clippings/", "a path climbing out falls back to the default");
 });
 
 test("written settings leave out defaults and read back the same", () => {
