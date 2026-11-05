@@ -29,7 +29,7 @@ A line holding just `![[Note]]` shows that note in a box, as Obsidian does (`src
 
 **Settings** (the gear button, or palette "Settings"): a window over the page with tabs down the side: Appearance, Writing, Focus, Tasks and daily note, Home, Hotkeys, and Sync and files. The search box above the tabs shows matching settings from every tab, commands included, so typing "goal" or "grammar" goes straight to the row. Palette commands "Settings: Writing" and so on open one tab, so each can have a hotkey. On a phone the window fills the screen and the tabs are a list. Settings apply at once and are kept per device; the last tab used is remembered.
 
-**Live Preview** (Settings > Appearance > Markdown symbols, off by default) hides `**`, `##`, `[text](url)` parts, `[[`/`]]` and `==` on every line except the one the cursor is on, like Obsidian's Live Preview (`src/livepreview.js`). Code blocks, tables and the properties box are left as they are. The note's text never changes.
+**Live Preview** (Settings > Appearance > Markdown symbols, on by default; **Always show** turns it off on that device) hides `**`, `##`, `[text](url)` parts, `[[`/`]]` and `==` on every line except the one the cursor is on, like Obsidian's Live Preview (`src/livepreview.js`). Code blocks, tables and the properties box are left as they are. The note's text never changes.
 
 **Writing help**, each with an On/Off switch in **Settings > Writing** (on to start, remembered per device):
 - **Spellcheck** underlines misspelled words with the browser's own dictionary; right-click one for suggestions.
