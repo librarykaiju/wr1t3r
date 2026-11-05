@@ -1,4 +1,4 @@
-// Live Preview (a setting, off by default): markdown symbols are hidden on
+// Live Preview (a setting, on by default): markdown symbols are hidden on
 // every line except the ones the cursor is on, as in Obsidian's Live Preview.
 // **bold** shows as bold, [text](url) as the link text, [[Note|alias]] as
 // "alias", [^1] as a raised 1, ## as a heading, `code` as code, ==marks== as a highlight. Moving
@@ -10,7 +10,7 @@ import { StateEffect } from "@codemirror/state";
 import { EditorView, ViewPlugin, Decoration } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 
-let enabled = false;
+let enabled = true;
 const refresh = StateEffect.define();
 
 export function livePreviewOn() { return enabled; }

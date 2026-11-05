@@ -3287,8 +3287,8 @@ function searchNotes() {
 }
 
 function toggleLivePreview() {
-	const live = readRaw("wr1t3rMode") !== "live";
-	storeRaw("wr1t3rMode", live ? "live" : null);
+	const live = readRaw("wr1t3rMode") === "source";
+	storeRaw("wr1t3rMode", live ? null : "source");
 	applyMode(live ? "live" : "source");
 }
 
@@ -5426,9 +5426,10 @@ function applySize(px) {
 function setFont(name) { applyFont(name); storeRaw("wr1t3rFont", fontName === "serif" ? null : fontName); }
 function setSize(px) { applySize(px); storeRaw("wr1t3rFontSize", fontSize); }
 
-// Live Preview hides markdown symbols off the cursor line (off unless chosen).
+// Live Preview hides markdown symbols off the cursor line. It's on unless
+// "Always show" was picked on this device (wr1t3rMode = "source").
 function applyMode(mode) {
-	const live = mode === "live";
+	const live = mode !== "source";
 	setLivePreview(editor?.view, live);
 	document.querySelectorAll("#modes button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.mode === "live") === live)));
 }
@@ -5663,7 +5664,7 @@ function setupSettings() {
 	$("modes").addEventListener("click", (e) => {
 		const b = e.target.closest("button");
 		if (!b) return;
-		storeRaw("wr1t3rMode", b.dataset.mode === "live" ? "live" : null);
+		storeRaw("wr1t3rMode", b.dataset.mode === "source" ? "source" : null);
 		applyMode(b.dataset.mode);
 	});
 	applyLineLength(readRaw("wr1t3rLines") === "full");
