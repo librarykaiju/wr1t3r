@@ -58,10 +58,16 @@ export function openNeighbors(host, { follow = "" } = {}) {
 	const x = el("button", "quiet", "×");
 	x.type = "button";
 	x.setAttribute("aria-label", "Close");
-	head.append(h, x);
+	// On a phone the follow form and the list of who you follow sit behind
+	// this button, so the posts get the whole panel (style.css hides it wider).
+	const manage = Object.assign(el("button", "quiet neighbors-manage", "Following"), { type: "button" });
+	manage.setAttribute("aria-expanded", "false");
+	head.append(h, manage, x);
 
 	// The left side: follow a site, the list of who you follow.
 	const form = el("form", "compile-form");
+	form.id = "neighbors-following";
+	manage.setAttribute("aria-controls", form.id);
 	const add = el("label");
 	const address = Object.assign(el("input"), { type: "text", value: follow, placeholder: "someone.neocities.org", autocomplete: "off", spellcheck: false });
 	address.setAttribute("autocapitalize", "off");
@@ -206,6 +212,12 @@ export function openNeighbors(host, { follow = "" } = {}) {
 		draw();
 	});
 	refresh.addEventListener("click", doRefresh);
+	function managing(on) {
+		wrap.classList.toggle("managing", on);
+		manage.setAttribute("aria-expanded", String(on));
+		manage.textContent = on ? "Posts" : "Following";
+	}
+	manage.addEventListener("click", () => managing(!wrap.classList.contains("managing")));
 	importBtn.addEventListener("click", () => file.click());
 	file.addEventListener("change", async () => {
 		const f = file.files?.[0];
@@ -235,6 +247,6 @@ export function openNeighbors(host, { follow = "" } = {}) {
 	document.addEventListener("keydown", esc, true);
 	open = { close, wrap };
 	draw();
-	if (follow) address.focus();
+	if (follow) { managing(true); address.focus(); }
 	else if (host.list().length && !host.feeds().at) doRefresh();
 }
