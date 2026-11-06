@@ -465,9 +465,16 @@ class PlannerWidget extends WidgetType {
 		// usda: null, or the USDA search being shown: { q, results, error, loading }.
 		const st = { q: "", meal: mealAt(new Date()), servings: "1", usda: null };
 		openPanel(this.panelKey, "food", anchor, (box) => {
-			box.classList.add("planner-panel");
+			box.classList.add("planner-panel", "panel-sheet");
 			const { foods, path: dbPath } = nutrition(view.state, this.cfg);
-			box.append(el("div", "planner-panel-title", "Log food"));
+			// Full screen on a phone, so it gets a way out besides tapping outside.
+			const head = el("div", "planner-panel-head");
+			const shut = el("button", "planner-panel-close", "×");
+			shut.type = "button";
+			shut.setAttribute("aria-label", "Close");
+			shut.addEventListener("click", () => closePanel());
+			head.append(el("div", "planner-panel-title", "Log food"), shut);
+			box.append(head);
 			if (!dbPath) {
 				box.append(el("p", "planner-panel-empty", this.cfg.nutrition ? `Couldn't find ${this.cfg.nutrition}.` : "Foods are logged from a Nutrition Database note, and there isn't one yet."));
 				if (!this.cfg.nutrition && host?.nutritionNote) box.append(panelButton("planner-log-btn", "Make one", async () => { await host.nutritionNote(); redrawPanel(this.panelKey); }));

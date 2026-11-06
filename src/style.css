@@ -1775,6 +1775,16 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 @media (hover: none) { .planner-edit { opacity: 0.6; } }
 .planner-panel-title { font-weight: 700; font-size: 15px; }
 .planner-panel-sub { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.planner-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.planner-panel-close { display: none; padding: 0 8px; border: 0; background: none; color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer; }
+/* The Food panel fills the screen on a phone (src/basesui.js place() sizes it). */
+@media (max-width: 600px) {
+	.base-panel.panel-sheet { border: 0; border-radius: 0; box-shadow: none; padding: calc(12px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom)); }
+	.panel-sheet .planner-panel-close { display: block; }
+	.panel-sheet .planner-panel-title { font-size: 18px; }
+	.panel-sheet .planner-results { flex: 1 1 auto; max-height: none; min-height: 200px; }
+	.panel-sheet .planner-result { padding: 10px 12px; }
+}
 .planner-panel-empty { margin: 0; color: var(--muted); }
 .planner-search { width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font: inherit; }
 .planner-search:focus { outline: none; border-color: var(--accent); }

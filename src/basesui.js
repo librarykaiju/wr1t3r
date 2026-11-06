@@ -71,9 +71,17 @@ export function menu(entries, x, y) {
 // visual viewport, which the on-screen keyboard and the browser's bars make
 // shorter than innerHeight. A box taller than that gets a max-height and
 // scrolls inside its own frame.
+// A panel marked "panel-sheet" fills the whole visible area on a phone
+// instead (the Food panel, whose list wants the room).
+export const PHONE_SHEET = "(max-width: 600px)";
 function place(box, x, y) {
 	const vv = globalThis.visualViewport;
 	const top0 = vv ? vv.offsetTop : 0, height = vv ? vv.height : innerHeight;
+	if (box.classList.contains("panel-sheet") && globalThis.matchMedia?.(PHONE_SHEET).matches) {
+		Object.assign(box.style, { left: "0px", top: top0 + "px", width: "100%", height: height + "px", maxHeight: height + "px" });
+		return;
+	}
+	box.style.width = box.style.height = "";
 	box.style.maxHeight = "";
 	const css = parseFloat(getComputedStyle(box).maxHeight) || Infinity;
 	box.style.maxHeight = Math.min(css, height - 16) + "px";
@@ -110,10 +118,13 @@ export function openPanel(key, kind, anchor, render) {
 	// The keyboard opening or closing moves the space there is.
 	const fit = () => { if (panel?.box === box) place(box, panel.x, panel.y); };
 	globalThis.visualViewport?.addEventListener("resize", fit);
+	// iOS pans the page under the keyboard, which moves where a sheet's top is.
+	globalThis.visualViewport?.addEventListener("scroll", fit);
 	panel.off = () => {
 		document.removeEventListener("pointerdown", away, true);
 		document.removeEventListener("keydown", esc, true);
 		globalThis.visualViewport?.removeEventListener("resize", fit);
+		globalThis.visualViewport?.removeEventListener("scroll", fit);
 	};
 	setTimeout(() => {
 		document.addEventListener("pointerdown", away, true);
