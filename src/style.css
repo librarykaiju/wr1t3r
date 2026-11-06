@@ -2139,13 +2139,18 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .neighbors-sites li > button[aria-pressed="true"] { color: var(--fg); }
 .neighbors-acts { display: flex; gap: 6px; margin: 6px 0 0; }
 .neighbors-acts button { font-size: 13px; padding: 3px 10px; min-height: 0; color: var(--muted); }
+.neighbors-manage { display: none; }
+.compile-head .neighbors-manage { font-size: 14px; padding: 4px 10px; color: var(--muted); }
 .neighbors-heading { margin: 16px 0 0; font: 600 13px/1.4 var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 @media (max-width: 720px) {
 	.compile-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-	/* The posts first on a phone; following below them. */
-	.neighbors .compile-grid { grid-template-rows: 1fr auto; }
-	.neighbors .neighbors-posts { order: -1; border-bottom: 1px solid var(--line); }
-	.neighbors .compile-form { border-bottom: 0; max-height: 40vh; }
+	/* On a phone the posts get the whole panel; the Following button in the
+	   header swaps them for the follow form and the list of who you follow. */
+	.neighbors .compile-grid { grid-template-rows: 1fr; }
+	.neighbors .compile-head .neighbors-manage { display: inline-block; }
+	.neighbors .compile-form { display: none; border-bottom: 0; max-height: none; }
+	.neighbors.managing .compile-form { display: flex; }
+	.neighbors.managing .neighbors-posts { display: none; }
 	.compile-form { border-right: 0; border-bottom: 1px solid var(--line); max-height: 52vh; }
 	.compile-preview { min-height: 40vh; }
 }
