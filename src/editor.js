@@ -17,7 +17,7 @@ import { tags as t } from "@lezer/highlight";
 import { slashSource } from "./slash.js";
 import { stripFrontmatter } from "./count.js";
 import { dataviewJs } from "./dataview.js";
-import { cardsBlocks } from "./cardsblock.js";
+import { cardsBlocks, dailyPins } from "./cardsblock.js";
 import { taskLists } from "./tasklistview.js";
 import { plannerBlocks, healthHeader } from "./plannerview.js";
 import { weekBlocks } from "./weekview.js";
@@ -180,6 +180,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		embeds,
 		dataviewJs,
 		cardsBlocks,
+		dailyPins,
 		taskLists,
 		trackChanges,
 		pageView,

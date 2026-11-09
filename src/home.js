@@ -17,6 +17,8 @@
 //       title: Example                   the tile's name, for any kind
 //       size: 2x1                        2x1 (two wide) or 2x2 (two by two); 1x1 when left out
 //     - section: Reading                 a header; the tiles after it are its
+//   daily:                               cards pinned to every daily note, until unpinned
+//     - link: "[[Taxes 2026]]"           same entries as pins:
 //   ---
 //
 // Without a color a tile takes the next rainbow color in turn; without a
@@ -64,15 +66,17 @@ export function tileOrdinals(pins) {
 }
 
 // The pins in a Home note's text: [{ link, title?, color?, cover?, ... }],
-// with { section } entries for headers.
-export function readPins(text) {
+// with { section } entries for headers. key "daily" reads the cards pinned
+// to daily notes instead of Home's tiles.
+export const DAILY_KEY = "daily";
+export function readPins(text, key = "pins") {
 	const lines = String(text || "").split("\n");
 	const f = fence(lines);
 	if (!f) return [];
 	let y;
 	try { y = parseYaml(lines.slice(f[0] + 1, f[1]).join("\n")); } catch { return []; }
-	if (!y || !Array.isArray(y.pins)) return [];
-	return cleanPins(y.pins);
+	if (!y || !Array.isArray(y[key])) return [];
+	return cleanPins(y[key]);
 }
 
 function cleanPins(list) {
@@ -99,9 +103,9 @@ function yamlValue(v) {
 	return JSON.stringify(v); // a double-quoted YAML string, or a flow list/map
 }
 
-function pinsYaml(pins) {
-	if (!pins.length) return ["pins: []"];
-	const out = ["pins:"];
+function pinsYaml(pins, key = "pins") {
+	if (!pins.length) return [`${key}: []`];
+	const out = [`${key}:`];
 	for (const p of pins) {
 		const keys = [...ORDER.filter((k) => k in p), ...Object.keys(p).filter((k) => !ORDER.includes(k))]
 			.filter((k) => p[k] != null && p[k] !== "");
@@ -110,21 +114,21 @@ function pinsYaml(pins) {
 	return out;
 }
 
-// text with its pins list replaced by pins. The rest of the frontmatter and
-// the body stay as they were; a note without frontmatter gets some.
-export function writePins(text, pins) {
+// text with its pins list (or key's list) replaced by pins. The rest of the
+// frontmatter and the body stay as they were; a note without frontmatter gets some.
+export function writePins(text, pins, key = "pins") {
 	const lines = String(text || "").split("\n");
-	const block = pinsYaml(pins);
+	const block = pinsYaml(pins, key);
 	const f = fence(lines);
 	if (!f) return ["---", ...block, "---", ...(text ? lines : [HOME_BODY])].join("\n");
 	let at = -1;
-	for (let i = f[0] + 1; i < f[1]; i++) if (/^pins\s*:/.test(lines[i])) { at = i; break; }
+	for (let i = f[0] + 1; i < f[1]; i++) if (new RegExp(`^${key}\\s*:`).test(lines[i])) { at = i; break; }
 	if (at < 0) {
 		lines.splice(f[1], 0, ...block);
 		return lines.join("\n");
 	}
 	let end = at + 1;
-	// The list under pins: indented lines, or "- " items at the left edge.
+	// The list under the key: indented lines, or "- " items at the left edge.
 	while (end < f[1] && (/^[ \t]/.test(lines[end]) || /^-(\s|$)/.test(lines[end]) || (!lines[end].trim() && end + 1 < f[1] && /^[ \t-]/.test(lines[end + 1])))) end++;
 	lines.splice(at, end - at, ...block);
 	return lines.join("\n");

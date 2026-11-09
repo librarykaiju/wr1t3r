@@ -21,12 +21,14 @@ import { dataviewBlocks, blockBodyChange } from "./dataview.js";
 import { readCards, writeCards } from "./home.js";
 import { drawHome } from "./homeview.js";
 import { notePath, vaultChanged } from "./vault.js";
+import { noteDay } from "./tasklists.js";
 
 export const CARDS = "wr1t3r-cards";
 const UNTRUSTED = /(^|\/)_?(clippings|uploads)\//i;
 
 // Set by main.js: { paths(), text(path), image(ref, from), open(pin, path),
-// menu(store, index, x, y), add(store), glance(folder), habits(), neighbors() }.
+// menu(store, index, x, y), add(store), glance(folder), habits(), neighbors(),
+// daily: the store of cards pinned to daily notes ({ list(), save(list), file() }) }.
 let host = null;
 export const setCardsHost = (h) => { host = h; };
 
@@ -112,6 +114,82 @@ export const cardsBlocks = StateField.define({
 		const vault = tr.effects.some((e) => e.is(vaultChanged));
 		if (vault) vaultStamp++;
 		if (tr.docChanged || tr.selection || vault || syntaxTree(tr.startState) !== syntaxTree(tr.state)) return build(tr.state);
+		return deco;
+	},
+	provide: (f) => EditorView.decorations.from(f),
+});
+
+// Pinned cards on a daily note: the notes (and folders, commands, pages) pinned
+// with "Pin to daily notes" show as tiles at the top of every daily note (one
+// named YYYY-MM-DD), under its properties, until they're unpinned. They live in
+// the Home note's daily: list (src/home.js), not in the daily note, so a pin
+// isn't copied into each day and unpinning takes it off every day at once.
+
+let dailyStamp = 0;
+
+class DailyPinsWidget extends WidgetType {
+	constructor(key, ro) { super(); this.key = key; this.ro = ro; this.stamp = dailyStamp; }
+	eq(o) { return o.key === this.key && o.ro === this.ro && o.stamp === this.stamp; }
+	toDOM() {
+		const wrap = document.createElement("div");
+		wrap.className = "md-cards daily-pins";
+		const head = document.createElement("div");
+		head.className = "daily-pins-head";
+		head.textContent = "Pinned";
+		const grid = document.createElement("div");
+		grid.className = "home-grid md-cards-grid";
+		grid.setAttribute("role", "list");
+		grid.setAttribute("aria-label", "Pinned to daily notes");
+		const store = host?.daily;
+		if (store) {
+			const ro = this.ro;
+			drawHome(grid, {
+				pins: store.list(), homeFile: store.file(), paths: host.paths(),
+				text: host.text, image: host.image, open: host.open, glance: host.glance, habits: host.habits, neighbors: host.neighbors,
+				menu: (i, x, y) => (ro ? null : host.menu(store, i, x, y)),
+				add: ro ? null : () => host.add(store),
+				emptyLabel: "Pin a note to daily notes",
+				reorder: (from, to) => {
+					if (ro) return;
+					const list = store.list();
+					const [moved] = list.splice(from, 1);
+					list.splice(to, 0, moved);
+					store.save(list);
+				},
+			});
+		}
+		wrap.append(head, grid);
+		return wrap;
+	}
+	ignoreEvent() { return true; }
+	get estimatedHeight() { return 200; }
+}
+
+// Where the cards go: after the frontmatter's closing ---, else the top.
+function afterFrontmatter(doc) {
+	if (!/^---\s*$/.test(doc.line(1).text)) return { pos: 0, side: -1 };
+	for (let i = 2; i <= doc.lines; i++) {
+		const l = doc.line(i);
+		if (/^(---|\.\.\.)\s*$/.test(l.text)) return { pos: l.to, side: 1 };
+	}
+	return { pos: 0, side: -1 };
+}
+
+function buildDaily(state) {
+	const path = state.facet(notePath);
+	const list = host?.daily && path && noteDay(path) ? host.daily.list() : [];
+	if (!list.length) return Decoration.none;
+	const { pos, side } = afterFrontmatter(state.doc);
+	const deco = Decoration.widget({ widget: new DailyPinsWidget(JSON.stringify(list), state.readOnly), block: true, side });
+	return Decoration.set([deco.range(pos)]);
+}
+
+export const dailyPins = StateField.define({
+	create: buildDaily,
+	update(deco, tr) {
+		const vault = tr.effects.some((e) => e.is(vaultChanged));
+		if (vault) dailyStamp++;
+		if (vault || tr.docChanged) return buildDaily(tr.state);
 		return deco;
 	},
 	provide: (f) => EditorView.decorations.from(f),

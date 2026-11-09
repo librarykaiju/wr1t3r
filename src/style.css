@@ -1578,6 +1578,8 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 .md-cards-edit { position: absolute; top: 10px; right: 4px; z-index: 1; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--muted); font: 12px/1.4 var(--mono); cursor: pointer; opacity: 0; }
 .md-cards:hover .md-cards-edit, .md-cards-edit:focus-visible { opacity: 1; }
 @media (hover: none) { .md-cards-edit { opacity: 0.6; } }
+.daily-pins { margin: 4px 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.daily-pins-head { margin: 0 0 6px; color: var(--muted); font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 /* The calendar page (calendarview.js): the title, ‹ Today ›, Month/Week,
    then the days. Month: a grid of six weeks. Week: seven columns. In a narrow
    column, one week as a list with the weeks as tabs down the right edge.

@@ -60,7 +60,7 @@ import { makeMediaNote, coverDialog } from "./media.js";
 import { coverQuery } from "./medianote.js";
 import { parseFrontmatter } from "./dvpage.js";
 import { followingPath, readFollowing, writeFollowing, refreshDue, readFeeds, neighborsList, newSince, onSite } from "./feeds.js";
-import { homePath, readPins, writePins, pinKind, pinPath, pinTitle, pinColor, pinSize, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
+import { homePath, readPins, writePins, DAILY_KEY, pinKind, pinPath, pinTitle, pinColor, pinSize, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
 import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
 import { reorder } from "./drag.js";
 import { drawBoard, drawOutline, folderWords, stopViews } from "./folderview.js";
@@ -783,6 +783,7 @@ function itemMenu(item, x, y) {
 			...(featureOn("boards") ? [["New board…", () => newBase(item)]] : []),
 		] : []),
 		pinEntry(item),
+		dailyEntry(item),
 		...(isFolder || /\.md$/i.test(item) ? [["Icon…", () => pickIcon(item, x, y)]] : []),
 		isFolder
 			? [notesIn(item).length && notesIn(item).every((p) => archivedNote(notes.get(p))) ? "Unarchive folder" : "Archive folder", () => archiveFolder(item)]
@@ -1009,7 +1010,7 @@ function drawBookmarks(tree, colorOf) {
 		const a = link(notes.get(p), name(p));
 		const c = colorOf(p);
 		if (c) a.style.setProperty("--fc", c); // its folder's color, as in the list below
-		onMenu(a, (x, y) => showMenu([pinEntry(p), ["Remove bookmark", () => toggleBookmark(p)]], x, y));
+		onMenu(a, (x, y) => showMenu([pinEntry(p), dailyEntry(p), ["Remove bookmark", () => toggleBookmark(p)]], x, y));
 		kids.append(a);
 	}
 }
@@ -1045,6 +1046,15 @@ function homeText() {
 }
 
 const pins = () => readPins(homeText() || "");
+
+// Cards pinned to every daily note: the Home note's daily: list. Read on each
+// edit of a daily note, so kept while the Home note's text is the same.
+let dailyCache = { text: null, list: [] };
+function dailyPinList() {
+	const text = homeText() || "";
+	if (text !== dailyCache.text) dailyCache = { text, list: readPins(text, DAILY_KEY) };
+	return dailyCache.list.map((p) => ({ ...p }));
+}
 
 // ---- Notebook settings: which areas are on, and wr1t3r's own folders --------
 //
@@ -1430,13 +1440,13 @@ function renderFeatureSettings() {
 	pane.append(hint("These sync to every device through _wr1t3r/Settings.md, which stays out of the notes list."));
 }
 
-// Saves the pins to the Home note (made the first time), like any edit.
-async function savePins(list) {
+// Saves the pins (or key's list) to the Home note (made the first time), like any edit.
+async function savePins(list, key = "pins") {
 	const path = homeFile();
-	if (homeText() != null) await dataviewVault.write(path, (t) => writePins(t, list));
+	if (homeText() != null) await dataviewVault.write(path, (t) => writePins(t, list, key));
 	else {
 		if (!visible().length) return toast("The vault hasn't loaded yet.");
-		const text = writePins("", list);
+		const text = writePins("", list, key);
 		await change(path, (cur) => ({ path, text, base: cur?.base ?? null, dirty: true, deleted: false }));
 		renderStatus();
 		renderTree();
@@ -1479,12 +1489,50 @@ function unpinItem(item) {
 	toast(`Unpinned “${itemLabel(item)}”.`);
 }
 
-// After notes or a folder moved: pins point at their new places.
+// After notes or a folder moved: pins (Home's and daily notes') point at their new places.
 async function followPins(moved, oldPaths, folderFrom = null, folderTo = null) {
-	const list = pins();
-	if (!list.length) return;
-	const next = retargetPins(list, moved, oldPaths, visible().map((n) => n.path), homeFile(), folderFrom, folderTo);
-	if (next) await savePins(next);
+	for (const [list, key] of [[pins(), "pins"], [dailyPinList(), DAILY_KEY]]) {
+		if (!list.length) continue;
+		const next = retargetPins(list, moved, oldPaths, visible().map((n) => n.path), homeFile(), folderFrom, folderTo);
+		if (next) await savePins(next, key);
+	}
+}
+
+// ---- Pinned to daily notes ---------------------------------------------------
+//
+// Cards that show at the top of every daily note until they're unpinned
+// (src/cardsblock.js draws them). Same tiles and menu as Home.
+
+const dailyStore = { list: () => dailyPinList(), save: (list) => savePins(list, DAILY_KEY), file: () => homeFile(), daily: true };
+
+function dailyIndex(item, list = dailyPinList()) {
+	const paths = visible().map((n) => n.path);
+	return list.findIndex((p) => pinOpens(p, pinTarget(item), paths, homeFile()));
+}
+
+// "Pin to daily notes" or "Unpin from daily notes", for a note or folder menu.
+function dailyEntry(item) {
+	return dailyIndex(item) >= 0 ? ["Unpin from daily notes", () => unpinDaily(item)] : ["Pin to daily notes", () => pinDaily(item)];
+}
+
+function pinDaily(item) {
+	if (!item) return;
+	const list = dailyPinList();
+	if (dailyIndex(item, list) >= 0) return toast(`“${itemLabel(item)}” is already pinned to daily notes.`);
+	const link = item.endsWith("/") ? folderLink(item) : linkFor(item, visible().map((n) => n.path));
+	addDailyPin({ link }, itemLabel(item));
+}
+
+function addDailyPin(pin, label) {
+	dailyStore.save([...dailyPinList(), pin]);
+	toast(`Pinned “${label}” to daily notes. It shows on each one until you unpin it.`);
+}
+
+function unpinDaily(item) {
+	const list = dailyPinList(), i = dailyIndex(item, list);
+	if (i < 0) return;
+	dailyStore.save(list.filter((_, j) => j !== i));
+	toast(`Unpinned “${itemLabel(item)}” from daily notes.`);
 }
 
 function goHome() {
@@ -1977,7 +2025,7 @@ function tileMenu(i, x, y, store = homeStore) {
 		...(i > 0 ? [["Move earlier", () => move(i - 1)]] : []),
 		...(i < list.length - 1 ? [["Move later", () => move(i + 1)]] : []),
 		["Start a section here…", startSection],
-		[store.home ? "Unpin" : "Remove card", () => savePins(list.filter((_, j) => j !== i)), "danger"],
+		[store.home ? "Unpin" : store.daily ? "Unpin from daily notes" : "Remove card", () => savePins(list.filter((_, j) => j !== i)), "danger"],
 	], x, y);
 }
 
@@ -1992,6 +2040,7 @@ setCardsHost({
 	glance: (folder) => tileGlance(folder),
 	habits: () => habitsTileGlance(),
 	neighbors: () => neighborsTileGlance(),
+	daily: dailyStore,
 });
 
 // Planner blocks: the day's health note (made the way Today makes it, from
@@ -2409,10 +2458,11 @@ function pickCover(pin, set) {
 // a note's cards block).
 function addTile(store = homeStore) {
 	if (typeof store?.list !== "function") store = homeStore;
-	const list = visible(), paths = list.map((n) => n.path), home = commonFolder(list), file = store.home ? homeFile() : editor.path;
+	const list = visible(), paths = list.map((n) => n.path), home = commonFolder(list), file = store.home || store.daily ? homeFile() : editor.path;
 	const have = store.list();
 	const addPin = (pin, label) => {
 		if (store.home) return addPinHome(pin, label);
+		if (store.daily) return addDailyPin(pin, label);
 		store.save([...store.list(), pin]);
 		toast(`Added “${label}”.`);
 	};
@@ -2445,7 +2495,7 @@ function addTile(store = homeStore) {
 			.map((c) => ({ label: c.label, detail: "command", keywords: "command " + (c.keywords || ""), run: () => addPin({ link: "command:" + c.label }, c.label) })),
 	];
 	openPalette({
-		placeholder: store.home ? "Pin to Home: a note, folder, command or web page…" : "Add a card: a note, folder, command or web page…",
+		placeholder: store.home ? "Pin to Home: a note, folder, command or web page…" : store.daily ? "Pin to daily notes: a note, folder, command or web page…" : "Add a card: a note, folder, command or web page…",
 		items,
 		empty: (q) => (/^(https?:\/\/|www\.)\S+$|^\S+\.[a-z]{2,}(\/\S*)?$/i.test(q.trim()) ? { label: `Web page “${q.trim()}”`, detail: "link", run: () => webLink(q) } : null),
 	});
@@ -3729,6 +3779,8 @@ function allCommands() {
 		["Next note in this folder", () => stepFolder(1), "forward page sibling chapter", true],
 		["Pin this note to Home", () => pinItem(editor.path), "pin home tile", true],
 		["Add a tile to Home", addTile, "pin home tile folder command link"],
+		[editor.path && dailyIndex(editor.path) >= 0 ? "Unpin this note from daily notes" : "Pin this note to daily notes", () => (dailyIndex(editor.path) >= 0 ? unpinDaily(editor.path) : pinDaily(editor.path)), "pin daily note card today journal travel keep", true],
+		["Pin a card to daily notes", () => addTile(dailyStore), "pin daily note card today folder command link"],
 		["Rename this note", () => { $("path").focus(); }, "move", true],
 		["Delete this note", () => removeNote(editor.path), "remove", true],
 		["Close this tab", () => closeTab(editor.path), "close", true],
