@@ -1,5 +1,5 @@
 // Backup of the whole vault bucket to Google Drive, run by the Worker's hourly
-// cron. Like the old `rclone copy` workflow in librarykaiju/w3bz1n3 it only
+// cron. Like an `rclone copy` it only
 // adds and updates: a file deleted or emptied in the bucket keeps its last
 // copy in Drive, so the backup survives an accident on the R2 side.
 //

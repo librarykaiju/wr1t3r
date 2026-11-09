@@ -2,8 +2,8 @@ name = "wr1t3r"
 main = "worker/index.js"
 compatibility_date = "2026-09-01"
 
-# A markdown notebook at https://wr1t3r.brandonj.ink (add
-# that as a Custom Domain on the Worker). Everything under /api/ needs
+# The personal build of wr1t3r (add your address as a Custom Domain on the
+# Worker). Everything under /api/ needs
 # WR1T3R_TOKEN; the page itself holds no data.
 
 # The page, built by `npm run build` into dist/. Anything that isn't a file
@@ -24,8 +24,7 @@ EXCLUDE = "_includes/,content/404.md"
 # below, which needs the Drive scope.
 DRIVE_BACKUP = "wr1t3r-vault-backup"
 
-# The notes bucket. wr1t3r reads and writes it directly, and brandonj.ink
-# builds from it (librarykaiju/w3bz1n3).
+# The notes bucket. wr1t3r reads and writes it directly.
 [[r2_buckets]]
 binding = "VAULT"
 bucket_name = "w3bz1n3-vault"

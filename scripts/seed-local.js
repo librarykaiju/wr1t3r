@@ -1,5 +1,5 @@
 // Dev only: copies a folder of notes into the local (wrangler dev) R2 bucket.
-//   node scripts/seed-local.js ../w3bz1n3 content _includes/snippets
+//   node scripts/seed-local.js ../my-notes content
 import { getPlatformProxy } from "wrangler";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";

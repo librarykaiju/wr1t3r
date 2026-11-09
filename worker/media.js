@@ -1,6 +1,6 @@
 // Media notes: movie/TV, book, music, game, comic and podcast notes filled in
 // from free APIs. A port of the Media Notes Obsidian plugin
-// (w3bz1n3 .obsidian/plugins/media-notes-lite), with the same lookups and the
+// (media-notes-lite), with the same lookups and the
 // same properties, so a note made here matches one made in Obsidian. The
 // lookups run here rather than in the page because most of these APIs don't
 // allow browser calls (CORS) and the keys stay out of the page.

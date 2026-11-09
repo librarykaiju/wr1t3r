@@ -32,7 +32,7 @@ test("the site: pages, links, pictures, front page, and what stays private", () 
 		{ path: "Essays/Walking.md", text: note("publish: true\ndate: 2026-03-04\ntags: [outdoors]\ncoverImage: \"[[trail.jpg]]\"", "# Walking\n\nA walk with [[Secret plans]] and [[Home|home]].\n\n![[trail.jpg]]\n\n![[song.mp3]]\n\n%% private %%\n\n> [!tip] Bring water\n> Lots of it.\n\n- [x] done\n\n```dataview\nLIST\n```\n\n## Map\n\n[link](Secret%20plans.md) and [[#Map]]") },
 		{ path: "Secret plans.md", text: note("publish: false", "hidden") },
 	];
-	const site = buildSite(notes, ["pics/trail.jpg", "song.mp3"], { title: "Brandon's notes", support: { kofi: "brandon" } });
+	const site = buildSite(notes, ["pics/trail.jpg", "song.mp3"], { title: "Sam's notes", support: { kofi: "sam" } });
 	const walk = site.files.get("essays/walking.html");
 	assert.ok(walk.includes('<h1 class="p-name">Walking</h1>'));
 	assert.ok(!walk.includes("<h1>Walking</h1>\n<p class=\"meta\"><time datetime=\"2026-03-04\">March 4, 2026</time><span class=\"tag\">#outdoors</span></p>\n<img class=\"cover\" src=\"../files/trail.jpg\" alt=\"\">\n<h1>"), "the note's own title heading goes");
@@ -43,7 +43,7 @@ test("the site: pages, links, pictures, front page, and what stays private", () 
 	assert.ok(walk.includes('class="callout callout-tip co-cyan"') && /<p class="callout-title"><svg [^>]*>.*<\/svg>Bring water<\/p>/.test(walk) && walk.includes("Lots of it."));
 	assert.ok(walk.includes('<input type="checkbox" disabled checked>'));
 	assert.ok(walk.includes('<h2 id="map">Map</h2>') && walk.includes('href="#map"'));
-	assert.ok(walk.includes('href="https://ko-fi.com/brandon"'));
+	assert.ok(walk.includes('href="https://ko-fi.com/sam"'));
 	assert.deepEqual(site.skipped, ["song.mp3"]);
 	assert.deepEqual(site.files.get("files/trail.jpg"), { attachment: "pics/trail.jpg" });
 	const index = site.files.get("index.html");
@@ -314,11 +314,11 @@ test("the feed: dated posts, newest first, a line or two and a link each", () =>
 		{ path: "Essays/River.md", text: note("publish: true\ndate: 2026-05-06\ndescription: Water, mostly.", "Long text.\n\n![[pic.png]]") },
 		{ path: "About.md", text: note("publish: true", "No date, so not a post in the feed.") },
 	];
-	const site = buildSite(notes, ["pic.png"], { title: "Brandon's notes", tagline: "Out walking" });
+	const site = buildSite(notes, ["pic.png"], { title: "Sam's notes", tagline: "Out walking" });
 	const feed = site.files.get("feed.xml");
 	assert.match(feed, /^<\?xml version="1.0" encoding="utf-8"\?>\n<\?xml-stylesheet type="text\/xsl" href="feed-style.xml"\?>\n<feed xmlns="http:\/\/www.w3.org\/2005\/Atom" xmlns:thr="http:\/\/purl.org\/syndication\/thread\/1.0">/);
 	assert.match(site.files.get("feed-style.xml"), /<xsl:stylesheet/, "a browser shows the feed as a page");
-	assert.match(feed, /<title>Brandon's notes<\/title>/);
+	assert.match(feed, /<title>Sam's notes<\/title>/);
 	assert.match(feed, /<subtitle>Out walking<\/subtitle>/);
 	assert.match(feed, /<updated>2026-05-06T00:00:00Z<\/updated>/);
 	const entries = feed.split("<entry>").slice(1);
@@ -328,14 +328,14 @@ test("the feed: dated posts, newest first, a line or two and a link each", () =>
 	assert.match(entries[1], /<summary>A walk &amp; a talk by the River.<\/summary>/, "the first paragraph as plain text when there's no description");
 	assert.doesNotMatch(feed, /<content|Second paragraph|rel="self"/, "summaries only, and no self link without an address");
 	// Every page names the feed, relative to itself; posts are h-entries.
-	assert.ok(site.files.get("index.html").includes(`<link rel="alternate" type="application/atom+xml" title="Brandon's notes" href="feed.xml">`));
+	assert.ok(site.files.get("index.html").includes(`<link rel="alternate" type="application/atom+xml" title="Sam's notes" href="feed.xml">`));
 	const walk = site.files.get("essays/walking.html");
 	assert.ok(walk.includes('href="../feed.xml"'));
 	assert.match(walk, /<article class="h-entry">\n<h1 class="p-name">Walking<\/h1>\n<p class="meta"><time class="dt-published" datetime="2026-03-04">/);
 	assert.ok(walk.includes('<div class="note e-content">'));
 	assert.ok(!site.files.get("index.html").includes("h-entry"), "the front page isn't a post");
 	// Publishing again with nothing new leaves the feed as it was.
-	assert.equal(buildSite(notes, ["pic.png"], { title: "Brandon's notes", tagline: "Out walking" }).files.get("feed.xml"), feed);
+	assert.equal(buildSite(notes, ["pic.png"], { title: "Sam's notes", tagline: "Out walking" }).files.get("feed.xml"), feed);
 });
 
 test("the feed with the site's address, and whole posts when asked", () => {

@@ -1,6 +1,6 @@
 # wr1t3r
 
-A markdown notebook in the browser. It works offline, syncs in the background, and never reformats a note it didn't change. Live at https://wr1t3r.brandonj.ink.
+A markdown notebook in the browser. It works offline, syncs in the background, and never reformats a note it didn't change.
 
 One Cloudflare Worker serves the page and a small file API over an R2 bucket of notes. The browser keeps its own copy, so typing never waits on the network. Other builds store notes in the user's own Dropbox instead (see [docs/builds.md](docs/builds.md)).
 

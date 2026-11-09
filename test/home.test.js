@@ -57,7 +57,7 @@ test("pins written into a note without them, or without frontmatter", () => {
 });
 
 test("what a pin points at", () => {
-	assert.deepEqual(pinKind("https://reader.brandonj.ink"), { kind: "url", url: "https://reader.brandonj.ink" });
+	assert.deepEqual(pinKind("https://reader.example.com"), { kind: "url", url: "https://reader.example.com" });
 	assert.deepEqual(pinKind("command: Open today's daily note"), { kind: "command", command: "Open today's daily note" });
 	assert.deepEqual(pinKind("folder:content/_daily/"), { kind: "folder", folder: "content/_daily/" });
 	assert.deepEqual(pinKind("[[Reading log#Top|RL]]"), { kind: "note", target: "Reading log" });

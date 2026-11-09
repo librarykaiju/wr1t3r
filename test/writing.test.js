@@ -38,7 +38,7 @@ test("markdown that must stay plain is left alone", () => {
 	assert.equal(type("---\ntitle: |\n---\n", '"'), '---\ntitle: "\n---\n', "properties");
 	assert.equal(type("a `code |", '"'), 'a `code "', "inline code");
 	assert.equal(type("```\nx = |\n```", '"'), '```\nx = "\n```', "code block");
-	assert.equal(type("see [[Brandon|", "'"), "see [[Brandon'", "a link to a note");
+	assert.equal(type("see [[Sam|", "'"), "see [[Sam'", "a link to a note");
 	assert.equal(type("[a](https://x|", "'"), "[a](https://x'", "a link address");
 	assert.equal(type('<span style=|', '"'), '<span style="', "an HTML tag");
 	assert.equal(type("<!--|", " "), "<!-- ", "an HTML comment");
