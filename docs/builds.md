@@ -24,6 +24,17 @@ Every build shows **Use Nextcloud** on the sign-in screen (`src/nextcloud.js`). 
 - **A 401** stops syncing at once and signs out, because Nextcloud's brute-force protection slows down an address that keeps sending a bad password.
 - The page's `connect-src` (`public/_headers`) allows any `https:` address, since the server could be anywhere. An `http://` server is refused from an `https://` page.
 
+### Nextcloud Calendar
+
+Settings > Features > **Nextcloud Calendar** (`src/caldav.js`) works on any build, Worker included: the calendar has its own sign-in (localStorage `wr1t3r-nextcloud-calendar`, `{server, user, uid, password}`, or `{same: true}` to reuse the notebook's Nextcloud sign-in). When connected it comes before Google and the notebook calendar in `calendarDo`, and it's a reminders target like Google (`googleSide`).
+
+- **Reads** are a `PROPFIND` of `/remote.php/dav/calendars/<uid>/` (names, colors, write access, `oc:calendar-enabled` for which show by default; task-only lists are left out), then a `REPORT` calendar-query per calendar with `<expand>`, so repeats come back one per occurrence, in UTC, with a `RECURRENCE-ID`.
+- **Event ids** are the `.ics` file's name, plus `|<RECURRENCE-ID>` for one occurrence. Deleting an occurrence adds an `EXDATE` to the main event (and drops a changed copy of it), with `If-Match`.
+- **Writes** are `PUT` with `If-None-Match: *`. Times carry the device's `TZID` and a `VTIMEZONE` built from `Intl` (daylight saving as yearly rules), so repeats keep their wall-clock time. Timed events get a 10-minute `VALARM` unless the form says otherwise; reminders get one at the time. A reminder's file is named after its id, so a second device sending it gets 412, which counts as already sent. `MKCALENDAR` makes the "wr1t3r reminders" calendar.
+- **A 401** disconnects only the calendar, not the notebook.
+
+`test/caldav.test.js` runs against `test/fakecaldav.js`, which expands daily and weekly rules the way Sabre does.
+
 The Nextcloud-specific part is the `/remote.php/dav/files/<user>/` path; the rest is plain WebDAV. `test/nextcloud.test.js` runs against a fake server (`test/fakenextcloud.js`) that follows what a real Nextcloud 35 with WebAppPassword did in a browser test on 2026-10-28.
 
 ## License key (product build)

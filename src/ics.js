@@ -39,7 +39,7 @@ const pad = (n) => String(n).padStart(2, "0");
 const wall = (d) => `${dayKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 // What a moment's wall clock reads in a time zone, as if it were UTC.
-function zoneWall(ms, tz) {
+export function zoneWall(ms, tz) {
 	const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(ms)).map((p) => [p.type, p.value]));
 	return Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour % 24, +parts.minute, +parts.second);
 }
@@ -140,6 +140,9 @@ function finish(c) {
 		exdates: c.exdates,
 		rrule: c.rrule || "",
 		recurrenceId: c["RECURRENCE-ID"] ? readTime(c["RECURRENCE-ID"].value, c["RECURRENCE-ID"].params)?.local.slice(0, 10) || "" : "",
+		// As written, for a CalDAV server's instances (src/caldav.js).
+		recurrenceValue: c["RECURRENCE-ID"]?.value.trim() || "",
+		color: c.COLOR?.value.trim() || "",
 	};
 }
 

@@ -22,7 +22,7 @@ wr1t3r is a notebook app that runs in your browser at my.wr1t3r.app. I make it o
 - **A copy in your browser.** Each device keeps a copy of your notes in the browser's own storage so the app works offline. Signing out on that device clears it.
 - **A local folder, if you choose one** (Chrome and Edge). wr1t3r keeps your whole notebook as plain files in a folder you pick on your computer, in step both ways while the app is open. Those files are yours: signing out, or Stop in Settings, leaves them where they are, and only you can delete them. They go nowhere except into your Dropbox, Google Drive or Nextcloud notebook, like any note you write.
 - **Dropbox** access is limited to wr1t3r's own app folder (`Apps/wr1t3r`). You can remove it any time in your Dropbox settings.
-- **Nextcloud.** Your server's address, your username and the app password you made for wr1t3r are kept in this browser only, and deleted when you sign out. wr1t3r uses them to talk to your server directly. You can revoke the app password in Nextcloud's security settings any time.
+- **Nextcloud.** Your server's address, your username and the app password you made for wr1t3r are kept in this browser only, and deleted when you sign out. wr1t3r uses them to talk to your server directly. The same goes for Nextcloud Calendar, if you connect it in Settings: its address, username and app password stay in this browser, and your events go straight between it and your server. You can revoke an app password in Nextcloud's security settings any time.
 
 ## Google user data
 

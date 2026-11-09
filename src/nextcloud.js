@@ -89,13 +89,13 @@ const basic = (user, password) => "Basic " + btoa(String.fromCharCode(...new Tex
 // expressions rather than DOMParser so the same code runs under node --test.
 
 const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
-const unescapeXml = (s) =>
+export const unescapeXml = (s) =>
 	s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e) =>
 		e[0] === "#" ? String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : ENTITIES[e] ?? m,
 	);
-const elements = (name, s) => [...s.matchAll(new RegExp(`<(?:[\\w.-]+:)?${name}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w.-]+:)?${name}\\s*>`, "gi"))].map((m) => m[1]);
-const element = (name, s) => elements(name, s)[0];
-const text = (name, s) => {
+export const elements = (name, s) => [...s.matchAll(new RegExp(`<(?:[\\w.-]+:)?${name}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w.-]+:)?${name}\\s*>`, "gi"))].map((m) => m[1]);
+export const element = (name, s) => elements(name, s)[0];
+export const text = (name, s) => {
 	const v = element(name, s);
 	return v == null ? null : unescapeXml(v.trim());
 };
@@ -116,7 +116,7 @@ export function parseMultistatus(xml) {
 	});
 }
 
-const cleanEtag = (e) => String(e || "").trim().replace(/^W\//, "").replace(/^"|"$/g, "");
+export const cleanEtag = (e) => String(e || "").trim().replace(/^W\//, "").replace(/^"|"$/g, "");
 const versionOf = (etag, size, sha1) => `${etag}|${size}|${sha1 || ""}`;
 const etagOfVersion = (v) => String(v).split("|")[0];
 
@@ -143,7 +143,7 @@ async function pool(items, fn) {
 // syncing at once: Nextcloud slows down an address that keeps sending a bad
 // password. A fetch that throws (no CORS headers, wrong address, offline) is
 // marked blocked.
-function requester({ creds, get, wait }) {
+export function requester({ creds, get, wait = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
 	return async function call(method, url, { headers = {}, body, depth } = {}) {
 		const c = creds();
 		if (!c?.server || !c?.password) throw new AuthError("Not signed in to Nextcloud");
@@ -177,7 +177,7 @@ function requester({ creds, get, wait }) {
 	};
 }
 
-const fail = async (res, what) => {
+export const fail = async (res, what) => {
 	const t = await res.text().catch(() => "");
 	const msg = /<(?:[\w.-]+:)?message[^>]*>([\s\S]*?)</i.exec(t)?.[1]?.trim();
 	return Object.assign(new Error(`Nextcloud: ${what} failed (${msg ? unescapeXml(msg) : "HTTP " + res.status})`), { status: res.status });
@@ -362,19 +362,34 @@ export function nextcloudStorage({ creds = readCreds, get = (...a) => fetch(...a
 	};
 }
 
-// Signs in from the sign-in screen: finds the server, checks the app password,
-// learns the account's user ID (Nextcloud accepts an email to sign in, but
-// its file paths use the ID), makes the notebook folder, and keeps the
-// details on this device. Throws a NextcloudError saying what went wrong.
+// Signs in from the sign-in screen: finds the account (findAccount, below),
+// makes the notebook folder, and keeps the details on this device. Throws a
+// NextcloudError saying what went wrong.
 export async function connectNextcloud({ server, user, password, folder, get = (...a) => fetch(...a), pageProtocol = globalThis.location?.protocol, save = writeCreds } = {}) {
+	const c = { ...(await findAccount({ server, user, password, get, pageProtocol, folder: folderName(folder) })) };
+	try {
+		await nextcloudStorage({ creds: () => c, get }).check();
+	} catch (e) {
+		if (e instanceof NextcloudError || e instanceof AuthError) throw e;
+		throw new NextcloudError("folder", `Couldn't open or make the folder ${c.folder}: ${e.message}`);
+	}
+	save(c);
+	return c;
+}
+
+// Finds the server, checks the app password and learns the account's user ID
+// (Nextcloud accepts an email to sign in, but its DAV paths use the ID):
+// {server, user, uid, password}, plus anything in extra. Throws a
+// NextcloudError saying what went wrong. The calendar connects with this too.
+export async function findAccount({ server, user, password, get = (...a) => fetch(...a), pageProtocol = globalThis.location?.protocol, ...extra } = {}) {
 	const address = serverAddress(server);
 	if (!address) throw new NextcloudError("address", "Enter your Nextcloud's address, like cloud.example.com.");
 	if (pageProtocol === "https:" && address.startsWith("http://")) throw new NextcloudError("insecure", "Use your Nextcloud's https:// address. Browsers block an http:// server from a secure page.");
 	user = String(user || "").trim();
 	password = String(password || "").replace(/\s+/g, "");
 	if (!user || !password) throw new NextcloudError("password", "Enter your Nextcloud username and an app password.");
-	const c = { server: address, user, uid: "", password, folder: folderName(folder) };
-	const call = requester({ creds: () => c, get, wait: (ms) => new Promise((r) => setTimeout(r, ms)) });
+	const c = { server: address, user, uid: "", password, ...extra };
+	const call = requester({ creds: () => c, get });
 
 	let res;
 	try {
@@ -387,13 +402,5 @@ export async function connectNextcloud({ server, user, password, folder, get = (
 	const principal = text("href", element("current-user-principal", await res.text()) || "") || "";
 	const id = principal.replace(/\/+$/, "").split("/").pop();
 	try { c.uid = id ? decodeURIComponent(id) : user; } catch { c.uid = user; }
-
-	try {
-		await nextcloudStorage({ creds: () => c, get }).check();
-	} catch (e) {
-		if (e instanceof NextcloudError || e instanceof AuthError) throw e;
-		throw new NextcloudError("folder", `Couldn't open or make the folder ${c.folder}: ${e.message}`);
-	}
-	save(c);
 	return c;
 }

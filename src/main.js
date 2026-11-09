@@ -37,6 +37,7 @@ import { googleCalendar } from "./gcal.js";
 import { driveStorage, DRIVE_SCOPES } from "./gdrive.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
 import { nextcloudStorage, nextcloudSignedIn, nextcloudCreds, forgetNextcloud, connectNextcloud, serverAddress, DEFAULT_FOLDER } from "./nextcloud.js";
+import { nextcloudCalendar, connectCalendar, REMINDERS_CALENDAR } from "./caldav.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { isPublished, notPublishedWhy, siteOf } from "./published.js";
 import { hasNeocitiesKey } from "./neocitiespublish.js";
@@ -1411,13 +1412,16 @@ function renderFeatureSettings() {
 		}
 		pane.append(h2(label), seg, hint(detail + "."));
 	}
-	if (onDropbox && googleClientId()) {
+	// Nextcloud Calendar comes first when both are connected, so Google is only
+	// offered without it (or to disconnect).
+	if (onDropbox && googleClientId() && (!ncCal || pageGoogle)) {
 		const t = googleTokens();
 		const btn = (words, fn) => { const b = Object.assign(document.createElement("button"), { type: "button", textContent: words }); b.addEventListener("click", fn); return b; };
 		pane.append(h2("Google Calendar"), ...(pageGoogle
 			? [hint(`Connected${t?.email ? " as " + t.email : ""}. The agenda, month view and Timeline show your Google calendars, and new events go there.`), btn("Disconnect Google Calendar", disconnectGoogle)]
 			: [hint("Show your Google calendars in the agenda, and add events to them, instead of wr1t3r's own calendar. Events already in wr1t3r's calendar stay in its Calendar folder. Your calendar goes straight between this browser and Google."), btn("Connect Google Calendar", connectGoogleCalendar)]));
 	}
+	nextcloudCalendarSettings(pane, h2, hint);
 	pane.append(h2("Folders"), hint("wr1t3r's own folders, inside the notes' folder. Notes already there stay where they are."));
 	for (const f of FOLDER_SETTINGS) {
 		const input = document.createElement("input");
@@ -3492,7 +3496,7 @@ async function uploadReminders() {
 	}
 }
 
-// ---- reminders through Google Calendar (src/calreminders.js) -----------------
+// ---- reminders through Google or Nextcloud Calendar (src/calreminders.js) ----
 // With a calendar picked under Settings > Reminders, this device copies the
 // next two weeks of reminders into it as events with a popup, so the Calendar
 // app reminds you with wr1t3r closed. Per device, like the Google connection.
@@ -3502,9 +3506,9 @@ const MED_CAL_KEY = "wr1t3r-med-calendar";
 const REMIND_SENT_KEY = "wr1t3r-remind-sent"; // { eventId: { at, title, cal } }
 let remindSending = false;
 
-// Google Calendar itself (the page's own connection, or the Worker's), never
-// wr1t3r's notebook calendar: those events wouldn't remind anyone.
-const googleSide = () => pageGoogle || (!onDropbox && !calNotebook ? api : null);
+// Nextcloud or Google Calendar (the page's own connection, or the Worker's),
+// never wr1t3r's notebook calendar: those events wouldn't remind anyone.
+const googleSide = () => ncCal || pageGoogle || (!onDropbox && !calNotebook ? api : null);
 const remindTargets = () => ({ tasks: readRaw(REMIND_CAL_KEY) || null, doses: readRaw(MED_CAL_KEY) || "" });
 const calendarReminders = () => featureOn("reminders") && byCalendar([{}, { med: true }], remindTargets()).size > 0 && !!googleSide();
 
@@ -3544,13 +3548,14 @@ async function sendCalendarReminders() {
 		}
 	} catch (e) {
 		if (e instanceof GoogleSignInEnded) googleEnded();
-		else console.warn("Couldn't send reminders to Google Calendar", e);
+		else if (e instanceof AuthError && g === ncCal) nextcloudCalendarEnded();
+		else console.warn(`Couldn't send reminders to ${providerName()}`, e);
 	} finally {
 		remindSending = false;
 	}
 }
 
-// Whether a reminder's popup is Google Calendar's job (so the page doesn't
+// Whether a reminder's popup is the calendar's job (so the page doesn't
 // alert it a second time).
 const sentToCalendar = (r) => calendarReminders() && !!readJSON(REMIND_SENT_KEY, {})[eventIdFor(r)];
 
@@ -4624,12 +4629,17 @@ function fillCalendarSetting() {
 	sel.disabled = calState === "setup";
 }
 
-// Settings > Reminders: which Google calendar gets the reminders (Off unless
-// Google Calendar is connected).
+// Settings > Reminders: which calendar gets the reminders (Off unless Google
+// or Nextcloud Calendar is connected).
 function fillRemindCalendar() {
 	const sel = $("remCal"), id = readRaw(REMIND_CAL_KEY) || "";
 	const google = !!googleSide() && calState !== "setup";
 	for (const id of ["remCalHead", "remCalRow", "remCalHint", "medCalHead", "medCalRow", "medCalHint"]) $(id).hidden = !google;
+	if (google) {
+		$("remCalHead").textContent = `Reminders in ${providerName()}`;
+		$("medCalHead").textContent = `Medicine doses in ${providerName()}`;
+		$("remCalTip").textContent = ncCal ? `Tip: Settings > Features > Nextcloud Calendar can make a calendar called “${REMINDERS_CALENDAR}” for them, so the reminders keep to themselves.` : "Tip: make a calendar called “wr1t3r” in Google Calendar and pick it here, so the reminders keep to themselves.";
+	}
 	if (!google || document.activeElement === sel) return;
 	const list = (cal?.calendars || []).filter((c) => c.writable !== false);
 	sel.replaceChildren(new Option("Off", ""));
@@ -5399,6 +5409,7 @@ async function signOut(message) {
 	setToken("");
 	forgetDropbox();
 	forgetNextcloud();
+	writeJSON(NC_CAL_KEY, null); // the calendar's own Nextcloud sign-in too
 	if (onDrive) await forgetGoogle();
 	setStorageKind("worker");
 	await local.clear();
@@ -5794,13 +5805,13 @@ function setupSettings() {
 	$("remCal").addEventListener("change", async (e) => {
 		storeRaw(REMIND_CAL_KEY, e.target.value || null);
 		await sendCalendarReminders();
-		toast(e.target.value ? "Reminders for the next two weeks are going into that calendar; its app reminds you even with wr1t3r closed." : "Reminders stopped going to Google Calendar, and the ones still to come were taken out.", 8000);
+		toast(e.target.value ? "Reminders for the next two weeks are going into that calendar; its app reminds you even with wr1t3r closed." : `Reminders stopped going to ${providerName()}, and the ones still to come were taken out.`, 8000);
 	});
 	$("medCal").addEventListener("change", async (e) => {
 		storeRaw(MED_CAL_KEY, e.target.value || null);
 		await sendCalendarReminders();
 		const v = e.target.value;
-		toast(v === "off" ? "Medicine doses stopped going to Google Calendar, and the ones still to come were taken out." : v ? "Medicine doses for the next two weeks are going into that calendar, with a popup at each one." : "Medicine doses go to the reminders calendar again.", 8000);
+		toast(v === "off" ? `Medicine doses stopped going to ${providerName()}, and the ones still to come were taken out.` : v ? "Medicine doses for the next two weeks are going into that calendar, with a popup at each one." : "Medicine doses go to the reminders calendar again.", 8000);
 	});
 	$("smaller").addEventListener("click", () => setSize(fontSize - 1));
 	$("fontPick").addEventListener("change", (e) => setFont(e.target.value));
@@ -6191,7 +6202,15 @@ function setupFocusTools() {
 // connected Google Calendar itself (src/google.js, src/gcal.js).
 const pageGoogleOn = () => onDropbox && !!googleClientId() && googleHas(CALENDAR_SCOPES);
 let pageGoogle = pageGoogleOn() ? googleCalendar(googleClient()) : null;
-let calNotebook = onDropbox && !pageGoogle;
+// Nextcloud Calendar (src/caldav.js), connected under Settings > Features on
+// this device: its own sign-in, or {same: true} for the notebook's Nextcloud.
+// It comes before Google and the notebook's calendar.
+const NC_CAL_KEY = "wr1t3r-nextcloud-calendar";
+const ncCalCreds = () => { const c = readJSON(NC_CAL_KEY, null); return c?.same ? (onNextcloud ? nextcloudCreds() : null) : c; };
+const makeNcCal = () => (ncCalCreds()?.password ? nextcloudCalendar({ creds: ncCalCreds }) : null);
+let ncCal = makeNcCal();
+let calNotebook = onDropbox && !pageGoogle && !ncCal;
+const providerName = () => (ncCal ? "Nextcloud Calendar" : "Google Calendar");
 const calFolder = () => { const h = homeFile(); return h.slice(0, h.lastIndexOf("/") + 1) + CALENDAR_FOLDER; };
 const noteCal = notebookCalendar({
 	folder: calFolder,
@@ -6206,6 +6225,14 @@ const noteCal = notebookCalendar({
 	},
 });
 async function calendarDo(fn) {
+	if (ncCal) {
+		try { return await fn(ncCal); } catch (e) {
+			if (!(e instanceof AuthError)) throw e;
+			// Not the notebook's sign-in: only the calendar goes.
+			nextcloudCalendarEnded();
+			throw new Error("Nextcloud didn't accept the app password. Connect Nextcloud Calendar again in Settings > Features.");
+		}
+	}
 	if (pageGoogle) {
 		try { return await fn(pageGoogle); } catch (e) { if (e instanceof GoogleSignInEnded) googleEnded(); throw e; }
 	}
@@ -6237,6 +6264,101 @@ async function disconnectGoogle() {
 	writeJSON(FILTER_KEY, null);
 	renderFeatureSettings();
 	loadAgenda(true);
+}
+
+// Nextcloud turned down the calendar's app password (revoked or deleted).
+function nextcloudCalendarEnded() {
+	if (!ncCal) return;
+	writeJSON(NC_CAL_KEY, null);
+	resetCalendarSource();
+	toast("Nextcloud Calendar needs connecting again: Settings > Features.", 10000);
+}
+
+// After the calendar source changes: everything shown is fetched again.
+function resetCalendarSource() {
+	ncCal = makeNcCal();
+	calNotebook = onDropbox && !pageGoogle && !ncCal;
+	cal = null; monthData = null; pickData = null;
+	writeJSON(FILTER_KEY, null);
+	// Calendar ids from the other source mean nothing here.
+	storeRaw(REMIND_CAL_KEY, null);
+	if (readRaw(MED_CAL_KEY) !== "off") storeRaw(MED_CAL_KEY, null);
+	renderFeatureSettings();
+	loadAgenda(true);
+}
+
+async function disconnectNextcloudCalendar() {
+	if (!confirm("Disconnect Nextcloud Calendar on this device? Nothing in Nextcloud changes.")) return;
+	writeJSON(NC_CAL_KEY, null);
+	resetCalendarSource();
+}
+
+// Settings > Features > Nextcloud Calendar: connect (the notebook's own
+// Nextcloud in one tap, or any Nextcloud with an app password), make a
+// reminders calendar, or disconnect.
+function nextcloudCalendarSettings(pane, h2, hint) {
+	const btn = (words, fn) => { const b = Object.assign(document.createElement("button"), { type: "button", textContent: words }); b.addEventListener("click", fn); return b; };
+	pane.append(h2("Nextcloud Calendar"));
+	const c = ncCal && ncCalCreds();
+	if (c) {
+		const host = (() => { try { return new URL(c.server).host; } catch { return c.server; } })();
+		pane.append(hint(`Connected to ${host} as ${c.user}. The agenda, month view and Timeline show your Nextcloud calendars, and new events go there. A phone that syncs them (DAVx5 on Android, or iPhone's own Calendar) shows the events and their alerts.`));
+		const has = (cal?.calendars || []).some((x) => x.name === REMINDERS_CALENDAR);
+		if (!has) {
+			const make = btn(`Make a “${REMINDERS_CALENDAR}” calendar`, async () => {
+				make.disabled = true;
+				try {
+					const id = await calendarDo((k) => k.addCalendar(REMINDERS_CALENDAR));
+					storeRaw(REMIND_CAL_KEY, id);
+					await loadAgenda(true);
+					sendCalendarReminders();
+					toast(`Made “${REMINDERS_CALENDAR}”. Reminders for the next two weeks go there, with an alert at each; turn it on in your phone's calendar app.`, 10000);
+				} catch (e) {
+					make.disabled = false;
+					toast("Couldn't make it: " + e.message, 8000);
+				}
+				renderFeatureSettings();
+			});
+			pane.append(make, hint("A calendar of its own for reminders (timed tasks and medicine doses), picked under Settings > Reminders."));
+		}
+		pane.append(btn("Disconnect Nextcloud Calendar", disconnectNextcloudCalendar));
+		return;
+	}
+	if (onNextcloud) {
+		pane.append(hint("Show your Nextcloud calendars in the agenda, and add events to them, instead of wr1t3r's own calendar. It uses the Nextcloud you keep your notes on. Events already in wr1t3r's calendar stay in its Calendar folder."),
+			btn("Use Nextcloud Calendar", () => { writeJSON(NC_CAL_KEY, { same: true }); resetCalendarSource(); }));
+		return;
+	}
+	pane.append(hint(`Show your Nextcloud calendars in the agenda, add events to them, and send reminders there so your phone rings them, with your notes kept where they are. Needs an app password (Nextcloud: your picture › Personal settings › Security) and ${location.origin} added to the WebAppPassword app's allowed origins.`));
+	const field = (label, type, attrs = {}) => {
+		const input = Object.assign(document.createElement("input"), { type, spellcheck: false, autocapitalize: "off", ...attrs });
+		const lab = document.createElement("label");
+		lab.textContent = label;
+		lab.append(input);
+		const row = document.createElement("div");
+		row.className = "set-folder";
+		row.append(lab);
+		pane.append(row);
+		return input;
+	};
+	const server = field("Nextcloud address", "text", { placeholder: "cloud.example.com", inputMode: "url" });
+	const user = field("Username", "text", { autocomplete: "username" });
+	const password = field("App password", "password", { autocomplete: "current-password" });
+	const err = hint("");
+	err.setAttribute("role", "alert");
+	const go = btn("Connect Nextcloud Calendar", async () => {
+		err.textContent = "";
+		go.disabled = true;
+		try {
+			const creds = await connectCalendar({ server: server.value, user: user.value, password: password.value });
+			writeJSON(NC_CAL_KEY, creds);
+			resetCalendarSource();
+		} catch (e) {
+			go.disabled = false;
+			err.textContent = e.reason === "blocked" ? `Couldn't reach ${serverAddress(server.value) || "that address"}. Check the address, and that ${location.origin} is in the WebAppPassword app's allowed origins (Nextcloud: Administration settings › WebAppPassword).` : e.message;
+		}
+	});
+	pane.append(go, err);
 }
 
 // After a sync brings in event notes from another device.
@@ -6543,12 +6665,12 @@ function eventRow(e, now) {
 	return row;
 }
 
-// Deletes an event from Google Calendar (one occurrence of a repeating one),
+// Deletes an event from the calendar (one occurrence of a repeating one),
 // and its line from that day's planner Timeline when it was brought in there.
 async function deleteEvent(e, button) {
 	if (!navigator.onLine && !calNotebook) return toast("Deleting an event needs a connection.");
 	const when = agenda.timeLabel(e);
-	if (!confirm(`Delete “${e.title}” (${when})${calNotebook ? "" : " from Google Calendar"}?` + (e.repeats || /_\d{8}(T\d{6}Z)?$/.test(e.id) ? "\n\nIt repeats: only this occurrence is deleted." : ""))) return;
+	if (!confirm(`Delete “${e.title}” (${when})${calNotebook ? "" : " from " + providerName()}?` + (e.repeats || /_\d{8}(T\d{6}Z)?$/.test(e.id) ? "\n\nIt repeats: only this occurrence is deleted." : ""))) return;
 	button.disabled = true;
 	try {
 		await calendarDo((c) => c.deleteEvent(e.calendar, e.id));
@@ -6671,8 +6793,8 @@ function showAddEvent(on, day = null) {
 	$("evEnd").value = hm(new Date(start.getTime() + 3600000));
 	evPrevStart = $("evStart").value;
 	allDayFields();
-	$("evRepeatRow").hidden = !calNotebook;
-	$("addEvent").querySelector("[type=submit]").textContent = calNotebook ? "Add event" : "Add to Google Calendar";
+	$("evRepeatRow").hidden = !(calNotebook || ncCal);
+	$("addEvent").querySelector("[type=submit]").textContent = calNotebook ? "Add event" : "Add to " + providerName();
 	$("evTitle").focus();
 }
 
@@ -6709,9 +6831,9 @@ async function importIcs() {
 	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const plan = ics.planGoogle(events, timeZone);
 	const calendarId = $("evCalendar").value || "";
-	const calName = $("evCalendar").selectedOptions[0]?.textContent || "Google Calendar";
+	const calName = $("evCalendar").selectedOptions[0]?.textContent || providerName();
 	if (!plan.add.length) return toast(`Nothing to import: ${plural(plan.past, "event")} already over.`, 8000);
-	if (!confirm(`Add ${plural(plan.add.length, "event")} to ${calName}?` + (plan.past ? `\n\n${plural(plan.past, "event")} already over ${plan.past === 1 ? "is" : "are"} left out.` : "") + "\n\nEvents Google already has from this file are updated, not doubled.")) return;
+	if (!confirm(`Add ${plural(plan.add.length, "event")} to ${calName}?` + (plan.past ? `\n\n${plural(plan.past, "event")} already over ${plan.past === 1 ? "is" : "are"} left out.` : "") + (ncCal ? "\n\nEvents already there from this file are kept, not doubled." : "\n\nEvents Google already has from this file are updated, not doubled."))) return;
 	const note = toast(`Importing: 0 of ${plan.add.length}…`, 10 * 60000);
 	let imported = 0;
 	const failed = [];
@@ -6792,7 +6914,7 @@ async function addEvent(e) {
 		}, Intl.DateTimeFormat().resolvedOptions().timeZone);
 		const calendarId = $("evCalendar").value;
 		if (calendarId) { body.calendarId = calendarId; storeRaw("wr1t3rEventCal", calendarId); }
-		if (calNotebook && $("evRepeat").value) body.repeat = $("evRepeat").value;
+		if ((calNotebook || ncCal) && $("evRepeat").value) body.repeat = $("evRepeat").value;
 		await calendarDo((c) => c.addEvent(body));
 		const inked = inking;
 		showAddEvent(false);
@@ -6800,7 +6922,7 @@ async function addEvent(e) {
 		forgetCalendarEvents();
 		forgetWeekEvents();
 		const where = cal?.calendars?.find((c) => c.id === calendarId);
-		toast(calNotebook ? `Added “${body.title}”.` : `Added “${body.title}” to ${where && !where.primary ? agenda.calendarLabel(where) : "Google Calendar"}.`);
+		toast(calNotebook ? `Added “${body.title}”.` : `Added “${body.title}” to ${where && !where.primary ? agenda.calendarLabel(where) : providerName()}.`);
 		cal = cal && { ...cal, at: 0 };
 		monthData = null; pickData = null;
 		await loadAgenda();
@@ -6876,7 +6998,7 @@ function setupAgenda() {
 	// No Worker, no push: reminders come while wr1t3r is open.
 	if (onDropbox) {
 		$("remSeg").hidden = true;
-		$("remHint").textContent = "Tasks with a ⏰ time notify you while wr1t3r is open, in any tab. To be reminded with it closed, connect Google Calendar (Settings > Features) and pick a calendar here.";
+		$("remHint").textContent = "Tasks with a ⏰ time notify you while wr1t3r is open, in any tab. To be reminded with it closed, connect Nextcloud or Google Calendar (Settings > Features) and pick a calendar here.";
 	}
 }
 
