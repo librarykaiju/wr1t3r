@@ -3621,7 +3621,7 @@ async function backupNow() {
 		}
 		toast(`Copied ${total} files; the Worker carries on with the rest every minute.`, 10000);
 	} catch (e) {
-		toast(e.status === 404 ? "The Drive backup isn't set up on the Worker yet (see README, Google Drive backup)." : "Couldn't back up: " + e.message, 12000);
+		toast(e.status === 404 ? "The Drive backup isn't set up on the Worker yet (see docs/features.md, Google Drive backup)." : "Couldn't back up: " + e.message, 12000);
 	} finally {
 		note.close();
 	}
@@ -6419,7 +6419,7 @@ function renderAgenda() {
 		? `${new Date(next.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} ${next.title}` : "";
 	$("addEventBtn").hidden = calState === "setup";
 	const note = $("agendaNote");
-	if (calState === "setup") note.textContent = "Google Calendar isn't connected yet. The README's “Google Calendar” section has the steps.";
+	if (calState === "setup") note.textContent = "Google Calendar isn't connected yet. The “Google Calendar” section of docs/features.md has the steps.";
 	else if (calState === "offline") note.textContent = cal ? `Offline. Showing the agenda from ${new Date(cal.at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}.` : "Offline.";
 	else if (calState === "error") note.textContent = "Couldn't load the agenda: " + calError;
 	else note.textContent = "";

@@ -2,7 +2,7 @@ name = "wr1t3r"
 main = "worker/index.js"
 compatibility_date = "2026-09-01"
 
-# A markdown editor for the Obsidian vault at https://wr1t3r.brandonj.ink (add
+# A markdown notebook at https://wr1t3r.brandonj.ink (add
 # that as a Custom Domain on the Worker). Everything under /api/ needs
 # WR1T3R_TOKEN; the page itself holds no data.
 
@@ -14,7 +14,7 @@ binding = "ASSETS"
 
 [vars]
 BACKEND = "r2"
-# The bucket mirrors the whole Obsidian vault (content/ and _includes/snippets/).
+# The bucket holds the notes (content/ and _includes/snippets/).
 VAULT_PREFIX = ""
 # Site templates, and the site's not-found page; wr1t3r never lists, reads or
 # writes them.
@@ -24,9 +24,8 @@ EXCLUDE = "_includes/,content/404.md"
 # below, which needs the Drive scope.
 DRIVE_BACKUP = "wr1t3r-vault-backup"
 
-# The bucket Remotely Save syncs Obsidian with. wr1t3r reads and writes it
-# directly, so an edit reaches every device on its next Remotely Save sync,
-# and brandonj.ink builds from it (librarykaiju/w3bz1n3).
+# The notes bucket. wr1t3r reads and writes it directly, and brandonj.ink
+# builds from it (librarykaiju/w3bz1n3).
 [[r2_buckets]]
 binding = "VAULT"
 bucket_name = "w3bz1n3-vault"
@@ -41,8 +40,8 @@ binding = "AI"
 #                    device and sends it as a Bearer token
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
 #                 -- optional, for the agenda and the Drive backup;
-#                    `npm run google-auth` sets all three (see README,
-#                    "Google Calendar")
+#                    `npm run google-auth` sets all three (see
+#                    docs/features.md, "Google Calendar")
 #
 # To use a GitHub repo instead of R2 (for example in a fork), set
 #   BACKEND = "github"
