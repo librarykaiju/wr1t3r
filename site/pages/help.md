@@ -87,7 +87,7 @@ That's it. Some things to know:
 
 ## Your Nextcloud calendars in wr1t3r
 
-wr1t3r's agenda, month view and day planner can show your Nextcloud calendars instead of wr1t3r's own, and new events go there. Your notes can stay wherever they are: the calendar connects on its own.
+wr1t3r's agenda, month view and day planner can show your Nextcloud calendars next to your Google calendars (or wr1t3r's own), and the add-event form can put events in any of them. Your notes can stay wherever they are: the calendar connects on its own.
 
 1.  **Do step 1 of [Keeping your notes on your own Nextcloud](#nextcloud)** if you haven't: the WebAppPassword app, with wr1t3r's address in its origins. The same setting covers calendars.
 2.  **Connect.** In wr1t3r, open _Settings › Features › Nextcloud Calendar_. If your notes are on Nextcloud, click _Use Nextcloud Calendar_. Otherwise enter your Nextcloud's address, your username and an app password (step 2 there; a separate one called `wr1t3r calendar` makes it easy to revoke on its own), and click _Connect Nextcloud Calendar_.

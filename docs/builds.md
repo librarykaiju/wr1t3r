@@ -26,7 +26,7 @@ Every build shows **Use Nextcloud** on the sign-in screen (`src/nextcloud.js`). 
 
 ### Nextcloud Calendar
 
-Settings > Features > **Nextcloud Calendar** (`src/caldav.js`) works on any build, Worker included: the calendar has its own sign-in (localStorage `wr1t3r-nextcloud-calendar`, `{server, user, uid, password}`, or `{same: true}` to reuse the notebook's Nextcloud sign-in). When connected it comes before Google and the notebook calendar in `calendarDo`, and it's a reminders target like Google (`googleSide`).
+Settings > Features > **Nextcloud Calendar** (`src/caldav.js`) works on any build, Worker included: the calendar has its own sign-in (localStorage `wr1t3r-nextcloud-calendar`, `{server, user, uid, password}`, or `{same: true}` to reuse the notebook's Nextcloud sign-in). When connected, its calendars show next to Google's (or the notebook's): `src/calmerge.js` puts both sources behind the same calls, prefixes Nextcloud's calendar ids with `nc:`, and sends each add, delete and import to the side its calendar id belongs to. One side failing still shows the other. Nextcloud's main calendar is the default for new events only when the other side is the notebook's calendar. It's a reminders target like Google (`googleSide`).
 
 - **Reads** are a `PROPFIND` of `/remote.php/dav/calendars/<uid>/` (names, colors, write access, `oc:calendar-enabled` for which show by default; task-only lists are left out), then a `REPORT` calendar-query per calendar with `<expand>`, so repeats come back one per occurrence, in UTC, with a `RECURRENCE-ID`.
 - **Event ids** are the `.ics` file's name, plus `|<RECURRENCE-ID>` for one occurrence. Deleting an occurrence adds an `EXDATE` to the main event (and drops a changed copy of it), with `If-Match`.
