@@ -1,4 +1,4 @@
-// What only Brandon's own build has (`npm run deploy`, no .env file). The
+// What only the personal build has (`npm run deploy`, no .env file). The
 // product and self-host builds set VITE_DROPBOX_ONLY, which Vite writes in
 // as a constant, so the bundler drops these imports from them entirely.
 import w3bz1n3Css from "./w3bz1n3.css?inline";

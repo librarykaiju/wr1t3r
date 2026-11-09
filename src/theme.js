@@ -6,7 +6,7 @@
 
 import { PRODUCT } from "./build.js";
 
-// w3bz1n3 is Brandon's own (src/w3bz1n3.css), in his build only: the product
+// w3bz1n3 is the personal build's own theme (src/w3bz1n3.css), in that build only: the product
 // and self-host builds don't list it, so a saved w3bz1n3 opens there as Default.
 export const FAMILIES = ["default", "gruvbox", "dracula", "rosepine", "tokyonight", "catppuccin", "kanagawa", "everforest", "nord", "monokai", "synthwave", "bubblegum", "shire", ...(PRODUCT ? [] : ["w3bz1n3"]), "mixtape"];
 

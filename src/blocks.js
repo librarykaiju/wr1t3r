@@ -15,9 +15,8 @@ import { snippet } from "@codemirror/autocomplete";
 import { openPalette } from "./palette.js";
 
 // Obsidian's callout types and aliases, grouped by the color Obsidian gives them,
-// plus the website's own two (w3bz1n3's markdown-it-callouts.js and
-// css/index.css): scene for fiction excerpts, further-reading for a post's
-// related links, in the site's colors.
+// plus two extras: scene for fiction excerpts, further-reading for a post's
+// related links.
 const CALLOUT_GROUPS = {
 	violet: "scene",
 	sapphire: "further-reading furtherreading",

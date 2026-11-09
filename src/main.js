@@ -138,7 +138,7 @@ const notes = new NoteMap();
 if (dropboxAppKey()) registerStorage("dropbox", () => dropboxStorage());
 if (googleClientId()) registerStorage("gdrive", () => driveStorage({ call: googleClient() }));
 const DROPBOX_ONLY = !!import.meta.env.VITE_DROPBOX_ONLY;
-// Brandon's own theme (src/personal.js): its colors and its place in the
+// The personal build's own theme (src/personal.js): its colors and its place in the
 // theme menu, before Mixtape. Neither exists in the product or self-host builds.
 if (personalCss) {
 	document.head.append(Object.assign(document.createElement("style"), { textContent: personalCss }));
@@ -2095,7 +2095,7 @@ const plannerHost = {
 		scheduleSync(0);
 		return Promise.race([done, new Promise((res) => setTimeout(() => res(false), ms))]);
 	},
-	// This device's name for the doses it logs ("by Brandon"), or null.
+	// This device's name for the doses it logs ("by Sam"), or null.
 	myName: () => readRaw("wr1t3rMyName") || null,
 	setMyName: (name) => storeRaw("wr1t3rMyName", String(name).replace(/[|\n]/g, " ").trim() || null),
 	// A picture embed in the note at fromPath -> its vault path, or null.

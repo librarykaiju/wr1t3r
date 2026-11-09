@@ -1,5 +1,5 @@
 // A recipe's per-serving nutrition, worked out the way the vault's Recipe
-// template does it (w3bz1n3 _templates/Recipe Template.md), so wr1t3r can
+// template does it (_templates/Recipe Template.md), so wr1t3r can
 // sync it into the Nutrition Database itself: same ingredients (the list
 // items under "## Ingredients", as Dataview's file.lists has them), same food
 // matching, same rounding, and the same row, replaced in place when the

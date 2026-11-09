@@ -123,7 +123,7 @@ test("doses say who gave them, and a second dose is caught", async () => {
 	assert.equal(line, "08:12 | Lisinopril | 10 mg | for 08:00 | by Sam");
 	assert.deepEqual(medEntry(line), { time: "08:12", name: "Lisinopril", dose: "10 mg", for: "08:00", by: "Sam" });
 	assert.equal(medTakenLine({ name: "Lisinopril", dose: "10 mg" }, "08:00", at), "08:12 | Lisinopril | 10 mg | for 08:00");
-	const log = [medEntry(line), medEntry("14:40 | Ibuprofen | 200 mg | by Brandon")];
+	const log = [medEntry(line), medEntry("14:40 | Ibuprofen | 200 mg | by Sam")];
 	assert.equal(alreadyGiven(log, { name: "lisinopril", forTime: "08:00" }).by, "Sam");
 	assert.equal(alreadyGiven(log, { name: "Lisinopril", forTime: "20:00" }), null);
 	assert.equal(alreadyGiven(log, { name: "Ibuprofen", now: new Date(2026, 9, 13, 14, 55) }).time, "14:40");
@@ -194,12 +194,12 @@ test("medEvents: each dose as a quarter-hour event, given ones ticked", () => {
 	const meds = parseMeds("- Lisinopril | 10 mg | 08:00, 20:00\n- Ibuprofen | 200 mg | as needed\n- Amoxicillin | 500 mg | 12:00 | until 2026-10-07");
 	const c = medsCalendar("Mom", 1);
 	const from = new Date(2026, 9, 7, 9, 0), to = new Date(2026, 9, 9);
-	const ev = medEvents(meds, c, { from, to, takenOn: (day) => (day === "2026-10-07" ? [medEntry("12:05 | Amoxicillin | 500 mg | for 12:00 | by Brandon")] : []) });
+	const ev = medEvents(meds, c, { from, to, takenOn: (day) => (day === "2026-10-07" ? [medEntry("12:05 | Amoxicillin | 500 mg | for 12:00 | by Sam")] : []) });
 	// 08:00 on the 7th is before `from`; Amoxicillin stops after the 7th.
 	assert.deepEqual(ev.map((e) => [new Date(e.start).getDate(), new Date(e.start).getHours(), e.title]), [
 		[7, 12, "✓ Mom: Amoxicillin 500 mg"], [7, 20, "💊 Mom: Lisinopril 10 mg"], [8, 8, "💊 Mom: Lisinopril 10 mg"], [8, 20, "💊 Mom: Lisinopril 10 mg"],
 	]);
-	assert.equal(ev[0].location, "given 12:05 by Brandon");
+	assert.equal(ev[0].location, "given 12:05 by Sam");
 	assert.equal(ev[0].calendar, c.id);
 	assert.equal(ev[0].color, c.color);
 	assert.deepEqual(ev[0].alerts, []);
