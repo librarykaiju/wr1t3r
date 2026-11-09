@@ -7,6 +7,8 @@ import { memoryLocal } from "./fakes.js";
 import worker from "../worker/index.js";
 import { dropboxStorage } from "../src/dropbox.js";
 import { fakeDropbox } from "./fakedropbox.js";
+import { nextcloudStorage } from "../src/nextcloud.js";
+import { fakeNextcloud } from "./fakenextcloud.js";
 
 crypto.subtle.timingSafeEqual ??= (a, b) => Buffer.from(a).equals(Buffer.from(b));
 
@@ -50,7 +52,14 @@ function viaDropbox() {
 	return dropboxStorage({ appKey: "k", get: fetch, tokens: { load: () => t, save: (x) => { t = x; } } });
 }
 
-const kinds = { memory: () => memoryStorage(), worker: viaWorker, dropbox: viaDropbox };
+// The page's Nextcloud storage, talking to a fake Nextcloud over WebDAV.
+function viaNextcloud() {
+	const nc = fakeNextcloud();
+	const creds = { server: nc.base, user: nc.login, uid: nc.uid, password: nc.state.password, folder: "wr1t3r" };
+	return nextcloudStorage({ creds: () => creds, get: nc.fetch, wait: async () => {} });
+}
+
+const kinds = { memory: () => memoryStorage(), worker: viaWorker, dropbox: viaDropbox, nextcloud: viaNextcloud };
 const png = () => new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" });
 
 for (const [kind, make] of Object.entries(kinds)) {

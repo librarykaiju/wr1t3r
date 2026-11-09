@@ -13,6 +13,19 @@ A build with a Dropbox app key shows **Use Dropbox** on the sign-in screen. Note
 
 The calendar switches to the built-in one (below), task reminders show while wr1t3r is open (any tab) instead of being pushed, and picture search, grammar, word lookup, the food table and media lookups run on the device. What still needs the Worker (transcripts, voice memos, the Drive backup and clipping from an address) isn't offered on a Dropbox build; the clip bookmarklet works there. A new Dropbox app is in development status, which allows 500 linked accounts until Dropbox approves it for production.
 
+## Nextcloud instead of the Worker
+
+Every build shows **Use Nextcloud** on the sign-in screen (`src/nextcloud.js`). The person enters their Nextcloud's address, their username and an app password (Nextcloud: Personal settings › Security › Create new app password), plus a folder for the notebook (`wr1t3r` by default). The page talks WebDAV to their server directly; nothing goes through a server of ours. Details are kept in localStorage (`wr1t3r-nextcloud`) and deleted on sign-out; the person can revoke the app password in Nextcloud at any time. Everything said above about Dropbox builds without the Worker applies here too.
+
+- **The server has to allow the page.** Nextcloud sends no CORS headers by default, so the server's admin installs the [WebAppPassword](https://apps.nextcloud.com/apps/webapppassword) app and adds the page's origin (`https://my.wr1t3r.app`) under its WebDAV/CalDAV origins, or adds CORS headers in their web server. When a request can't be read, the sign-in screen shows those steps. Nextcloud's own sign-in flow (Login Flow v2) is blocked from browsers, and WebAppPassword's pop-up passwords expire after a day, hence the pasted app password.
+- **Versions** are `etag|size|sha1`. A Nextcloud ETag only changes once a second has passed since the last write, so every write sends `OC-Checksum: SHA1:<hash>`, which Nextcloud stores and lists. A write by another app clears or replaces it, so a change in the same second still shows up.
+- **Idle syncs** ask only for the notebook folder's ETag, which changes whenever anything inside it does; the full listing (one `PROPFIND` with `Depth: infinity`, or folder by folder where the server refuses that) runs when it moves, and at least every 10 minutes.
+- **Writes** are conditional (`If-Match`, or `If-None-Match: *` to create), so the keep-both conflict rules in `src/sync.js` apply unchanged. Missing folders are made with `MKCOL`. Deletes go to Nextcloud's trash bin.
+- **A 401** stops syncing at once and signs out, because Nextcloud's brute-force protection slows down an address that keeps sending a bad password.
+- The page's `connect-src` (`public/_headers`) allows any `https:` address, since the server could be anywhere. An `http://` server is refused from an `https://` page.
+
+The Nextcloud-specific part is the `/remote.php/dav/files/<user>/` path; the rest is plain WebDAV. `test/nextcloud.test.js` runs against a fake server (`test/fakenextcloud.js`) that follows what a real Nextcloud 35 with WebAppPassword did in a browser test on 2026-10-28.
+
 ## License key (product build)
 
 A build with `VITE_POLAR_ORG_ID` set asks for a [Polar](https://polar.sh) license key. Without it (the personal build) nothing here applies and there's no License tab.

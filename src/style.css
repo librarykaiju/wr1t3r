@@ -308,6 +308,15 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 #tokenLogin { display: grid; gap: 10px; }
 #login.dropbox-only :is(#dropboxStart, #driveStart) { display: block; width: 100%; margin-top: 12px; padding: 8px; }
 #login #driveLogin { margin-top: 14px; font-size: 14px; }
+#login.dropbox-only #ncStart { display: block; width: 100%; margin-top: 12px; padding: 8px; }
+#login #ncLogin { margin-top: 14px; font-size: 14px; }
+#ncForm { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+#ncForm label { display: grid; gap: 4px; font-size: 14px; }
+#ncForm .hint { font-size: 13px; }
+#ncForm .nc-help { font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel); }
+#ncForm .nc-help p, #ncForm .nc-help li { color: var(--fg); }
+#ncForm .nc-help ol { margin: 8px 0; padding-left: 20px; display: grid; gap: 4px; }
+#ncForm .nc-help code { overflow-wrap: anywhere; }
 
 #app { display: flex; height: 100%; }
 #sidebar {

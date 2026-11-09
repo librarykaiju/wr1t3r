@@ -16,6 +16,7 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 
 - [Setting up wr1t3r](#setup)
 - [Getting back in, and your devices](#devices)
+- [Keeping your notes on your own Nextcloud](#nextcloud)
 - [Publishing your notes as a website](#publishing)
 - [Publishing straight to Neocities](#neocities-direct)
 - [Putting the site on Neocities by hand](#neocities)
@@ -57,6 +58,29 @@ wr1t3r has no account or password of its own. You sign in with Dropbox or Google
 - **New device, or a browser that was cleared?** Once you're signed in, the key window fills in your key from _\_wr1t3r/License.md_, a note wr1t3r keeps beside your Home note. Keep that note private, like the key itself.
 - **Key on too many devices?** A key covers 5. Settings > License lists every device it's on, with a _Free_ button for each, so you can free a lost or wiped one from any other device. The same list shows in the key window when it's full. If one isn't listed, email [hello@wr1t3r.app](mailto:hello@wr1t3r.app).
 - **Lost the key?** It's on your Polar purchases page, linked from your receipt email. Polar signs you in with a code sent to that email address.
+
+--- nextcloud
+
+## Keeping your notes on your own Nextcloud
+
+If you run Nextcloud, wr1t3r can keep your notes there instead of Dropbox or Google Drive. They go straight between your browser and your server.
+
+1.  **Let wr1t3r talk to your server.** This is a one-time setting, made by whoever is the admin of your Nextcloud (on your own server, that's you). Browsers only let a page talk to another server that says yes, and Nextcloud doesn't by default.
+    - In Nextcloud, open _Apps_, search for **WebAppPassword**, and install it.
+    - Open _Administration settings › WebAppPassword_. Under the WebDAV/CalDAV origins, add `https://my.wr1t3r.app` and save.
+    - If your hosting provider doesn't let you install apps, your admin can add CORS headers for `https://my.wr1t3r.app` in the web server instead (nginx, Apache or Caddy), allowing the methods `GET, PUT, DELETE, PROPFIND, MKCOL, OPTIONS` and the headers `Authorization, Depth, Content-Type, If-Match, If-None-Match, OC-Checksum, X-Requested-With`, and exposing `ETag`.
+
+2.  **Make an app password.** In Nextcloud, click your picture (top right), then _Personal settings › Security_. Under _Devices & sessions_, type `wr1t3r` and click _Create new app password_. Copy the password it shows. It works even with two-factor sign-in turned on, and you can revoke it there any time.
+
+3.  **Connect.** On wr1t3r's sign-in screen, click _Use my Nextcloud_. Enter your Nextcloud's address (the one you open it at), your username, the app password, and a folder for your notes. wr1t3r makes the folder if it isn't there.
+
+That's it. Some things to know:
+
+- **Files from Nextcloud's own apps show up in wr1t3r.** Put Markdown files in the folder from the Nextcloud desktop or phone app, or the web page, and they appear on the next sync. Nextcloud Text opens the same notes, so you can edit them from any browser where you're signed in to Nextcloud.
+- **Earlier versions are on your server.** Nextcloud's Versions keep older copies of each note, and deleted notes go to Nextcloud's trash bin.
+- **"Your Nextcloud needs one setting"** means wr1t3r couldn't get an answer it's allowed to read. Check the address, then step 1. If you just upgraded Nextcloud to a new major version, WebAppPassword can take a few weeks to catch up; until it does, wr1t3r can't connect.
+- **Big pictures failing to upload?** A server behind Cloudflare Tunnel, or with an upload limit in its web server, can refuse large files. Raise the limit, or use smaller pictures.
+- **Signed out with a message about the app password?** It was revoked or deleted in Nextcloud. Make a new one (step 2) and connect again. Your notes are all still on your server.
 
 --- publishing
 

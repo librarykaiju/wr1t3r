@@ -36,6 +36,7 @@ import { googleClientId, googleTokens, googleHas, beginGoogleSignIn, finishGoogl
 import { googleCalendar } from "./gcal.js";
 import { driveStorage, DRIVE_SCOPES } from "./gdrive.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
+import { nextcloudStorage, nextcloudSignedIn, nextcloudCreds, forgetNextcloud, connectNextcloud, serverAddress, DEFAULT_FOLDER } from "./nextcloud.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
 import { isPublished, notPublishedWhy, siteOf } from "./published.js";
 import { hasNeocitiesKey } from "./neocitiespublish.js";
@@ -137,6 +138,7 @@ const notes = new NoteMap();
 // Where the notebook lives (src/storage.js); the Worker unless this device picked another.
 if (dropboxAppKey()) registerStorage("dropbox", () => dropboxStorage());
 if (googleClientId()) registerStorage("gdrive", () => driveStorage({ call: googleClient() }));
+registerStorage("nextcloud", () => nextcloudStorage());
 const DROPBOX_ONLY = !!import.meta.env.VITE_DROPBOX_ONLY;
 // Brandon's own theme (src/personal.js): its colors and its place in the
 // theme menu, before Mixtape. Neither exists in the product or self-host builds.
@@ -147,11 +149,13 @@ if (personalCss) {
 // A self-hosted copy (VITE_SELF_HOST) has its own Dropbox app, whose folder
 // is named after that app rather than wr1t3r.
 const DROPBOX_FOLDER = import.meta.env.VITE_SELF_HOST ? "your Dropbox app's folder under Apps" : "Apps › wr1t3r";
-// onDropbox means no Worker: the notes are in Dropbox, or (onDrive) Google Drive.
+// onDropbox means no Worker: the notes are in Dropbox, or (onDrive) Google
+// Drive, or (onNextcloud) the person's own Nextcloud.
 const onDrive = storageKind() === "gdrive";
-const onDropbox = storageKind() === "dropbox" || onDrive;
+const onNextcloud = storageKind() === "nextcloud";
+const onDropbox = storageKind() === "dropbox" || onDrive || onNextcloud;
 const remote = openStorage();
-const SIGNED_OUT = onDrive ? "Google ended wr1t3r's sign-in. Sign in again." : onDropbox ? "Dropbox ended wr1t3r's sign-in. Sign in again." : "That token no longer works.";
+const SIGNED_OUT = onNextcloud ? "Your Nextcloud didn't accept wr1t3r's app password. If you revoked it, make a new one and sign in again." : onDrive ? "Google ended wr1t3r's sign-in. Sign in again." : onDropbox ? "Dropbox ended wr1t3r's sign-in. Sign in again." : "That token no longer works.";
 let editor;
 
 // ---- storage: one write chain so saves land in order ----------------------
@@ -5394,6 +5398,7 @@ async function signOut(message) {
 	if (pending() && !confirm(`${pending()} change(s) haven't reached the vault yet and will be lost. Sign out anyway?`)) return;
 	setToken("");
 	forgetDropbox();
+	forgetNextcloud();
 	if (onDrive) await forgetGoogle();
 	setStorageKind("worker");
 	await local.clear();
@@ -5597,7 +5602,7 @@ function showSettingsTab(tab, onPhoneList = false) {
 	if (tab === "hotkeys") renderHotkeyTab();
 	if (tab === "sync") {
 		$("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
-		$("setStorage").textContent = onDrive ? "Notes are kept in your Google Drive, in the wr1t3r folder. wr1t3r only sees files it put there itself, so add notes and pictures with Upload." : onDropbox ? `Notes are kept in your Dropbox, in ${DROPBOX_FOLDER}.` : "";
+		$("setStorage").textContent = onNextcloud ? nextcloudPlace() : onDrive ? "Notes are kept in your Google Drive, in the wr1t3r folder. wr1t3r only sees files it put there itself, so add notes and pictures with Upload." : onDropbox ? `Notes are kept in your Dropbox, in ${DROPBOX_FOLDER}.` : "";
 	}
 	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
 	if (tab === "focus") markSeg("focusSeg", $("app").classList.contains("focus-mode"));
@@ -6900,6 +6905,7 @@ function showLogin(message = "") {
 			};
 		}
 	} else $("token").focus();
+	setupNextcloudLogin();
 	$("dropboxStart").onclick = () => {
 		setStorageKind("dropbox");
 		beginDropboxSignIn({ redirectUri: location.origin + location.pathname }).catch((err) => {
@@ -6919,6 +6925,57 @@ function showLogin(message = "") {
 			$("login-error").textContent = err instanceof AuthError ? "That token didn't work." : "Couldn't reach wr1t3r: " + err.message;
 		}
 	};
+}
+
+// Settings > Sync and files, for a notebook on Nextcloud.
+function nextcloudPlace() {
+	const c = nextcloudCreds() || {};
+	return `Notes are kept on your Nextcloud at ${c.server}, in the ${c.folder || DEFAULT_FOLDER} folder. Files you add there from Nextcloud's own apps show up here on the next sync, and Nextcloud keeps earlier versions of every note.`;
+}
+
+// Signing in to a notebook on the person's own Nextcloud: address, username
+// and an app password, checked before anything is kept (src/nextcloud.js).
+function setupNextcloudLogin() {
+	$("ncLogin").hidden = false;
+	const open = () => {
+		$("ncForm").hidden = false;
+		$("ncLogin").hidden = true;
+		if ($("token")) $("token").required = false; // Enter here mustn't ask for a Worker token
+		$("ncServer").focus();
+	};
+	$("ncStart").onclick = open;
+	const passLink = () => {
+		const s = serverAddress($("ncServer").value);
+		$("ncPassLink").hidden = !s;
+		if (s) $("ncPassLink").href = s + "/index.php/settings/user/security";
+	};
+	$("ncServer").oninput = passLink;
+	$("ncOrigin").textContent = location.origin;
+	const connect = async () => {
+		$("login-error").textContent = "";
+		$("ncHelp").hidden = true;
+		$("ncConnect").disabled = true;
+		$("ncConnect").textContent = "Connecting…";
+		try {
+			await connectNextcloud({ server: $("ncServer").value, user: $("ncUser").value, password: $("ncPass").value, folder: $("ncFolder").value });
+			setStorageKind("nextcloud");
+			// A fresh page, so storage and everything that depends on it is Nextcloud's.
+			location.replace(location.pathname);
+		} catch (err) {
+			$("ncConnect").disabled = false;
+			$("ncConnect").textContent = "Connect";
+			if (err.reason === "blocked") {
+				$("ncHelpServer").textContent = serverAddress($("ncServer").value);
+				$("ncHelp").hidden = false;
+				$("ncHelp").scrollIntoView({ block: "nearest" });
+			} else $("login-error").textContent = err.message;
+		}
+	};
+	$("ncConnect").onclick = connect;
+	$("ncForm").addEventListener("keydown", (e) => {
+		if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); connect(); }
+	});
+	if (DROPBOX_ONLY) $("ncStart").textContent = "Use my Nextcloud";
 }
 
 let refreshKeyboardBar = null;
@@ -7388,7 +7445,7 @@ if (isGoogleReturn(location.href)) {
 			sessionStorage.setItem("wr1t3r-msg", err.message);
 			location.replace(location.pathname);
 		});
-} else if (onDrive ? googleHas(DRIVE_SCOPES) : onDropbox ? dropboxSignedIn() : token()) start();
+} else if (onNextcloud ? nextcloudSignedIn() : onDrive ? googleHas(DRIVE_SCOPES) : onDropbox ? dropboxSignedIn() : token()) start();
 else {
 	const msg = sessionStorage.getItem("wr1t3r-msg") || "";
 	sessionStorage.removeItem("wr1t3r-msg");
