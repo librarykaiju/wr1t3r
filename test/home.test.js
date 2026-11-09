@@ -170,3 +170,19 @@ test("a tile's size is 1x1, 2x1 or 2x2, and writes back with the pin", () => {
 	assert.match(text, /size: "2x2"/);
 	assert.equal(pinSize(readPins(text)[0]), "2x2");
 });
+
+test("daily-note pins sit beside Home's pins in their own daily: list", () => {
+	const text = ["---", "pins:", '  - link: "[[Reading log]]"', "---", "Body.", ""].join("\n");
+	assert.deepEqual(readPins(text, "daily"), []);
+	const one = writePins(text, [{ link: "[[Taxes 2026]]", color: 2 }], "daily");
+	assert.deepEqual(readPins(one, "daily"), [{ link: "[[Taxes 2026]]", color: 2 }]);
+	assert.deepEqual(readPins(one), [{ link: "[[Reading log]]" }]);
+	const two = writePins(one, [{ link: "[[Reading log]]" }, { link: "folder:content/x" }]);
+	assert.deepEqual(readPins(two, "daily"), [{ link: "[[Taxes 2026]]", color: 2 }]);
+	assert.deepEqual(readPins(two).length, 2);
+	const none = writePins(two, [], "daily");
+	assert.deepEqual(readPins(none, "daily"), []);
+	assert.deepEqual(readPins(none).length, 2);
+	assert.match(none, /\n---\nBody\.\n$/);
+	assert.deepEqual(readPins(writePins("", [{ link: "[[A]]" }], "daily"), "daily"), [{ link: "[[A]]" }]);
+});
