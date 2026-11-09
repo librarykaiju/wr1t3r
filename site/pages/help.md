@@ -17,6 +17,7 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 - [Setting up wr1t3r](#setup)
 - [Getting back in, and your devices](#devices)
 - [Keeping your notes on your own Nextcloud](#nextcloud)
+- [Your Nextcloud calendars in wr1t3r](#nextcloud-calendar)
 - [Publishing your notes as a website](#publishing)
 - [Publishing straight to Neocities](#neocities-direct)
 - [Putting the site on Neocities by hand](#neocities)
@@ -68,7 +69,7 @@ If you run Nextcloud, wr1t3r can keep your notes there instead of Dropbox or Goo
 1.  **Let wr1t3r talk to your server.** This is a one-time setting, made by whoever is the admin of your Nextcloud (on your own server, that's you). Browsers only let a page talk to another server that says yes, and Nextcloud doesn't by default.
     - In Nextcloud, open _Apps_, search for **WebAppPassword**, and install it.
     - Open _Administration settings › WebAppPassword_. Under the WebDAV/CalDAV origins, add `https://my.wr1t3r.app` and save.
-    - If your hosting provider doesn't let you install apps, your admin can add CORS headers for `https://my.wr1t3r.app` in the web server instead (nginx, Apache or Caddy), allowing the methods `GET, PUT, DELETE, PROPFIND, MKCOL, OPTIONS` and the headers `Authorization, Depth, Content-Type, If-Match, If-None-Match, OC-Checksum, X-Requested-With`, and exposing `ETag`.
+    - If your hosting provider doesn't let you install apps, your admin can add CORS headers for `https://my.wr1t3r.app` in the web server instead (nginx, Apache or Caddy), allowing the methods `GET, PUT, DELETE, PROPFIND, MKCOL, REPORT, MKCALENDAR, OPTIONS` and the headers `Authorization, Depth, Content-Type, If-Match, If-None-Match, OC-Checksum, X-Requested-With`, and exposing `ETag`.
 
 2.  **Make an app password.** In Nextcloud, click your picture (top right), then _Personal settings › Security_. Under _Devices & sessions_, type `wr1t3r` and click _Create new app password_. Copy the password it shows. It works even with two-factor sign-in turned on, and you can revoke it there any time.
 
@@ -81,6 +82,23 @@ That's it. Some things to know:
 - **"Your Nextcloud needs one setting"** means wr1t3r couldn't get an answer it's allowed to read. Check the address, then step 1. If you just upgraded Nextcloud to a new major version, WebAppPassword can take a few weeks to catch up; until it does, wr1t3r can't connect.
 - **Big pictures failing to upload?** A server behind Cloudflare Tunnel, or with an upload limit in its web server, can refuse large files. Raise the limit, or use smaller pictures.
 - **Signed out with a message about the app password?** It was revoked or deleted in Nextcloud. Make a new one (step 2) and connect again. Your notes are all still on your server.
+
+--- nextcloud-calendar
+
+## Your Nextcloud calendars in wr1t3r
+
+wr1t3r's agenda, month view and day planner can show your Nextcloud calendars instead of wr1t3r's own, and new events go there. Your notes can stay wherever they are: the calendar connects on its own.
+
+1.  **Do step 1 of [Keeping your notes on your own Nextcloud](#nextcloud)** if you haven't: the WebAppPassword app, with wr1t3r's address in its origins. The same setting covers calendars.
+2.  **Connect.** In wr1t3r, open _Settings › Features › Nextcloud Calendar_. If your notes are on Nextcloud, click _Use Nextcloud Calendar_. Otherwise enter your Nextcloud's address, your username and an app password (step 2 there; a separate one called `wr1t3r calendar` makes it easy to revoke on its own), and click _Connect Nextcloud Calendar_.
+
+Some things to know:
+
+- **Reminders reach your phone.** Click _Make a “wr1t3r reminders” calendar_, and wr1t3r copies the next two weeks of timed tasks and medicine doses into it, each with an alert. On your phone, sync that calendar (DAVx5 on Android, or _Settings › Calendar › Accounts › Add CalDAV account_ on an iPhone) and it rings them with wr1t3r closed. You can pick a different calendar under _Settings › Reminders_.
+- **Repeating events work.** Daily, weekly, monthly or yearly, in your own time zone, so a 9:00 meeting stays at 9:00 when the clocks change. Deleting one occurrence leaves the rest.
+- **Which calendars show** follows Nextcloud: a calendar you've hidden in Nextcloud's Calendar app stays hidden until you tick it in the agenda. Calendars shared with you read-only show, but can't be added to.
+- **Importing an .ics file** adds its events to the calendar you pick. Importing the same file again doesn't double them.
+- **"Nextcloud Calendar needs connecting again"** means the app password was revoked. Make a new one and connect again; nothing in your calendars changed.
 
 --- publishing
 
