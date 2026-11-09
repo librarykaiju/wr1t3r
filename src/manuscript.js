@@ -1,11 +1,9 @@
 // The manuscript layout: a note whose properties include
 //   cssclasses:
 //     - manuscript
-// (Obsidian's own property for styling a note) is shown double-spaced with the
-// first line of each paragraph indented, in the editor and in what Compile
-// exports. Nothing is added to the text itself: no spaces, no tabs, so the
-// file stays exactly as written. Obsidian can match it with the CSS snippet in
-// the README.
+// is shown double-spaced with the first line of each paragraph indented, in
+// the editor and in what Compile exports. Nothing is added to the text itself:
+// no spaces, no tabs, so the file stays exactly as written.
 
 import { frontmatterOf } from "./binder.js";
 
