@@ -12,10 +12,10 @@
 // every day; "weekdays" and "weekends" work too.
 //
 // The health note's log, under "## 💊 Medications":
-//   - 08:12 | Lisinopril | 10 mg | for 08:00 | by Brandon
+//   - 08:12 | Lisinopril | 10 mg | for 08:00 | by Sam
 // "for 08:00" says which scheduled dose it was; a line without it (typed by
 // hand, or an as-needed dose) counts toward the earliest dose not yet taken.
-// "by Brandon" is who gave it, when this device has a name set.
+// "by Sam" is who gave it, when this device has a name set.
 //
 // People someone looks after (the planner's people: [Mom]) each have a folder,
 // People/Mom/, with their own list (People/Mom/Medications.md) and a log note a
