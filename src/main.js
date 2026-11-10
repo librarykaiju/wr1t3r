@@ -63,6 +63,7 @@ import { rerunDataview } from "./dataview.js";
 import { makeMediaNote, coverDialog } from "./media.js";
 import { coverQuery } from "./medianote.js";
 import { parseFrontmatter } from "./dvpage.js";
+import { pageText, readIcon, iconElement, descriptionElement } from "./pagehead.js";
 import { followingPath, readFollowing, writeFollowing, refreshDue, readFeeds, neighborsList, newSince, onSite } from "./feeds.js";
 import { homePath, readPins, writePins, DAILY_KEY, pinKind, pinPath, pinTitle, pinColor, pinSize, linkFor, folderLink, viewLink, pinOpens, retargetPins, isAppFile, isSection, tileOrdinals } from "./home.js";
 import { binderPath, isBinder, binderOrder, writeBinder, renameFolderEntry, cardInfo, readBinder } from "./binder.js";
@@ -1651,6 +1652,30 @@ function repositionHomeBanner(box, img, start) {
 	save.addEventListener("click", () => finish(true));
 }
 
+// Home's icon, title and description: icon:, title: and description: in
+// _wr1t3r/Home.md's properties (src/pagehead.js). Nothing shows until one is
+// set.
+function homeHead() {
+	const text = homeText();
+	if (text == null) return null;
+	const fm = parseFrontmatter(text);
+	const head = { icon: pageText(fm.icon), title: pageText(fm.title), description: pageText(fm.description) };
+	return head.icon || head.title || head.description ? head : null;
+}
+
+function drawHomeHead(head, file, overBanner) {
+	const box = $("homeHead");
+	box.replaceChildren();
+	box.hidden = !head;
+	if (!head) return;
+	box.classList.toggle("over-banner", overBanner);
+	const icon = iconElement(readIcon(head.icon), (ref) => tileImage(ref, file));
+	if (icon) box.append(icon);
+	if (head.title) box.append(Object.assign(document.createElement("h1"), { className: "page-title", textContent: head.title }));
+	const desc = descriptionElement(head.description);
+	if (desc) box.append(desc);
+}
+
 function drawHomeBanner(banner, file) {
 	const box = $("homeBanner");
 	const src = banner && tileImage(banner.ref, file);
@@ -1689,8 +1714,8 @@ function renderHome(force = false) {
 	const list = pins(), paths = visible().map((n) => n.path), file = homeFile();
 	// Redraw only when something a tile shows changed (a sync redraws the
 	// sidebar often; the pictures would flicker).
-	const banner = homeBanner();
-	const key = JSON.stringify([list, banner, paths.length, attachments.length, list.map((p) => {
+	const banner = homeBanner(), head = homeHead();
+	const key = JSON.stringify([list, banner, head, paths.length, attachments.length, list.map((p) => {
 		const k = pinKind(p.link);
 		if (k.kind === "view" && k.view === "stats") return tileGlance(k.folder);
 		if (k.kind === "habits") return habitsTileGlance();
@@ -1701,6 +1726,7 @@ function renderHome(force = false) {
 	if (!force && key === homeKey) return;
 	homeKey = key;
 	drawHomeBanner(banner, file);
+	drawHomeHead(head, file, !!banner);
 	drawHome($("homeGrid"), {
 		pins: list, homeFile: file, paths,
 		text: (p) => { const n = notes.get(p); return n && !n.binary ? n.text : null; },

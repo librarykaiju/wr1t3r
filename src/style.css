@@ -633,6 +633,22 @@ main.has-note #empty { display: none; }
 .home-banner img { display: block; width: 100%; height: 300px; object-fit: cover;
 	-webkit-mask-image: linear-gradient(to bottom, black 25%, transparent); mask-image: linear-gradient(to bottom, black 25%, transparent); }
 @media (max-width: 640px) { .home-banner img { height: 100px; } }
+/* A page's icon, title and description (src/pagehead.js): Home's from
+   _wr1t3r/Home.md, the planner's from its block. The icon rides up over the
+   foot of a banner. */
+.page-icon { display: grid; place-items: center start; width: max-content; min-width: 1em; font: 64px/1 OpenMoji, "Apple Color Emoji", "Segoe UI Emoji", var(--sans); color: var(--fg); }
+.page-icon-img img { display: block; width: 80px; height: 80px; object-fit: cover; border-radius: 14px; }
+.page-icon.over-banner { position: relative; z-index: 1; margin-top: -48px; }
+.page-desc { margin: 0; color: var(--muted); font: 16px/1.5 var(--sans); }
+.home-head { width: 100%; max-width: 1080px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.home-head[hidden] { display: none; }
+.home-head.over-banner { margin-top: -66px; }
+@media (max-width: 640px) { .home-head.over-banner { margin-top: -40px; } .page-icon { font-size: 52px; } }
+.home-head .page-title { margin: 0; font: 700 34px/1.2 var(--sans); color: var(--heading, var(--fg)); }
+.planner .page-icon { margin-top: 10px; }
+.planner .page-icon.over-banner { margin-top: -44px; margin-left: 12px; }
+.planner .page-icon + .planner-head { margin-top: 6px; }
+.planner-head .page-desc { flex-basis: 100%; margin: -4px 0 0; }
 /* Change / Reposition / Remove over the picture, and "Add a banner" when
    there's none (main.js drawHomeBanner). */
 .home-banner { position: relative; }
