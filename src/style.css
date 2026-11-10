@@ -2628,9 +2628,12 @@ body.no-health .planner-buttons { display: none !important; }
 :root[data-outline=bold] .planner-btn.planner-late { border-color: var(--bad, var(--hue-ink)); box-shadow: 3px 3px 0 var(--bad, var(--hue-ink)); }
 :root[data-outline=bold] .planner-btn.planner-nudge { border-style: dashed; }
 :root[data-outline=bold] :is(.md-tl, .md-base.md-board) { border: var(--ink-w) solid var(--ink); border-radius: 12px; box-shadow: var(--drop); }
+/* A colored card: no band on top; its outline and the hard shadow on the
+   right and bottom are a darker shade of its color, in light and dark. */
 :root[data-outline=bold] :is(.md-tl.planner-colored, .md-base.md-board.md-colored) {
-	border-color: light-dark(var(--ink), var(--card-c));
-	box-shadow: inset 0 4px 0 var(--card-c), 4px 4px 0 light-dark(var(--ink-drop), color-mix(in srgb, var(--card-c) 50%, #000));
+	--card-ink: light-dark(color-mix(in srgb, var(--card-c) 65%, #000), color-mix(in srgb, var(--card-c) 55%, #000));
+	border-color: var(--card-ink);
+	box-shadow: 4px 4px 0 var(--card-ink);
 }
 :root[data-outline=bold] .md-tl-btn { border: var(--ink-w) solid var(--ink); color: var(--fg); box-shadow: var(--drop-s); }
 :root[data-outline=bold] .md-tl-btn:active { transform: translate(2px, 2px); box-shadow: none; }
