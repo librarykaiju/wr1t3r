@@ -1609,6 +1609,7 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 @media (hover: none) { .md-cards-edit { opacity: 0.6; } }
 .daily-pins { margin: 4px 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .daily-pins-head { margin: 0 0 6px; color: var(--muted); font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.planner .daily-pins { margin: 0 0 14px; padding-bottom: 0; border-bottom: 0; }
 /* The calendar page (calendarview.js): the title, ‹ Today ›, Month/Week,
    then the days. Month: a grid of six weeks. Week: seven columns. In a narrow
    column, one week as a list with the weeks as tabs down the right edge.
@@ -2513,26 +2514,29 @@ body.no-health .planner-buttons { display: none !important; }
    <html>, set by src/main.js and public/theme.js). Layers over any theme:
    thick outlines and hard offset shadows on buttons, cards and panels, and
    darker hairlines (--line) for contrast. light-dark() picks by the theme's
-   color-scheme. On a light theme the ink is the text color. On a dark one
-   it's never white: a colored thing (a Home tile, a sidebar button, a pill
-   button) gets a lighter fill of its own color with a darker shade of it as
-   outline and shadow, and an uncolored one (a panel, a menu) takes the
-   accent for its outline and a darker accent for its shadow.
+   color-scheme. Never black or white: a colored thing (a Home tile, a
+   sidebar or planner button, a pill button, a colored card) is outlined and
+   shadowed in a darker shade of its own color, and an uncolored one (a
+   panel, a menu, a plain card) in a darker shade of the accent. On a dark
+   theme, where something has a dark fill (a panel, a card) its outline is
+   the lighter shade (the accent, or a lightened card color) so it stands
+   out, and the shadow stays dark; a colored button there gets a lighter
+   fill of its color, with dark text, so its darker outline still shows.
    Plain button and input rules sit in :where() so a component's own border
    (or none) still wins; shadows go only on the bigger surfaces named here,
    since a borderless toolbar button with a hard shadow would look broken. */
 :root[data-outline=bold] {
 	--ink-w: 2px;
-	--ink: light-dark(var(--fg), var(--accent));
-	--ink-drop: light-dark(var(--fg), color-mix(in srgb, var(--accent) 45%, #000));
+	--ink: light-dark(color-mix(in srgb, var(--accent) 70%, #000), var(--accent));
+	--ink-drop: light-dark(color-mix(in srgb, var(--accent) 70%, #000), color-mix(in srgb, var(--accent) 45%, #000));
 	--drop-s: 2px 2px 0 var(--ink-drop);
 	--drop: 4px 4px 0 var(--ink-drop);
 	--drop-l: 6px 6px 0 var(--ink-drop);
 	--line: color-mix(in srgb, var(--fg) 32%, var(--bg));
 }
 /* A colored thing: set --hue on it. */
-:root[data-outline=bold] :is(.side-top button, .tile:not(.tile-add), .welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn.primary) {
-	--hue-ink: light-dark(var(--fg), color-mix(in srgb, var(--hue) 50%, #000));
+:root[data-outline=bold] :is(.side-top button, .tile:not(.tile-add), .planner-btn, .welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn.primary) {
+	--hue-ink: light-dark(color-mix(in srgb, var(--hue) 65%, #000), color-mix(in srgb, var(--hue) 50%, #000));
 	--hue-fill: light-dark(color-mix(in srgb, var(--hue) 30%, var(--card)), color-mix(in srgb, var(--hue) 80%, #fff));
 	--hue-fill-on: light-dark(color-mix(in srgb, var(--hue) 44%, var(--card)), color-mix(in srgb, var(--hue) 92%, #fff));
 	--hue-text: light-dark(var(--fg), color-mix(in srgb, var(--hue) 20%, #000));
@@ -2610,3 +2614,30 @@ body.no-health .planner-buttons { display: none !important; }
 	:root[data-outline=bold] #menu { border: var(--ink-w) solid var(--ink); box-shadow: var(--drop); }
 	:root[data-outline=bold] #menu:active { transform: translate(3px, 3px); box-shadow: none; }
 }
+
+/* The daily planner: its buttons (Food, Water, Meds...) follow the colored
+   rule above with their own color; its cards (Timeline, Habits, task lists,
+   and the same task lists inside notes) and Bases boards get the ink frame,
+   a colored card outlined in its color on a dark theme. */
+:root[data-outline=bold] .planner-btn {
+	--hue: var(--c);
+	border: var(--ink-w) solid var(--hue-ink); background: var(--hue-fill); color: var(--hue-text); box-shadow: 3px 3px 0 var(--hue-ink);
+	transition: transform .08s, box-shadow .08s, background .15s;
+}
+:root[data-outline=bold] .planner-btn .planner-btn-status { color: color-mix(in srgb, var(--hue-text) 75%, transparent); }
+:root[data-outline=bold] .planner-btn:hover:not(:disabled) { background: var(--hue-fill-on); }
+:root[data-outline=bold] .planner-btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
+:root[data-outline=bold] .planner-meds[aria-pressed=true] { background: var(--hue-fill-on); border-color: var(--hue-ink); }
+:root[data-outline=bold] .planner-meds[aria-pressed=true] .planner-btn-status { color: var(--hue-text); }
+:root[data-outline=bold] .planner-btn.planner-late { border-color: var(--bad, var(--hue-ink)); box-shadow: 3px 3px 0 var(--bad, var(--hue-ink)); }
+:root[data-outline=bold] .planner-btn.planner-nudge { border-style: dashed; }
+:root[data-outline=bold] :is(.md-tl, .md-base.md-board) { border: var(--ink-w) solid var(--ink); border-radius: 12px; box-shadow: var(--drop); }
+/* A colored card: no band on top; its outline and the hard shadow on the
+   right and bottom are a darker shade of its color, in light and dark. */
+:root[data-outline=bold] :is(.md-tl.planner-colored, .md-base.md-board.md-colored) {
+	--card-ink: light-dark(color-mix(in srgb, var(--card-c) 65%, #000), color-mix(in srgb, var(--card-c) 55%, #000));
+	border-color: light-dark(var(--card-ink), color-mix(in srgb, var(--card-c) 80%, #fff));
+	box-shadow: 4px 4px 0 var(--card-ink);
+}
+:root[data-outline=bold] .md-tl-btn { border: var(--ink-w) solid var(--ink); color: var(--fg); box-shadow: var(--drop-s); }
+:root[data-outline=bold] .md-tl-btn:active { transform: translate(2px, 2px); box-shadow: none; }
