@@ -30,3 +30,13 @@ export function isAttachmentPath(path) {
 	if (path.includes("\\") || path.includes("\0")) return false;
 	return path.split("/").every((seg) => seg && seg !== ".." && !seg.startsWith("."));
 }
+
+// "Folder/Note (conflict 2026-11-03).md" (or "... 2026-11-03 2).md") -> the
+// note it was copied from, "Folder/Note.md"; null for any other path. Sync
+// and the local folder make these when both sides changed a note.
+const CONFLICT = /^(.*) \(conflict (\d{4}-\d{2}-\d{2})(?: \d+)?\)(\.[^./]+)?$/;
+export function conflictOf(path) {
+	const m = typeof path === "string" ? path.match(CONFLICT) : null;
+	return m ? m[1] + (m[3] || "") : null;
+}
+export const conflictDay = (path) => (typeof path === "string" ? path.match(CONFLICT)?.[2] ?? null : null);

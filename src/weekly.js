@@ -9,6 +9,7 @@
 
 import { period, reviewNote } from "./journal.js";
 import { listItems } from "./dvpage.js";
+import { conflictOf } from "./paths.js";
 import { addDays } from "./habits.js";
 
 export const WEEK_BLOCK = "wr1t3r-week";
@@ -67,7 +68,9 @@ export function weekNote(day) {
 	].join("\n");
 }
 
-const SKIP = /(^|\/)(_templates|_?clippings|_?uploads)\//i;
+// Conflict copies are left out: their tasks are the original note's too.
+const SKIP_DIR = /(^|\/)(_templates|_?clippings|_?uploads)\//i;
+const skipped = (path) => SKIP_DIR.test(path) || conflictOf(path) != null;
 const DUE = /📅️? ?(\d{4}-\d{2}-\d{2})/u;
 const DONE = /✅ ?(\d{4}-\d{2}-\d{2})/u;
 const cache = new Map(); // path -> { text, items }
@@ -77,7 +80,7 @@ const cache = new Map(); // path -> { text, items }
 export function datedTasks(notes, from, to) {
 	const out = [];
 	for (const [path, text] of Object.entries(notes)) {
-		if (SKIP.test(path) || !/\.md$/i.test(path) || text == null || !text.includes("📅")) continue;
+		if (skipped(path) || !/\.md$/i.test(path) || text == null || !text.includes("📅")) continue;
 		let hit = cache.get(path);
 		if (!hit || hit.text !== text) {
 			hit = { text, items: listItems(text).filter((l) => l.task && DUE.test(l.text)) };
