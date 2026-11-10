@@ -16,25 +16,44 @@
 </head>
 <body>
 	<form id="login" hidden>
-		<h1>wr1t3r</h1>
-		<div id="tokenLogin">
-			<p>Paste your wr1t3r token. It stays on this device.</p>
-			<input id="token" type="password" autocomplete="current-password" placeholder="Token" required>
-			<button type="submit">Continue</button>
+		<div class="login-head">
+			<h1>wr1t3r</h1>
+			<p class="login-tagline">Your notes. Your way.</p>
 		</div>
-		<p id="dropboxLogin" hidden><span id="dropboxLead">Or keep your notes in your own Dropbox:</span> <button type="button" id="dropboxStart">Use Dropbox</button></p>
-		<p id="ncLogin" hidden><span>Or on your own Nextcloud:</span> <button type="button" id="ncStart">Use Nextcloud</button></p>
-		<div id="ncForm" hidden>
-			<p>Your notes go straight between this browser and your Nextcloud.</p>
-			<label>Nextcloud address <input id="ncServer" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="cloud.example.com"></label>
-			<label>Username <input id="ncUser" type="text" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
-			<label>App password <input id="ncPass" type="password" autocomplete="current-password" spellcheck="false"></label>
-			<p class="hint">Make an app password in Nextcloud: your picture (top right) › Personal settings › Security › Create new app password. Call it wr1t3r. <a id="ncPassLink" target="_blank" rel="noopener" hidden>Open that page</a></p>
-			<label>Folder for your notes <input id="ncFolder" type="text" value="wr1t3r" autocapitalize="off" spellcheck="false"></label>
-			<button type="button" id="ncConnect">Connect</button>
-			<div id="ncHelp" class="nc-help" role="alert" hidden></div>
+		<div class="login-choices">
+			<button type="button" id="dropboxStart" class="login-choice" hidden>
+				<svg class="login-icon login-icon-dropbox" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 1.807 0 5.629l6 3.822 6.001-3.822zm12 0-6 3.822 6 3.822 6-3.822zM0 13.274l6 3.822 6.001-3.822L6 9.452zm18-3.822-6 3.822 6 3.822 6-3.822zM6 18.371l6.001 3.822 6-3.822-6-3.822z"/></svg>
+				<span>Dropbox</span>
+			</button>
+			<button type="button" id="ncStart" class="login-choice">
+				<svg class="login-icon login-icon-nextcloud" viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.6"><circle cx="20" cy="20" r="6.6"/><circle cx="6.2" cy="20" r="3.6"/><circle cx="33.8" cy="20" r="3.6"/></g></svg>
+				<span>Nextcloud</span>
+			</button>
+			<div id="ncForm" hidden>
+				<p>Your notes go straight between this browser and your Nextcloud.</p>
+				<label>Nextcloud address <input id="ncServer" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="cloud.example.com"></label>
+				<label>Username <input id="ncUser" type="text" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
+				<label>App password <input id="ncPass" type="password" autocomplete="current-password" spellcheck="false"></label>
+				<p class="hint">Make an app password in Nextcloud: your picture (top right) › Personal settings › Security › Create new app password. Call it wr1t3r. <a id="ncPassLink" target="_blank" rel="noopener" hidden>Open that page</a></p>
+				<label>Folder for your notes <input id="ncFolder" type="text" value="wr1t3r" autocapitalize="off" spellcheck="false"></label>
+				<button type="button" id="ncConnect">Connect</button>
+				<div id="ncHelp" class="nc-help" role="alert" hidden></div>
+			</div>
+			<button type="button" id="localStart" class="login-choice login-choice-local" disabled aria-describedby="localSoon">
+				<svg class="login-icon" viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="5" y="6" width="30" height="20" rx="2.5"/><path d="M20 26v7M12 34h16"/></g></svg>
+				<span>My Computer</span>
+				<small id="localSoon" class="login-soon">Coming soon</small>
+			</button>
 		</div>
-		<p id="driveLogin" hidden><span>Or in your own Google Drive (wr1t3r sees only the files it puts there):</span> <button type="button" id="driveStart">Sign in with Google Drive</button></p>
+		<p id="dropboxLead" class="login-note" hidden></p>
+		<div id="moreLogin" class="login-more" hidden>
+			<button type="button" id="driveStart" class="link-button" hidden>Use Google Drive instead</button>
+			<div id="tokenLogin">
+				<p>Or paste your wr1t3r token. It stays on this device.</p>
+				<input id="token" type="password" autocomplete="current-password" placeholder="Token" required>
+				<button type="submit">Continue</button>
+			</div>
+		</div>
 		<p id="login-error" class="error" role="alert"></p>
 	</form>
 

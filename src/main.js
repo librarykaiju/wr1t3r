@@ -7054,16 +7054,15 @@ function showLogin(message = "") {
 	applyTheme();
 	$("login").hidden = false;
 	$("login-error").textContent = message;
-	$("dropboxLogin").hidden = !dropboxAppKey();
+	$("dropboxStart").hidden = !dropboxAppKey();
 	// The product build (VITE_DROPBOX_ONLY) has no Worker to sign in to.
 	if (DROPBOX_ONLY && dropboxAppKey()) {
 		$("tokenLogin").remove();
-		$("login").classList.add("dropbox-only");
-		$("dropboxLead").textContent = `Your notes live in your own Dropbox, in ${DROPBOX_FOLDER}. They never pass through anyone else's server.`;
-		$("dropboxStart").textContent = "Sign in with Dropbox";
-		$("dropboxStart").focus();
+		$("dropboxLead").textContent = "Your notes stay in your own storage. They never pass through anyone else's server.";
+		$("dropboxLead").hidden = false;
 		if (googleClientId()) {
-			$("driveLogin").hidden = false;
+			$("moreLogin").hidden = false;
+			$("driveStart").hidden = false;
 			$("driveStart").onclick = () => {
 				setStorageKind("gdrive");
 				beginGoogleSignIn({ scopes: DRIVE_SCOPES, redirectUri: location.origin + "/" }).catch((err) => {
@@ -7072,7 +7071,10 @@ function showLogin(message = "") {
 				});
 			};
 		}
-	} else $("token").focus();
+	} else {
+		$("moreLogin").hidden = false;
+		$("token").focus();
+	}
 	setupNextcloudLogin();
 	$("dropboxStart").onclick = () => {
 		setStorageKind("dropbox");
@@ -7148,10 +7150,10 @@ function showNextcloudHelp(box, server, onAllowed) {
 // Signing in to a notebook on the person's own Nextcloud: address, username
 // and an app password, checked before anything is kept (src/nextcloud.js).
 function setupNextcloudLogin() {
-	$("ncLogin").hidden = false;
 	const open = () => {
+		if (!$("ncForm").hidden) { $("ncForm").hidden = true; $("ncStart").setAttribute("aria-expanded", "false"); return; }
 		$("ncForm").hidden = false;
-		$("ncLogin").hidden = true;
+		$("ncStart").setAttribute("aria-expanded", "true");
 		if ($("token")) $("token").required = false; // Enter here mustn't ask for a Worker token
 		$("ncServer").focus();
 	};
@@ -7185,7 +7187,6 @@ function setupNextcloudLogin() {
 	$("ncForm").addEventListener("keydown", (e) => {
 		if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); connect(); }
 	});
-	if (DROPBOX_ONLY) $("ncStart").textContent = "Use my Nextcloud";
 }
 
 let refreshKeyboardBar = null;
