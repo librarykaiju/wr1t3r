@@ -79,7 +79,7 @@ That's it. Some things to know:
 
 - **Files from Nextcloud's own apps show up in wr1t3r.** Put Markdown files in the folder from the Nextcloud desktop or phone app, or the web page, and they appear on the next sync. Nextcloud Text opens the same notes, so you can edit them from any browser where you're signed in to Nextcloud.
 - **Earlier versions are on your server.** Nextcloud's Versions keep older copies of each note, and deleted notes go to Nextcloud's trash bin.
-- **"Your Nextcloud needs one setting"** means wr1t3r couldn't get an answer it's allowed to read. Check the address, then step 1. If you just upgraded Nextcloud to a new major version, WebAppPassword can take a few weeks to catch up; until it does, wr1t3r can't connect.
+- **"Your Nextcloud needs one setting"** means wr1t3r couldn't get an answer it's allowed to read. Check the address, then step 1: the card links straight to WebAppPassword on your server and to its settings, with a button to copy wr1t3r's address. Leave the card open while you do it, and wr1t3r connects by itself once the setting is saved. If you just upgraded Nextcloud to a new major version, WebAppPassword can take a few weeks to catch up; until it does, wr1t3r can't connect.
 - **Big pictures failing to upload?** A server behind Cloudflare Tunnel, or with an upload limit in its web server, can refuse large files. Raise the limit, or use smaller pictures.
 - **Signed out with a message about the app password?** It was revoked or deleted in Nextcloud. Make a new one (step 2) and connect again. Your notes are all still on your server.
 
