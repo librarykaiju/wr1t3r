@@ -158,3 +158,14 @@ test("multistatus from other WebDAV servers reads the same", () => {
 		{ href: "/dav/sub/", etag: "y", size: 0, folder: true, sha1: "" },
 	]);
 });
+
+test("checking whether the server allows the page sends no password", async () => {
+	const { nextcloudAllowsPage, webAppPasswordLinks } = await import("../src/nextcloud.js");
+	const seen = [];
+	const allows = await nextcloudAllowsPage("cloud.example.com", async (url, init) => { seen.push([url, init.headers.Authorization]); return new Response(null, { status: 401 }); });
+	assert.equal(allows, true, "a 401 it could read is a yes");
+	assert.deepEqual(seen, [["https://cloud.example.com/remote.php/dav/", undefined]]);
+	assert.equal(await nextcloudAllowsPage("cloud.example.com", async () => { throw new TypeError("Failed to fetch"); }), false);
+	assert.equal(await nextcloudAllowsPage("", async () => new Response()), false);
+	assert.deepEqual(webAppPasswordLinks("https://example.com/nextcloud/index.php/apps/files"), { install: "https://example.com/nextcloud/index.php/settings/apps/security/webapppassword", settings: "https://example.com/nextcloud/index.php/settings/admin/webapppassword" });
+});

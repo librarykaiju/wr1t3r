@@ -404,3 +404,24 @@ export async function findAccount({ server, user, password, get = (...a) => fetc
 	try { c.uid = id ? decodeURIComponent(id) : user; } catch { c.uid = user; }
 	return c;
 }
+
+// Whether the server lets this page read its answers yet (WebAppPassword
+// set up), asked without any password so it never counts as a failed
+// sign-in: any answer, even a 401, means yes; a fetch that throws means no.
+export async function nextcloudAllowsPage(server, get = (...a) => fetch(...a)) {
+	const address = serverAddress(server);
+	if (!address) return false;
+	try {
+		await get(address + "/remote.php/dav/", { method: "PROPFIND", headers: { Depth: "0", "X-Requested-With": "XMLHttpRequest" }, cache: "no-store", credentials: "omit" });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+// Pages on the person's Nextcloud for the one-time setting: the app's page in
+// the app store (to install it) and its admin settings (to add the origin).
+export const webAppPasswordLinks = (server) => {
+	const s = serverAddress(server);
+	return s ? { install: s + "/index.php/settings/apps/security/webapppassword", settings: s + "/index.php/settings/admin/webapppassword" } : null;
+};

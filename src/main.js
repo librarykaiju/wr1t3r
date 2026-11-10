@@ -36,7 +36,7 @@ import { googleClientId, googleTokens, googleHas, beginGoogleSignIn, finishGoogl
 import { googleCalendar } from "./gcal.js";
 import { driveStorage, DRIVE_SCOPES } from "./gdrive.js";
 import { dropboxStorage, dropboxAppKey, dropboxSignedIn, forgetDropbox, beginDropboxSignIn, finishDropboxSignIn, isDropboxReturn } from "./dropbox.js";
-import { nextcloudStorage, nextcloudSignedIn, nextcloudCreds, forgetNextcloud, connectNextcloud, serverAddress, DEFAULT_FOLDER } from "./nextcloud.js";
+import { nextcloudStorage, nextcloudSignedIn, nextcloudCreds, forgetNextcloud, connectNextcloud, serverAddress, nextcloudAllowsPage, webAppPasswordLinks, DEFAULT_FOLDER } from "./nextcloud.js";
 import { nextcloudCalendar, connectCalendar, REMINDERS_CALENDAR } from "./caldav.js";
 import { mergedCalendar, isNextcloudId, NC_PREFIX } from "./calmerge.js";
 import { FEATURE_AREAS, FOLDER_SETTINGS, readSettings, writeSettings, settingsPath, commandArea, cleanFolder } from "./features.js";
@@ -6371,8 +6371,13 @@ function nextcloudCalendarSettings(pane, h2, hint) {
 	const password = field("App password", "password", { autocomplete: "current-password" });
 	const err = hint("");
 	err.setAttribute("role", "alert");
-	const go = btn("Connect Nextcloud Calendar", async () => {
+	const help = Object.assign(document.createElement("div"), { className: "nc-help", hidden: true });
+	help.setAttribute("role", "alert");
+	let stopHelp = () => {};
+	const connect = async () => {
 		err.textContent = "";
+		stopHelp();
+		help.hidden = true;
 		go.disabled = true;
 		try {
 			const creds = await connectCalendar({ server: server.value, user: user.value, password: password.value });
@@ -6380,10 +6385,13 @@ function nextcloudCalendarSettings(pane, h2, hint) {
 			resetCalendarSource();
 		} catch (e) {
 			go.disabled = false;
-			err.textContent = e.reason === "blocked" ? `Couldn't reach ${serverAddress(server.value) || "that address"}. Check the address, and that ${location.origin} is in the WebAppPassword app's allowed origins (Nextcloud: Administration settings › WebAppPassword).` : e.message;
+			if (e.reason === "blocked") stopHelp = showNextcloudHelp(help, server.value, () => help.isConnected && connect());
+			else err.textContent = e.message;
 		}
-	});
-	pane.append(go, err);
+	};
+	const go = btn("Connect Nextcloud Calendar", connect);
+	server.addEventListener("input", () => { stopHelp(); help.hidden = true; });
+	pane.append(go, err, help);
 }
 
 // After a sync brings in event notes from another device.
@@ -7089,6 +7097,50 @@ function nextcloudPlace() {
 	return `Notes are kept on your Nextcloud at ${c.server}, in the ${c.folder || DEFAULT_FOLDER} folder. Files you add there from Nextcloud's own apps show up here on the next sync, and Nextcloud keeps earlier versions of every note.`;
 }
 
+// The one-time setting a Nextcloud needs before this page may talk to it
+// (WebAppPassword with this page's address), filled into box: links into
+// that server's app store and admin settings, a copy button, and a quiet
+// check every few seconds, with no password, that calls onAllowed once the
+// setting is saved. Returns a function that stops the checking.
+function showNextcloudHelp(box, server, onAllowed) {
+	const s = serverAddress(server);
+	const links = webAppPasswordLinks(s);
+	const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+	const link = (href, words) => el("a", { href, textContent: words, target: "_blank", rel: "noopener" });
+	const copy = el("button", { type: "button", textContent: "Copy", className: "nc-copy" });
+	copy.addEventListener("click", async () => {
+		try { await navigator.clipboard.writeText(location.origin); copy.textContent = "Copied"; } catch { copy.textContent = "Select it and copy"; }
+		setTimeout(() => (copy.textContent = "Copy"), 2500);
+	});
+	const status = el("p", { className: "nc-wait", textContent: "wr1t3r connects by itself once that's saved." });
+	box.replaceChildren(
+		el("p", {}, el("strong", { textContent: "Your Nextcloud needs one setting." }), ` wr1t3r couldn't get an answer it's allowed to read from ${s || "that address"}. If the address is right, whoever runs it (on your own server, that's you) makes this one-time setting:`),
+		el("ol", {},
+			el("li", {}, links ? link(links.install, "Install WebAppPassword") : "Install WebAppPassword", " from your Nextcloud's apps, signed in as an admin."),
+			el("li", {}, links ? link(links.settings, "Open its settings") : "Open Administration settings › WebAppPassword", ", add ", el("code", { textContent: location.origin }), " ", copy, " to the allowed WebDAV/CalDAV origins, and press Save.")),
+		status,
+		el("p", {}, "Can't install apps on your Nextcloud? Your admin can add the same permission in the web server instead. ", link("https://wr1t3r.app/help.html#nextcloud", "Help with Nextcloud")),
+	);
+	box.hidden = false;
+	box.scrollIntoView({ block: "nearest" });
+	let stopped = false;
+	const until = Date.now() + 15 * 60000;
+	const check = async () => {
+		if (stopped) return;
+		if (Date.now() > until) { status.textContent = "Saved the setting? Press Connect again."; return; }
+		if (document.visibilityState === "visible" && (await nextcloudAllowsPage(s))) {
+			if (stopped) return;
+			stopped = true;
+			status.textContent = "Your Nextcloud allows wr1t3r now. Connecting…";
+			onAllowed();
+			return;
+		}
+		setTimeout(check, 4000);
+	};
+	setTimeout(check, 4000);
+	return () => { stopped = true; };
+}
+
 // Signing in to a notebook on the person's own Nextcloud: address, username
 // and an app password, checked before anything is kept (src/nextcloud.js).
 function setupNextcloudLogin() {
@@ -7105,10 +7157,11 @@ function setupNextcloudLogin() {
 		$("ncPassLink").hidden = !s;
 		if (s) $("ncPassLink").href = s + "/index.php/settings/user/security";
 	};
-	$("ncServer").oninput = passLink;
-	$("ncOrigin").textContent = location.origin;
+	let stopHelp = () => {};
+	$("ncServer").oninput = () => { passLink(); stopHelp(); $("ncHelp").hidden = true; };
 	const connect = async () => {
 		$("login-error").textContent = "";
+		stopHelp();
 		$("ncHelp").hidden = true;
 		$("ncConnect").disabled = true;
 		$("ncConnect").textContent = "Connecting…";
@@ -7120,11 +7173,8 @@ function setupNextcloudLogin() {
 		} catch (err) {
 			$("ncConnect").disabled = false;
 			$("ncConnect").textContent = "Connect";
-			if (err.reason === "blocked") {
-				$("ncHelpServer").textContent = serverAddress($("ncServer").value);
-				$("ncHelp").hidden = false;
-				$("ncHelp").scrollIntoView({ block: "nearest" });
-			} else $("login-error").textContent = err.message;
+			if (err.reason === "blocked") stopHelp = showNextcloudHelp($("ncHelp"), $("ncServer").value, connect);
+			else $("login-error").textContent = err.message;
 		}
 	};
 	$("ncConnect").onclick = connect;
