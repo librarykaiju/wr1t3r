@@ -2514,18 +2514,19 @@ body.no-health .planner-buttons { display: none !important; }
    <html>, set by src/main.js and public/theme.js). Layers over any theme:
    thick outlines and hard offset shadows on buttons, cards and panels, and
    darker hairlines (--line) for contrast. light-dark() picks by the theme's
-   color-scheme. On a light theme the ink is the text color. On a dark one
-   it's never white: a colored thing (a Home tile, a sidebar button, a pill
-   button) gets a lighter fill of its own color with a darker shade of it as
-   outline and shadow, and an uncolored one (a panel, a menu) takes the
-   accent for its outline and a darker accent for its shadow.
+   color-scheme. Never black or white: a colored thing (a Home tile, a
+   sidebar or planner button, a pill button, a colored card) is outlined and
+   shadowed in a darker shade of its own color, and an uncolored one (a
+   panel, a menu, a plain card) in a darker shade of the accent (on a dark
+   theme, the accent itself outlines it). On a dark theme a colored button
+   also gets a lighter fill of its color, with dark text.
    Plain button and input rules sit in :where() so a component's own border
    (or none) still wins; shadows go only on the bigger surfaces named here,
    since a borderless toolbar button with a hard shadow would look broken. */
 :root[data-outline=bold] {
 	--ink-w: 2px;
-	--ink: light-dark(var(--fg), var(--accent));
-	--ink-drop: light-dark(var(--fg), color-mix(in srgb, var(--accent) 45%, #000));
+	--ink: light-dark(color-mix(in srgb, var(--accent) 70%, #000), var(--accent));
+	--ink-drop: light-dark(color-mix(in srgb, var(--accent) 70%, #000), color-mix(in srgb, var(--accent) 45%, #000));
 	--drop-s: 2px 2px 0 var(--ink-drop);
 	--drop: 4px 4px 0 var(--ink-drop);
 	--drop-l: 6px 6px 0 var(--ink-drop);
@@ -2533,7 +2534,7 @@ body.no-health .planner-buttons { display: none !important; }
 }
 /* A colored thing: set --hue on it. */
 :root[data-outline=bold] :is(.side-top button, .tile:not(.tile-add), .planner-btn, .welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn.primary) {
-	--hue-ink: light-dark(var(--fg), color-mix(in srgb, var(--hue) 50%, #000));
+	--hue-ink: light-dark(color-mix(in srgb, var(--hue) 65%, #000), color-mix(in srgb, var(--hue) 50%, #000));
 	--hue-fill: light-dark(color-mix(in srgb, var(--hue) 30%, var(--card)), color-mix(in srgb, var(--hue) 80%, #fff));
 	--hue-fill-on: light-dark(color-mix(in srgb, var(--hue) 44%, var(--card)), color-mix(in srgb, var(--hue) 92%, #fff));
 	--hue-text: light-dark(var(--fg), color-mix(in srgb, var(--hue) 20%, #000));
