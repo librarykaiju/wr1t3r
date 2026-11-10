@@ -2517,9 +2517,11 @@ body.no-health .planner-buttons { display: none !important; }
    color-scheme. Never black or white: a colored thing (a Home tile, a
    sidebar or planner button, a pill button, a colored card) is outlined and
    shadowed in a darker shade of its own color, and an uncolored one (a
-   panel, a menu, a plain card) in a darker shade of the accent (on a dark
-   theme, the accent itself outlines it). On a dark theme a colored button
-   also gets a lighter fill of its color, with dark text.
+   panel, a menu, a plain card) in a darker shade of the accent. On a dark
+   theme, where something has a dark fill (a panel, a card) its outline is
+   the lighter shade (the accent, or a lightened card color) so it stands
+   out, and the shadow stays dark; a colored button there gets a lighter
+   fill of its color, with dark text, so its darker outline still shows.
    Plain button and input rules sit in :where() so a component's own border
    (or none) still wins; shadows go only on the bigger surfaces named here,
    since a borderless toolbar button with a hard shadow would look broken. */
@@ -2634,7 +2636,7 @@ body.no-health .planner-buttons { display: none !important; }
    right and bottom are a darker shade of its color, in light and dark. */
 :root[data-outline=bold] :is(.md-tl.planner-colored, .md-base.md-board.md-colored) {
 	--card-ink: light-dark(color-mix(in srgb, var(--card-c) 65%, #000), color-mix(in srgb, var(--card-c) 55%, #000));
-	border-color: var(--card-ink);
+	border-color: light-dark(var(--card-ink), color-mix(in srgb, var(--card-c) 80%, #fff));
 	box-shadow: 4px 4px 0 var(--card-ink);
 }
 :root[data-outline=bold] .md-tl-btn { border: var(--ink-w) solid var(--ink); color: var(--fg); box-shadow: var(--drop-s); }
