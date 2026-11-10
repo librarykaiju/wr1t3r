@@ -106,6 +106,27 @@ export function workerStorage({ get, auth } = {}) {
 	};
 }
 
+// Book search: the Worker asks Open Library (and Google Books with a key)
+// while the page asks Apple Books itself, since Apple answers Cloudflare's
+// shared addresses with 429s but answers a browser. Both lists are merged the
+// way the Worker would. A search fails only when nothing is found and a
+// source failed.
+async function bookSearch(q) {
+	const media = import("../worker/media.js");
+	const [{ mergeBooks }, worker, apple] = await Promise.all([
+		media,
+		call("/api/media/search?" + new URLSearchParams({ kind: "book", q, apple: "page" })).then(jsonOrThrow).then((d) => d.results, (e) => e),
+		media.then((m) => m.appleBookSearch(q)).catch((e) => e),
+	]);
+	if (worker instanceof AuthError) throw worker;
+	const lists = [worker, apple].filter(Array.isArray);
+	if (!lists.some((l) => l.length)) {
+		const failed = [worker, apple].find((x) => !Array.isArray(x));
+		if (failed) throw failed;
+	}
+	return mergeBooks(q, lists);
+}
+
 export const api = {
 	// 16 kHz mono WAV -> { duration, segments } (src/transcript.js).
 	async transcribe(wav) {
@@ -172,6 +193,7 @@ export const api = {
 		return (await jsonOrThrow(await call("/api/media/kinds"))).kinds;
 	},
 	async mediaSearch(kind, q) {
+		if (kind === "book") return bookSearch(q);
 		return (await jsonOrThrow(await call("/api/media/search?" + new URLSearchParams({ kind, q })))).results;
 	},
 	async mediaCovers(kind, ref) {

@@ -253,6 +253,9 @@ test("book search: Apple Books fills in what Open Library lacks, title or title 
 			assert.equal(r[0].title, "The Calamities", q);
 			assert.equal(r[0].subtitle, "Chuck Wendig - 2026");
 		}
+		const before = web.seen.length;
+		await call(e, "/api/media/search?" + new URLSearchParams({ kind: "book", q: "Calamities", apple: "page" }));
+		assert.ok(!web.seen.slice(before).some((s) => s.url.includes("itunes")), "apple=page: the page asks Apple itself");
 		const r = await search("Calamities");
 		assert.equal(r.filter((x) => x.title === "Calamity").length, 1, "one copy of a book both have");
 		assert.equal(r.find((x) => x.title === "Calamity").ref.workKey, "/works/OL9W", "the Open Library one");
