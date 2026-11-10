@@ -321,7 +321,9 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .login-icon-dropbox { color: #0061fe; }
 .login-icon-nextcloud { color: #0082c9; }
 .login-choice:disabled .login-icon { opacity: 0.6; }
-.login-soon { margin-left: auto; font: 500 13px var(--sans); color: var(--muted); }
+.login-reopen { display: grid; gap: 14px; }
+#login .login-reopen p { color: var(--fg); }
+.login-soon { margin-left: auto; text-align: right; font: 500 13px var(--sans); color: var(--muted); }
 #login .login-note { font-size: 14px; text-align: center; }
 .login-more { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; }
 #tokenLogin { display: grid; gap: 10px; }

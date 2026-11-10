@@ -153,7 +153,7 @@ Dropbox only lets your key work on the address you give it.
 
 1.  **Open your address** in your browser.
 
-2.  **Click _Sign in with Dropbox_** and say yes.
+2.  **Click _Dropbox_** and say yes.
 
 3.  **You're in!** Your notes are saved as plain files in your Dropbox, in _Apps_, in the folder named after your Dropbox app.
 

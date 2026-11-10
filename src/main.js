@@ -46,6 +46,7 @@ import { USES, DEFAULT_USES, featuresFor, starterNotes, guideText, needsHomeScre
 import { DEFAULT_API, licenseState, dueCheck, activateLicense, checkLicense, deactivateLicense, maskKey, cleanKey, readLicenseNote, writeLicenseNote, withDevice, withoutDevice } from "./license.js";
 import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
+import { folderStorage, folderPermission, FOLDER_KEY } from "./folderstorage.js";
 import { transcribeFile } from "./transcribeview.js";
 import { contentHash } from "./localvault.js";
 import { isNotePath, isAttachmentPath, isBoardPath, BOARD_EXT, attachmentType, conflictOf, conflictDay } from "./paths.js";
@@ -142,7 +143,10 @@ const notes = new NoteMap();
 if (dropboxAppKey()) registerStorage("dropbox", () => dropboxStorage());
 if (googleClientId()) registerStorage("gdrive", () => driveStorage({ call: googleClient() }));
 registerStorage("nextcloud", () => nextcloudStorage());
+if (folderSupported()) registerStorage("folder", () => folderStorage({ root: () => meta.get(FOLDER_KEY) }));
 const DROPBOX_ONLY = !!import.meta.env.VITE_DROPBOX_ONLY;
+// Turn on once Google has verified the app (wr1t3r-plans/google-verification.md).
+const DRIVE_READY = false;
 // The personal build's own theme (src/personal.js): its colors and its place in the
 // theme menu, before Mixtape. Neither exists in the product or self-host builds.
 if (personalCss) {
@@ -153,12 +157,14 @@ if (personalCss) {
 // is named after that app rather than wr1t3r.
 const DROPBOX_FOLDER = import.meta.env.VITE_SELF_HOST ? "your Dropbox app's folder under Apps" : "Apps › wr1t3r";
 // onDropbox means no Worker: the notes are in Dropbox, or (onDrive) Google
-// Drive, or (onNextcloud) the person's own Nextcloud.
+// Drive, or (onNextcloud) the person's own Nextcloud, or (onFolder) a folder
+// on this computer (src/folderstorage.js).
 const onDrive = storageKind() === "gdrive";
 const onNextcloud = storageKind() === "nextcloud";
-const onDropbox = storageKind() === "dropbox" || onDrive || onNextcloud;
+const onFolder = storageKind() === "folder";
+const onDropbox = storageKind() === "dropbox" || onDrive || onNextcloud || onFolder;
 const remote = openStorage();
-const SIGNED_OUT = onNextcloud ? "Your Nextcloud didn't accept wr1t3r's app password. If you revoked it, make a new one and sign in again." : onDrive ? "Google ended wr1t3r's sign-in. Sign in again." : onDropbox ? "Dropbox ended wr1t3r's sign-in. Sign in again." : "That token no longer works.";
+const SIGNED_OUT = onFolder ? "wr1t3r lost track of your notes folder. Pick it again with My Computer." : onNextcloud ? "Your Nextcloud didn't accept wr1t3r's app password. If you revoked it, make a new one and sign in again." : onDrive ? "Google ended wr1t3r's sign-in. Sign in again." : onDropbox ? "Dropbox ended wr1t3r's sign-in. Sign in again." : "That token no longer works.";
 let editor;
 
 // ---- storage: one write chain so saves land in order ----------------------
@@ -374,6 +380,8 @@ function renderLocalFolder() {
 }
 
 function setupLocalFolder() {
+	// A notebook that already lives in a folder here has nothing to copy to another.
+	if (onFolder) { for (const id of ["folderHead", "folderStatus", "folderButtons", "folderHint"]) $(id).hidden = true; return; }
 	$("folderPick").addEventListener("click", pickLocalFolder);
 	$("folderReconnect").addEventListener("click", reconnectLocalFolder);
 	$("folderStop").addEventListener("click", stopLocalFolder);
@@ -5413,6 +5421,7 @@ async function signOut(message) {
 	forgetNextcloud();
 	writeJSON(NC_CAL_KEY, null); // the calendar's own Nextcloud sign-in too
 	if (onDrive) await forgetGoogle();
+	if (onFolder) await meta.set(FOLDER_KEY, null).catch(() => {});
 	setStorageKind("worker");
 	await local.clear();
 	if (message) sessionStorage.setItem("wr1t3r-msg", message);
@@ -5615,7 +5624,7 @@ function showSettingsTab(tab, onPhoneList = false) {
 	if (tab === "hotkeys") renderHotkeyTab();
 	if (tab === "sync") {
 		$("setSynced").textContent = $("status").title || $("status").textContent || "Not yet this session";
-		$("setStorage").textContent = onNextcloud ? nextcloudPlace() : onDrive ? "Notes are kept in your Google Drive, in the wr1t3r folder. wr1t3r only sees files it put there itself, so add notes and pictures with Upload." : onDropbox ? `Notes are kept in your Dropbox, in ${DROPBOX_FOLDER}.` : "";
+		$("setStorage").textContent = onFolder ? folderPlace() : onNextcloud ? nextcloudPlace() : onDrive ? "Notes are kept in your Google Drive, in the wr1t3r folder. wr1t3r only sees files it put there itself, so add notes and pictures with Upload." : onDropbox ? `Notes are kept in your Dropbox, in ${DROPBOX_FOLDER}.` : "";
 	}
 	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
 	if (tab === "focus") markSeg("focusSeg", $("app").classList.contains("focus-mode"));
@@ -7060,9 +7069,10 @@ function showLogin(message = "") {
 		$("tokenLogin").remove();
 		$("dropboxLead").textContent = "Your notes stay in your own storage. They never pass through anyone else's server.";
 		$("dropboxLead").hidden = false;
-		if (googleClientId()) {
-			$("moreLogin").hidden = false;
-			$("driveStart").hidden = false;
+		// Google Drive waits on Google's review of the app; until then its button says Coming soon.
+		if (DRIVE_READY && googleClientId()) {
+			$("driveStart").disabled = false;
+			$("driveSoon").hidden = true;
 			$("driveStart").onclick = () => {
 				setStorageKind("gdrive");
 				beginGoogleSignIn({ scopes: DRIVE_SCOPES, redirectUri: location.origin + "/" }).catch((err) => {
@@ -7076,6 +7086,11 @@ function showLogin(message = "") {
 		$("token").focus();
 	}
 	setupNextcloudLogin();
+	if (folderSupported()) {
+		$("localStart").disabled = false;
+		$("localSoon").hidden = true;
+		$("localStart").onclick = pickFolderNotebook;
+	} else $("localSoon").textContent = "Needs Chrome or Edge on a computer";
 	$("dropboxStart").onclick = () => {
 		setStorageKind("dropbox");
 		beginDropboxSignIn({ redirectUri: location.origin + location.pathname }).catch((err) => {
@@ -7095,6 +7110,55 @@ function showLogin(message = "") {
 			$("login-error").textContent = err instanceof AuthError ? "That token didn't work." : "Couldn't reach wr1t3r: " + err.message;
 		}
 	};
+}
+
+// ---- "My Computer": the notebook in a folder on this computer (src/folderstorage.js)
+
+let notebookFolderName = "";
+
+function folderPlace() {
+	return `Notes are kept on this computer, in the “${notebookFolderName || "notes"}” folder you picked, as plain files. Edits made there with other apps come in on the next sync. Back the folder up as you would any other.`;
+}
+
+// Picking the folder from the start page. A fresh page then opens the notebook there.
+async function pickFolderNotebook() {
+	$("login-error").textContent = "";
+	let handle;
+	try {
+		handle = await window.showDirectoryPicker({ id: "wr1t3r-notebook", mode: "readwrite", startIn: "documents" });
+	} catch (e) {
+		if (e?.name !== "AbortError") $("login-error").textContent = "Couldn't open that folder: " + e.message;
+		return;
+	}
+	if ((await folderPermission(handle, true)) !== "granted") { $("login-error").textContent = "wr1t3r needs your OK to save in that folder."; return; }
+	await meta.set(FOLDER_KEY, handle);
+	setStorageKind("folder");
+	location.replace(location.pathname);
+}
+
+// Opening the page with the notebook on this computer. The browser may want
+// an OK again after the tab was closed (unless "Allow on every visit" was
+// picked), and asking needs a click, so the start page offers one.
+async function openFolderNotebook() {
+	const handle = await meta.get(FOLDER_KEY).catch(() => null);
+	if (!handle) {
+		setStorageKind("worker");
+		sessionStorage.setItem("wr1t3r-msg", SIGNED_OUT);
+		return location.replace(location.pathname);
+	}
+	notebookFolderName = handle.name;
+	if ((await folderPermission(handle)) === "granted") return start();
+	showLogin();
+	for (const el of [document.querySelector(".login-choices"), $("moreLogin"), $("dropboxLead")]) el.hidden = true;
+	$("folderReopenText").textContent = `Your notes are in the “${handle.name}” folder on this computer. Your browser wants your OK to open it again.`;
+	$("folderReopen").hidden = false;
+	$("folderReopenGo").focus();
+	$("folderReopenGo").onclick = async () => {
+		if ((await folderPermission(handle, true)) !== "granted") { $("login-error").textContent = "wr1t3r can't open your notes without that OK."; return; }
+		$("login").hidden = true;
+		start();
+	};
+	$("folderReopenOther").onclick = () => signOut();
 }
 
 // Settings > Sync and files, for a notebook on Nextcloud.
@@ -7714,7 +7778,8 @@ if (isGoogleReturn(location.href)) {
 			sessionStorage.setItem("wr1t3r-msg", err.message);
 			location.replace(location.pathname);
 		});
-} else if (onNextcloud ? nextcloudSignedIn() : onDrive ? googleHas(DRIVE_SCOPES) : onDropbox ? dropboxSignedIn() : token()) start();
+} else if (onFolder) openFolderNotebook();
+else if (onNextcloud ? nextcloudSignedIn() : onDrive ? googleHas(DRIVE_SCOPES) : onDropbox ? dropboxSignedIn() : token()) start();
 else {
 	const msg = sessionStorage.getItem("wr1t3r-msg") || "";
 	sessionStorage.removeItem("wr1t3r-msg");
