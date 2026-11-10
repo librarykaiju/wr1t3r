@@ -78,7 +78,9 @@ export async function mediaApi(request, env, url) {
 	if (p === "/api/media/search" && m === "GET") {
 		const q = (url.searchParams.get("q") || "").trim().slice(0, 200);
 		if (!q) throw new HttpError(400, "q: what to search for");
-		return { results: await SEARCH[kind](env, q) };
+		// apple=page: the page asks Apple Books itself (Apple turns away
+		// Cloudflare's shared addresses with 429s), so the Worker doesn't.
+		return { results: await SEARCH[kind](env, q, { apple: url.searchParams.get("apple") !== "page" }) };
 	}
 	if (p === "/api/media/findcovers" && m === "POST") {
 		const title = str(body?.title, 300).trim();
@@ -245,6 +247,9 @@ async function openLibraryBooks(v) {
 		ref: { workKey: d.key, title: d.title, authors: d.author_name || [], coverId: d.cover_i, year: d.first_publish_year ? String(d.first_publish_year) : "", pages: d.number_of_pages_median || null },
 	}));
 }
+
+// Apple Books by itself, for the page to run (see src/api.js mediaSearch).
+export const appleBookSearch = (q) => forgiving(q, appleBooks);
 
 async function appleBooks(v) {
 	const data = await getJSON("https://itunes.apple.com/search?" + new URLSearchParams({ term: v, media: "ebook", entity: "ebook", limit: "10" }));
@@ -592,10 +597,10 @@ const SEARCH = {
 		return wiki;
 	},
 	// Every source at once; one that fails is left out, unless nothing is found.
-	async book(env, q) {
+	async book(env, q, { apple = true } = {}) {
 		const failed = [];
 		const ask = (find) => forgiving(q, find).catch((e) => { failed.push(e); return []; });
-		const lists = await Promise.all([ask(openLibraryBooks), ask(appleBooks), ask((v) => googleSearch(env, v))]);
+		const lists = await Promise.all([ask(openLibraryBooks), apple ? ask(appleBooks) : [], ask((v) => googleSearch(env, v))]);
 		if (failed.length && !lists.some((l) => l.length)) throw failed[0];
 		return mergeBooks(q, lists);
 	},
