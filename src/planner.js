@@ -6,6 +6,8 @@
 //   ```wr1t3r-planner
 //   banner: "[[planner.jpg]]"   optional picture across the top
 //   title: My day                optional; the day's date otherwise
+//   icon: 🌻                     optional; an emoji or "[[picture.png]]" above the title
+//   description: One day at a time  optional line under the title
 //   tasks: [crit, todo]          task list cards in the right column
 //   moods: [😄 Great, 🙂 Good]   the Mood button's choices (these eight otherwise)
 //   exercises: [🚶 Walk, 🏃 Run] the Exercise button's choices
@@ -77,7 +79,7 @@ const DEFAULTS = {
 	habits: [], people: [],
 };
 const NUMBERS = ["calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "fiber_target", "start", "end"];
-const ORDER = ["setup", "banner", "title", "buttons", "tasks", "moods", "exercises", "nutrition", "medications", "people", "units", "goal", ...NUMBERS, "macros", "med_reminders", "colors", "habits", "timeline"];
+const ORDER = ["setup", "banner", "icon", "title", "description", "buttons", "tasks", "moods", "exercises", "nutrition", "medications", "people", "units", "goal", ...NUMBERS, "macros", "med_reminders", "colors", "habits", "timeline"];
 // What a day takes from the Daily template's block when its own doesn't set it.
 export const SHARED = ["setup", "buttons", "moods", "exercises", "nutrition", "medications", "people", "units", "goal", "calories_target", "water_target", "water_step", "steps_target", "activity_target", "sleep_target", "protein_target", "fat_target", "carbs_target", "fiber_target", "macros", "med_reminders", "habits"];
 const BOOLS = ["macros", "med_reminders"];
@@ -120,7 +122,7 @@ export function readPlanner(code, shared = null) {
 	}
 	cfg.start = Math.min(23, Math.floor(cfg.start));
 	cfg.end = Math.max(cfg.start + 1, Math.min(24, Math.floor(cfg.end)));
-	for (const k of ["banner", "title", "nutrition", "medications"]) cfg[k] = raw[k] == null || String(raw[k]).trim() === "" ? null : String(raw[k]).trim();
+	for (const k of ["banner", "icon", "title", "description", "nutrition", "medications"]) cfg[k] = raw[k] == null || String(raw[k]).trim() === "" ? null : String(raw[k]).trim();
 	cfg.colors = {};
 	if (raw.colors && typeof raw.colors === "object" && !Array.isArray(raw.colors)) {
 		for (const [k, v] of Object.entries(raw.colors)) {

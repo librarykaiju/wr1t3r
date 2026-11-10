@@ -30,6 +30,7 @@ import { readConfig, taskList, noteDay } from "./tasklists.js";
 import { TaskListWidget, allNotes } from "./tasklistview.js";
 import { isoDay } from "./tasks.js";
 import { imageRef } from "./pretty.js";
+import { readIcon, iconElement, descriptionElement } from "./pagehead.js";
 import { resolveNote } from "./links.js";
 import { vaultHost, notePath, vaultChanged } from "./vault.js";
 import { propertiesFolded, setPropertiesHidden, frontmatterLines } from "./frontmatter.js";
@@ -218,10 +219,11 @@ const dayTitle = (day) => new Date(day + "T12:00").toLocaleDateString(undefined,
 
 // The title row: the title, "Today" when day is today, then pill buttons on
 // the right. links: [[text, title, run]].
-function titleRow(title, day, links) {
+function titleRow(title, day, links, desc = null) {
 	const head = el("div", "planner-head");
 	head.append(el("h1", "planner-title", title));
 	if (day && day === isoDay(new Date())) head.append(el("span", "planner-today", "Today"));
+	if (desc) head.append(desc); // its own line, under the title
 	const box = el("span", "planner-links");
 	for (const [text, title, run] of links) {
 		const b = el("button", "planner-link", text);
@@ -310,7 +312,14 @@ class PlannerWidget extends WidgetType {
 		}]);
 		links.push(propertiesLink(view));
 		const title = this.cfg.title || (this.day ? dayTitle(this.day) : this.path.split("/").pop().replace(/\.md$/i, ""));
-		out.push(titleRow(title, this.day, links));
+		// The icon above the title (over the banner's foot when there's one)
+		// and the description under it (src/pagehead.js).
+		const icon = iconElement(readIcon(this.cfg.icon), host ? (r) => host.image(r, this.path) : null);
+		if (icon) {
+			if (out.length) icon.classList.add("over-banner");
+			out.push(icon);
+		}
+		out.push(titleRow(title, this.day, links, descriptionElement(this.cfg.description)));
 		return out;
 	}
 
