@@ -25,9 +25,11 @@
 //                         dev.twitch.tv/console/apps)
 //   COMICVINE_API_KEY     comics (free at comicvine.gamespot.com/api)
 //   ANTHROPIC_API_KEY     books: subject headings and vibe tags from the summary
+//   GOOGLE_BOOKS_API_KEY  books: Google Books in the search, its covers and
+//                         summaries (Google stopped answering without a key)
 //   MEDIA_MOVIE_FOLDER, MEDIA_BOOK_FOLDER, MEDIA_MUSIC_FOLDER, MEDIA_GAME_FOLDER,
 //   MEDIA_PODCAST_FOLDER  where new notes go (vault paths; comics go with books)
-// Books (Open Library), music (MusicBrainz, Cover Art Archive, iTunes), anime
+// Books (Open Library and Apple Books), music (MusicBrainz, Cover Art Archive, iTunes), anime
 // (AniList, with MyAnimeList's art through Jikan) and podcasts (iTunes) need
 // no key. Movie and TV posters also come from iTunes when it has the title.
 //
@@ -219,10 +221,88 @@ function bigGoogleCover(u) {
 	return /[?&]zoom=\d/.test(s) ? s.replace(/zoom=\d/, "zoom=3") : `${s}&zoom=3`;
 }
 
-function googleBooks(title, author, max) {
+// Google Books answers only with a key now (its keyless quota is zero), so
+// without one it isn't asked at all.
+function googleBooks(env, title, author, max) {
+	if (!env.GOOGLE_BOOKS_API_KEY) return Promise.resolve({});
 	const q = [`intitle:${title}`];
 	if (author) q.push(`inauthor:${author}`);
-	return getJSON("https://www.googleapis.com/books/v1/volumes?" + new URLSearchParams({ q: q.join(" "), maxResults: String(max) }));
+	return googleQuery(env, q.join(" "), max);
+}
+const googleQuery = (env, q, max) =>
+	getJSON("https://www.googleapis.com/books/v1/volumes?" + new URLSearchParams({ q, maxResults: String(max), printType: "books", key: env.GOOGLE_BOOKS_API_KEY }));
+
+// Open Library is slow to add new books (a few months, sometimes never), so
+// the search also asks Apple Books, which has new releases on the day, and
+// Google Books when there's a key. A hit from either carries what the note
+// needs, since there's no Open Library work to look up later.
+async function openLibraryBooks(v) {
+	const data = await getJSON("https://openlibrary.org/search.json?" + new URLSearchParams({ q: v, fields: "title,author_name,first_publish_year,cover_i,key,number_of_pages_median", limit: "10" }));
+	return (data.docs || []).map((d) => ({
+		title: d.title,
+		subtitle: [d.author_name?.join(", "), d.first_publish_year].filter(Boolean).join(" - "),
+		thumbnailUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-S.jpg` : undefined,
+		ref: { workKey: d.key, title: d.title, authors: d.author_name || [], coverId: d.cover_i, year: d.first_publish_year ? String(d.first_publish_year) : "", pages: d.number_of_pages_median || null },
+	}));
+}
+
+async function appleBooks(v) {
+	const data = await getJSON("https://itunes.apple.com/search?" + new URLSearchParams({ term: v, media: "ebook", entity: "ebook", limit: "10" }));
+	return (data.results || []).filter((b) => b.trackName).map((b) => {
+		const year = /^\d{4}/.exec(b.releaseDate || "")?.[0] || "";
+		return {
+			title: b.trackName,
+			subtitle: [b.artistName, year].filter(Boolean).join(" - "),
+			thumbnailUrl: httpsUrl(b.artworkUrl100) || undefined,
+			ref: { title: b.trackName, authors: b.artistName ? splitList(b.artistName.replace(/\s*&\s*/g, ", ")) : [], year, coverUrl: httpsUrl(bigArtwork(b.artworkUrl100)), summary: plainText(b.description) },
+		};
+	});
+}
+
+async function googleSearch(env, v) {
+	if (!env.GOOGLE_BOOKS_API_KEY) return [];
+	return ((await googleQuery(env, v, 10)).items || []).map((i) => i.volumeInfo || {}).filter((b) => b.title).map((b) => {
+		const title = b.subtitle && !/^a novel$/i.test(b.subtitle) ? `${b.title}: ${b.subtitle}` : b.title;
+		const year = /^\d{4}/.exec(b.publishedDate || "")?.[0] || "";
+		const thumb = httpsUrl((b.imageLinks?.thumbnail || b.imageLinks?.smallThumbnail || "").replace(/^http:/, "https:"));
+		return {
+			title,
+			subtitle: [(b.authors || []).join(", "), year].filter(Boolean).join(" - "),
+			thumbnailUrl: thumb || undefined,
+			ref: { title, authors: b.authors || [], year, coverUrl: thumb ? bigGoogleCover(thumb) : "", summary: plainText(b.description), pages: b.pageCount || null },
+		};
+	});
+}
+
+// A title without a leading article, for matching "Calamities" to "The
+// Calamities".
+const bareTitle = (s) => looseTitle(s).replace(/^(the|a|an) /, "");
+
+// How well a book fits what was typed, which may be a title, an author, or
+// both in either order ("calamities chuck wendig"): the title itself first,
+// then every typed word found in the title or author, then the share found.
+export function bookScore(q, r) {
+	const want = bareTitle(q), title = bareTitle(r.title);
+	if (want && title === want) return 3;
+	const words = looseTitle(q).split(" ").filter((w) => w && !/^(the|a|an|by|and|of)$/.test(w));
+	if (!words.length) return 0;
+	const have = new Set(looseTitle(`${r.title} ${(r.ref?.authors || []).join(" ")}`).split(" "));
+	const found = words.filter((w) => have.has(w)).length;
+	return found === words.length ? 2 : found / words.length;
+}
+
+// The same book from two sources (title and an author's last name alike)
+// shows once, the Open Library one kept (it has the subjects).
+const bookKey = (r) => `${bareTitle(r.title)}|${looseTitle(r.ref?.authors?.[0] || "").split(" ").pop()}`;
+
+export function mergeBooks(q, lists) {
+	const seen = new Set(), out = [];
+	for (const r of lists.flat()) {
+		const k = bookKey(r);
+		if (!seen.has(k)) { seen.add(k); out.push(r); }
+	}
+	// Stable: within a score, Open Library's order, then Apple's, then Google's.
+	return out.map((r, i) => ({ r, i, s: bookScore(q, r) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.r).slice(0, 15);
 }
 
 function editions(workKey) {
@@ -270,10 +350,16 @@ Respond with ONLY a JSON object: {"subjects": [...], "vibesAndThemes": [...]}. N
 	}, none);
 }
 
+// A book from Open Library has its work key; one from Apple or Google Books
+// has no key and carries its own cover and summary instead.
 function bookRef(ref) {
-	need(/^\/works\/OL\d+W$/.test(ref.workKey || ""), "workKey");
+	const workKey = ref.workKey ?? null;
+	if (workKey !== null) need(/^\/works\/OL\d+W$/.test(workKey), "workKey");
+	else need(typeof ref.title === "string" && ref.title.trim(), "title");
 	return {
-		workKey: ref.workKey,
+		workKey,
+		coverUrl: httpsUrl(ref.coverUrl),
+		summary: str(ref.summary, 5000),
 		title: str(ref.title),
 		authors: Array.isArray(ref.authors) ? ref.authors.slice(0, 10).map((a) => str(a, 200)) : [],
 		coverId: Number.isInteger(ref.coverId) && ref.coverId > 0 ? ref.coverId : null,
@@ -462,7 +548,7 @@ const creditsFor = (credits, role) =>
 export function plainText(html) {
 	if (!html) return "";
 	return html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+		.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").replace(/ ([.,;:!?])/g, "$1").trim();
 }
 
 // ---- podcasts (iTunes) -------------------------------------------------------------------
@@ -505,16 +591,13 @@ const SEARCH = {
 		if (!wiki.length && failed) throw failed;
 		return wiki;
 	},
+	// Every source at once; one that fails is left out, unless nothing is found.
 	async book(env, q) {
-		return forgiving(q, async (v) => {
-			const data = await getJSON("https://openlibrary.org/search.json?" + new URLSearchParams({ q: v, fields: "title,author_name,first_publish_year,cover_i,key,number_of_pages_median", limit: "10" }));
-			return (data.docs || []).map((d) => ({
-				title: d.title,
-				subtitle: [d.author_name?.join(", "), d.first_publish_year].filter(Boolean).join(" - "),
-				thumbnailUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-S.jpg` : undefined,
-				ref: { workKey: d.key, title: d.title, authors: d.author_name || [], coverId: d.cover_i, year: d.first_publish_year ? String(d.first_publish_year) : "", pages: d.number_of_pages_median || null },
-			}));
-		});
+		const failed = [];
+		const ask = (find) => forgiving(q, find).catch((e) => { failed.push(e); return []; });
+		const lists = await Promise.all([ask(openLibraryBooks), ask(appleBooks), ask((v) => googleSearch(env, v))]);
+		if (failed.length && !lists.some((l) => l.length)) throw failed[0];
+		return mergeBooks(q, lists);
 	},
 	async music(env, q) {
 		return forgiving(q, async (v) => {
@@ -610,12 +693,12 @@ const COVERS = {
 	async book(env, ref) {
 		const b = bookRef(ref);
 		const [google, others] = await Promise.all([
-			soon(async () => ((await googleBooks(b.title, b.authors[0], 5)).items || [])
+			soon(async () => ((await googleBooks(env, b.title, b.authors[0], 5)).items || [])
 				.map((i) => i.volumeInfo?.imageLinks?.thumbnail || i.volumeInfo?.imageLinks?.smallThumbnail).filter(Boolean).map(bigGoogleCover), []),
-			soon(async () => [...new Set(((await editions(b.workKey)).entries || []).map((e) => e.covers?.[0]).filter((c) => typeof c === "number" && c > 0))]
-				.map((c) => `https://covers.openlibrary.org/b/id/${c}-M.jpg`), []),
+			b.workKey ? soon(async () => [...new Set(((await editions(b.workKey)).entries || []).map((e) => e.covers?.[0]).filter((c) => typeof c === "number" && c > 0))]
+				.map((c) => `https://covers.openlibrary.org/b/id/${c}-M.jpg`), []) : [],
 		]);
-		const own = b.coverId ? [`https://covers.openlibrary.org/b/id/${b.coverId}-M.jpg`] : [];
+		const own = b.coverId ? [`https://covers.openlibrary.org/b/id/${b.coverId}-M.jpg`] : b.coverUrl ? [b.coverUrl] : [];
 		return [...new Set([...google, ...own, ...others])].slice(0, 8);
 	},
 	// IGDB's box art when it's set up, then RAWG's screenshot (for the
@@ -674,15 +757,15 @@ const NOTE = {
 	},
 	async book(env, ref, { cover, today }) {
 		const b = bookRef(ref);
-		let summary = "", olSubjects = [], allSubjects = [];
-		await quietly(async () => {
+		let summary = b.summary, olSubjects = [], allSubjects = [];
+		if (b.workKey) await quietly(async () => {
 			const w = await getJSON(`https://openlibrary.org${b.workKey}.json`);
-			summary = textOf(w.description);
+			summary = textOf(w.description) || summary;
 			allSubjects = (w.subjects || []).map(String);
 			olSubjects = uniqueSubjects(allSubjects).slice(0, 15);
 		});
-		if (!summary) summary = await quietly(async () => ((await editions(b.workKey)).entries || []).map((e) => textOf(e.description)).find(Boolean) || "", "");
-		if (!summary) summary = await quietly(async () => (await googleBooks(b.title, b.authors[0], 1)).items?.[0]?.volumeInfo?.description || "", "");
+		if (!summary && b.workKey) summary = await quietly(async () => ((await editions(b.workKey)).entries || []).map((e) => textOf(e.description)).find(Boolean) || "", "");
+		if (!summary) summary = await quietly(async () => (await googleBooks(env, b.title, b.authors[0], 1)).items?.[0]?.volumeInfo?.description || "", "");
 		const tags = await bookTags(env, b.title, b.authors[0], summary);
 		return {
 			fields: {

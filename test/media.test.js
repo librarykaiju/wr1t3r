@@ -198,7 +198,7 @@ test("a book: covers from Google and Open Library, summary, tags from Claude", a
 		[host("api.anthropic.com"), { content: [{ text: '{"subjects": ["Robots -- Fiction"], "vibesAndThemes": ["Cozy"]}' }] }],
 	]);
 	try {
-		const e = { WR1T3R_TOKEN: "t", ANTHROPIC_API_KEY: "sk" };
+		const e = { WR1T3R_TOKEN: "t", ANTHROPIC_API_KEY: "sk", GOOGLE_BOOKS_API_KEY: "gk" };
 		const ref = { workKey: "/works/OL1W", title: "A Psalm for the Wild-Built", authors: ["Becky Chambers"], coverId: 5, year: "2021" };
 		const c = await (await post(e, "/api/media/covers", { kind: "book", ref })).json();
 		assert.deepEqual(c.covers, [
@@ -213,6 +213,10 @@ test("a book: covers from Google and Open Library, summary, tags from Claude", a
 		assert.deepEqual(n.fields.genre, ["Science Fiction"]);
 		assert.equal(n.fields.coverImage, "https://covers.openlibrary.org/b/id/5-M.jpg");
 		assert.equal(n.year, "2021");
+		assert.equal(new URL(web.seen.find((s) => s.url.includes("googleapis")).url).searchParams.get("key"), "gk");
+		const before = web.seen.length;
+		await post({ WR1T3R_TOKEN: "t" }, "/api/media/covers", { kind: "book", ref });
+		assert.ok(!web.seen.slice(before).some((s) => s.url.includes("googleapis")), "no key, no Google call: it answers nothing keyless");
 		const claude = web.seen.find((s) => s.url.startsWith("https://api.anthropic.com"));
 		assert.equal(claude.init.headers["x-api-key"], "sk");
 		const noKey = await (await post({ WR1T3R_TOKEN: "t" }, "/api/media/note", { kind: "book", ref, cover: "javascript:alert(1)" })).json();
@@ -220,6 +224,51 @@ test("a book: covers from Google and Open Library, summary, tags from Claude", a
 		assert.deepEqual(noKey.fields.genre, ["Science Fiction"], "genres without Claude too");
 		assert.equal(noKey.fields.coverImage, "", "only https covers");
 	} finally { web.restore(); }
+});
+
+test("book search: Apple Books fills in what Open Library lacks, title or title and author", async () => {
+	const web = fakeWeb([
+		[host("openlibrary.org", "/search.json"), (u) => u],
+		[host("itunes.apple.com", "/search"), { results: [
+			{ trackName: "Calamity", artistName: "Brandon Sanderson", releaseDate: "2016-02-16T08:00:00Z", artworkUrl100: "https://is1.mzstatic.com/a/100x100bb.jpg" },
+			{ trackName: "The Calamities", artistName: "Chuck Wendig", releaseDate: "2026-07-21T07:00:00Z", artworkUrl100: "https://is1.mzstatic.com/b/100x100bb.jpg", description: "<p>A demonic <b>epic</b>.</p>" },
+		] }],
+	]);
+	// Open Library has Sanderson's Calamity (the Apple copy is dropped) but not Wendig's book.
+	const real = globalThis.fetch;
+	globalThis.fetch = async (url, init) => {
+		const u = new URL(url);
+		if (u.hostname === "openlibrary.org") {
+			web.seen.push({ url: String(url), init });
+			const words = u.searchParams.get("q").toLowerCase();
+			return new Response(JSON.stringify({ docs: words.includes("wendig") ? [] : [{ title: "Calamity", author_name: ["Brandon Sanderson"], key: "/works/OL9W", first_publish_year: 2016 }] }));
+		}
+		return real(url, init);
+	};
+	try {
+		const e = { WR1T3R_TOKEN: "t" };
+		const search = async (q) => (await (await call(e, "/api/media/search?" + new URLSearchParams({ kind: "book", q }))).json()).results;
+		for (const q of ["Calamities", "Calamities Chuck Wendig", "chuck wendig the calamities"]) {
+			const r = await search(q);
+			assert.equal(r[0].title, "The Calamities", q);
+			assert.equal(r[0].subtitle, "Chuck Wendig - 2026");
+		}
+		const r = await search("Calamities");
+		assert.equal(r.filter((x) => x.title === "Calamity").length, 1, "one copy of a book both have");
+		assert.equal(r.find((x) => x.title === "Calamity").ref.workKey, "/works/OL9W", "the Open Library one");
+		const ref = (await search("Calamities Chuck Wendig"))[0].ref;
+		assert.deepEqual(ref.authors, ["Chuck Wendig"]);
+		const c = await (await post(e, "/api/media/covers", { kind: "book", ref })).json();
+		assert.deepEqual(c.covers, ["https://is1.mzstatic.com/b/600x600bb.jpg"]);
+		const n = await (await post(e, "/api/media/note", { kind: "book", ref, cover: c.covers[0], today: "2026-11-10" })).json();
+		assert.equal(n.fields.title, "The Calamities");
+		assert.deepEqual(n.fields.author, ["Chuck Wendig"]);
+		assert.equal(n.fields.summary, "A demonic epic.");
+		assert.equal(n.year, "2026");
+		assert.ok(!web.seen.some((s) => /\/works\//.test(s.url)), "no Open Library work to look up");
+		assert.equal((await post(e, "/api/media/note", { kind: "book", ref: { workKey: "../x", title: "X" } })).status, 400, "work keys are still checked");
+		assert.equal((await post(e, "/api/media/note", { kind: "book", ref: {} })).status, 400, "a keyless ref needs a title");
+	} finally { globalThis.fetch = real; web.restore(); }
 });
 
 test("an album: tracks from the earliest release, repeated discs once", async () => {
