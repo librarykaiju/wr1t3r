@@ -38,6 +38,7 @@ import { onMenu } from "./homeview.js";
 import { EVENT_COLORS } from "./agenda.js";
 import { menu, cardColorPicker } from "./basesui.js";
 import { isOpen, openAsText } from "./drawnblocks.js";
+import { dailyPinsDOM, dailyPinsKey } from "./cardsblock.js";
 import { entries, onThisDay, yearsAgo, dayHealth, trends, series } from "./journal.js";
 import { lineChart, sliceColor } from "./charts.js";
 // Loaded with the planner, not on the camera tap: a phone opens the camera
@@ -249,7 +250,7 @@ class PlannerWidget extends WidgetType {
 		this.doses ??= [];
 		this.habits ??= [];
 		this.people ??= [];
-		this.key = JSON.stringify([p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, this.meds.path, this.meds.meds, this.doses, this.people.map((x) => [x.who, x.path, x.meds, x.taken.map((e) => e.text)]), this.habits.map((r) => [r.h, r.p, r.s.current, r.s.best, r.due]), (this.lookback || []).map((e) => [e.path, e.title, e.snippet, e.years]), p.day && p.day === isoDay(new Date()) ? new Date().getHours() : 0, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
+		this.key = JSON.stringify([p.pins, p.propsHidden, p.cfg, p.shared, p.n, p.path, p.day, h, p.foodsCount, this.meds.path, this.meds.meds, this.doses, this.people.map((x) => [x.who, x.path, x.meds, x.taken.map((e) => e.text)]), this.habits.map((r) => [r.h, r.p, r.s.current, r.s.best, r.due]), (this.lookback || []).map((e) => [e.path, e.title, e.snippet, e.years]), p.day && p.day === isoDay(new Date()) ? new Date().getHours() : 0, p.tasks.map((t) => [t.cfg, t.result.groups.map((g) => [g.label, g.tasks.map((x) => [x.path, x.line, x.text, x.status])])])]);
 	}
 	eq(o) { return o.key === this.key; }
 
@@ -257,7 +258,9 @@ class PlannerWidget extends WidgetType {
 		const wrap = el("div", "planner");
 		const ro = view.state.readOnly;
 		const card = !ro && host && this.day && this.cfg.setup !== "done" ? this.setupCard(view) : null;
-		wrap.append(...this.top(view), ...(card ? [card] : []), this.buttons(view, ro), this.columns(view, ro));
+		// The notes pinned to daily notes sit between the buttons and the cards.
+		const pins = this.pins ? [dailyPinsDOM(ro)] : [];
+		wrap.append(...this.top(view), ...(card ? [card] : []), this.buttons(view, ro), ...pins, this.columns(view, ro));
 		const edit = el("button", "md-dv-edit planner-edit", "</>");
 		edit.type = "button";
 		edit.title = "Edit the planner's settings";
@@ -1969,6 +1972,9 @@ function build(state) {
 	const today = isoDay(new Date());
 	const day = noteDay(path);
 	let notes = null;
+	// The Pinned row goes in the first planner drawn (src/cardsblock.js).
+	const pins = dailyPinsKey(state);
+	const firstDrawn = blocks.findIndex((blk) => !isOpen(state, blk));
 	blocks.forEach((blk, n) => {
 		// Opened as text with its </> button (src/drawnblocks.js).
 		if (isOpen(state, blk)) return;
@@ -1986,7 +1992,7 @@ function build(state) {
 			const tcfg = readConfig(`list: ${tag}`);
 			return { cfg: tcfg, result: taskList(notes, tcfg, { path, today }) };
 		});
-		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, health, shared: shared.colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks, meds: { path: meds.path, meds: meds.meds }, doses, people, habits, lookback }), block: true }));
+		b.add(blk.from, blk.to, Decoration.replace({ widget: new PlannerWidget({ cfg, n, from: blk.from, path, day, pins: n === firstDrawn ? pins : null, health, shared: shared.colors, propsHidden: propertiesFolded(state), foodsCount: foods.length, tasks, meds: { path: meds.path, meds: meds.meds }, doses, people, habits, lookback }), block: true }));
 	});
 	return b.finish();
 }

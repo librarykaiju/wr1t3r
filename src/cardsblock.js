@@ -22,6 +22,8 @@ import { readCards, writeCards } from "./home.js";
 import { drawHome } from "./homeview.js";
 import { notePath, vaultChanged } from "./vault.js";
 import { noteDay } from "./tasklists.js";
+import { PLANNER } from "./planner.js";
+import { isOpen } from "./drawnblocks.js";
 
 export const CARDS = "wr1t3r-cards";
 const UNTRUSTED = /(^|\/)_?(clippings|uploads)\//i;
@@ -127,40 +129,53 @@ export const cardsBlocks = StateField.define({
 
 let dailyStamp = 0;
 
-class DailyPinsWidget extends WidgetType {
-	constructor(key, ro) { super(); this.key = key; this.ro = ro; this.stamp = dailyStamp; }
-	eq(o) { return o.key === this.key && o.ro === this.ro && o.stamp === this.stamp; }
-	toDOM() {
-		const wrap = document.createElement("div");
-		wrap.className = "md-cards daily-pins";
-		const head = document.createElement("div");
-		head.className = "daily-pins-head";
-		head.textContent = "Pinned";
-		const grid = document.createElement("div");
-		grid.className = "home-grid md-cards-grid";
-		grid.setAttribute("role", "list");
-		grid.setAttribute("aria-label", "Pinned to daily notes");
-		const store = host?.daily;
-		if (store) {
-			const ro = this.ro;
-			drawHome(grid, {
-				pins: store.list(), homeFile: store.file(), paths: host.paths(),
-				text: host.text, image: host.image, open: host.open, glance: host.glance, habits: host.habits, neighbors: host.neighbors,
-				menu: (i, x, y) => (ro ? null : host.menu(store, i, x, y)),
-				add: ro ? null : () => host.add(store),
-				emptyLabel: "Pin a note to daily notes",
-				reorder: (from, to) => {
-					if (ro) return;
-					const list = store.list();
-					const [moved] = list.splice(from, 1);
-					list.splice(to, 0, moved);
-					store.save(list);
-				},
-			});
-		}
-		wrap.append(head, grid);
-		return wrap;
+// The Pinned row itself. A daily note with a planner draws it inside the
+// planner, between its buttons and its Timeline and task cards
+// (src/plannerview.js); any other daily note gets it under the properties.
+export function dailyPinsDOM(ro) {
+	const wrap = document.createElement("div");
+	wrap.className = "md-cards daily-pins";
+	const head = document.createElement("div");
+	head.className = "daily-pins-head";
+	head.textContent = "Pinned";
+	const grid = document.createElement("div");
+	grid.className = "home-grid md-cards-grid";
+	grid.setAttribute("role", "list");
+	grid.setAttribute("aria-label", "Pinned to daily notes");
+	const store = host?.daily;
+	if (store) {
+		drawHome(grid, {
+			pins: store.list(), homeFile: store.file(), paths: host.paths(),
+			text: host.text, image: host.image, open: host.open, glance: host.glance, habits: host.habits, neighbors: host.neighbors,
+			menu: (i, x, y) => (ro ? null : host.menu(store, i, x, y)),
+			add: ro ? null : () => host.add(store),
+			emptyLabel: "Pin a note to daily notes",
+			reorder: (from, to) => {
+				if (ro) return;
+				const list = store.list();
+				const [moved] = list.splice(from, 1);
+				list.splice(to, 0, moved);
+				store.save(list);
+			},
+		});
 	}
+	wrap.append(head, grid);
+	return wrap;
+}
+
+// What a widget holding the Pinned row compares to know when to redraw: the
+// pins and a count of vault changes (their glances may have changed), or
+// null when this note shows none.
+export function dailyPinsKey(state) {
+	const path = state.facet(notePath);
+	const list = host?.daily && path && noteDay(path) ? host.daily.list() : [];
+	return list.length ? JSON.stringify([list, dailyStamp]) : null;
+}
+
+class DailyPinsWidget extends WidgetType {
+	constructor(key, ro) { super(); this.key = key; this.ro = ro; }
+	eq(o) { return o.key === this.key && o.ro === this.ro; }
+	toDOM() { return dailyPinsDOM(this.ro); }
 	ignoreEvent() { return true; }
 	get estimatedHeight() { return 200; }
 }
@@ -176,11 +191,12 @@ function afterFrontmatter(doc) {
 }
 
 function buildDaily(state) {
-	const path = state.facet(notePath);
-	const list = host?.daily && path && noteDay(path) ? host.daily.list() : [];
-	if (!list.length) return Decoration.none;
+	const key = dailyPinsKey(state);
+	if (!key) return Decoration.none;
+	// A drawn planner holds the row itself.
+	if (dataviewBlocks(state, PLANNER).some((b) => !isOpen(state, b))) return Decoration.none;
 	const { pos, side } = afterFrontmatter(state.doc);
-	const deco = Decoration.widget({ widget: new DailyPinsWidget(JSON.stringify(list), state.readOnly), block: true, side });
+	const deco = Decoration.widget({ widget: new DailyPinsWidget(key, state.readOnly), block: true, side });
 	return Decoration.set([deco.range(pos)]);
 }
 

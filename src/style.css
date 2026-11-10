@@ -1609,6 +1609,7 @@ main:not(.has-note) #homeBtn { color: var(--accent); }
 @media (hover: none) { .md-cards-edit { opacity: 0.6; } }
 .daily-pins { margin: 4px 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .daily-pins-head { margin: 0 0 6px; color: var(--muted); font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.planner .daily-pins { margin: 0 0 14px; padding-bottom: 0; border-bottom: 0; }
 /* The calendar page (calendarview.js): the title, ‹ Today ›, Month/Week,
    then the days. Month: a grid of six weeks. Week: seven columns. In a narrow
    column, one week as a list with the weeks as tabs down the right edge.
