@@ -29,6 +29,7 @@
 
 import { parseYaml } from "./bases.js";
 import { listItems } from "./dvpage.js";
+import { conflictOf } from "./paths.js";
 
 export const TASKS_BLOCK = "wr1t3r-tasks";
 export const LIST_NAMES = { crit: "Critical Tasks", todo: "To Do's" };
@@ -102,7 +103,10 @@ export function noteDay(path) {
 	return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
-const SKIP = /(^|\/)(_templates|_?clippings|_?uploads)\//i;
+// Templates, clippings, uploads, and conflict copies ("Note (conflict 2026-11-03).md"),
+// whose tasks are already on the list from the note they were copied from.
+const SKIP_DIR = /(^|\/)(_templates|_?clippings|_?uploads)\//i;
+const skipped = (path) => SKIP_DIR.test(path) || conflictOf(path) != null;
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 const tagRe = (tag) => new RegExp(`(^|\\s)#${escape(tag)}(?:/[^\\s#]*)?(?=$|[\\s.,;:!?)])`, "i");
 
@@ -113,7 +117,7 @@ export function tasksTagged(notes, tag) {
 	const re = tagRe(tag);
 	const out = [];
 	for (const [path, text] of Object.entries(notes)) {
-		if (SKIP.test(path) || !/\.md$/i.test(path) || text == null || !text.includes("#")) continue;
+		if (skipped(path) || !/\.md$/i.test(path) || text == null || !text.includes("#")) continue;
 		let hit = cache.get(path);
 		if (!hit || hit.text !== text) {
 			hit = { text, items: listItems(text).filter((l) => l.task) };
@@ -136,7 +140,7 @@ export function tasksTagged(notes, tag) {
 export function itemTags(notes) {
 	const count = new Map();
 	for (const [path, text] of Object.entries(notes)) {
-		if (SKIP.test(path) || !/\.md$/i.test(path) || text == null || !text.includes("#")) continue;
+		if (skipped(path) || !/\.md$/i.test(path) || text == null || !text.includes("#")) continue;
 		let hit = cache.get(path);
 		if (!hit || hit.text !== text) { hit = { text, items: listItems(text).filter((l) => l.task) }; cache.set(path, hit); }
 		for (const it of hit.items) {

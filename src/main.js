@@ -48,7 +48,7 @@ import { sync, conflictPath } from "./sync.js";
 import { runPass, folderSupported } from "./localvaultview.js";
 import { transcribeFile } from "./transcribeview.js";
 import { contentHash } from "./localvault.js";
-import { isNotePath, isAttachmentPath, isBoardPath, BOARD_EXT, attachmentType } from "./paths.js";
+import { isNotePath, isAttachmentPath, isBoardPath, BOARD_EXT, attachmentType, conflictOf, conflictDay } from "./paths.js";
 import { counts, countWords, stats, noteGoal } from "./count.js";
 import * as pomo from "./pomodoro.js";
 import * as agenda from "./agenda.js";
@@ -113,6 +113,7 @@ import { recordVoice } from "./recorder.js";
 import { remindersIn, dueReminders } from "./reminders.js";
 import { plan as remindPlan, prune as remindPrune, reminderEvent, eventIdFor, byCalendar, PER_PASS } from "./calreminders.js";
 import { openHistory } from "./historyview.js";
+import { openConflict } from "./conflictview.js";
 import { foodFromLabel } from "./labelview.js";
 import { newerBuild } from "./stale.js";
 
@@ -208,7 +209,7 @@ async function runSync() {
 		if (sortPending && sortPending === editor.path && settingOn("sort")) sortOpenNote();
 		sortPending = null;
 		for (const c of r.conflicts) {
-			toast(`${name(c.path)} was also changed elsewhere. Your version is saved as “${name(c.copy)}”.`, 8000);
+			toast(`${name(c.path)} was also changed elsewhere. Your version is saved as “${name(c.copy)}”. Open it to compare and settle the two.`, 8000);
 		}
 	} catch (e) {
 		if (e instanceof AuthError) return signOut(SIGNED_OUT);
@@ -217,6 +218,7 @@ async function runSync() {
 		syncing = false;
 		renderStatus();
 		renderTree();
+		renderConflictBar();
 		if (again) { again = false; scheduleSync(0); }
 		else for (const done of syncWaiters.splice(0)) done(lastError == null);
 		scheduleLocalPass(500);
@@ -2687,6 +2689,7 @@ function openNote(path, { replace = false, tab = true } = {}) {
 	renderHome();
 	applyTracking();
 	applyPageView();
+	renderConflictBar();
 	if (has) sortOnOpen(path);
 }
 
@@ -3814,6 +3817,7 @@ function allCommands() {
 		["Sort checklists", () => sortOpenNote({ quiet: false }), "tasks done checked bottom order todo", true],
 		["Make pictures and PDFs searchable", searchablePictures, "ocr scan text image photo pdf search read"],
 		...(ocrOn() ? [["Stop reading new pictures and PDFs", () => { setOcrOn(false); toast("New pictures and PDFs won't be read. Ones already read stay searchable."); }, "ocr off"]] : []),
+		...(conflictOf(editor.path) ? [["Settle this conflict copy", () => settleConflict(editor.path), "conflict copy duplicate merge compare sync keep both", true]] : []),
 		["Version history", showHistory, "versions snapshots restore undo earlier backup recover diff compare", true],
 		["Export or print this note", () => exportNote(editor.path), "print pdf word docx html download save", true],
 		["Export as website", () => exportWebsite(), "publish site web neocities github pages html zip blog garden static share"],
@@ -7407,6 +7411,64 @@ function showHistory() {
 			if (text !== before) view.dispatch({ changes: diffChange(before, text), userEvent: "input.restore", scrollIntoView: true });
 			toast("Restored. Undo brings back the newer text.", 4000);
 		},
+	});
+}
+
+// Conflict copies (src/conflict.js, src/conflictview.js). A note open that is
+// "Note (conflict DATE).md" gets a bar saying so, whose button compares it
+// with the note and settles the two: the note keeps one version or every
+// line of both, and the copy is deleted. The note's text changes through the
+// editor, so Undo (and Version history) bring the old text back.
+function renderConflictBar() {
+	const bar = $("conflictBar");
+	const copy = editor?.path, orig = conflictOf(copy);
+	const o = orig ? notes.get(orig) : null;
+	if (!o || o.deleted || o.binary || notes.get(copy)?.binary) { bar.hidden = true; return; }
+	const open = document.createElement("button");
+	open.type = "button";
+	open.className = "props-btn props-primary";
+	open.textContent = "Compare and settle…";
+	open.addEventListener("click", () => settleConflict(copy));
+	const text = document.createElement("span");
+	text.textContent = `This is a conflict copy of “${name(orig)}”: it changed in two places before they synced, so both versions were kept. Its tasks don't show in task lists.`;
+	bar.replaceChildren(text, open);
+	bar.hidden = false;
+}
+
+function settleConflict(copy) {
+	const orig = conflictOf(copy), o = orig ? notes.get(orig) : null, c = notes.get(copy);
+	if (!o || o.deleted || !c || c.deleted) return toast("The note this was copied from is gone. Rename this one to keep it.", 4000);
+	if (o.binary || c.binary) return;
+	const textOf = (p) => (p === editor.path ? editor.text() : notes.get(p).text);
+	const dropCopy = async () => {
+		await change(copy, (cur) => (cur?.base ? { ...cur, deleted: true, dirty: true } : null));
+		editor.forget(copy);
+		closeTab(copy);
+		renderTree();
+		renderStatus();
+		scheduleSync(0);
+	};
+	const settle = async (text, done) => {
+		openNote(orig);
+		const view = editor.view;
+		if (editor.path !== orig || view.state.readOnly) return toast("Couldn't open the note to change it.");
+		const before = view.state.doc.toString();
+		if (text != null && text !== before) {
+			await versions.keep(orig, before, { force: true });
+			view.dispatch({ changes: diffChange(before, text), userEvent: "input.restore", scrollIntoView: true });
+		}
+		await dropCopy();
+		toast(done, 5000);
+	};
+	openConflict({
+		name: name(copy),
+		original: name(orig),
+		day: conflictDay(copy),
+		originalText: () => textOf(orig),
+		copyText: () => textOf(copy),
+		keepOriginal: () => settle(null, `Kept “${name(orig)}” and deleted the copy.`),
+		useCopy: () => settle(textOf(copy), `“${name(orig)}” now has the copy's text. Undo brings its old text back.`),
+		merge: (text) => settle(text, `“${name(orig)}” now has the lines from both. Give it a look; Undo brings its old text back.`),
 	});
 }
 
