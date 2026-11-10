@@ -302,15 +302,33 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 [hidden] { display: none !important; }
 .error { color: var(--bad); }
 
-#login { max-width: 360px; margin: 18vh auto 0; padding: 0 16px; display: grid; gap: 10px; }
-#login h1 { font: 600 28px var(--serif); margin: 0; }
+#login { max-width: 400px; margin: 14vh auto 0; padding: 0 16px 40px; display: grid; gap: 22px; }
+#login .login-head { display: grid; gap: 6px; }
+#login h1 { font: 600 40px/1.1 var(--serif); margin: 0; letter-spacing: 0.01em; }
+#login .login-tagline { font: 20px/1.3 var(--serif); color: var(--fg); }
 #login p { margin: 0; color: var(--muted); }
+.login-choices { display: grid; gap: 12px; }
+.login-choice {
+	display: flex; align-items: center; gap: 16px; width: 100%; min-height: 72px; padding: 14px 20px;
+	font: 600 19px var(--sans); color: var(--fg); text-align: left;
+	background: var(--card); border: 2px solid var(--fg); border-radius: 10px; cursor: pointer;
+}
+.login-choice:hover:not(:disabled) { background: var(--sel); }
+.login-choice[aria-expanded="true"] { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.login-choice:disabled { cursor: default; border-color: var(--line); color: var(--muted); }
+.login-choice-local { margin-top: 18px; }
+.login-icon { width: 36px; height: 36px; flex: none; }
+.login-icon-dropbox { color: #0061fe; }
+.login-icon-nextcloud { color: #0082c9; }
+.login-choice:disabled .login-icon { opacity: 0.6; }
+.login-reopen { display: grid; gap: 14px; }
+#login .login-reopen p { color: var(--fg); }
+.login-soon { margin-left: auto; text-align: right; font: 500 13px var(--sans); color: var(--muted); }
+#login .login-note { font-size: 14px; text-align: center; }
+.login-more { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; }
 #tokenLogin { display: grid; gap: 10px; }
-#login.dropbox-only :is(#dropboxStart, #driveStart) { display: block; width: 100%; margin-top: 12px; padding: 8px; }
-#login #driveLogin { margin-top: 14px; font-size: 14px; }
-#login.dropbox-only #ncStart { display: block; width: 100%; margin-top: 12px; padding: 8px; }
-#login #ncLogin { margin-top: 14px; font-size: 14px; }
-#ncForm { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.link-button { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; justify-self: start; text-decoration: underline; text-underline-offset: 2px; }
+#ncForm { display: grid; gap: 10px; margin-top: -12px; padding: 14px 16px 16px; border: 2px solid var(--fg); border-top: 0; border-radius: 0 0 10px 10px; background: var(--card); }
 #ncForm label { display: grid; gap: 4px; font-size: 14px; }
 #ncForm .hint { font-size: 13px; }
 .nc-help { font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel); }

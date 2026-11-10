@@ -16,25 +16,57 @@
 </head>
 <body>
 	<form id="login" hidden>
-		<h1>wr1t3r</h1>
-		<div id="tokenLogin">
-			<p>Paste your wr1t3r token. It stays on this device.</p>
-			<input id="token" type="password" autocomplete="current-password" placeholder="Token" required>
-			<button type="submit">Continue</button>
+		<div class="login-head">
+			<h1>wr1t3r</h1>
+			<p class="login-tagline">Your notes. Your way.</p>
 		</div>
-		<p id="dropboxLogin" hidden><span id="dropboxLead">Or keep your notes in your own Dropbox:</span> <button type="button" id="dropboxStart">Use Dropbox</button></p>
-		<p id="ncLogin" hidden><span>Or on your own Nextcloud:</span> <button type="button" id="ncStart">Use Nextcloud</button></p>
-		<div id="ncForm" hidden>
-			<p>Your notes go straight between this browser and your Nextcloud.</p>
-			<label>Nextcloud address <input id="ncServer" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="cloud.example.com"></label>
-			<label>Username <input id="ncUser" type="text" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
-			<label>App password <input id="ncPass" type="password" autocomplete="current-password" spellcheck="false"></label>
-			<p class="hint">Make an app password in Nextcloud: your picture (top right) › Personal settings › Security › Create new app password. Call it wr1t3r. <a id="ncPassLink" target="_blank" rel="noopener" hidden>Open that page</a></p>
-			<label>Folder for your notes <input id="ncFolder" type="text" value="wr1t3r" autocapitalize="off" spellcheck="false"></label>
-			<button type="button" id="ncConnect">Connect</button>
-			<div id="ncHelp" class="nc-help" role="alert" hidden></div>
+		<div class="login-choices">
+			<button type="button" id="dropboxStart" class="login-choice" hidden>
+				<svg class="login-icon login-icon-dropbox" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 1.807 0 5.629l6 3.822 6.001-3.822zm12 0-6 3.822 6 3.822 6-3.822zM0 13.274l6 3.822 6.001-3.822L6 9.452zm18-3.822-6 3.822 6 3.822 6-3.822zM6 18.371l6.001 3.822 6-3.822-6-3.822z"/></svg>
+				<span>Dropbox</span>
+			</button>
+			<button type="button" id="ncStart" class="login-choice">
+				<svg class="login-icon login-icon-nextcloud" viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.6"><circle cx="20" cy="20" r="6.6"/><circle cx="6.2" cy="20" r="3.6"/><circle cx="33.8" cy="20" r="3.6"/></g></svg>
+				<span>Nextcloud</span>
+			</button>
+			<div id="ncForm" hidden>
+				<p>Your notes go straight between this browser and your Nextcloud.</p>
+				<label>Nextcloud address <input id="ncServer" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="cloud.example.com"></label>
+				<label>Username <input id="ncUser" type="text" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
+				<label>App password <input id="ncPass" type="password" autocomplete="current-password" spellcheck="false"></label>
+				<p class="hint">Make an app password in Nextcloud: your picture (top right) › Personal settings › Security › Create new app password. Call it wr1t3r. <a id="ncPassLink" target="_blank" rel="noopener" hidden>Open that page</a></p>
+				<label>Folder for your notes <input id="ncFolder" type="text" value="wr1t3r" autocapitalize="off" spellcheck="false"></label>
+				<button type="button" id="ncConnect">Connect</button>
+				<div id="ncHelp" class="nc-help" role="alert" hidden></div>
+			</div>
+			<button type="button" id="driveStart" class="login-choice" disabled aria-describedby="driveSoon">
+				<svg class="login-icon" viewBox="0 0 87.3 78" aria-hidden="true"><path fill="#0066da" d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z"/><path fill="#00ac47" d="M43.65 25 29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.5A9 9 0 0 0 0 53h27.5z"/><path fill="#ea4335" d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z"/><path fill="#00832d" d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z"/><path fill="#2684fc" d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z"/><path fill="#ffba00" d="M73.4 26.5 60.7 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z"/></svg>
+				<span>Google Drive</span>
+				<small id="driveSoon" class="login-soon">Coming soon</small>
+			</button>
+			<button type="button" id="localStart" class="login-choice login-choice-local" disabled aria-describedby="localSoon">
+				<svg class="login-icon" viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="5" y="6" width="30" height="20" rx="2.5"/><path d="M20 26v7M12 34h16"/></g></svg>
+				<span>My Computer</span>
+				<small id="localSoon" class="login-soon">Coming soon</small>
+			</button>
 		</div>
-		<p id="driveLogin" hidden><span>Or in your own Google Drive (wr1t3r sees only the files it puts there):</span> <button type="button" id="driveStart">Sign in with Google Drive</button></p>
+		<p id="dropboxLead" class="login-note" hidden></p>
+		<div id="moreLogin" class="login-more" hidden>
+			<button type="button" id="driveStart" class="link-button" hidden>Use Google Drive instead</button>
+			<div id="tokenLogin">
+				<p>Or paste your wr1t3r token. It stays on this device.</p>
+				<input id="token" type="password" autocomplete="current-password" placeholder="Token" required>
+				<button type="submit">Continue</button>
+			</div>
+		</div>
+		<div id="folderReopen" class="login-reopen" hidden>
+			<p id="folderReopenText"></p>
+			<button type="button" id="folderReopenGo" class="login-choice">
+				<svg class="login-icon" viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="5" y="6" width="30" height="20" rx="2.5"/><path d="M20 26v7M12 34h16"/></g></svg>
+				<span>Open my notes</span>
+			</button>
+			<button type="button" id="folderReopenOther" class="link-button">Use something else</button>
+		</div>
 		<p id="login-error" class="error" role="alert"></p>
 	</form>
 
@@ -383,10 +415,10 @@
 						<h2>Last sync</h2>
 						<p class="hint" id="setSynced"></p>
 						<p class="hint" id="setStorage"></p>
-						<h2>Local folder</h2>
+						<h2 id="folderHead">Local folder</h2>
 						<p class="hint" id="folderStatus"></p>
-						<div class="seg"><button id="folderPick" type="button">Choose a folder…</button><button id="folderReconnect" type="button" hidden>Allow again</button><button id="folderStop" type="button" hidden>Stop</button></div>
-						<p class="hint">The whole vault as plain files on this computer, kept in step both ways while wr1t3r is open. Edits made there come in; edits made here go out.</p>
+						<div class="seg" id="folderButtons"><button id="folderPick" type="button">Choose a folder…</button><button id="folderReconnect" type="button" hidden>Allow again</button><button id="folderStop" type="button" hidden>Stop</button></div>
+						<p class="hint" id="folderHint">The whole vault as plain files on this computer, kept in step both ways while wr1t3r is open. Edits made there come in; edits made here go out.</p>
 						<h2 data-feature="ocr">Searchable pictures and PDFs</h2>
 						<div class="seg" id="ocrSeg" data-feature="ocr" title="Claude reads the text in pictures and PDFs so search finds them. Needs ANTHROPIC_API_KEY">
 							<button type="button" data-on="true">On</button>

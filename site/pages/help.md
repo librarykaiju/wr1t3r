@@ -1,6 +1,6 @@
 ---
 title: wr1t3r help: setting up and publishing
-description: Step by step: set up wr1t3r with your Dropbox or Google Drive, then publish your notes as a website on Neocities or GitHub Pages.
+description: Step by step: set up wr1t3r with your Dropbox, Nextcloud or a folder on your computer, then publish your notes as a website on Neocities or GitHub Pages.
 page: help
 ---
 
@@ -16,6 +16,7 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 
 - [Setting up wr1t3r](#setup)
 - [Getting back in, and your devices](#devices)
+- [Keeping your notes on your computer](#my-computer)
 - [Keeping your notes on your own Nextcloud](#nextcloud)
 - [Your Nextcloud calendars in wr1t3r](#nextcloud-calendar)
 - [Publishing your notes as a website](#publishing)
@@ -32,9 +33,9 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 
 1.  **Open [my.wr1t3r.app](https://my.wr1t3r.app/)** in any browser. On an iPhone or iPad, tap Share, then _Add to Home Screen_, and open wr1t3r from there. Safari clears a website's saved data after a few weeks unless it's on the Home Screen.
 
-2.  **Sign in with Dropbox or Google Drive.** In Dropbox, wr1t3r gets one folder of its own, _Apps › wr1t3r_, and can't see anything else in your Dropbox. In Google Drive, it keeps your notes in a folder called _wr1t3r_ and sees only the files it made. Either way, your notes go straight between your browser and your storage; they never pass through a server of mine.
+2.  **Choose where your notes live.** Click _Dropbox_, _Nextcloud_ or _My Computer_. In Dropbox, wr1t3r gets one folder of its own, _Apps › wr1t3r_, and can't see anything else in your Dropbox. Nextcloud is [below](#nextcloud). _My Computer_ keeps them in a folder you pick on this computer (see [below](#my-computer)). Whichever you pick, your notes go straight between your browser and your storage; they never pass through a server of mine. Google Drive is coming soon.
 
-    ![The first screen: Your notes live in your own Dropbox, in Apps › wr1t3r, and a Sign in with Dropbox button](/shots/help-connect.webp)
+    ![The first screen: wr1t3r, Your notes. Your way., and buttons for Dropbox, Nextcloud, Google Drive and My Computer](/shots/help-connect.webp)
 
 3.  **Pick what you'll use it for.** wr1t3r turns on the parts that fit. Leave _Add starter notes and a Home screen_ ticked if you'd like a few notes to start from. You can change all of this later in Settings > Features.
 
@@ -52,13 +53,25 @@ Step by step, from first sign-in to a website with your notes on it. In the app,
 
 ## Getting back in, and your devices
 
-wr1t3r has no account or password of its own. You sign in with Dropbox or Google, and your notes stay there.
+wr1t3r has no account or password of its own. You sign in with Dropbox or Nextcloud, or pick a folder on your computer, and your notes stay there.
 
 - **Forgot your Dropbox or Google password?** Reset it with Dropbox or Google, then sign in to wr1t3r again. Everything is where you left it.
 - **Moving to a new Dropbox or Google account?** In Dropbox, copy the _Apps › wr1t3r_ folder into the new account, then sign in to wr1t3r with it. In Google Drive, sign in to wr1t3r with the new account first, then add your notes with the Upload button, since wr1t3r only sees files it put there itself. Your license key isn't tied to either account, so it keeps working.
 - **New device, or a browser that was cleared?** Once you're signed in, the key window fills in your key from _\_wr1t3r/License.md_, a note wr1t3r keeps beside your Home note. Keep that note private, like the key itself.
 - **Key on too many devices?** A key covers 5. Settings > License lists every device it's on, with a _Free_ button for each, so you can free a lost or wiped one from any other device. The same list shows in the key window when it's full. If one isn't listed, email [hello@wr1t3r.app](mailto:hello@wr1t3r.app).
 - **Lost the key?** It's on your Polar purchases page, linked from your receipt email. Polar signs you in with a code sent to that email address.
+
+--- my-computer
+
+## Keeping your notes on your computer
+
+_My Computer_ keeps your notes as plain Markdown files in a folder on this computer, with no cloud in between. It works in Chrome and Edge on a computer (not Firefox, Safari, or phones and tablets).
+
+1.  **Click _My Computer_** on wr1t3r's sign-in screen and pick a folder, or make a new one. A folder that already has Markdown notes in it is fine: they show up in wr1t3r.
+2.  **Say yes** when the browser asks to let wr1t3r view and edit files in it. If it offers _Allow on every visit_, pick that so it doesn't ask again.
+3.  **Coming back later?** The browser may want your OK again after you've closed the tab. Click _Open my notes_.
+
+Edits you make to the files with other apps come in the next time wr1t3r syncs. Your notes are only on this computer, so back the folder up the way you back up anything else, and use Dropbox or Nextcloud if you want them on other devices too.
 
 --- nextcloud
 
@@ -73,7 +86,7 @@ If you run Nextcloud, wr1t3r can keep your notes there instead of Dropbox or Goo
 
 2.  **Make an app password.** In Nextcloud, click your picture (top right), then _Personal settings › Security_. Under _Devices & sessions_, type `wr1t3r` and click _Create new app password_. Copy the password it shows. It works even with two-factor sign-in turned on, and you can revoke it there any time.
 
-3.  **Connect.** On wr1t3r's sign-in screen, click _Use my Nextcloud_. Enter your Nextcloud's address (the one you open it at), your username, the app password, and a folder for your notes. wr1t3r makes the folder if it isn't there.
+3.  **Connect.** On wr1t3r's sign-in screen, click _Nextcloud_. Enter your Nextcloud's address (the one you open it at), your username, the app password, and a folder for your notes. wr1t3r makes the folder if it isn't there.
 
 That's it. Some things to know:
 
