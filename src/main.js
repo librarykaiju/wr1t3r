@@ -7468,7 +7468,7 @@ function settleConflict(copy) {
 		copyText: () => textOf(copy),
 		keepOriginal: () => settle(null, `Kept “${name(orig)}” and deleted the copy.`),
 		useCopy: () => settle(textOf(copy), `“${name(orig)}” now has the copy's text. Undo brings its old text back.`),
-		merge: (text) => settle(text, `“${name(orig)}” now has the lines from both. Check for doubled lines; Undo brings its old text back.`),
+		merge: (text) => settle(text, `“${name(orig)}” now has the lines from both. Give it a look; Undo brings its old text back.`),
 	});
 }
 
