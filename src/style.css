@@ -2511,34 +2511,58 @@ body.no-health .planner-buttons { display: none !important; }
 
 /* Bold outlines (Settings > Appearance > Outlines; data-outline="bold" on
    <html>, set by src/main.js and public/theme.js). Layers over any theme:
-   --ink is the theme's text color, so the outlines and hard offset shadows
-   are near-black on light themes and near-white on dark ones. Hairlines
-   (--line) get darker too, for contrast. Plain button and input rules sit
-   in :where() so a component's own border (or none) still wins; shadows go
-   only on the bigger surfaces named here, since a borderless toolbar button
-   with a hard shadow would look broken. */
+   thick outlines and hard offset shadows on buttons, cards and panels, and
+   darker hairlines (--line) for contrast. light-dark() picks by the theme's
+   color-scheme. On a light theme the ink is the text color. On a dark one
+   it's never white: a colored thing (a Home tile, a sidebar button, a pill
+   button) gets a lighter fill of its own color with a darker shade of it as
+   outline and shadow, and an uncolored one (a panel, a menu) takes the
+   accent for its outline and a darker accent for its shadow.
+   Plain button and input rules sit in :where() so a component's own border
+   (or none) still wins; shadows go only on the bigger surfaces named here,
+   since a borderless toolbar button with a hard shadow would look broken. */
 :root[data-outline=bold] {
-	--ink: var(--fg);
 	--ink-w: 2px;
-	--drop-s: 2px 2px 0 var(--ink);
-	--drop: 4px 4px 0 var(--ink);
-	--drop-l: 6px 6px 0 var(--ink);
+	--ink: light-dark(var(--fg), var(--accent));
+	--ink-drop: light-dark(var(--fg), color-mix(in srgb, var(--accent) 45%, #000));
+	--drop-s: 2px 2px 0 var(--ink-drop);
+	--drop: 4px 4px 0 var(--ink-drop);
+	--drop-l: 6px 6px 0 var(--ink-drop);
 	--line: color-mix(in srgb, var(--fg) 32%, var(--bg));
+}
+/* A colored thing: set --hue on it. */
+:root[data-outline=bold] :is(.side-top button, .tile:not(.tile-add), .welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn.primary) {
+	--hue-ink: light-dark(var(--fg), color-mix(in srgb, var(--hue) 50%, #000));
+	--hue-fill: light-dark(color-mix(in srgb, var(--hue) 30%, var(--card)), color-mix(in srgb, var(--hue) 80%, #fff));
+	--hue-fill-on: light-dark(color-mix(in srgb, var(--hue) 44%, var(--card)), color-mix(in srgb, var(--hue) 92%, #fff));
+	--hue-text: light-dark(var(--fg), color-mix(in srgb, var(--hue) 20%, #000));
 }
 :where(:root[data-outline=bold]) button { border: var(--ink-w) solid var(--ink); }
 :where(:root[data-outline=bold]) button:hover { border-color: var(--ink); background: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
 :where(:root[data-outline=bold]) input, :where(:root[data-outline=bold]) textarea { border: var(--ink-w) solid var(--ink); }
 :root[data-outline=bold] select:not([multiple]):not([size]) { border: var(--ink-w) solid var(--ink); }
 
-/* Buttons that press: a small hard shadow that goes away on press. */
-:root[data-outline=bold] :is(.side-top button, .welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn, #folderReopenGo) {
-	border: var(--ink-w) solid var(--ink); box-shadow: var(--drop-s); transition: transform .08s, box-shadow .08s;
-}
-:root[data-outline=bold] :is(.side-top button, .welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn):active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+/* Buttons that press: a small hard shadow that goes away on press. The
+   sidebar's take the rainbow in turn; the dialog and sign-in buttons are
+   accent pills. */
+:root[data-outline=bold] .side-top button { --hue: var(--f6); }
+:root[data-outline=bold] #new { --hue: var(--f1); }
+:root[data-outline=bold] #project { --hue: var(--f2); }
+:root[data-outline=bold] #today { --hue: var(--f3); }
+:root[data-outline=bold] #upload { --hue: var(--f4); }
+:root[data-outline=bold] #clip { --hue: var(--f5); }
 :root[data-outline=bold] :is(.welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn.primary) {
+	--hue: var(--accent);
 	border-radius: 999px; padding-inline: 20px; font-weight: 700;
-	background: color-mix(in srgb, var(--accent) 22%, var(--card)); color: var(--fg);
 }
+:root[data-outline=bold] :is(.side-top button, .welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn.primary) {
+	background: var(--hue-fill); color: var(--hue-text); border: var(--ink-w) solid var(--hue-ink); box-shadow: 2px 2px 0 var(--hue-ink);
+	transition: transform .08s, box-shadow .08s;
+}
+:root[data-outline=bold] :is(.side-top button, .welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn.primary):hover:not(:disabled) { background: var(--hue-fill-on); border-color: var(--hue-ink); }
+:root[data-outline=bold] .side-top button { font-weight: 600; }
+:root[data-outline=bold] :is(.cal-btn:not(.primary), #folderReopenGo) { border: var(--ink-w) solid var(--ink); box-shadow: var(--drop-s); transition: transform .08s, box-shadow .08s; }
+:root[data-outline=bold] :is(.side-top button, .welcome-actions button:not(.quiet), #tokenLogin button, #ncConnect, .cal-btn):active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
 
 /* Start page: the big choices. */
 :root[data-outline=bold] .login-choice { border: 2.5px solid var(--ink); border-radius: 14px; box-shadow: var(--drop); transition: transform .1s, box-shadow .1s; }
@@ -2560,19 +2584,25 @@ body.no-health .planner-buttons { display: none !important; }
 	border: var(--ink-w) solid var(--ink); box-shadow: var(--drop-l);
 }
 :root[data-outline=bold] :is(#editor, #refView) .cm-tooltip.cm-tooltip-autocomplete { border: var(--ink-w) solid var(--ink); box-shadow: var(--drop); }
-:root[data-outline=bold] .notice { border: var(--ink-w) solid var(--fg); box-shadow: var(--drop-s); }
+:root[data-outline=bold] .notice { border: var(--ink-w) solid var(--ink); box-shadow: var(--drop-s); }
 :root[data-outline=bold] .palette-box input { border: 0; border-bottom: var(--ink-w) solid var(--ink); }
 
-/* Home tiles and corkboard cards: the flat pastel fill stays, framed in ink. */
-:root[data-outline=bold] .tile:not(.tile-add) { border: var(--ink-w) solid var(--ink); border-radius: 14px; box-shadow: var(--drop); background: color-mix(in srgb, var(--tc) 32%, var(--card)); }
-@media (hover: hover) { :root[data-outline=bold] .tile:not(.tile-add):hover { transform: translate(-2px, -2px); box-shadow: var(--drop-l); background: color-mix(in srgb, var(--tc) 42%, var(--card)); } }
+/* Home tiles: a flat fill of the tile's color, outlined in ink (light) or
+   a darker shade of that color (dark). Storyboard cards keep their band. */
+:root[data-outline=bold] .tile:not(.tile-add) {
+	--hue: var(--tc);
+	border: var(--ink-w) solid var(--hue-ink); border-radius: 14px; box-shadow: 4px 4px 0 var(--hue-ink);
+	background: var(--hue-fill); color: var(--hue-text);
+}
+:root[data-outline=bold] .tile:not(.tile-add) .tile-icon { color: light-dark(color-mix(in srgb, var(--tc) 70%, var(--fg)), var(--hue-ink)); }
+@media (hover: hover) { :root[data-outline=bold] .tile:not(.tile-add):hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--hue-ink); background: var(--hue-fill-on); } }
 :root[data-outline=bold] .tile:not(.tile-add):active { transform: translate(3px, 3px); box-shadow: none; }
 :root[data-outline=bold] .tile-add { border: var(--ink-w) dashed var(--line); border-radius: 14px; }
 :root[data-outline=bold] .card:not(.card-add, .card-stack, .sort-before, .sort-after) {
 	border: var(--ink-w) solid var(--ink); border-radius: 10px; box-shadow: inset 0 6px 0 var(--cc), var(--drop);
 }
 @media (hover: hover) { :root[data-outline=bold] .card:not(.card-add, .card-stack, .sort-before, .sort-after):hover { box-shadow: inset 0 6px 0 var(--cc), var(--drop-l); } }
-:root[data-outline=bold] .card-stack { border: var(--ink-w) solid var(--ink); border-radius: 10px; box-shadow: inset 0 6px 0 var(--mark), 5px 5px 0 -2px var(--card), 5px 5px 0 0 var(--ink), 10px 10px 0 -2px var(--card), 10px 10px 0 0 var(--ink); }
+:root[data-outline=bold] .card-stack { border: var(--ink-w) solid var(--ink); border-radius: 10px; box-shadow: inset 0 6px 0 var(--mark), 5px 5px 0 -2px var(--card), 5px 5px 0 0 var(--ink-drop), 10px 10px 0 -2px var(--card), 10px 10px 0 0 var(--ink-drop); }
 :root[data-outline=bold] .card-add { border: var(--ink-w) dashed var(--line); }
 :root[data-outline=bold] .cal-day { border-color: var(--line); }
 :root[data-outline=bold] .cal-day.today { border: var(--ink-w) solid var(--ink); box-shadow: inset 0 4px 0 var(--accent), var(--drop-s); }
