@@ -58,7 +58,7 @@ import { timelineChanges, eventsOn } from "./timeline.js";
 import { newNoteFrontmatter, withTitleHeading } from "./frontmatter.js";
 import { readTypes, writeTypes, listKeys, propertyUsage, CHOICE_TYPES, toChoices } from "./properties.js";
 import { quoteFor } from "./quotes.js";
-import { readTheme, themeAttr, readTones, readHeadings, readMixtape, mixtapeVars, toHex, contrast, MIXTAPE_KEYS, MIXTAPE_DEFAULT } from "./theme.js";
+import { readTheme, themeAttr, readTones, readHeadings, readOutline, readMixtape, mixtapeVars, toHex, contrast, MIXTAPE_KEYS, MIXTAPE_DEFAULT } from "./theme.js";
 import { rerunDataview } from "./dataview.js";
 import { makeMediaNote, coverDialog } from "./media.js";
 import { coverQuery } from "./medianote.js";
@@ -5449,6 +5449,8 @@ function applyTheme() {
 	if (tones === "rainbow") root.removeAttribute("data-colors"); else root.setAttribute("data-colors", tones);
 	const headings = readHeadings(readRaw("wr1t3rHeadings"));
 	if (headings === "level") root.setAttribute("data-headings", "level"); else root.removeAttribute("data-headings");
+	const outline = readOutline(readRaw("wr1t3rOutline"));
+	if (outline === "bold") root.setAttribute("data-outline", "bold"); else root.removeAttribute("data-outline");
 	const mx = readMixtape(readRaw("wr1t3rMixtape"));
 	for (const [k, v] of Object.entries(mixtapeVars(mx))) family === "mixtape" ? root.style.setProperty(k, v) : root.style.removeProperty(k);
 	$("mixtapeBox").hidden = family !== "mixtape";
@@ -5458,6 +5460,7 @@ function applyTheme() {
 	$("mxWarn").textContent = `The text is hard to read on this background (contrast ${ratio.toFixed(1)} to 1; aim for 4.5 or more).`;
 	document.querySelectorAll("#colorTones button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tones === tones)));
 	document.querySelectorAll("#headingTones button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.headings === headings)));
+	document.querySelectorAll("#outlineTones button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.outline === outline)));
 	rerunDataview();
 	$("themeFamilies").value = family;
 	document.querySelectorAll("#themes button").forEach((b) => {
@@ -5730,6 +5733,12 @@ function setupSettings() {
 		const b = e.target.closest("button");
 		if (!b) return;
 		storeRaw("wr1t3rHeadings", b.dataset.headings === "level" ? "level" : null);
+		applyTheme();
+	});
+	$("outlineTones").addEventListener("click", (e) => {
+		const b = e.target.closest("button");
+		if (!b) return;
+		storeRaw("wr1t3rOutline", b.dataset.outline === "bold" ? "bold" : null);
 		applyTheme();
 	});
 	$("settingsBtn").addEventListener("click", (e) => { e.stopPropagation(); openSettings($("settings").hidden); });

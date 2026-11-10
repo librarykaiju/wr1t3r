@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FAMILIES, readTheme, familyOf, themeAttr, readTones, readHeadings, readMixtape, mixtapeVars, toHex, contrast, themeVariants, MIXTAPE_DEFAULT } from "../src/theme.js";
+import { FAMILIES, readTheme, familyOf, themeAttr, readTones, readHeadings, readOutline, readMixtape, mixtapeVars, toHex, contrast, themeVariants, MIXTAPE_DEFAULT } from "../src/theme.js";
 
 test("old saved themes still load", () => {
 	assert.deepEqual(readTheme(null, "dark"), { family: "default", mode: "dark" });
@@ -67,6 +67,12 @@ test("Headings: one color unless By level was saved", () => {
 	assert.equal(readHeadings(null), "one");
 	assert.equal(readHeadings("level"), "level");
 	assert.equal(readHeadings("plaid"), "one");
+});
+
+test("Outlines: soft unless Bold was saved", () => {
+	assert.equal(readOutline(null), "soft");
+	assert.equal(readOutline("bold"), "bold");
+	assert.equal(readOutline("plaid"), "soft");
 });
 
 test("w3bz1n3 is listed outside the product build, with a night variant", () => {

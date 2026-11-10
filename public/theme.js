@@ -1,6 +1,6 @@
 // Runs before the page draws, so a saved theme or text size never flashes
 // the default first. The settings panel (src/main.js, src/theme.js) changes
-// both later; this repeats src/theme.js's themeAttr(), readTones(), readHeadings(),
+// both later; this repeats src/theme.js's themeAttr(), readTones(), readHeadings(), readOutline(),
 // readMixtape() and mixtapeVars(), so keep them in step.
 (function () {
 	var root = document.documentElement;
@@ -17,6 +17,7 @@
 		var tones = localStorage.getItem("wr1t3rColors");
 		if (tones === "two" || tones === "one") root.setAttribute("data-colors", tones);
 		if (localStorage.getItem("wr1t3rHeadings") === "level") root.setAttribute("data-headings", "level");
+		if (localStorage.getItem("wr1t3rOutline") === "bold") root.setAttribute("data-outline", "bold");
 		if (fam === "mixtape") {
 			var mx = {}, hex = /^#[0-9a-f]{6}$/i, def = { bg: "#fbfaf7", fg: "#1d1c1a", accent: "#2f5fd0", second: "#c2650f" };
 			try { mx = JSON.parse(localStorage.getItem("wr1t3rMixtape")) || {}; } catch (e) {}

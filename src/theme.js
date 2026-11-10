@@ -82,6 +82,15 @@ export function readHeadings(raw) {
 	return HEADINGS.includes(raw) ? raw : "one";
 }
 
+// Outlines (Settings > Appearance): soft (the theme's own thin lines and
+// blurred shadows) or bold (thick outlines in the text color and hard offset
+// shadows on buttons, cards and panels, over any theme). Saved as
+// wr1t3rOutline; set on <html> as data-outline="bold".
+export const OUTLINES = ["soft", "bold"];
+export function readOutline(raw) {
+	return OUTLINES.includes(raw) ? raw : "soft";
+}
+
 // Mixtape: the reader's own background, text, accent and second color, saved
 // as JSON in wr1t3rMixtape and set on <html> as --mx-bg, --mx-fg, --mx-accent
 // and --mx-second. src/style.css mixes the other colors from those four.
