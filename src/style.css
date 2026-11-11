@@ -21,6 +21,9 @@
 :root {
 	--bg: #fbfaf7; --fg: #1d1c1a; --muted: #6d6a64; --line: #e4e1da; --card: #ffffff; --sel: #ecefe9;
 	--accent: #2f5fd0; --bad: #b3261e; --hl: #fbe38a;
+	/* Selected text in the editor: see-through accent, so it shows on any
+	   theme and on a page view's card, where it sits over the text. */
+	--text-sel: color-mix(in srgb, var(--accent) 32%, transparent);
 	--panel: #f4f2ed; --mark: #a3a097; --code-bg: #efece5;
 	--f1: #c0392b; --f2: #c2650f; --f3: #9a7d00; --f4: #2e8540; --f5: #16848a; --f6: #2f5fd0; --f7: #8a3fb8;
 	--serif: OpenMoji, ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
@@ -691,7 +694,11 @@ main:not(.has-note) #panes { display: none; }
 :is(#editor, #refView) .md-base-mode .cm-content { max-width: none; }
 :is(#editor, #refView) .cm-cursor { border-left-color: var(--accent) !important; }
 :is(#editor, #refView) .cm-activeLine { background: transparent; }
-:is(#editor, #refView) .cm-selectionBackground, :is(#editor, #refView) .cm-focused .cm-selectionBackground { background: var(--sel) !important; }
+:is(#editor, #refView) .cm-selectionBackground, :is(#editor, #refView) .cm-focused .cm-selectionBackground { background: var(--text-sel) !important; }
+/* A page view's card (the .cm-content background) covers CodeMirror's
+   selection layer, which sits behind the text, so lift it above. Taps
+   go through it to the text. */
+:is(#editor, #refView) .page-view .cm-selectionLayer { z-index: 1 !important; pointer-events: none; }
 :is(#editor, #refView) .cm-placeholder { color: var(--mark); }
 .md-h1, .md-h2, .md-h3 { color: var(--heading, inherit); }
 .md-h1 { font-size: 1.6em; font-weight: 700; }
@@ -2148,7 +2155,7 @@ html.sorting, html.sorting * { cursor: grabbing !important; user-select: none; -
 .scriv-body .cm-editor.cm-focused { outline: none; }
 .scriv-body .cm-scroller { font: var(--editor-size)/1.65 var(--serif); overflow: visible; padding: 4px 0 12px; }
 .scriv-body .cm-cursor { border-left-color: var(--accent) !important; }
-.scriv-body .cm-selectionBackground, .scriv-body .cm-focused .cm-selectionBackground { background: var(--sel) !important; }
+.scriv-body .cm-selectionBackground, .scriv-body .cm-focused .cm-selectionBackground { background: var(--text-sel) !important; }
 
 /* Compile: settings beside a preview of the book. */
 .compile { align-items: center; padding: 12px; }
