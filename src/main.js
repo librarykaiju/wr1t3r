@@ -3872,6 +3872,7 @@ function allCommands() {
 		["Import from Notion", importNotion, "notion export zip markdown csv database pages import move switch bring over"],
 		["Import WordPress export", importWordPress, "wordpress blog posts pages wxr xml export import move switch bring over"],
 		["Import Evernote notebooks (.enex)", importEvernote, "evernote enex notebook export import move switch bring over"],
+		["Import Scrivener project", importScrivener, "scrivener scriv scrivx project novel manuscript binder rtf import move switch bring over"],
 		["Import Day One journal", importDayOne, "day one dayone journal diary entries json export import move switch bring over"],
 		["Import StoryGraph library", importStoryGraph, "storygraph csv export books reading goodreads import"],
 		["Fill book genres from subjects", fillBookGenres, "genre genres subjects books open library tags book logs"],
@@ -5262,6 +5263,44 @@ async function importEvernote() {
 		source: "Evernote", name: picked.length === 1 ? picked[0].name.replace(/\.enex$/i, "") : "Evernote", folder: "Evernote", ...out,
 		files: out.files.map((x) => ({ path: x.path, bytes: () => x.bytes })),
 		confirmNote: "Each notebook gets a folder, with its pictures and attachments in an attachments folder inside it.",
+	});
+}
+
+// Scrivener (src/scrivenerimport.js): the project's .scriv folder, or a .zip of it.
+// On a Mac the .scriv is a package the folder picker won't open, so it's zipped first.
+function importScrivener() {
+	const items = [
+		...(canPickFolders() ? [{ label: "Choose the project's .scriv folder", detail: "Windows; on a Mac, zip it first", run: () => chooseFolder().then((files) => files?.length && importScrivenerFrom(files.map(fileEntry))) }] : []),
+		{ label: "Choose a .zip of the project", detail: "on a Mac, right-click the .scriv and pick Compress", run: () => chooseFile(".zip,application/zip").then(async (f) => {
+			if (!f) return;
+			const entries = await zipEntries(f);
+			if (!entries) return toast("That isn't a .zip file wr1t3r can open.", 6000);
+			importScrivenerFrom(entries, f.name);
+		}) },
+	];
+	openPalette({ placeholder: "Import a Scrivener project from…", items });
+}
+
+async function importScrivenerFrom(picked, zipName = "") {
+	const [{ vaultRoot }, scriv] = await Promise.all([import("./obsidianimport.js"), import("./scrivenerimport.js")]);
+	const { name, entries } = vaultRoot(picked, zipName);
+	const byPath = new Map(entries.map((e) => [e.path, e]));
+	// RTF is read one character per byte (src/rtf.js decodes its escapes); the rest is UTF-8.
+	const rtf = new TextDecoder("windows-1252"), utf8 = new TextDecoder();
+	const texts = new Map();
+	const wanted = entries.filter((e) => /\.(rtf|txt|scrivx|comments|xml)$/i.test(e.path) && !/(^|\/)snapshots\/|\.snapshots\//i.test(e.path));
+	const note = toast(`Reading ${wanted.length} files…`, 60 * 60000);
+	try {
+		for (const e of wanted) texts.set(e.path, (/\.rtf$/i.test(e.path) ? rtf : utf8).decode(await e.bytes()));
+	} finally {
+		note.close();
+	}
+	let r;
+	try { r = scriv.readScrivener([...byPath.keys()], (p) => texts.get(p) ?? null, name); } catch (e) { return toast(e.message, 8000); }
+	return writeImport({
+		source: "Scrivener", folder: r.name, ...r,
+		files: r.files.map((x) => ({ path: x.path, from: x.from, bytes: x.bytes ? () => x.bytes : byPath.get(x.from).bytes })),
+		confirmNote: "The binder becomes folders in the same order, ready for the storyboard, outliner and compile. Synopses, labels, status and keywords become properties.",
 	});
 }
 
