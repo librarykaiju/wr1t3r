@@ -138,6 +138,8 @@ With the note open, Commands > _Add this recipe to the Nutrition Database_ adds 
 
 If you keep recipes in [Tandoor](https://tandoor.dev), export them there (Settings > Export, the _Default_ format) and choose the zip in Commands > _Import recipes from Tandoor_. Each recipe becomes a recipe note like the one above, in the folder your recipe notes are in, with its servings as the _yield_. Ingredients your database doesn't have are matched to USDA foods first, the same way. Then Tandoor's amounts are turned into servings of each food: 250 g of a food whose serving is 1 cup (125g) is 2 servings, and 2 cloves of a 1 clove food is 2. Tandoor's amount stays in brackets. When an amount can't be turned into servings, like a cup of something only listed by weight, the line says _check the servings_ so you can fix the number. Each recipe is added to your Nutrition Database as it's imported. Importing the same recipe again replaces its note with Tandoor's version.
 
+Moving recipes the other way? Commands > _Export recipes for Tandoor_ saves your recipe notes (one, or all of them) as a zip that Tandoor can import: in Tandoor, open _Import_, pick the _Default_ type and choose the zip. Amounts go back as real measures, from the brackets when a recipe came from Tandoor, otherwise from your database's serving sizes (1.5 servings of a 1-cup food is 1.5 cups). Each exported note is marked _tandoor_exported_ so it isn't exported twice, and if you later import that recipe back from Tandoor, wr1t3r updates the same note instead of making a copy.
+
 --- footer
 
 [wr1t3r](/) · [Help](/help.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)

@@ -294,16 +294,20 @@ const fileName = (title) => clean(title).replace(/[\\/:*?"<>|#^[\]]+/g, " ").rep
 // for a recipe with no id, its title), else a new path in `folder` that's
 // free. -> [{ ...entry, path, existing }].
 export function planImport(entries, notes, folder) {
-	const byId = new Map(), byTitle = new Map();
+	const byId = new Map(), byTitle = new Map(), free = new Map();
 	for (const n of notes) {
 		const fm = parseFrontmatter(n.text || "");
 		if (fm.tandoor != null && fm.tandoor !== "") byId.set(String(fm.tandoor), n.path);
 		if (fm.title) byTitle.set(String(fm.title).toLowerCase(), n.path);
+		// A note exported to Tandoor from here has no id yet: found by its title,
+		// importing it back links it instead of copying it.
+		if (fm.tandoor_exported != null && (fm.tandoor == null || fm.tandoor === "")) free.set(String(fm.title || n.path.split("/").pop().replace(/\.md$/i, "")).toLowerCase(), n.path);
 	}
 	const taken = new Set(notes.map((n) => n.path.toLowerCase()));
 	return entries.map((e) => {
 		const title = clean(e.recipe?.name);
-		const have = e.id != null ? byId.get(String(e.id)) : title && byTitle.get(title.toLowerCase());
+		let have = e.id != null ? byId.get(String(e.id)) : title && byTitle.get(title.toLowerCase());
+		if (!have && e.id != null && title && free.has(title.toLowerCase())) { have = free.get(title.toLowerCase()); free.delete(title.toLowerCase()); }
 		if (have) return { ...e, path: have, existing: true };
 		const base = folder + fileName(title || `Tandoor recipe ${e.id ?? ""}`);
 		let path = base + ".md";
@@ -311,4 +315,144 @@ export function planImport(entries, notes, folder) {
 		taken.add(path.toLowerCase());
 		return { ...e, path, existing: false };
 	});
+}
+
+// ---- Recipe notes as a Tandoor import ----------------------------------------
+//
+// The other way, for moving recipes kept here into Tandoor: a zip in
+// Tandoor's Default format (one <n>.zip per recipe, each with a
+// recipe.json), for Tandoor's Import page. Tandoor's import always makes new
+// recipes, so notes with a `tandoor:` property (imported from it, or sent
+// before) are left out.
+
+// "250 g" or "2 cloves" as Tandoor's amount and unit, or null.
+function amountOf(text) {
+	const m = measure(text);
+	if (!m) return null;
+	const raw = String(text).trim().replace(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+)\s*/, "").replace(/[,;].*$/, "").trim();
+	return { amount: m.qty, unit: raw };
+}
+
+// A Nutrition Database serving as Tandoor's amount and unit for `servings`
+// of it: "1 cup (125g)" x2 -> 2 cup, "1 large (50g)" x3 -> 3 (note "large"),
+// "100g" x1.5 -> 150 g. Null when it has no leading measure, or is "1 serving".
+function fromServing(servings, serving) {
+	const lead = String(serving ?? "").replace(/\(.*$/, "").trim();
+	const m = measure(lead);
+	if (!m) return null;
+	const unit = lead.replace(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+)\s*/, "").trim();
+	if (/^(servings?|portions?)$/i.test(unit)) return null;
+	const amount = Math.round(servings * m.qty * 100) / 100;
+	if (COUNT.has(normUnit(unit)) || /^(small|medium|large|extra large|jumbo)$/i.test(unit)) return { amount, unit: "", note: COUNT.has(normUnit(unit)) ? "" : unit };
+	return { amount, unit };
+}
+
+const ingredient = (food, amount, unit, note, order) => ({
+	food: { name: food.slice(0, 128), plural_name: null, ignore_shopping: false, supermarket_category: null },
+	unit: unit ? { name: unit.slice(0, 128), plural_name: null, description: null } : null,
+	amount: amount > 0 ? amount : 0, note: note.slice(0, 256), order, is_header: false, no_amount: !(amount > 0),
+	always_use_plural_unit: false, always_use_plural_food: false,
+});
+
+// One "Food, servings (bracket)" line as a Tandoor ingredient. The bracket's
+// first part is Tandoor's own amount when the importer wrote it ("250 g");
+// else the servings go back through the food's serving size; else "N serving".
+export function exportIngredient(line, foods, order = 0) {
+	const s = String(line).trim();
+	let name = s, servings = 1, bracket = "";
+	const m = s.match(/^(.*?),\s*(\d*\.?\d+)\s*(?:\((.*)\))?\s*$/);
+	if (m) [name, servings, bracket] = [m[1].trim(), parseFloat(m[2]), m[3] || ""];
+	const parts = bracket.split(/;\s*/).map((p) => p.trim()).filter((p) => p && !/^check the servings/i.test(p));
+	const notes = [];
+	let amount = null;
+	if (parts.length && (amount = amountOf(parts[0]))) parts.shift();
+	notes.push(...parts);
+	if (!(servings > 0)) return ingredient(name, 0, "", notes.join("; "), order);
+	if (!amount) {
+		const food = findFood(foods, name);
+		const back = food && fromServing(servings, food.serving);
+		if (back) { amount = back; if (back.note) notes.unshift(back.note); }
+		else amount = { amount: servings, unit: servings === 1 ? "serving" : "servings" };
+	}
+	return ingredient(name, amount.amount, amount.unit, notes.join("; "), order);
+}
+
+// The lines under "## heading" (up to the next level 1-2 heading), fenced
+// blocks left out.
+function section(text, heading) {
+	const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+	const at = lines.findIndex((l) => new RegExp(`^##\\s+${heading}\\s*$`, "i").test(l));
+	if (at < 0) return [];
+	const out = [];
+	let fence = false;
+	for (let i = at + 1; i < lines.length; i++) {
+		if (/^\s*(```|~~~)/.test(lines[i])) { fence = !fence; continue; }
+		if (fence) continue;
+		if (/^#{1,2}\s/.test(lines[i])) break;
+		out.push(lines[i]);
+	}
+	return out;
+}
+
+// The note's Instructions (or Directions, Method, Steps) list as steps; a
+// section that isn't a list is one step.
+export function exportSteps(text) {
+	const body = ["Instructions", "Directions", "Method", "Steps"].map((h) => section(text, h)).find((s) => s.some((l) => l.trim())) || [];
+	const steps = [];
+	for (const l of body) {
+		const li = l.match(/^(?:[-*+]|\d+[.)])\s+(.*)$/);
+		if (li) steps.push(li[1]);
+		else if (l.trim()) steps.length ? (steps[steps.length - 1] += "\n" + l.trim()) : steps.push(l.trim());
+	}
+	return steps.map((s) => s.replace(/\[\[(?:[^\]|]+\|)?([^\]]+)\]\]/g, "$1").replace(/^\*\*(.+?)\.?\*\*\s*/, "").trim()).filter(Boolean);
+}
+
+// Notes worth exporting: an Ingredients list, not a template, and neither
+// from Tandoor (`tandoor:`) nor exported already (`tandoor_exported:`).
+export function exportableNotes(notes) {
+	return notes.filter((n) => {
+		if (/(^|\/)_templates\//i.test(n.path) || !/^##\s+Ingredients\s*$/im.test(n.text || "")) return false;
+		const fm = parseFrontmatter(n.text || "") || {};
+		return fm.tandoor == null && fm.tandoor_exported == null;
+	});
+}
+
+// A recipe note as Tandoor's recipe.json.
+export function exportRecipe(text, path, foods) {
+	const fm = parseFrontmatter(text) || {};
+	const name = clean((fm.title != null && String(fm.title)) || String(path).split("/").pop().replace(/\.md$/i, "")).slice(0, 128) || "Recipe";
+	const lines = section(text, "Ingredients").map((l) => l.match(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[.\]\s+)?(.*)$/)?.[1]?.trim()).filter(Boolean);
+	const ingredients = lines.map((l, i) => exportIngredient(l, foods, i));
+	const steps = exportSteps(text);
+	const y = parseFloat(fm.yield);
+	const tags = (Array.isArray(fm.tags) ? fm.tags : fm.tags ? String(fm.tags).split(/[,\s]+/) : []).map((t) => clean(String(t).replace(/^#/, ""))).filter((t) => t && t.toLowerCase() !== "recipe");
+	const source = [fm.source, fm.url, fm.source_url].find((v) => typeof v === "string" && /^https?:\/\//.test(v.trim()));
+	const description = section(text, "Notes").join("\n").trim().replace(/\n{3,}/g, "\n\n");
+	return {
+		name,
+		description: description.slice(0, 512) || null,
+		keywords: [...new Set(tags)].map((k) => ({ name: k.slice(0, 64), description: "" })),
+		steps: (steps.length ? steps : [""]).map((instruction, i) => ({
+			name: "", instruction, ingredients: i === 0 ? ingredients : [], time: 0, order: i, show_as_header: false, show_ingredients_table: true,
+		})),
+		working_time: 0,
+		waiting_time: 0,
+		internal: true,
+		nutrition: null,
+		servings: y > 0 ? Math.max(1, Math.round(y)) : 1,
+		servings_text: "",
+		source_url: source ? source.trim() : null,
+	};
+}
+
+// The zip's bytes for these notes ([{ path, text }]). Takes JSZip so it loads
+// only when used.
+export async function buildExport(notes, foods, JSZip) {
+	const outer = new JSZip();
+	for (const [i, n] of notes.entries()) {
+		const inner = new JSZip();
+		inner.file("recipe.json", JSON.stringify(exportRecipe(n.text || "", n.path, foods)));
+		outer.file(`${i + 1}.zip`, await inner.generateAsync({ type: "uint8array" }));
+	}
+	return outer.generateAsync({ type: "blob" });
 }

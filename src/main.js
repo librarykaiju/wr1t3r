@@ -3803,6 +3803,7 @@ function allCommands() {
 		["Import foods into the Nutrition Database", importFoods, "csv spreadsheet foods nutrition database calories import cronometer"],
 		["Add this recipe to the Nutrition Database", syncRecipe, "recipe ingredients nutrition database calories per serving sync"],
 		["Import recipes from Tandoor", importTandoor, "tandoor recipes export zip import cookbook nutrition database"],
+		["Export recipes for Tandoor", exportForTandoor, "tandoor recipes export zip move send cookbook"],
 		["Add a food from a nutrition label photo", foodFromLabelPhoto, "photo picture camera nutrition facts label scan food database calories"],
 		...(featureOn("daily") ? [["Mood, sleep, exercise and weight", moodTrends, "trends chart graph health stats tracker mood sleep exercise steps weight history"]] : []),
 		["Neighbors: what the sites you follow posted", () => openNeighborsView(), "follow feed rss atom reader blogs sites neocities friends webring opml"],
@@ -4903,6 +4904,42 @@ async function importTandoor() {
 	if (plan.length === 1) openNote(plan[0].path);
 	toast(`Imported ${made} new recipe${made === 1 ? "" : "s"}` + (replaced ? ` and updated ${replaced}` : "") + ", each added to the Nutrition Database." +
 		(unconverted ? ` ${unconverted} ingredient amount${unconverted === 1 ? "" : "s"} didn't match the food's serving size; those lines say “check the servings”.` : ""), 10000);
+}
+
+// Recipe notes as a zip for Tandoor's Import page (Default format), for
+// moving recipes kept here into Tandoor: one note, or all not sent yet. Each
+// exported note gets tandoor_exported: so it isn't exported twice; importing
+// it back from Tandoor later finds it by title and links it.
+async function exportForTandoor() {
+	const td = await import("./tandoor.js");
+	const all = td.exportableNotes(visible().filter((n) => !n.binary && /\.md$/i.test(n.path)).map((n) => ({ path: n.path, text: n.path === editor.path ? editor.text() : n.text || "" })));
+	if (!all.length) return toast("There are no recipe notes (with an “## Ingredients” list) that came from Tandoor or were exported already.", 8000);
+	openPalette({
+		placeholder: "Export for Tandoor…",
+		items: [
+			{ label: `All ${all.length} recipe note${all.length === 1 ? "" : "s"} not in Tandoor yet`, detail: "", run: () => writeTandoorExport(td, all) },
+			...all.map((n) => ({ label: name(n.path), detail: folderOf(n.path), keywords: folderOf(n.path), run: () => writeTandoorExport(td, [n]) })),
+		],
+	});
+}
+
+async function writeTandoorExport(td, list) {
+	const { default: JSZip } = await import("jszip");
+	const { parseNutrition } = await import("./planner.js");
+	const dbPath = nutritionNotePath();
+	const foods = parseNutrition(dbPath ? notes.get(dbPath)?.text || "" : "");
+	const blob = await td.buildExport(list, foods, JSZip);
+	const a = document.createElement("a");
+	a.href = URL.createObjectURL(blob);
+	a.download = list.length === 1 ? `${name(list[0].path)} for Tandoor.zip` : "wr1t3r recipes for Tandoor.zip";
+	document.body.append(a);
+	a.click();
+	a.remove();
+	setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+	const today = new Date().toLocaleDateString("en-CA");
+	for (const n of list) await dataviewVault.write(n.path, (t) => td.setProperties(t, [["tandoor_exported", [`tandoor_exported: ${today}`]]]));
+	scheduleSync();
+	toast(`Saved ${list.length} recipe${list.length === 1 ? "" : "s"} for Tandoor. In Tandoor: Import, type Default, choose the zip. Each note now has tandoor_exported: so it won't be exported again.`, 12000);
 }
 
 // ---- StoryGraph import (src/storygraph.js) -----------------------------------------

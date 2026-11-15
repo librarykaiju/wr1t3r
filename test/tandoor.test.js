@@ -202,3 +202,88 @@ test("the recipes folder, and where each recipe goes", () => {
 		["content/food/Tandoor recipe 13.md", false],
 	]);
 });
+
+// ---- exporting recipe notes for Tandoor's import ----
+
+import { exportIngredient, exportSteps, exportableNotes, exportRecipe, buildExport } from "../src/tandoor.js";
+
+test("an ingredient line back to Tandoor's amount and unit", () => {
+	const t = (l) => { const x = exportIngredient(l, foods); return [x.food.name, x.amount, x.unit?.name ?? null, x.note, x.no_amount]; };
+	assert.deepEqual(t("flour, 2 (250 g)"), ["flour", 250, "g", "", false]); // the importer's own amount wins
+	assert.deepEqual(t("garlic, 2 (2 cloves; minced)"), ["garlic", 2, "cloves", "minced", false]);
+	assert.deepEqual(t("flour, 1.5"), ["flour", 1.5, "cup", "", false]); // through the serving
+	assert.deepEqual(t("egg, 3"), ["egg", 3, null, "large", false]);
+	assert.deepEqual(t("Oats, 0.5 (rolled)"), ["Oats", 50, "g", "rolled", false]);
+	assert.deepEqual(t("Saffron, 1 (1 pinch; check the servings)"), ["Saffron", 1, "pinch", "", false]);
+	assert.deepEqual(t("Unicorn dust, 2"), ["Unicorn dust", 2, "servings", "", false]);
+	assert.deepEqual(t("salt, 0 (to taste)"), ["salt", 0, null, "to taste", true]);
+	assert.deepEqual(t("Wheat flour, white, all-purpose, 1"), ["Wheat flour, white, all-purpose", 1, "cup", "", false]);
+});
+
+const MINE = `---
+title: Chili
+tags:
+  - recipe
+  - dinner
+yield: 6
+source: https://example.com/chili
+---
+# Chili
+
+## Ingredients
+- flour, 0.5
+- garlic, 4 (minced)
+- salt, 0
+
+## Instructions
+1. **Brown.** Brown the [[Beef|beef]].
+   Drain it.
+2. Simmer an hour.
+
+\`\`\`dataviewjs
+// Sync to Nutrition Database
+\`\`\`
+
+## Notes
+Better the next day.
+`;
+
+test("a recipe note as Tandoor's recipe.json", () => {
+	assert.deepEqual(exportSteps(MINE), ["Brown the beef.\nDrain it.", "Simmer an hour."]);
+	assert.deepEqual(exportSteps("## Method\nJust stir.\n"), ["Just stir."]);
+	const r = exportRecipe(MINE, "food/Chili.md", foods);
+	assert.equal(r.name, "Chili");
+	assert.equal(r.servings, 6);
+	assert.equal(r.source_url, "https://example.com/chili");
+	assert.equal(r.description, "Better the next day.");
+	assert.deepEqual(r.keywords, [{ name: "dinner", description: "" }]);
+	assert.equal(r.steps.length, 2);
+	assert.deepEqual(r.steps[0].ingredients.map((i) => [i.food.name, i.amount, i.unit?.name ?? null, i.note, i.order]), [["flour", 0.5, "cup", "", 0], ["garlic", 4, "clove", "minced", 1], ["salt", 0, null, "", 2]]);
+	assert.deepEqual(r.steps[1].ingredients, []);
+	const bare = exportRecipe("## Ingredients\n- egg, 2\n", "Eggs.md", foods);
+	assert.equal(bare.name, "Eggs");
+	assert.equal(bare.steps.length, 1);
+	assert.equal(bare.steps[0].instruction, "");
+});
+
+test("which notes are exported, and importing them back links them", () => {
+	const notes = [
+		{ path: "food/Chili.md", text: MINE },
+		{ path: "food/Soup.md", text: "---\ntandoor: 3\n---\n## Ingredients\n- a, 1\n" },
+		{ path: "food/Stew.md", text: "---\ntandoor_exported: 2026-11-15\n---\n## Ingredients\n- a, 1\n" },
+		{ path: "_templates/Recipe Template.md", text: "## Ingredients\n" },
+		{ path: "Diary.md", text: "no recipe" },
+	];
+	assert.deepEqual(exportableNotes(notes).map((n) => n.path), ["food/Chili.md"]);
+	const plan = planImport([{ id: 40, recipe: { name: "Stew" } }, { id: 41, recipe: { name: "Stew" } }], notes, "food/");
+	assert.deepEqual(plan.map((p) => [p.path, p.existing]), [["food/Stew.md", true], ["food/Stew (2).md", false]]);
+});
+
+test("the export zip reads back as a Tandoor export", async () => {
+	const blob = await buildExport([{ path: "food/Chili.md", text: MINE }, { path: "Eggs.md", text: "## Ingredients\n- egg, 2\n" }], foods, JSZip);
+	const back = await readExport(await blob.arrayBuffer(), JSZip);
+	assert.deepEqual(back.map((b) => [b.id, b.recipe.name]), [[1, "Chili"], [2, "Eggs"]]);
+	// And round-trips through the importer to the same ingredient lines.
+	const again = recipeNote(back[0], foods).text;
+	assert.match(again, /- flour, 0\.5 \(0\.5 cup\)\n- garlic, 4 \(4 clove; minced\)\n- salt, 0\n/);
+});
