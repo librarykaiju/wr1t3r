@@ -17,6 +17,7 @@ import { vaultChanged } from "./vault.js";
 import { setLivePreview } from "./livepreview.js";
 import { parseQuery, matches, snippet, isArchived, asksForArchive, archiveText } from "./search.js";
 import { openPalette } from "./palette.js";
+import * as tandoorConnect from "./tandoor.js";
 import { starterBase } from "./baseconfig.js";
 import { EDIT_ACTIONS, DEFAULT_KEYS, keyName, showKey, usableKey, bindings, rebind, macAlias } from "./hotkeys.js";
 import { templatesIn, insertTemplate, isTemplatePath, templatesFolder } from "./templates.js";
@@ -1432,6 +1433,7 @@ function renderFeatureSettings() {
 			: [hint("Show your Google calendars in the agenda, and add events to them, instead of wr1t3r's own calendar. Events already in wr1t3r's calendar stay in its Calendar folder. Your calendar goes straight between this browser and Google."), btn("Connect Google Calendar", connectGoogleCalendar)]));
 	}
 	nextcloudCalendarSettings(pane, h2, hint);
+	if (featureOn("health")) tandoorSettings(pane, h2, hint);
 	pane.append(h2("Folders"), hint("wr1t3r's own folders, inside the notes' folder. Notes already there stay where they are."));
 	for (const f of FOLDER_SETTINGS) {
 		const input = document.createElement("input");
@@ -3802,6 +3804,7 @@ function allCommands() {
 		["Log food", logFood, "eat meal nutrition calories health usda planner"],
 		["Import foods into the Nutrition Database", importFoods, "csv spreadsheet foods nutrition database calories import cronometer"],
 		["Add this recipe to the Nutrition Database", syncRecipe, "recipe ingredients nutrition database calories per serving sync"],
+		["Import a recipe from Tandoor", importFromTandoor, "tandoor recipe import self-hosted ingredients meal"],
 		["Add a food from a nutrition label photo", foodFromLabelPhoto, "photo picture camera nutrition facts label scan food database calories"],
 		...(featureOn("daily") ? [["Mood, sleep, exercise and weight", moodTrends, "trends chart graph health stats tracker mood sleep exercise steps weight history"]] : []),
 		["Neighbors: what the sites you follow posted", () => openNeighborsView(), "follow feed rss atom reader blogs sites neocities friends webring opml"],
@@ -4851,6 +4854,68 @@ async function syncRecipe() {
 	if (r?.error) return toast(r.error, 8000);
 	toast(`${r?.action || "Kept"} “${info.name}”: ${info.per.calories} cal per serving` +
 		(info.unmatched ? `. ${info.unmatched} ingredient${info.unmatched === 1 ? " isn't" : "s aren't"} in the database, so ${info.unmatched === 1 ? "it's" : "they're"} left out.` : "."), 8000);
+}
+
+// ---- Tandoor import (src/tandoor.js) ------------------------------------------------
+
+// A recipe from Tandoor as a recipe note: picked from Tandoor's list, its
+// ingredients the Nutrition Database doesn't have looked up in the USDA
+// tables first (as for "Add this recipe"), then written with each amount in
+// servings of its database food, so the Sync button and command work on it.
+async function importFromTandoor() {
+	const td = tandoorConnect;
+	const creds = td.tandoorCreds();
+	if (!creds) { toast("Connect Tandoor first: Settings > Features > Tandoor.", 8000); return openSettings(true, "features"); }
+	let list;
+	try { list = await td.listTandoorRecipes(creds); } catch (e) { return toast(e.message, 10000); }
+	if (!list.length) return toast("Tandoor has no recipes yet.");
+	const all = visible().filter((n) => !n.binary && /\.md$/i.test(n.path)).map((n) => ({ path: n.path, text: n.text || "" }));
+	openPalette({
+		placeholder: "Import a recipe from Tandoor…",
+		items: list.map((r) => {
+			const have = td.noteForTandoorId(all, r.id);
+			return { label: r.name, detail: have ? `imported: ${name(have)}` : r.keywords.join(", "), keywords: `${r.keywords.join(" ")} ${r.description}`, run: () => importTandoorRecipe(td, creds, r.id, all) };
+		}),
+	});
+}
+
+async function importTandoorRecipe(td, creds, id, all) {
+	let recipe;
+	try { recipe = await td.getTandoorRecipe(creds, id); } catch (e) { return toast(e.message, 10000); }
+	const { isRecipeSync } = await import("./recipe.js");
+	const { pickIngredientFoods } = await import("./ingredientview.js");
+	const { addFoods } = await import("./foodimport.js");
+	const { parseNutrition, findFood } = await import("./planner.js");
+	const dbPath = nutritionNotePath() || await nutritionNote();
+	// Ingredients the database has nothing for: pick USDA foods for them now,
+	// so their amounts convert too. Each pick keeps Tandoor's name as an alias.
+	const names = [...new Set(td.tandoorIngredients(recipe).map((i) => i.name.replace(/[,|]/g, " ").replace(/\s+/g, " ").trim()))];
+	const draft = "## Ingredients\n" + names.map((n) => `- ${n}, 1`).join("\n") + "\n";
+	let picked;
+	try { picked = await pickIngredientFoods(draft, notes.get(dbPath)?.text || ""); } catch (e) { return toast(e.message, 8000); }
+	if (!picked) return;
+	if (picked.foods.length) await dataviewVault.write(dbPath, (t) => addFoods(t, picked.foods).text);
+	const foods = parseNutrition(notes.get(dbPath)?.text || "");
+	const find = (n) => findFood(foods, n.replace(/[,|]/g, " ").replace(/\s+/g, " ").trim());
+	const tmpl = templatesIn(visible().map((n) => n.path)).find((t) => /^recipe( template)?$/i.test(t.name));
+	const syncBlock = tmpl?.path ? td.templateSyncBlock(notes.get(tmpl.path)?.text || "", isRecipeSync) : "";
+	const note = td.tandoorRecipeNote(recipe, find, { syncBlock });
+	const existing = td.noteForTandoorId(all, recipe.id);
+	if (existing) {
+		if (!confirm(`“${name(existing)}” was imported from this Tandoor recipe before. Replace it with Tandoor's version?\n\nCancel makes a new note instead.`)) {
+			await newNote(td.recipeFolder(all) + note.title.replace(/[\\/:*?"<>|#^[\]]/g, " ").trim() + " (Tandoor).md", () => note.text);
+		} else {
+			await dataviewVault.write(existing, () => note.text);
+			openNote(existing);
+			scheduleSync();
+		}
+	} else {
+		await newNote(td.recipeFolder(all) + note.title.replace(/[\\/:*?"<>|#^[\]]/g, " ").trim() + ".md", () => note.text);
+	}
+	scheduleSync();
+	toast(`Imported “${note.title}”: ${note.converted} of ${note.ingredients} ingredient amounts converted to servings` +
+		(note.unconverted ? `; ${note.unconverted} say “check” where the units didn't match the food's serving.` : ".") +
+		" Run Add this recipe to the Nutrition Database (or the note's Sync button) for its numbers.", 12000);
 }
 
 // ---- StoryGraph import (src/storygraph.js) -----------------------------------------
@@ -6440,6 +6505,50 @@ function nextcloudCalendarSettings(pane, h2, hint) {
 	const go = btn("Connect Nextcloud Calendar", connect);
 	server.addEventListener("input", () => { stopHelp(); help.hidden = true; });
 	pane.append(go, err, help);
+}
+
+// Settings > Features > Tandoor: connect a Tandoor with an API token (kept
+// on this device only), or disconnect.
+function tandoorSettings(pane, h2, hint) {
+	const td = tandoorConnect;
+	const btn = (words, fn) => { const b = Object.assign(document.createElement("button"), { type: "button", textContent: words }); b.addEventListener("click", fn); return b; };
+	const box = pane;
+	box.append(h2("Tandoor"));
+	const c = td.tandoorCreds();
+	if (c) {
+		const host = (() => { try { return new URL(c.server).host; } catch { return c.server; } })();
+		box.append(hint(`Connected to ${host}. Commands > Import a recipe from Tandoor makes a recipe note from any of its recipes, with amounts in servings of your Nutrition Database foods.`),
+			btn("Disconnect Tandoor", () => { if (confirm("Disconnect Tandoor on this device? Nothing in Tandoor changes.")) { td.saveTandoorCreds(null); renderFeatureSettings(); } }));
+		return;
+	}
+	box.append(hint(`Import recipes from your own Tandoor as recipe notes. Needs an API token (Tandoor: Settings > API, read access) and Tandoor's server sending CORS headers that allow ${location.origin}.`));
+	const field = (label, type, attrs = {}) => {
+		const input = Object.assign(document.createElement("input"), { type, spellcheck: false, autocapitalize: "off", ...attrs });
+		const lab = document.createElement("label");
+		lab.textContent = label;
+		lab.append(input);
+		const row = document.createElement("div");
+		row.className = "set-folder";
+		row.append(lab);
+		box.append(row);
+		return input;
+	};
+	const server = field("Tandoor address", "text", { placeholder: "recipes.example.com", inputMode: "url" });
+	const token = field("API token", "password", { autocomplete: "off" });
+	const err = hint("");
+	err.setAttribute("role", "alert");
+	const go = btn("Connect Tandoor", async () => {
+		err.textContent = "";
+		go.disabled = true;
+		try {
+			td.saveTandoorCreds(await td.connectTandoor({ server: server.value, token: token.value }));
+			renderFeatureSettings();
+		} catch (e) {
+			go.disabled = false;
+			err.textContent = e.message;
+		}
+	});
+	box.append(go, err);
 }
 
 // After a sync brings in event notes from another device.

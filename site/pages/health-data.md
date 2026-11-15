@@ -134,6 +134,14 @@ A recipe note gives you one row for a whole dish, per serving. Give the note a _
 
 With the note open, Commands > _Add this recipe to the Nutrition Database_ adds it as a row named after the note (or its _title_ property), in the _Recipe_ food group. Change the recipe and run it again to update the row. Recipe notes made from the Obsidian Recipe template also have a _Sync to Nutrition Database_ button that does the same thing, with a _Find them in USDA foods_ link when ingredients are missing.
 
+### From Tandoor
+
+If you keep recipes in your own [Tandoor](https://tandoor.dev), wr1t3r can turn them into recipe notes. In Tandoor, make an API token under _Settings > API_ (read access is enough), then in wr1t3r open _Settings > Features > Tandoor_ and enter your Tandoor's address and the token. The token stays on that device.
+
+Commands > _Import a recipe from Tandoor_ lists your recipes. Pick one and wr1t3r writes a note with its servings as the _yield_, its ingredients, and its steps. Each amount is converted into servings of the matching food in your Nutrition Database, so 250 g of flour becomes _2_ when your flour is 1 cup (125 g); the original amount stays in brackets. Ingredients your database doesn't have are looked up in the USDA tables first, the same as above. When an amount can't be converted, such as grams of a food measured only in cups, the line says _check_ so you can fix the number. Then add the recipe to the database as usual.
+
+Your Tandoor has to allow wr1t3r to talk to it: its web server needs to send CORS headers for wr1t3r's address. If connecting says it couldn't read an answer, that's the usual reason, or the device can't reach Tandoor (a home server needs you at home or on a VPN).
+
 --- footer
 
 [wr1t3r](/) · [Help](/help.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
