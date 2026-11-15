@@ -3805,6 +3805,7 @@ function allCommands() {
 		["Import foods into the Nutrition Database", importFoods, "csv spreadsheet foods nutrition database calories import cronometer"],
 		["Add this recipe to the Nutrition Database", syncRecipe, "recipe ingredients nutrition database calories per serving sync"],
 		["Import a recipe from Tandoor", importFromTandoor, "tandoor recipe import self-hosted ingredients meal"],
+		["Send recipes to Tandoor", sendRecipesToTandoor, "tandoor recipe export upload move self-hosted"],
 		["Add a food from a nutrition label photo", foodFromLabelPhoto, "photo picture camera nutrition facts label scan food database calories"],
 		...(featureOn("daily") ? [["Mood, sleep, exercise and weight", moodTrends, "trends chart graph health stats tracker mood sleep exercise steps weight history"]] : []),
 		["Neighbors: what the sites you follow posted", () => openNeighborsView(), "follow feed rss atom reader blogs sites neocities friends webring opml"],
@@ -4916,6 +4917,53 @@ async function importTandoorRecipe(td, creds, id, all) {
 	toast(`Imported “${note.title}”: ${note.converted} of ${note.ingredients} ingredient amounts converted to servings` +
 		(note.unconverted ? `; ${note.unconverted} say “check” where the units didn't match the food's serving.` : ".") +
 		" Run Add this recipe to the Nutrition Database (or the note's Sync button) for its numbers.", 12000);
+}
+
+// Recipe notes into Tandoor, for moving recipes kept here over: one, or all
+// of them not sent yet. Each new Tandoor recipe's id is written to its note
+// (tandoor_id:), so it isn't sent twice and the importer knows it.
+async function sendRecipesToTandoor() {
+	const td = tandoorConnect;
+	const creds = td.tandoorCreds();
+	if (!creds) { toast("Connect Tandoor first: Settings > Features > Tandoor.", 8000); return openSettings(true, "features"); }
+	const all = td.exportableRecipes(visible().filter((n) => !n.binary && /\.md$/i.test(n.path)).map((n) => ({ path: n.path, text: n.text || "" })));
+	if (!all.length) return toast("There are no recipe notes (with an “## Ingredients” list) that haven't been sent to Tandoor already.", 8000);
+	openPalette({
+		placeholder: "Send to Tandoor…",
+		items: [
+			{ label: `All ${all.length} recipe note${all.length === 1 ? "" : "s"} not in Tandoor yet`, detail: "", run: () => sendToTandoor(all.map((n) => n.path)) },
+			...all.map((n) => ({ label: name(n.path), detail: folderOf(n.path), keywords: folderOf(n.path), run: () => sendToTandoor([n.path]) })),
+		],
+	});
+}
+
+async function sendToTandoor(paths) {
+	const td = tandoorConnect;
+	const creds = td.tandoorCreds();
+	if (paths.length > 1 && !confirm(`Make ${paths.length} recipes in Tandoor from these notes?\n\nEach note gets a tandoor_id property so it's never sent twice.`)) return;
+	const { lookup, ingredientEntry } = await import("./recipe.js");
+	const { listItems } = await import("./dvpage.js");
+	const { parseNutrition } = await import("./planner.js");
+	const dbPath = nutritionNotePath();
+	const known = lookup(parseNutrition(dbPath ? notes.get(dbPath)?.text || "" : ""));
+	let sent = 0;
+	const failed = [];
+	for (const path of paths) {
+		const text = notes.get(path)?.text || "";
+		try {
+			const id = await td.createTandoorRecipe(creds, td.tandoorRecipeBody(text, path, { listItems, known, entry: ingredientEntry }));
+			await dataviewVault.write(path, (t) => td.setFrontmatterKey(t, "tandoor_id", id));
+			sent++;
+			if (paths.length > 1) toast(`Sent ${sent} of ${paths.length} to Tandoor…`, 2000);
+		} catch (e) {
+			failed.push(`${name(path)}: ${e.message}`);
+			// A refused token or a blocked request won't get better for the next note.
+			if (e.reason === "token" || e.reason === "blocked") break;
+		}
+	}
+	scheduleSync();
+	if (failed.length) console.warn("Tandoor", failed);
+	toast((sent ? `Sent ${sent} recipe${sent === 1 ? "" : "s"} to Tandoor.` : "Nothing was sent to Tandoor.") + (failed.length ? ` ${failed.length === 1 ? "One" : failed.length} didn't go: ${failed[0]}` : ""), 12000);
 }
 
 // ---- StoryGraph import (src/storygraph.js) -----------------------------------------
@@ -6517,11 +6565,11 @@ function tandoorSettings(pane, h2, hint) {
 	const c = td.tandoorCreds();
 	if (c) {
 		const host = (() => { try { return new URL(c.server).host; } catch { return c.server; } })();
-		box.append(hint(`Connected to ${host}. Commands > Import a recipe from Tandoor makes a recipe note from any of its recipes, with amounts in servings of your Nutrition Database foods.`),
+		box.append(hint(`Connected to ${host}. Commands > Import a recipe from Tandoor makes a recipe note from any of its recipes, with amounts in servings of your Nutrition Database foods. Send recipes to Tandoor goes the other way (the token needs write access for that).`),
 			btn("Disconnect Tandoor", () => { if (confirm("Disconnect Tandoor on this device? Nothing in Tandoor changes.")) { td.saveTandoorCreds(null); renderFeatureSettings(); } }));
 		return;
 	}
-	box.append(hint(`Import recipes from your own Tandoor as recipe notes. Needs an API token (Tandoor: Settings > API, read access) and Tandoor's server sending CORS headers that allow ${location.origin}.`));
+	box.append(hint(`Import recipes from your own Tandoor as recipe notes. Needs an API token (Tandoor: Settings > API; read access to import, read and write to send recipes there too) and Tandoor's server sending CORS headers that allow ${location.origin}.`));
 	const field = (label, type, attrs = {}) => {
 		const input = Object.assign(document.createElement("input"), { type, spellcheck: false, autocapitalize: "off", ...attrs });
 		const lab = document.createElement("label");

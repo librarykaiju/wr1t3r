@@ -148,3 +148,103 @@ test("the recipe list follows Tandoor's pages", async () => {
 	assert.deepEqual(list[0].keywords, ["Dinner"]);
 	assert.equal(seen[1], "https://recipes.example.com/api/recipe/?page=2&page_size=100");
 });
+
+// ---- sending recipe notes to Tandoor ----
+
+import { servingMeasure, tandoorIngredient, noteSteps, exportableRecipes, tandoorRecipeBody, setFrontmatterKey, createTandoorRecipe } from "../src/tandoor.js";
+import { lookup, ingredientEntry } from "../src/recipe.js";
+import { listItems } from "../src/dvpage.js";
+
+const known = lookup(foods);
+
+test("a serving's own amount and unit", () => {
+	assert.deepEqual(servingMeasure("1 cup (125g)"), { n: 1, unit: "cup" });
+	assert.deepEqual(servingMeasure("100g"), { n: 100, unit: "g" });
+	assert.deepEqual(servingMeasure("1/2 cup"), { n: 0.5, unit: "cup" });
+	assert.deepEqual(servingMeasure("1 large (50g)"), { n: 1, unit: "", note: "large", serving: false });
+	assert.deepEqual(servingMeasure("1 serving"), { n: 1, unit: "", note: "", serving: true });
+	assert.equal(servingMeasure("a handful"), null);
+});
+
+test("servings go back to amounts", () => {
+	const t = (l) => tandoorIngredient(l, known, ingredientEntry);
+	assert.deepEqual(t("Flour, 2 (sifted)"), { food: { name: "Flour" }, unit: { name: "cup" }, amount: 2, note: "sifted", no_amount: false });
+	assert.deepEqual(t("Egg, 3"), { food: { name: "Egg" }, unit: null, amount: 3, note: "large", no_amount: false });
+	assert.deepEqual(t("Garlic, 2"), { food: { name: "Garlic" }, unit: { name: "clove" }, amount: 2, note: "", no_amount: false });
+	assert.deepEqual(t("Unicorn dust, 1.5"), { food: { name: "Unicorn dust" }, unit: { name: "serving" }, amount: 1.5, note: "", no_amount: false });
+	assert.deepEqual(t("Salt, 0 (to taste)"), { food: { name: "Salt" }, unit: null, amount: 0, note: "to taste", no_amount: true });
+	assert.deepEqual(t("Wheat flour, white, all-purpose, 0.5"), { food: { name: "Wheat flour, white, all-purpose" }, unit: { name: "cup" }, amount: 0.5, note: "", no_amount: false });
+});
+
+const NOTE = `---
+title: Chili
+yield: 6
+tags: [recipe, dinner, "#spicy"]
+source: https://example.com/chili
+---
+# Chili
+
+## Ingredients
+- Flour, 0.5
+- Garlic, 4 (minced)
+- Salt, 0
+
+## Instructions
+1. Brown the [[Beef|beef]].
+   Drain it.
+2. Simmer an hour.
+
+\`\`\`dataviewjs
+// Sync to Nutrition Database
+\`\`\`
+
+## Notes
+- Better the next day.
+`;
+
+test("instructions as steps", () => {
+	assert.deepEqual(noteSteps(NOTE), ["Brown the beef.\nDrain it.", "Simmer an hour."]);
+	assert.deepEqual(noteSteps("## Directions\nJust stir it.\n"), ["Just stir it."]);
+	assert.deepEqual(noteSteps("## Ingredients\n- a, 1\n"), []);
+});
+
+test("a recipe note as Tandoor's recipe body", () => {
+	const body = tandoorRecipeBody(NOTE, "Kitchen/Chili.md", { listItems, known, entry: ingredientEntry });
+	assert.equal(body.name, "Chili");
+	assert.equal(body.servings, 6);
+	assert.equal(body.source_url, "https://example.com/chili");
+	assert.deepEqual(body.keywords, [{ name: "dinner" }, { name: "spicy" }]);
+	assert.equal(body.steps.length, 2);
+	assert.equal(body.steps[0].ingredients.length, 3);
+	assert.deepEqual(body.steps[0].ingredients[1], { food: { name: "Garlic" }, unit: { name: "clove" }, amount: 4, note: "minced", no_amount: false });
+	assert.deepEqual(body.steps[1].ingredients, []);
+	const bare = tandoorRecipeBody("## Ingredients\n- Egg, 2\n", "Eggs.md", { listItems, known, entry: ingredientEntry });
+	assert.equal(bare.name, "Eggs");
+	assert.deepEqual(bare.steps.map((s) => s.instruction), [""]);
+});
+
+test("which notes get sent, and the id written back", () => {
+	const notes = [
+		{ path: "Kitchen/Chili.md", text: NOTE },
+		{ path: "Kitchen/Pancakes.md", text: "---\ntandoor_id: 12\n---\n## Ingredients\n- Egg, 1" },
+		{ path: "_templates/Recipe Template.md", text: "## Ingredients\n- " },
+		{ path: "Journal.md", text: "no recipe" },
+	];
+	assert.deepEqual(exportableRecipes(notes).map((n) => n.path), ["Kitchen/Chili.md"]);
+	assert.match(setFrontmatterKey(NOTE, "tandoor_id", 40), /^---\ntitle: Chili\nyield: 6\ntags: \[recipe, dinner, "#spicy"\]\nsource: https:\/\/example.com\/chili\ntandoor_id: 40\n---\n# Chili/);
+	assert.equal(setFrontmatterKey("---\ntandoor_id: 1\n---\nx", "tandoor_id", 2), "---\ntandoor_id: 2\n---\nx");
+	assert.equal(setFrontmatterKey("## Ingredients", "tandoor_id", 3), "---\ntandoor_id: 3\n---\n## Ingredients");
+	assert.equal(setFrontmatterKey("---\r\na: 1\r\n---\r\nx", "tandoor_id", 4), "---\r\na: 1\r\ntandoor_id: 4\r\n---\r\nx");
+});
+
+test("creating a recipe posts JSON with the token", async () => {
+	let sent = null;
+	const id = await createTandoorRecipe({ server: "recipes.example.com", token: "t" }, { name: "Chili" }, fakeFetch((url, init) => { sent = { url, init }; return { status: 201, body: { id: 40 } }; }));
+	assert.equal(id, 40);
+	assert.equal(sent.url, "https://recipes.example.com/api/recipe/");
+	assert.equal(sent.init.method, "POST");
+	assert.equal(sent.init.headers["Content-Type"], "application/json");
+	assert.deepEqual(JSON.parse(sent.init.body), { name: "Chili" });
+	await assert.rejects(createTandoorRecipe({ server: "r.example.com", token: "t" }, { name: "x" }, fakeFetch(() => ({ status: 403, body: {} }))), (e) => e.reason === "token");
+	await assert.rejects(createTandoorRecipe({ server: "r.example.com", token: "t" }, { name: "x" }, fakeFetch(() => ({ status: 400, body: { steps: ["bad"] } }))), /didn't take “x” \(400\)/);
+});

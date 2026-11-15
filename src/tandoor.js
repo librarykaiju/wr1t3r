@@ -283,3 +283,147 @@ export function recipeFolder(notes) {
 export function noteForTandoorId(notes, id) {
 	return notes.find(({ text }) => String(parseFrontmatter(text || "")?.tandoor_id ?? "") === String(id))?.path ?? null;
 }
+
+// ---- Sending recipe notes to Tandoor ---------------------------------------------------
+//
+// The other way round, for moving recipes kept in wr1t3r into Tandoor: a
+// recipe note's "Food, servings" lines go back to amounts and units from
+// the food's serving size ("Flour, 2" with a 1 cup (125g) serving is 2 cup),
+// and the note gets the new recipe's tandoor_id so it's never sent twice and
+// the importer knows it.
+
+// A food's serving as the amount and unit it's written in, its first part:
+// "1 cup (125g)" -> { n: 1, unit: "cup" }, "1 large (50g)" -> { n: 1, unit: "", note: "large" },
+// "100g" -> { n: 100, unit: "g" }. Null when there's no number.
+export function servingMeasure(serving) {
+	const first = String(serving || "").split("(")[0].trim();
+	const m = first.match(/^(\d+)\s+(\d+)\/(\d+)\s*(.*)$/) || first.match(/^(\d+)\/(\d+)\s*(.*)$/) || first.match(/^(\d*\.?\d+)\s*(.*)$/);
+	if (!m) return null;
+	const n = m.length === 5 ? +m[1] + m[2] / m[3] : m.length === 4 ? m[1] / m[2] : parseFloat(m[1]);
+	const unit = clean(m[m.length - 1]).replace(/^of\s+/i, "");
+	const k = unitKind(unit);
+	if (k?.kind === "count" && !k.word) return { n, unit: "", note: /^(serving|portion)s?$/i.test(unit) ? "" : unit, serving: /^(serving|portion)s?$/i.test(unit) };
+	return { n, unit };
+}
+
+// A recipe note's ingredient line as a Tandoor ingredient. known: the
+// database lookup ({ has, find } as src/recipe.js builds it), entry: its
+// ingredientEntry(). -> { food: { name }, unit: { name } | null, amount, note, no_amount }.
+export function tandoorIngredient(line, known, entry) {
+	const { name, servings } = entry(line, known);
+	const food = known.find(name);
+	// Whatever follows the amount ("2 (softened)") is the note.
+	const rest = line.slice(line.indexOf(name) + name.length).replace(/^\s*,\s*\d*\.?\d*\s*/, "").trim();
+	const notes = [rest.replace(/^\((.*)\)$/, "$1").trim()].filter(Boolean);
+	const out = { food: { name: name.replace(/\|/g, "/") }, unit: null, amount: 0, note: "", no_amount: false };
+	if (!(servings > 0)) out.no_amount = true;
+	else {
+		const m = food && servingMeasure(food.serving);
+		if (m && !m.serving) {
+			out.amount = round2(servings * m.n);
+			if (m.unit) out.unit = { name: m.unit };
+			else if (m.note) notes.unshift(m.note);
+		} else {
+			out.amount = servings;
+			out.unit = { name: "serving" };
+		}
+	}
+	out.note = notes.join(", ").slice(0, 256);
+	return out;
+}
+
+const INSTRUCTION_HEADS = /^(instructions|directions|method|steps|preparation)$/i;
+
+// The note's instructions as Tandoor steps: each top-level item of the list
+// under an Instructions (Directions, Method...) heading, or the section's
+// text as one step when it isn't a list.
+export function noteSteps(text) {
+	const body = String(text).replace(/^---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(\r?\n|$)/, "");
+	const lines = body.split(/\r?\n/);
+	let start = -1;
+	for (let i = 0; i < lines.length; i++) {
+		const h = lines[i].match(/^#{1,6}\s+(.*?)\s*#*\s*$/);
+		if (h && INSTRUCTION_HEADS.test(h[1].trim())) { start = i + 1; break; }
+	}
+	if (start < 0) return [];
+	const section = [];
+	let fence = false;
+	for (let i = start; i < lines.length; i++) {
+		if (/^\s*(`{3,}|~{3,})/.test(lines[i])) fence = !fence;
+		if (!fence && /^#{1,6}\s/.test(lines[i])) break;
+		section.push(lines[i]);
+	}
+	// The template's sync block isn't an instruction.
+	const textOnly = section.join("\n").replace(/^(`{3,})dataviewjs[\s\S]*?^\1[ \t]*$/gm, "").trim();
+	if (!textOnly) return [];
+	const steps = [];
+	for (const l of textOnly.split("\n")) {
+		const li = l.match(/^([-*+]|\d+[.)])\s+(.*)$/);
+		if (li) steps.push(li[2]);
+		else if (steps.length && l.trim()) steps[steps.length - 1] += "\n" + l.trim();
+		else if (!steps.length && l.trim()) steps.push(l.trim());
+	}
+	return steps.map((s) => s.replace(/\[\[([^\]|]+\|)?([^\]]+)\]\]/g, "$2").trim()).filter(Boolean);
+}
+
+// Recipe notes worth sending: a "## Ingredients" list, not a template, not
+// already in Tandoor.
+export function exportableRecipes(notes) {
+	return notes.filter(({ path, text }) => !/(^|\/)_templates\//i.test(path) && /^##\s+Ingredients\s*$/im.test(text || "") && parseFrontmatter(text || "")?.tandoor_id == null);
+}
+
+// The body for POST /api/recipe/ from a recipe note. listItems, known and
+// entry come from src/dvpage.js and src/recipe.js (passed in so this file
+// stays free of them).
+export function tandoorRecipeBody(noteText, notePath, { listItems, known, entry }) {
+	const fm = parseFrontmatter(noteText) || {};
+	const title = clean((fm.title != null && String(fm.title)) || String(notePath).split("/").pop().replace(/\.md$/i, "")).slice(0, 128);
+	const lines = listItems(noteText).filter((l) => l.section?.subpath === "Ingredients").map((l) => l.text.trim()).filter(Boolean);
+	const ingredients = lines.map((l) => tandoorIngredient(l, known, entry));
+	const steps = noteSteps(noteText);
+	const y = parseFloat(fm.yield);
+	const tags = (Array.isArray(fm.tags) ? fm.tags : fm.tags ? String(fm.tags).split(/[,\s]+/) : []).map((t) => clean(String(t).replace(/^#/, ""))).filter((t) => t && t.toLowerCase() !== "recipe");
+	const source = [fm.source, fm.url, fm.source_url].find((v) => typeof v === "string" && /^https?:\/\//.test(v));
+	const body = {
+		name: title,
+		description: clean(fm.description || "").slice(0, 512),
+		servings: y > 0 ? Math.max(1, Math.round(y)) : 1,
+		keywords: [...new Set(tags)].map((name) => ({ name })),
+		steps: (steps.length ? steps : [""]).map((instruction, i) => ({ name: "", instruction, ingredients: i === 0 ? ingredients : [], order: i })),
+		internal: true,
+	};
+	if (fm.yield_text) body.servings_text = clean(fm.yield_text).slice(0, 32);
+	if (source) body.source_url = source;
+	if (+fm.prep_minutes > 0) body.working_time = Math.round(+fm.prep_minutes);
+	if (+fm.wait_minutes > 0) body.waiting_time = Math.round(+fm.wait_minutes);
+	return body;
+}
+
+// The note with `key: value` set in its frontmatter (made if it has none).
+export function setFrontmatterKey(text, key, value) {
+	const nl = text.includes("\r\n") ? "\r\n" : "\n";
+	const m = text.match(/^---\r?\n([\s\S]*?)(\r?\n)(---|\.\.\.)[ \t]*(\r?\n|$)/);
+	const line = `${key}: ${value}`;
+	if (!m) return `---${nl}${line}${nl}---${nl}${text}`;
+	const inner = m[1].split(/\r?\n/);
+	const at = inner.findIndex((l) => new RegExp(`^${key}\\s*:`).test(l));
+	if (at >= 0) inner[at] = line; else inner.push(line);
+	return `---${nl}${inner.join(nl)}${m[2]}${m[3]}${m[4]}` + text.slice(m[0].length);
+}
+
+// Creates the recipe in Tandoor. -> its id.
+export async function createTandoorRecipe(creds, body, fetchImpl = globalThis.fetch) {
+	const server = tandoorServer(creds.server);
+	let res;
+	try {
+		res = await fetchImpl(server + "/api/recipe/", { method: "POST", headers: { Authorization: `Bearer ${creds.token}`, Accept: "application/json", "Content-Type": "application/json" }, credentials: "omit", body: JSON.stringify(body) });
+	} catch {
+		throw new TandoorError("blocked", `Couldn't send to ${server}: its CORS headers need to allow POST from this page, or it can't be reached from here.`);
+	}
+	if (res.status === 401 || res.status === 403) throw new TandoorError("token", "Tandoor refused to save it. The API token needs write access (Tandoor: Settings > API).");
+	let data = null;
+	try { data = await res.json(); } catch {}
+	if (!res.ok) throw new TandoorError("address", `Tandoor didn't take “${body.name}” (${res.status})${data ? ": " + JSON.stringify(data).slice(0, 300) : ""}.`);
+	if (data?.id == null) throw new TandoorError("address", `Tandoor answered without a recipe id for “${body.name}”.`);
+	return data.id;
+}

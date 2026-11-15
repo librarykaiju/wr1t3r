@@ -140,6 +140,8 @@ If you keep recipes in your own [Tandoor](https://tandoor.dev), wr1t3r can turn 
 
 Commands > _Import a recipe from Tandoor_ lists your recipes. Pick one and wr1t3r writes a note with its servings as the _yield_, its ingredients, and its steps. Each amount is converted into servings of the matching food in your Nutrition Database, so 250 g of flour becomes _2_ when your flour is 1 cup (125 g); the original amount stays in brackets. Ingredients your database doesn't have are looked up in the USDA tables first, the same as above. When an amount can't be converted, such as grams of a food measured only in cups, the line says _check_ so you can fix the number. Then add the recipe to the database as usual.
 
+Moving the other way? Commands > _Send recipes to Tandoor_ creates Tandoor recipes from your recipe notes, one at a time or all at once, turning each ingredient's servings back into an amount in its food's serving unit (2 servings of a 1-cup food is 2 cups). Each note gets a _tandoor_id_ property so it's never sent twice. The token needs write access for this.
+
 Your Tandoor has to allow wr1t3r to talk to it: its web server needs to send CORS headers for wr1t3r's address. If connecting says it couldn't read an answer, that's the usual reason, or the device can't reach Tandoor (a home server needs you at home or on a VPN).
 
 --- footer

@@ -18,7 +18,7 @@ export const syncBlockDbPath = (code) => code.match(/const\s+dbPath\s*=\s*["']([
 
 // The template's lookup: a name or alias, else the first name starting with
 // the text, else the first containing it.
-function lookup(foods) {
+export function lookup(foods) {
 	const byName = new Map();
 	for (const f of foods) {
 		byName.set(f.name.toLowerCase(), f);
