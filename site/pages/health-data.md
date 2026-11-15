@@ -134,6 +134,10 @@ A recipe note gives you one row for a whole dish, per serving. Give the note a _
 
 With the note open, Commands > _Add this recipe to the Nutrition Database_ adds it as a row named after the note (or its _title_ property), in the _Recipe_ food group. Change the recipe and run it again to update the row. Recipe notes made from the Obsidian Recipe template also have a _Sync to Nutrition Database_ button that does the same thing, with a _Find them in USDA foods_ link when ingredients are missing.
 
+### From Tandoor
+
+If you keep recipes in [Tandoor](https://tandoor.dev), export them there (Settings > Export, the _Default_ format) and choose the zip in Commands > _Import recipes from Tandoor_. Each recipe becomes a recipe note like the one above, in the folder your recipe notes are in, with its servings as the _yield_. Ingredients your database doesn't have are matched to USDA foods first, the same way. Then Tandoor's amounts are turned into servings of each food: 250 g of a food whose serving is 1 cup (125g) is 2 servings, and 2 cloves of a 1 clove food is 2. Tandoor's amount stays in brackets. When an amount can't be turned into servings, like a cup of something only listed by weight, the line says _check the servings_ so you can fix the number. Each recipe is added to your Nutrition Database as it's imported. Importing the same recipe again replaces its note with Tandoor's version.
+
 --- footer
 
 [wr1t3r](/) · [Help](/help.html) · [Terms and refunds](/legal.html) · [Privacy policy](/privacy.html) · [hello@wr1t3r.app](mailto:hello@wr1t3r.app)
