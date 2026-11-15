@@ -4906,7 +4906,7 @@ async function importTandoor() {
 		(unconverted ? ` ${unconverted} ingredient amount${unconverted === 1 ? "" : "s"} didn't match the food's serving size; those lines say “check the servings”.` : ""), 10000);
 }
 
-// Recipe notes as a zip for Tandoor's Import page (Default format), for
+// Recipe notes as a zip for Tandoor's Import page (App > Tandoor), for
 // moving recipes kept here into Tandoor: one note, or all not sent yet. Each
 // exported note gets tandoor_exported: so it isn't exported twice; importing
 // it back from Tandoor later finds it by title and links it.
@@ -4939,7 +4939,7 @@ async function writeTandoorExport(td, list) {
 	const today = new Date().toLocaleDateString("en-CA");
 	for (const n of list) await dataviewVault.write(n.path, (t) => td.setProperties(t, [["tandoor_exported", [`tandoor_exported: ${today}`]]]));
 	scheduleSync();
-	toast(`Saved ${list.length} recipe${list.length === 1 ? "" : "s"} for Tandoor. In Tandoor: Import, type Default, choose the zip. Each note now has tandoor_exported: so it won't be exported again.`, 12000);
+	toast(`Saved ${list.length} recipe${list.length === 1 ? "" : "s"} for Tandoor. In Tandoor: Import > App > Tandoor, then choose the zip. Each note now has tandoor_exported: so it won't be exported again.`, 12000);
 }
 
 // ---- StoryGraph import (src/storygraph.js) -----------------------------------------

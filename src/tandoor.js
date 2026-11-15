@@ -1,5 +1,5 @@
 // Recipes from Tandoor (https://tandoor.dev) as Recipe notes. Tandoor's
-// export (Settings > Export, "Default" format) is a zip holding one zip per
+// export (its Export page, type "Tandoor"; "Default" before Tandoor 2) is a zip holding one zip per
 // recipe, named by its id, each with a recipe.json. Each recipe becomes a
 // note made from the vault's Recipe template (or a plain one), with its
 // ingredients written the way src/recipe.js reads them: "Food, servings",
@@ -97,7 +97,7 @@ export function toServings(amount, unit, food) {
 // used. A single recipe's own zip (recipe.json at the top) works too.
 export async function readExport(bytes, JSZip) {
 	let zip;
-	try { zip = await JSZip.loadAsync(bytes); } catch { throw new Error("That isn't a zip file. In Tandoor, use Settings > Export with the Default format."); }
+	try { zip = await JSZip.loadAsync(bytes); } catch { throw new Error("That isn't a zip file. In Tandoor, export from its Export page with the type Tandoor."); }
 	const one = async (z, id) => {
 		const f = z.file("recipe.json");
 		if (!f) return null;
@@ -116,7 +116,7 @@ export async function readExport(bytes, JSZip) {
 			if (r) out.push(r);
 		} catch { /* a broken recipe zip is left out */ }
 	}
-	if (!out.length) throw new Error("There are no Tandoor recipes in that zip. In Tandoor, use Settings > Export with the Default format.");
+	if (!out.length) throw new Error("There are no Tandoor recipes in that zip. In Tandoor, export from its Export page with the type Tandoor.");
 	return out.sort((x, y) => x.id - y.id);
 }
 
@@ -320,7 +320,7 @@ export function planImport(entries, notes, folder) {
 // ---- Recipe notes as a Tandoor import ----------------------------------------
 //
 // The other way, for moving recipes kept here into Tandoor: a zip in
-// Tandoor's Default format (one <n>.zip per recipe, each with a
+// Tandoor's own export format ("Tandoor", once "Default": one <n>.zip per recipe, each with a
 // recipe.json), for Tandoor's Import page. Tandoor's import always makes new
 // recipes, so notes with a `tandoor:` property (imported from it, or sent
 // before) are left out.
