@@ -139,6 +139,7 @@ export function guideText(features, { worker = true, story = false } = {}) {
 		"- **Import from Notion:** the .zip from Notion's Export with “Markdown & CSV”. Databases become boards.",
 		"- **Import WordPress export:** the file from Tools > Export. Posts and pages become notes.",
 		"- **Import Evernote notebooks (.enex):** one or more exported notebooks, with their pictures and checklists.",
+		"- **Import Scrivener project:** the project's .scriv folder, or a .zip of it (on a Mac, right-click the .scriv and pick Compress). The binder becomes folders in the same order, with synopses, labels and status as properties.",
 		"- **Import Day One journal:** the .zip from Day One's JSON export. Entries go in the journal folder with their photos.",
 		"",
 		"A note listing what came in, and anything that didn't, opens when each one is done.",
