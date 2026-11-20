@@ -15,11 +15,12 @@ import { snippet } from "@codemirror/autocomplete";
 import { openPalette } from "./palette.js";
 
 // Obsidian's callout types and aliases, grouped by the color Obsidian gives them,
-// plus two extras: scene for fiction excerpts, further-reading for a post's
-// related links.
+// plus three extras: scene for fiction excerpts, further-reading for a post's
+// related links, and dialogue, which brandonj.ink draws as speech bubbles.
 const CALLOUT_GROUPS = {
 	violet: "scene",
 	sapphire: "further-reading furtherreading",
+	rose: "dialogue dialog",
 	blue: "note info todo",
 	cyan: "abstract summary tldr tip hint important",
 	green: "success check done",
@@ -38,6 +39,7 @@ const CIRCLE = "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20";
 const ICON_PATHS = {
 	feather: ["M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z", "M16 8 2 22", "M17.5 15H9"],
 	library: ["m16 6 4 14", "M12 6v14", "M8 8v12", "M4 4v16"],
+	messages: ["M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z", "M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"],
 	pencil: ["M12 20h9", "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"],
 	clipboard: ["M9 2h6v4H9z", "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2", "M12 11h4", "M12 16h4", "M8 11h.01", "M8 16h.01"],
 	info: [CIRCLE, "M12 16v-4", "M12 8h.01"],
@@ -53,7 +55,7 @@ const ICON_PATHS = {
 	quote: ["M3 21c3 0 7-1 7-8V5c0-1.25-.76-2-2-2H4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h3c0 3-1 5-4 5z", "M15 21c3 0 7-1 7-8V5c0-1.25-.76-2-2-2h-4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h3c0 3-1 5-4 5z"],
 };
 const ICON_GROUPS = {
-	feather: "scene", library: "further-reading furtherreading",
+	feather: "scene", library: "further-reading furtherreading", messages: "dialogue dialog",
 	pencil: "note", clipboard: "abstract summary tldr", info: "info", todo: "todo",
 	flame: "tip hint important", check: "success check done", help: "question help faq",
 	alert: "warning caution attention", x: "failure fail missing", zap: "danger error",
@@ -92,6 +94,11 @@ export function pickCallout(view) {
 				}
 				const line = doc.lineAt(sel.head);
 				const lead = line.text.trim() && sel.head > line.from ? "\n" : "";
+				if (kind === "dialogue") {
+					// One line per speaker: "**Name:** what they say".
+					snippet(`${lead}> [!dialogue] \${title}\n> **\${Speaker 1}:** \${line}\n> **\${Speaker 2}:** \${}`)(view, null, sel.head, sel.head);
+					return;
+				}
 				const title = kind === "further-reading" ? "Further Reading" : "title";
 				snippet(`${lead}> [!${kind}] \${${title}}\n> \${}`)(view, null, sel.head, sel.head);
 			},
