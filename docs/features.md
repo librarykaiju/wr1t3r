@@ -172,6 +172,22 @@ Anything captured lands as an open task at the end of `content/Inbox.md` (change
 - **Android:** install wr1t3r to the home screen, then pick it in any app's Share menu.
 - **iPhone:** web apps can't join the Share menu, so make an Apple Shortcut: turn on "Show in Share Sheet" (accepts URLs and text), then add **Get Contents of URL** with URL `https://<your wr1t3r>/api/capture`, Method POST, header `Authorization: Bearer <your token>`, Request Body JSON with `text` set to Shortcut Input. Sharing to the Shortcut sends it to the Inbox.
 
+## Apple Health
+
+An iPhone Shortcut can send the day's steps, active energy, sleep and weight to the Worker's `POST /api/health`, which writes them into that day's health note (`<date> Health.md`, made from `_templates/Daily Health.md` if it isn't there yet, beside where the daily note goes). Each metric is one line in the planner's format, marked `Apple Health`:
+
+```
+### 🏃 Exercise   - ⌚ Apple Health | 8432 steps | 412 cal
+## 😴 Sleep       - 7.4 h | Apple Health
+## ⚖️ Weight      - 208.4 lb | Apple Health
+```
+
+A later push replaces those lines rather than adding more, so the Shortcut can run several times a day. Lines logged by hand stay, and the day's totals and properties (`steps`, `activity_kcal`, `sleep_h`, `weight`) count both, so the trends chart and boards pick them up. Empty or zero numbers are skipped, leaving what the note already has.
+
+The body is JSON: `date` (`YYYY-MM-DD`, default today in `TIMEZONE`), `steps`, `active_kcal`, `sleep_min` (or `sleep_h`), `weight` and `weight_unit` (`lb` or `kg`). Numbers can be strings like `"8,432"`. It answers `{path, version}`, or `unchanged: true` when nothing moved.
+
+The Shortcut lives on the phone, so give it its own token instead of the main one: `npx wrangler secret put HEALTH_TOKEN` with another long random string. It opens `/api/health` and nothing else. The route is in `worker/index.js`; the note changes are in `src/healthpush.js`.
+
 ## Reminders and repeating tasks
 
 - **Reminders:** `/Reminder` (or right-click a task's box) adds `(@2026-10-03 14:30)` to a task, the Reminder plugin's format. A date with no time reminds at 9:00. After each sync wr1t3r sends the upcoming reminders to the Worker, which checks every minute and sends each one as a notification to every device that ran "Turn on reminders on this device". Notifications arrive with wr1t3r closed. On iPhone this only works in wr1t3r added to the Home Screen.

@@ -156,3 +156,21 @@ test("USDA food groups: survey categories, and the name when the category says n
 	];
 	for (const [category, name, want] of cases) assert.equal(groupOf(category, name), want, `${category || name}`);
 });
+
+test("POST /api/health sets the day's Apple Health lines, with WR1T3R_TOKEN or HEALTH_TOKEN", async () => {
+	const e = { WR1T3R_TOKEN: "t", HEALTH_TOKEN: "h", VAULT: fakeBucket({ "content/_templates/Daily.md": "x", "content/daily/2026-11-20.md": "day" }) };
+	const body = JSON.stringify({ date: "2026-11-20", steps: "8,432", active_kcal: 412, sleep_min: 444, weight: "" });
+	const r = await worker.fetch(new Request("https://w/api/health", { method: "POST", body, headers: { Authorization: "Bearer h" } }), e);
+	assert.equal(r.status, 200);
+	assert.equal((await r.json()).path, "content/daily/2026-11-20 Health.md");
+	const text = new TextDecoder().decode(e.VAULT.map.get("content/daily/2026-11-20 Health.md").body);
+	assert.match(text, /- ⌚ Apple Health \| 8432 steps \| 412 cal/);
+	assert.match(text, /- 7\.4 h \| Apple Health/);
+	assert.doesNotMatch(text, /Weight/);
+	const again = await call(e, "/api/health", { method: "POST", body });
+	assert.equal((await again.json()).unchanged, true);
+	const files = await worker.fetch(new Request("https://w/api/files", { headers: { Authorization: "Bearer h" } }), e);
+	assert.equal(files.status, 401, "HEALTH_TOKEN opens nothing else");
+	const bad = await worker.fetch(new Request("https://w/api/health", { method: "POST", body, headers: { Authorization: "Bearer nope" } }), e);
+	assert.equal(bad.status, 401);
+});
