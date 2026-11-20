@@ -237,3 +237,73 @@ test("a new log is a book log with Reader's formats, series and the notes under 
 	assert.deepEqual(logFormats(["cbz"]), ["💬Comic"]);
 	assert.deepEqual(logFormats([]), ["📱Ebook"]);
 });
+
+// As Reader writes it now (its notesMarkdown, run on these items): a hidden
+// id and date on each saved highlight and bookmark.
+const TAGGED = `---
+title: "Project Hail Mary"
+author: "Andy Weir"
+formats: [epub, audiobook]
+status: finished
+reader: https://reader.brandonj.ink/#/record/40
+exported: 2026-11-20
+tags: [book-notes]
+---
+
+# Project Hail Mary
+
+*Andy Weir*
+
+## Highlights
+
+<!-- reader:h:7 2026-11-20T12:00:00.000Z -->
+> Amaze, amaze, amaze.
+
+ha
+
+---
+
+> pending one
+
+## Bookmarks
+
+- **12:04** · Chapter 1 — waking up <!-- reader:m:45 2026-11-20T10:00:00.000Z -->
+- **3:15:42** · Chapter 20 — Rocky! <!-- reader:m:46 2026-11-20T13:00:00.000Z -->
+`;
+
+test("Reader's hidden ids are the keys, its dates the order, and the comments aren't copied", () => {
+	const b = parseNote(TAGGED);
+	assert.deepEqual(b.highlights.map((h) => h.key), ["h#7", b.highlights[1].textKey]);
+	assert.equal(b.highlights[0].made, "2026-11-20T12:00:00.000Z");
+	assert.deepEqual(b.highlights[0].lines, ["> Amaze, amaze, amaze.", "", "ha"]);
+	assert.match(b.highlights[1].key, /^h:[0-9a-f]{8}$/); // not saved yet in Reader: no id
+	assert.deepEqual(b.bookmarks.map((m) => [m.key, m.textKey]), [["m#45", "m:12:04"], ["m#46", "m:3:15:42"]]);
+	assert.deepEqual(b.bookmarks[0].lines, ["- **12:04** · Chapter 1 — waking up"]);
+	const r = applyNotes("---\ntitle: Project Hail Mary\n---\n\n## Notes\n", b, "2026-11-20");
+	assert.ok(!r.text.includes("<!--"));
+	// 10:00 bookmark, 12:00 highlight, 13:00 bookmark, then the undated one.
+	assert.match(r.text, /## Notes\n\n- \*\*12:04\*\* · Chapter 1 — waking up\n\n> Amaze, amaze, amaze\.\n\nha\n\n- \*\*3:15:42\*\* · Chapter 20 — Rocky!\n\n> pending one\n$/);
+	assert.deepEqual(parseFrontmatter(r.text).reader_imported, ["m#45", "h#7", "m#46", b.highlights[1].key]);
+});
+
+test("a log imported from an older export doesn't get the same items again once ids come", () => {
+	const old = applyNotes("---\ntitle: Project Hail Mary\n---\n\n## Notes\n", parseNote(AUDIO), "2026-11-19");
+	assert.equal(old.added, 4);
+	const again = applyNotes(old.text, parseNote(TAGGED), "2026-11-20");
+	// "Amaze", 12:04 and 3:15:42 were brought over before; only "pending one" is new.
+	assert.equal(again.added, 1);
+	assert.equal(again.text.match(/Amaze, amaze, amaze/g).length, 1);
+	assert.match(again.text, /> pending one\n$/);
+	// And from then on, by id.
+	const later = TAGGED.replace("- **3:15:42**", "- **4:00:00** · Chapter 25 <!-- reader:m:47 2026-11-21T09:00:00.000Z -->\n- **3:15:42**");
+	const third = applyNotes(again.text, parseNote(later), "2026-11-21");
+	assert.equal(third.added, 1);
+	assert.match(third.text, /- \*\*4:00:00\*\* · Chapter 25\n$/);
+	assert.ok(imported(third.text).has("m#47"));
+});
+
+test("an item keyed by id stays out once brought over, whatever it's moved to in Reader", () => {
+	const first = applyNotes("## Notes\n", parseNote(TAGGED), "2026-11-20");
+	const moved = TAGGED.replace("- **12:04** · Chapter 1 — waking up", "- **12:09** · Chapter 1 — waking up, moved");
+	assert.equal(applyNotes(first.text, parseNote(moved), "2026-11-21").added, 0);
+});

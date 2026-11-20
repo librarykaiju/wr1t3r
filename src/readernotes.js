@@ -12,10 +12,14 @@
 // here. The log's `reader_imported:` property lists a key for each one
 // brought over, so one edited or deleted here doesn't come back. (The other
 // side of that: a note changed in Reader after it was imported isn't brought
-// over again.) Reader's export has no ids for them, so the keys come from
-// what it does have: a highlight's quoted words (h:<hash>, the note left out
-// so a note added later doesn't make it new) and a bookmark's time
-// (m:<time>).
+// over again.) Each one's key is its id in Reader (h#12, m#45), from the
+// hidden "<!-- reader:h:12 2026-11-20T12:00:00.000Z -->" Reader writes with
+// it, which also says when it was made, so new ones go in in that order (the
+// comment itself isn't copied). An export from before Reader wrote those is
+// keyed by what it does have: a highlight's quoted words (h:<hash>, the note
+// left out so a note added later doesn't make it new) and a bookmark's time
+// (m:<time>). A log holding those older keys still counts the same ones as
+// brought over, so nothing comes twice when the keys change.
 //
 // The log's `reader:` property holds Reader's book id, so a later import
 // finds it again whatever it's called by then; the first import matches by
@@ -59,38 +63,51 @@ export function hash(s) {
 }
 // Words as a key sees them: no case, curly quotes or runs of spaces.
 const norm = (s) => String(s).toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
-// A key used twice in one book gets "~2", "~3".
-function numbered(items) {
+// Reader's hidden "<!-- reader:h:12 2026-11-20T12:00:00.000Z -->".
+const TAG = /\s*<!--\s*reader:([hm]):(\d+)(?:\s+(\S+))?\s*-->/;
+
+// An item: kind ("h" or "m"), textKey (what it's keyed by without the tag),
+// key (h#12 from the tag, else textKey), made (when, from the tag, or null)
+// and its lines without the tag. A textKey used twice in one book gets "~2",
+// "~3", in an older export's order as in this one's.
+function items(kind, list) {
 	const seen = new Map();
-	return items.map((it) => {
-		const n = (seen.get(it.key) || 0) + 1;
-		seen.set(it.key, n);
-		return n > 1 ? { ...it, key: `${it.key}~${n}` } : it;
+	return list.map(({ lines, textKey }) => {
+		const n = (seen.get(textKey) || 0) + 1;
+		seen.set(textKey, n);
+		if (n > 1) textKey += `~${n}`;
+		const tag = lines.map((l) => TAG.exec(l)).find((m) => m && m[1] === kind);
+		const made = tag?.[3] && !Number.isNaN(Date.parse(tag[3])) ? tag[3] : null;
+		return { kind, key: tag ? `${kind}#${tag[2]}` : textKey, textKey, made, lines };
 	});
 }
+// Lines without the tag; a line that was only the tag goes.
+const untagged = (lines) => tidy(lines.filter((l) => !/^\s*<!--\s*reader:[hm]:\d+[^>]*-->\s*$/.test(l)).map((l) => l.replace(TAG, "")));
 
-// "## Highlights" lines -> [{ key, lines }]: each a quote and the note under
-// it, split at Reader's "---".
+// "## Highlights" lines -> items: each a quote and the note under it, split
+// at Reader's "---".
 export function highlightItems(lines) {
 	const groups = [[]];
 	for (const l of lines) if (/^\s*-{3,}\s*$/.test(l)) groups.push([]); else groups.at(-1).push(l);
-	return numbered(groups.map(tidy).filter((g) => g.length).map((g) => {
-		const quote = g.filter((l) => /^\s*>/.test(l)).map((l) => l.replace(/^\s*>\s?/, "")).join(" ");
-		return { key: "h:" + hash(norm(quote || g.join(" "))), lines: g };
-	}));
+	return items("h", groups.filter((g) => untagged(g).length).map((g) => {
+		const plain = untagged(g);
+		const quote = plain.filter((l) => /^\s*>/.test(l)).map((l) => l.replace(/^\s*>\s?/, "")).join(" ");
+		return { lines: g, textKey: "h:" + hash(norm(quote || plain.join(" "))) };
+	})).map((it) => ({ ...it, lines: untagged(it.lines) }));
 }
 
-// "## Bookmarks" lines -> [{ key, lines }], keyed by the time in bold
+// "## Bookmarks" lines -> items, the text key being the time in bold
 // ("1:23:45", "Clip 1:02–1:30").
 export function bookmarkItems(lines) {
-	return numbered(lines.filter((l) => /^\s*-\s/.test(l)).map((l) => {
-		const at = /^\s*-\s+\*\*(.+?)\*\*/.exec(l)?.[1];
-		return { key: "m:" + (at ? at.replace(/\s+/g, "") : hash(norm(l))), lines: [l.replace(/\s+$/, "")] };
-	}));
+	return items("m", lines.filter((l) => /^\s*-\s/.test(l)).map((l) => {
+		const plain = l.replace(TAG, "").replace(/\s+$/, "");
+		const at = /^\s*-\s+\*\*(.+?)\*\*/.exec(plain)?.[1];
+		return { lines: [l], textKey: "m:" + (at ? at.replace(/\s+/g, "") : hash(norm(plain))) };
+	})).map((it) => ({ ...it, lines: untagged(it.lines) }));
 }
 
 // One exported file -> { id, title, authors, series, volume, formats, status,
-// link, highlights: [{ key, lines }], bookmarks: [{ key, lines }] }, or null
+// link, highlights: [item], bookmarks: [item] } (items as above), or null
 // when it isn't one of Reader's (no reader: link to a book).
 export function parseNote(text) {
 	const t = String(text || "").replace(/^﻿/, "").replace(/\r\n?/g, "\n");
@@ -233,21 +250,32 @@ export function imported(text) {
 	return new Set((Array.isArray(v) ? v : v == null || v === "" ? [] : [v]).map(String));
 }
 
+// The book's items not brought over before (by either key), in the order they
+// go in: by when they were made, where the export says, then the rest,
+// highlights before bookmarks, as the export has them.
+export function newItems(book, have) {
+	const all = [...book.highlights, ...book.bookmarks].filter((x) => !have.has(x.key) && !have.has(x.textKey));
+	const dated = all.filter((x) => x.made).sort((a, b) => Date.parse(a.made) - Date.parse(b.made));
+	return [...dated, ...all.filter((x) => !x.made)];
+}
+
 // A log's text with the book's new highlights and bookmarks added to its
-// Notes (highlights, then bookmarks, each in the export's order), and
-// reader:, reader_synced: and reader_imported: set. -> { text, added }.
+// Notes (in newItems' order), and reader:, reader_synced: and
+// reader_imported: set. -> { text, added }.
 export function applyNotes(text, book, today) {
 	const t = String(text || "").replace(/\r\n?/g, "\n");
 	const have = imported(t);
-	const hl = book.highlights.filter((x) => !have.has(x.key));
-	const bm = book.bookmarks.filter((x) => !have.has(x.key));
+	const fresh = newItems(book, have);
 	const add = [];
-	for (const x of hl) add.push(...(add.length ? [""] : []), ...x.lines);
-	if (bm.length) add.push(...(add.length ? [""] : []), ...bm.flatMap((x) => x.lines));
-	const keys = [...have, ...hl.map((x) => x.key), ...bm.map((x) => x.key)];
+	fresh.forEach((x, i) => {
+		// Bookmarks in a row stay one list; a highlight has a blank line around it.
+		if (add.length && !(x.kind === "m" && fresh[i - 1].kind === "m")) add.push("");
+		add.push(...x.lines);
+	});
+	const keys = [...have, ...fresh.map((x) => x.key)];
 	const props = [["reader", [`reader: ${book.id}`]], ["reader_synced", [`reader_synced: ${today}`]]];
 	if (keys.length) props.push(["reader_imported", ["reader_imported:", ...keys.map((k) => `  - ${JSON.stringify(k)}`)]]);
-	return { text: setProperties(appendToNotes(t, add), props), added: hl.length + bm.length };
+	return { text: setProperties(appendToNotes(t, add), props), added: fresh.length };
 }
 
 // ---- New logs ------------------------------------------------------------------
