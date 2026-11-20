@@ -434,6 +434,12 @@
 						<h2 data-feature="capture">Clip from any page</h2>
 						<p class="hint" data-feature="capture">Drag <a id="bookmarklet" href="#">Clip to wr1t3r</a> to your bookmarks bar, then click it on any page to save it as a note. Select some text first to clip just that part. On a phone, tap Copy, bookmark any page, then edit the bookmark and paste over its address.</p>
 						<div class="seg" data-feature="capture"><button id="copyBookmarklet" type="button">Copy</button></div>
+						<h2 data-feature="media">Reader notes</h2>
+						<div class="reader-setup" data-feature="media">
+							<input id="readerUrl" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://reader.brandonj.ink" aria-label="Reader's address">
+							<input id="readerToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Reader notes token" aria-label="Reader notes token">
+						</div>
+						<p class="hint" data-feature="media">For Commands › Pull notes from Reader: Reader's address and the string saved there as NOTES_TOKEN. Kept on this device only, like the Nextcloud app password.</p>
 						<h2>This device</h2>
 						<div class="seg"><button id="setSignOut" type="button">Sign out</button></div>
 					</section>

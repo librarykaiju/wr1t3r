@@ -205,6 +205,10 @@ export const api = {
 	async mediaNote(kind, ref, cover, today) {
 		return jsonOrThrow(await call("/api/media/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, ref, cover, today }) }));
 	},
+	// Highlights and bookmarks from Reader, through the Worker (worker/readernotes.js) -> {reader, books}.
+	async readerNotes() {
+		return jsonOrThrow(await call("/api/reader/notes"));
+	},
 	async usdaSearch(q) {
 		return (await jsonOrThrow(await call("/api/usda/search?" + new URLSearchParams({ q })))).results;
 	},

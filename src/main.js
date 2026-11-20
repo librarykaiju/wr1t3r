@@ -3875,6 +3875,8 @@ function allCommands() {
 		["Import Scrivener project", importScrivener, "scrivener scriv scrivx project novel manuscript binder rtf import move switch bring over"],
 		["Import Day One journal", importDayOne, "day one dayone journal diary entries json export import move switch bring over"],
 		["Import StoryGraph library", importStoryGraph, "storygraph csv export books reading goodreads import"],
+		["Pull notes from Reader", pullReaderNotes, "reader highlights bookmarks audiobook ebook notes sync fetch book logs import"],
+		["Pull Reader notes for this book", pullReaderNotesHere, "reader highlights bookmarks audiobook ebook notes sync fetch this book log", true],
 		["Import notes from Reader", importReaderNotes, "reader highlights bookmarks audiobook ebook notes export zip book logs import"],
 		["Fill book genres from subjects", fillBookGenres, "genre genres subjects books open library tags book logs"],
 		["Update log ratings and formats", updateRatingsAndFormats, "rating ratings stars star format audiobook comic book logs convert numbers"],
@@ -5001,30 +5003,127 @@ async function importStoryGraph() {
 
 // ---- Reader notes (src/readernotes.js) -------------------------------------------
 
-// Highlights and bookmarks from Reader's Export notes (a zip, or one book's
-// .md) added to the end of the matching book logs' "## Notes": only ones not
-// brought over before, and nothing already in a log changes. A log is found
-// by its reader: id, else by title and author; when more than one could be
-// it, a palette asks. Books with no log get a new one.
+// Highlights and bookmarks from Reader added to the end of the matching book
+// logs' "## Notes": only ones not brought over before, and nothing already in
+// a log changes. Three ways in: Pull notes from Reader (every book, fetched
+// through the Worker, worker/readernotes.js), Pull Reader notes for this book
+// (the open log's), and Import notes from Reader (Reader's Export notes zip,
+// or one book's .md). A log is found by its reader: id, else by title and
+// author; when more than one could be it, a palette asks. Books with no log
+// get a new one.
+
+const plural = (n, one, more) => `${n} ${n === 1 ? one : more}`;
+const readerBookFolder = () => kindFolder(NEW_NOTE_KINDS.find((k) => k.media === "book"), commonFolder(visible()), mediaKinds);
+const noteText = (path) => (path === editor.path ? editor.text() : notes.get(path)?.text || "");
+const readerLogs = (folder) => visible().filter((n) => !n.binary && n.path.toLowerCase().startsWith(folder.toLowerCase()) && /\.md$/i.test(n.path))
+	.map((n) => ({ path: n.path, text: noteText(n.path) }));
+
 async function importReaderNotes() {
 	const file = await chooseFile(".zip,application/zip,.md,text/markdown");
 	if (!file) return;
 	const rn = await import("./readernotes.js");
-	const sg = await import("./storygraph.js");
 	let books;
 	try {
 		const JSZip = /\.(md|markdown|txt)$/i.test(file.name) ? null : (await import("jszip")).default;
 		books = await rn.readExport(await file.arrayBuffer(), file.name, JSZip);
 	} catch (e) { return toast(e.message, 8000); }
-	const kind = NEW_NOTE_KINDS.find((k) => k.media === "book");
-	const folder = kindFolder(kind, commonFolder(visible()), mediaKinds);
-	const logs = visible().filter((n) => !n.binary && n.path.toLowerCase().startsWith(folder.toLowerCase()) && /\.md$/i.test(n.path))
-		.map((n) => ({ path: n.path, text: n.path === editor.path ? editor.text() : n.text || "" }));
-	const plan = rn.planImport(books, logs);
+	await bringReaderNotes(rn, books);
+}
+
+// Reader's address and the notes token, for the pull from the browser: kept
+// on this device, like the Nextcloud app password (src/nextcloud.js).
+const READER_KEY = "wr1t3r-reader";
+const READER_DEFAULT = "https://reader.brandonj.ink";
+function readerSettings() {
+	let v = null;
+	try { v = JSON.parse(localStorage.getItem(READER_KEY) || "null"); } catch {}
+	return { url: String(v?.url || READER_DEFAULT), token: String(v?.token || "") };
+}
+function saveReaderSettings({ url, token }) {
+	const u = String(url || "").trim().replace(/\/+$/, ""), t =String(token || "").trim();
+	try { u || t ? localStorage.setItem(READER_KEY, JSON.stringify({ url: u || READER_DEFAULT, token: t })) : localStorage.removeItem(READER_KEY); } catch {}
+}
+
+// Every book's notes from Reader -> [book] (as readernotes.js makes them), or
+// null after saying why not. With the wr1t3r server and no token here, through
+// the Worker (worker/readernotes.js, its READER_NOTES_TOKEN); otherwise
+// straight from the browser with the token in Settings › Sync and files.
+async function pullReaderBooks(rn) {
+	if (!navigator.onLine) { toast("Pulling from Reader needs a connection."); return null; }
+	const { url, token: notesToken } = readerSettings();
+	const viaWorker = !onDropbox && !notesToken;
+	if (!viaWorker && !notesToken) {
+		toast("Pulling from Reader needs its notes token: Settings › Sync and files › Reader notes. It's the string saved in Reader as NOTES_TOKEN.", 10000);
+		openSettings(true, "sync");
+		return null;
+	}
+	const note = toast("Asking Reader for your notes…", 30000);
+	try {
+		if (viaWorker) {
+			const data = await api.readerNotes();
+			return rn.fromExport(data, data.reader);
+		}
+		const data = await rn.fetchExport(url, notesToken);
+		return rn.fromExport(data, url);
+	} catch (e) {
+		if (e instanceof AuthError) { signOut(SIGNED_OUT); return null; }
+		toast("Couldn't pull from Reader: " + (viaWorker && e.status === 404 ? "this wr1t3r's server doesn't have Pull notes from Reader yet." : e.message), 12000);
+		return null;
+	} finally { note.close(); }
+}
+
+async function pullReaderNotes() {
+	const rn = await import("./readernotes.js");
+	const books = await pullReaderBooks(rn);
+	if (!books) return;
+	if (!books.length) return toast("Reader has no highlights or bookmarks yet.");
+	await bringReaderNotes(rn, books);
+}
+
+// The open log's book only: by its reader: id, else its title and author.
+async function pullReaderNotesHere() {
+	const path = editor.path, n = path && notes.get(path);
+	const folder = readerBookFolder();
+	if (!n || n.binary || n.deleted || !path.toLowerCase().startsWith(folder.toLowerCase())) return toast(`Open a book log (in ${folderLabel(folder)}) to pull its notes from Reader.`);
+	const rn = await import("./readernotes.js");
+	const books = await pullReaderBooks(rn);
+	if (!books) return;
+	const log = { path, text: noteText(path) };
+	const plan = rn.planImport(books, [log]);
+	let pick = plan.filter((p) => p.path === path);
+	if (!pick.length) pick = plan.filter((p) => p.how === "ask" && p.candidates.includes(path));
+	if (!pick.length) return toast("Reader has no highlights or bookmarks for a book with this log's title and author.", 8000);
+	let book = pick[0].book;
+	if (pick.length > 1 || pick[0].how === "ask") {
+		book = await new Promise((resolve) => openPalette({
+			placeholder: "Which of Reader's books is this log?",
+			items: pick.map((p) => ({ label: p.book.title, detail: p.book.authors.join(", "), run: () => resolve(p.book) })),
+			onCancel: () => resolve(null),
+		}));
+		if (!book) return;
+	}
+	const today = isoDate(new Date());
+	let added = 0;
+	await dataviewVault.write(path, (t) => {
+		const r = rn.applyNotes(t, book, today);
+		added = r.added;
+		// Nothing new for a log already linked to the book: left as it was.
+		return !added && String(parseFrontmatter(t).reader ?? "") === String(book.id) ? t : r.text;
+	});
+	scheduleSync();
+	toast(added ? `Added ${plural(added, "new highlight or bookmark", "new highlights and bookmarks")} from Reader to the end of Notes.` : "Nothing new from Reader for this book.", 6000);
+}
+
+// What every way in shares: the plan, the confirm, any questions, the writing
+// and the summary.
+async function bringReaderNotes(rn, books) {
+	const sg = await import("./storygraph.js");
+	const folder = readerBookFolder();
+	const plan = rn.planImport(books, readerLogs(folder));
 	const count = (how) => plan.filter((p) => p.how === how).length;
 	const found = count("linked") + count("matched"), asks = count("ask"), fresh = count("new");
-	const s = (n, one, more) => `${n} ${n === 1 ? one : more}`;
-	if (!confirm(`Import notes for ${s(plan.length, "book", "books")} from Reader?\n\n` +
+	const s = plural;
+	if (!confirm(`Bring in notes for ${s(plan.length, "book", "books")} from Reader?\n\n` +
 		[found && `${s(found, "book has a log", "books have logs")} in ${folderLabel(folder)}.`,
 			fresh && `${s(fresh, "book has", "books have")} no log, so ${fresh === 1 ? "it gets" : "each gets"} a new one.`,
 			asks && `${s(asks, "book", "books")} could be more than one log; you'll be asked which.`].filter(Boolean).join(" ") +
@@ -5049,9 +5148,8 @@ async function importReaderNotes() {
 		}
 		if (path && path !== "new" && notes.get(path) && !notes.get(path).deleted) {
 			claimed.add(path);
-			const cur = path === editor.path ? editor.text() : notes.get(path).text || "";
 			// Nothing new for a log that's already linked: left alone.
-			if (p.how === "linked" && !rn.applyNotes(cur, p.book, today).added) { unchanged++; continue; }
+			if (p.how === "linked" && !rn.applyNotes(noteText(path), p.book, today).added) { unchanged++; continue; }
 			let added = 0;
 			await dataviewVault.write(path, (t) => { const r = rn.applyNotes(t, p.book, today); added = r.added; return r.text; });
 			items += added;
@@ -5858,6 +5956,7 @@ function showSettingsTab(tab, onPhoneList = false) {
 	if (tab === "writing") $("setDayGoal").value = Number(readRaw("wr1t3rDayGoal")) || "";
 	if (tab === "focus") markSeg("focusSeg", $("app").classList.contains("focus-mode"));
 	if (tab === "sync") markSeg("ocrSeg", ocrOn());
+	if (tab === "sync") { const r = readerSettings(); $("readerUrl").value = r.url === READER_DEFAULT ? "" : r.url; $("readerToken").value = r.token; }
 	if (tab === "tasks") markReminders();
 	$("settings").querySelector(".set-main").scrollTop = 0;
 }
@@ -6012,6 +6111,9 @@ function setupSettings() {
 	$("setClose").addEventListener("click", () => openSettings(false));
 	$("setCloseNav").addEventListener("click", () => openSettings(false));
 	$("hotkeyFilter").addEventListener("input", renderHotkeyTab);
+	const saveReader = () => saveReaderSettings({ url: $("readerUrl").value, token: $("readerToken").value });
+	$("readerUrl").addEventListener("change", saveReader);
+	$("readerToken").addEventListener("change", saveReader);
 	$("setDayGoal").addEventListener("change", (e) => { const n = Math.max(0, Math.round(Number(e.target.value) || 0)); storeRaw("wr1t3rDayGoal", n ? String(n) : null); drawStats(); });
 	$("focusSeg").addEventListener("click", (e) => {
 		const b = e.target.closest("button");

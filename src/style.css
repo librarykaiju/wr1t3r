@@ -440,6 +440,8 @@ header {
 .set-pane > :not(h2) { margin-bottom: 18px; }
 .set-pane > .seg:has(+ .hint) { margin-bottom: 8px; }
 .set-pane .hint { font-size: 14px; color: var(--muted); margin-top: 0; }
+.set-pane .reader-setup { display: grid; gap: 8px; margin-bottom: 8px; }
+.set-pane .reader-setup input { width: 100%; box-sizing: border-box; }
 .set-pane .help-links { padding-left: 18px; line-height: 1.9; }
 .set-pane .help-links a { color: var(--accent, inherit); }
 .set-pane a { color: var(--link, var(--accent)); }

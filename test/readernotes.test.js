@@ -1,9 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import JSZip from "jszip";
-import { parseNote, readExport, splitAuthors, authorsAgree, planImport, applyNotes, appendToNotes, imported, newLog, newLogBook, logFormats, hash } from "../src/readernotes.js";
+import worker from "../worker/index.js";
+import { readerNotesApi } from "../worker/readernotes.js";
+import { fromExport, fetchExport, clock, parseNote, readExport, splitAuthors, authorsAgree, planImport, applyNotes, appendToNotes, imported, newLog, newLogBook, logFormats, hash } from "../src/readernotes.js";
 import { bookNote } from "../src/storygraph.js";
 import { parseFrontmatter } from "../src/dvpage.js";
+
+crypto.subtle.timingSafeEqual ??= (a, b) => Buffer.from(a).equals(Buffer.from(b));
 
 // Files as Reader's notesMarkdown (librarykaiju/reader, src/index.js) writes them.
 const EBOOK = `---
@@ -306,4 +310,83 @@ test("an item keyed by id stays out once brought over, whatever it's moved to in
 	const first = applyNotes("## Notes\n", parseNote(TAGGED), "2026-11-20");
 	const moved = TAGGED.replace("- **12:04** · Chapter 1 — waking up", "- **12:09** · Chapter 1 — waking up, moved");
 	assert.equal(applyNotes(first.text, parseNote(moved), "2026-11-21").added, 0);
+});
+
+// Reader's /api/export for the same book as TAGGED, in two formats: both
+// rows in entry 40 (the id in TAGGED's link).
+const JSON_EXPORT = { books: [
+	{ id: 40, entry: 40, title: "Project Hail Mary", author: "Andy Weir", type: "audiobook", finished_at: 1, chapters: [{ start: 0, title: "Chapter 1" }, { start: 10000, title: "Chapter 20" }],
+		highlights: [], marks: [
+			{ id: 46, book_id: 40, t: 11742, end_t: null, note: "Rocky!", created_at: Date.parse("2026-11-20T13:00:00.000Z") },
+			{ id: 45, book_id: 40, t: 724, end_t: null, note: "waking up", created_at: Date.parse("2026-11-20T10:00:00.000Z") },
+		] },
+	{ id: 41, entry: 40, title: "Project Hail Mary", author: "Andy Weir", type: "epub", finished_at: null, chapters: [],
+		highlights: [
+			{ id: -3, book_id: 41, start_pos: 90, end_pos: 99, text: "pending one", note: null, created_at: null },
+			{ id: 7, book_id: 41, start_pos: 5, end_pos: 20, text: "Amaze, amaze, amaze.", note: "ha", created_at: Date.parse("2026-11-20T12:00:00.000Z") },
+		], marks: [] },
+] };
+
+test("Reader's JSON gives the same books, lines and keys as its zip", () => {
+	const [j] = fromExport(JSON_EXPORT, "https://reader.brandonj.ink/");
+	const z = parseNote(TAGGED);
+	assert.equal(j.id, 40);
+	assert.equal(j.link, "https://reader.brandonj.ink/#/record/40");
+	assert.equal(j.status, "finished");
+	assert.deepEqual(j.formats.sort(), ["audiobook", "epub"]);
+	const strip = (xs) => xs.map(({ key, textKey, made, lines }) => ({ key, textKey, made, lines }));
+	assert.deepEqual(strip(j.highlights), strip(z.highlights));
+	assert.deepEqual(strip(j.bookmarks), strip(z.bookmarks));
+	assert.equal(clock(724), "12:04");
+	assert.equal(clock(3730), "1:02:10");
+});
+
+test("a pull after a zip import (and the other way round) brings nothing twice", () => {
+	const log = "---\ntitle: Project Hail Mary\n---\n\n## Notes\n";
+	const zipFirst = applyNotes(log, parseNote(TAGGED), "2026-11-20");
+	assert.equal(applyNotes(zipFirst.text, fromExport(JSON_EXPORT, "https://r")[0], "2026-11-21").added, 0);
+	const pullFirst = applyNotes(log, fromExport(JSON_EXPORT, "https://r")[0], "2026-11-20");
+	assert.equal(applyNotes(pullFirst.text, parseNote(TAGGED), "2026-11-21").added, 0);
+	// An old untagged zip, then a pull: still nothing twice.
+	const old = applyNotes(log, parseNote(AUDIO), "2026-11-19");
+	const pulled = applyNotes(old.text, fromExport(JSON_EXPORT, "https://r")[0], "2026-11-20");
+	assert.equal(pulled.added, 1);
+	assert.match(pulled.text, /> pending one\n$/);
+});
+
+test("books with nothing to bring are left out of a pull", () => {
+	assert.deepEqual(fromExport({ books: [{ id: 1, title: "x", highlights: [], marks: [] }] }, "https://r"), []);
+	assert.deepEqual(fromExport({}, "https://r"), []);
+});
+
+test("the browser pull asks Reader with the token and says what's wrong when it can't", async () => {
+	let asked;
+	const ok = async (u, init) => { asked = [u, init.headers.Authorization, init.credentials]; return new Response(JSON.stringify(JSON_EXPORT)); };
+	const data = await fetchExport("https://reader.brandonj.ink/", "tok", ok);
+	assert.equal(data.books.length, 2);
+	assert.deepEqual(asked, ["https://reader.brandonj.ink/api/export", "Bearer tok", "omit"]);
+	await assert.rejects(fetchExport("https://r", "", ok), /no Reader notes token/);
+	await assert.rejects(fetchExport("not a url", "tok", ok), /isn't an address/);
+	await assert.rejects(fetchExport("https://r", "tok", async () => new Response("{}", { status: 401 })), /turned the token down/);
+	await assert.rejects(fetchExport("https://r", "tok", async () => new Response("{}", { status: 403 })), /NOTES_ORIGINS/);
+	await assert.rejects(fetchExport("https://r", "tok", async () => { throw new TypeError("Failed to fetch"); }), /couldn't reach https:\/\/r/);
+	await assert.rejects(fetchExport("https://r", "tok", async () => new Response("<html>")), /didn't answer like Reader/);
+});
+
+test("the Worker's /api/reader/notes needs wr1t3r's token, then asks Reader with READER_NOTES_TOKEN", async () => {
+	const env = { WR1T3R_TOKEN: "t", READER_NOTES_TOKEN: "n" };
+	const anon = await worker.fetch(new Request("https://w/api/reader/notes"), env);
+	assert.equal(anon.status, 401);
+	const wrong = await worker.fetch(new Request("https://w/api/reader/notes", { headers: { Authorization: "Bearer n" } }), env);
+	assert.equal(wrong.status, 401);
+	let asked;
+	const fake = async (u, init) => { asked = [u, init.headers.Authorization]; return new Response(JSON.stringify(JSON_EXPORT)); };
+	const r = await readerNotesApi(new Request("https://w/api/reader/notes"), env, new URL("https://w/api/reader/notes"), fake);
+	assert.deepEqual(asked, ["https://reader.brandonj.ink/api/export", "Bearer n"]);
+	assert.equal(r.reader, "https://reader.brandonj.ink");
+	assert.equal(r.books.length, 2);
+	await assert.rejects(readerNotesApi(new Request("https://w/api/reader/notes"), { WR1T3R_TOKEN: "t" }, new URL("https://w/api/reader/notes"), fake), /READER_NOTES_TOKEN/);
+	await assert.rejects(readerNotesApi(new Request("https://w/api/reader/notes"), env, new URL("https://w/api/reader/notes"), async () => new Response("{}", { status: 401 })), /turned the token down/);
+	await assert.rejects(readerNotesApi(new Request("https://w/api/reader/notes"), { ...env, READER_URL: "http://evil.example" }, new URL("https://w/api/reader/notes"), fake), /https/);
+	assert.equal(await readerNotesApi(new Request("https://w/api/other"), env, new URL("https://w/api/other"), fake), null);
 });

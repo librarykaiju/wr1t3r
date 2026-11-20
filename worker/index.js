@@ -61,6 +61,8 @@
 //                                  see worker/ocr.js
 //   GET    /api/define?word=       dictionary and thesaurus; see worker/define.js
 //   /api/backup                    the vault's backup to Google Drive; see worker/backup.js
+//   GET    /api/reader/notes       highlights and bookmarks from Reader, fetched with
+//                                  READER_NOTES_TOKEN; see worker/readernotes.js
 
 import { r2Backend } from "./r2.js";
 import { githubBackend } from "./github.js";
@@ -74,6 +76,7 @@ import { transcribeApi } from "./transcribe.js";
 import { pushApi, sendDue } from "./push.js";
 import { ocrApi } from "./ocr.js";
 import { defineApi } from "./define.js";
+import { readerNotesApi } from "./readernotes.js";
 import { grammarApi } from "./grammar.js";
 import { backupApi, backupBehind, backupConfigured, runBackup } from "./backup.js";
 import { HttpError, toBase64 } from "./util.js";
@@ -116,6 +119,8 @@ export default {
 			if (grammar) return json(grammar);
 			const backup = await backupApi(request, env, url);
 			if (backup) return json(backup);
+			const readerNotes = await readerNotesApi(request, env, url);
+			if (readerNotes) return json(readerNotes);
 			if (url.pathname === "/api/capture" && request.method === "POST") return json(await capture(request, backend(env), env, excluded(env)));
 			return (await api(request, backend(env), url, excluded(env))) || json({ error: "Not found" }, 404);
 		} catch (err) {

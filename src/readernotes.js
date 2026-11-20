@@ -70,15 +70,17 @@ const TAG = /\s*<!--\s*reader:([hm]):(\d+)(?:\s+(\S+))?\s*-->/;
 // key (h#12 from the tag, else textKey), made (when, from the tag, or null)
 // and its lines without the tag. A textKey used twice in one book gets "~2",
 // "~3", in an older export's order as in this one's.
+// (An item from Reader's JSON brings its id and made along instead of a tag.)
 function items(kind, list) {
 	const seen = new Map();
-	return list.map(({ lines, textKey }) => {
+	return list.map(({ lines, textKey, id, made }) => {
 		const n = (seen.get(textKey) || 0) + 1;
 		seen.set(textKey, n);
 		if (n > 1) textKey += `~${n}`;
 		const tag = lines.map((l) => TAG.exec(l)).find((m) => m && m[1] === kind);
-		const made = tag?.[3] && !Number.isNaN(Date.parse(tag[3])) ? tag[3] : null;
-		return { kind, key: tag ? `${kind}#${tag[2]}` : textKey, textKey, made, lines };
+		if (id == null && tag) id = tag[2];
+		if (made == null) made = tag?.[3] && !Number.isNaN(Date.parse(tag[3])) ? tag[3] : null;
+		return { kind, key: id != null && id > 0 ? `${kind}#${id}` : textKey, textKey, made, lines };
 	});
 }
 // Lines without the tag; a line that was only the tag goes.
@@ -160,6 +162,85 @@ export async function readExport(bytes, fileName, JSZip) {
 	const books = texts.map(parseNote).filter(Boolean);
 	if (!books.length) throw new Error("No notes from Reader in that file. In Reader: Settings > Export notes, then choose the zip it saves.");
 	return books;
+}
+
+// ---- Reading Reader's JSON (Pull notes from Reader) ---------------------------
+
+// Reader's GET /api/export straight from the browser, with the token Reader
+// keeps as NOTES_TOKEN (Reader answers this site across origins). Throws an
+// Error that says what to fix.
+export async function fetchExport(readerUrl, notesToken, fetchFn = (...a) => fetch(...a)) {
+	const token = String(notesToken || "").trim();
+	if (!token) throw new Error("there's no Reader notes token in Settings › Sync and files.");
+	let base;
+	try { base = new URL(String(readerUrl || "").trim()); } catch { throw new Error(`“${readerUrl}” isn't an address. Fix Reader's address in Settings › Sync and files.`); }
+	const origin = base.origin + base.pathname.replace(/\/+$/, "");
+	let res;
+	try {
+		res = await fetchFn(origin + "/api/export", { headers: { Authorization: "Bearer " + token }, credentials: "omit", cache: "no-store" });
+	} catch {
+		throw new Error(`couldn't reach ${origin}. Check Reader's address in Settings, and that Reader has the version that lets wr1t3r ask from this page (its NOTES_ORIGINS must include ${typeof location === "object" ? location.origin : "this site"}).`);
+	}
+	if (res.status === 401) throw new Error("Reader turned the token down. The Reader notes token in Settings must be the same string as Reader's NOTES_TOKEN secret.");
+	if (res.status === 403) throw new Error(`Reader doesn't take requests from ${typeof location === "object" ? location.origin : "this site"}: add it to Reader's NOTES_ORIGINS.`);
+	if (!res.ok) throw new Error(`Reader answered ${res.status}.`);
+	let data;
+	try { data = await res.json(); } catch { throw new Error(`${origin} didn't answer like Reader. Check Reader's address in Settings.`); }
+	if (!Array.isArray(data?.books)) throw new Error(`${origin} didn't answer like Reader. Check Reader's address in Settings.`);
+	return data;
+}
+
+// Seconds as Reader writes them: "12:04", "1:02:10".
+export function clock(sec) {
+	sec = Math.max(0, Math.floor(sec || 0));
+	const hh = Math.floor(sec / 3600), mm = Math.floor(sec / 60) % 60, ss = sec % 60;
+	return (hh ? hh + ":" + (mm < 10 ? "0" : "") : "") + mm + ":" + (ss < 10 ? "0" : "") + ss;
+}
+const iso = (ms) => (Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : null);
+
+// Reader's GET /api/export ({ books: [...] }, one row per format of a book,
+// each with its Library entry) -> [book] as parseNote makes them from the
+// zip: one per entry, the same lines and keys, so a pull and a zip import
+// never bring the same one over twice. readerUrl makes each book's link.
+export function fromExport(data, readerUrl) {
+	const rows = Array.isArray(data?.books) ? data.books : [];
+	const groups = new Map();
+	for (const r of rows) {
+		const entry = r.entry ?? r.id;
+		if (!groups.has(entry)) groups.set(entry, []);
+		groups.get(entry).push(r);
+	}
+	const base = String(readerUrl || "").replace(/\/+$/, "");
+	return [...groups].map(([entry, parts]) => {
+		const head = parts.find((p) => p.id === entry) || parts[0];
+		const audio = parts.some((p) => p.type === "audiobook");
+		const hls = parts.flatMap((p) => (p.highlights || []).slice().sort((a, b) => a.start_pos - b.start_pos || a.id - b.id));
+		const marks = parts.flatMap((p) => (p.marks || []).map((m) => ({ m, chapters: p.chapters || [] }))).sort((a, b) => a.m.t - b.m.t);
+		const formats = [...new Set(parts.map((p) => p.type).filter(Boolean))];
+		return {
+			id: Number(entry),
+			title: String(head.title || "").trim() || "Untitled",
+			authors: splitAuthors(head.author),
+			series: head.series || null,
+			volume: head.volume != null && head.volume !== "" ? String(head.volume) : null,
+			formats,
+			status: parts.some((p) => p.finished_at) ? "finished" : "reading",
+			link: base ? `${base}/#/${audio ? "record" : "book"}/${entry}` : "",
+			highlights: items("h", hls.map((x) => {
+				const quote = String(x.text || "").split("\n");
+				const lines = [...quote.map((l) => "> " + l), ...(x.note ? ["", ...String(x.note).split("\n")] : [])];
+				return { lines: tidy(lines), textKey: "h:" + hash(norm(quote.join(" "))), id: x.id, made: iso(x.created_at) };
+			})),
+			bookmarks: items("m", marks.map(({ m, chapters }) => {
+				const at = m.end_t != null ? m.end_t : m.t;
+				let ch = null;
+				chapters.forEach((c, i) => { if (c.start <= at + 0.5) ch = c.title || "Chapter " + (i + 1); });
+				const label = m.end_t != null ? `Clip ${clock(m.t)}–${clock(m.end_t)}` : clock(m.t);
+				const line = `- **${label}**` + (ch ? ` · ${ch}` : "") + (m.note ? " — " + String(m.note).replace(/\n+/g, " ") : "");
+				return { lines: [line], textKey: "m:" + label.replace(/\s+/g, ""), id: m.id, made: iso(m.created_at) };
+			})),
+		};
+	}).filter((b) => b.highlights.length || b.bookmarks.length);
 }
 
 // ---- Matching ---------------------------------------------------------------
