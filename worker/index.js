@@ -54,6 +54,12 @@
 //                                  (CAPTURE_NOTE, default content/Inbox.md),
 //                                  stamped in TIMEZONE (default America/Chicago)
 //                                  -> {"path", "version"}
+//   POST   /api/health            JSON {date?, steps?, active_kcal?, sleep_min? | sleep_h?,
+//                                  weight?, weight_unit?} from an iPhone Shortcut -> sets
+//                                  the day's Apple Health lines in its health note (made
+//                                  if need be; see src/healthpush.js); date defaults to
+//                                  today in TIMEZONE -> {"path", "version"}. Also takes
+//                                  HEALTH_TOKEN, a secret that opens only this route.
 //   /api/push/..., /api/reminders  task reminders as notifications; see worker/push.js
 //   POST   /api/transcribe         body = 16 kHz mono WAV -> a transcript with
 //                                  speakers; see worker/transcribe.js
@@ -79,6 +85,7 @@ import { backupApi, backupBehind, backupConfigured, runBackup } from "./backup.j
 import { HttpError, toBase64 } from "./util.js";
 import { isNotePath, isAttachmentPath, attachmentType } from "../src/paths.js";
 import { INBOX, captureEntry, appendCapture, stamp } from "../src/capture.js";
+import { readPush, hasData, applyPush, healthNotePath, newHealthNote } from "../src/healthpush.js";
 
 // Matches READ_BATCH in src/sync.js.
 const READ_BATCH = 25;
@@ -91,7 +98,8 @@ export default {
 	async fetch(request, env) {
 		const url = new URL(request.url);
 		if (!url.pathname.startsWith("/api/")) return env.ASSETS ? env.ASSETS.fetch(request) : json({ error: "Not found" }, 404);
-		if (!(await authorized(request, env))) return json({ error: "Unauthorized" }, 401);
+		const health = url.pathname === "/api/health" && request.method === "POST";
+		if (!(await authorized(request, env.WR1T3R_TOKEN)) && !(health && (await authorized(request, env.HEALTH_TOKEN)))) return json({ error: "Unauthorized" }, 401);
 		try {
 			if (url.pathname === "/api/fetch" && request.method === "GET") return await proxyFetch(url.searchParams.get("url"), env);
 			const feed = await feedApi(request, env, url);
@@ -116,6 +124,7 @@ export default {
 			if (grammar) return json(grammar);
 			const backup = await backupApi(request, env, url);
 			if (backup) return json(backup);
+			if (health) return json(await healthPush(request, backend(env), env, excluded(env)));
 			if (url.pathname === "/api/capture" && request.method === "POST") return json(await capture(request, backend(env), env, excluded(env)));
 			return (await api(request, backend(env), url, excluded(env))) || json({ error: "Not found" }, 404);
 		} catch (err) {
@@ -158,14 +167,14 @@ function excluded(env) {
 	};
 }
 
-async function authorized(request, env) {
-	if (!env.WR1T3R_TOKEN) return false;
+async function authorized(request, token) {
+	if (!token) return false;
 	const given = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
 	// Hash both sides so the constant-time compare always sees equal lengths.
 	const enc = new TextEncoder();
 	const [a, b] = await Promise.all([
 		crypto.subtle.digest("SHA-256", enc.encode(given)),
-		crypto.subtle.digest("SHA-256", enc.encode(env.WR1T3R_TOKEN.trim())),
+		crypto.subtle.digest("SHA-256", enc.encode(token.trim())),
 	]);
 	return crypto.subtle.timingSafeEqual(a, b);
 }
@@ -286,6 +295,34 @@ async function capture(request, store, env, isExcluded) {
 		if (r.ok) return { path, version: r.version };
 	}
 	throw new HttpError(409, "The Inbox kept changing; try again");
+}
+
+// Apple Health numbers into the day's health note: a read and a conditional
+// write, tried again if a sync wrote the note in between.
+async function healthPush(request, store, env, isExcluded) {
+	const body = await request.json().catch(() => null);
+	if (!body || typeof body !== "object") throw new HttpError(400, "Send JSON: {date, steps, active_kcal, sleep_min, weight}");
+	let today;
+	try { today = stamp(new Date(), env.TIMEZONE || "America/Chicago").slice(0, 10); } catch { today = stamp(new Date(), "UTC").slice(0, 10); }
+	const push = readPush(body, today);
+	if (!hasData(push)) return { path: null, version: null, skipped: "Nothing to log: every number was empty or zero" };
+	for (let i = 0; i < 4; i++) {
+		const paths = (await store.list()).map((f) => f.path).filter((p) => isNotePath(p) && !isExcluded(p));
+		const { path } = healthNotePath(paths, push.day);
+		if (isExcluded(path)) throw new HttpError(500, "The health note's folder is excluded");
+		const f = await store.read(path);
+		let text = f ? new TextDecoder().decode(f.bytes) : null;
+		if (text == null) {
+			const t = paths.filter((p) => /(^|\/)_templates\/Daily Health\.md$/i.test(p)).sort((a, b) => a.length - b.length)[0];
+			const tf = t ? await store.read(t) : null;
+			text = newHealthNote(path, push.day, tf ? new TextDecoder().decode(tf.bytes) : null);
+		}
+		const next = applyPush(text, push);
+		if (f && next === text) return { path, version: f.version, unchanged: true };
+		const r = await store.write(path, new TextEncoder().encode(next), f ? f.version : null);
+		if (r.ok) return { path, version: r.version };
+	}
+	throw new HttpError(409, "The health note kept changing; try again");
 }
 
 function unquote(v) {
