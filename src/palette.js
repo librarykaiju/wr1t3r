@@ -24,8 +24,9 @@ export function fuzzy(query, text) {
 }
 
 // items: [{ label, detail?, keywords?, run() }]; empty(query) may return an
-// extra item for when nothing matches (like "Create note"). Resolves when closed.
-export function openPalette({ placeholder, items, empty, limit = 60 }) {
+// extra item for when nothing matches (like "Create note"). onCancel() runs
+// when it's closed without picking anything.
+export function openPalette({ placeholder, items, empty, limit = 60, onCancel }) {
 	document.querySelector(".palette")?.remove();
 	const wrap = document.createElement("div");
 	wrap.className = "palette";
@@ -79,6 +80,7 @@ export function openPalette({ placeholder, items, empty, limit = 60 }) {
 	const close = (refocus = true) => {
 		wrap.remove();
 		if (refocus) back?.focus?.();
+		if (refocus) onCancel?.();
 	};
 	const pick = (i) => {
 		const it = shown[i];

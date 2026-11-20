@@ -3875,6 +3875,7 @@ function allCommands() {
 		["Import Scrivener project", importScrivener, "scrivener scriv scrivx project novel manuscript binder rtf import move switch bring over"],
 		["Import Day One journal", importDayOne, "day one dayone journal diary entries json export import move switch bring over"],
 		["Import StoryGraph library", importStoryGraph, "storygraph csv export books reading goodreads import"],
+		["Import notes from Reader", importReaderNotes, "reader highlights bookmarks audiobook ebook notes export zip book logs import"],
 		["Fill book genres from subjects", fillBookGenres, "genre genres subjects books open library tags book logs"],
 		["Update log ratings and formats", updateRatingsAndFormats, "rating ratings stars star format audiobook comic book logs convert numbers"],
 		["Open stats", () => pickFolder("stats"), "charts graphs reading year review books read storygraph goodreads ratings genres"],
@@ -4995,6 +4996,77 @@ async function importStoryGraph() {
 	}
 	note.close();
 	toast(`Found covers and details for ${found} of ${added.length} book${added.length === 1 ? "" : "s"}.`, 6000);
+	folderTouched();
+}
+
+// ---- Reader notes (src/readernotes.js) -------------------------------------------
+
+// Highlights and bookmarks from Reader's Export notes (a zip, or one book's
+// .md) added to the end of the matching book logs' "## Notes": only ones not
+// brought over before, and nothing already in a log changes. A log is found
+// by its reader: id, else by title and author; when more than one could be
+// it, a palette asks. Books with no log get a new one.
+async function importReaderNotes() {
+	const file = await chooseFile(".zip,application/zip,.md,text/markdown");
+	if (!file) return;
+	const rn = await import("./readernotes.js");
+	const sg = await import("./storygraph.js");
+	let books;
+	try {
+		const JSZip = /\.(md|markdown|txt)$/i.test(file.name) ? null : (await import("jszip")).default;
+		books = await rn.readExport(await file.arrayBuffer(), file.name, JSZip);
+	} catch (e) { return toast(e.message, 8000); }
+	const kind = NEW_NOTE_KINDS.find((k) => k.media === "book");
+	const folder = kindFolder(kind, commonFolder(visible()), mediaKinds);
+	const logs = visible().filter((n) => !n.binary && n.path.toLowerCase().startsWith(folder.toLowerCase()) && /\.md$/i.test(n.path))
+		.map((n) => ({ path: n.path, text: n.path === editor.path ? editor.text() : n.text || "" }));
+	const plan = rn.planImport(books, logs);
+	const count = (how) => plan.filter((p) => p.how === how).length;
+	const found = count("linked") + count("matched"), asks = count("ask"), fresh = count("new");
+	const s = (n, one, more) => `${n} ${n === 1 ? one : more}`;
+	if (!confirm(`Import notes for ${s(plan.length, "book", "books")} from Reader?\n\n` +
+		[found && `${s(found, "book has a log", "books have logs")} in ${folderLabel(folder)}.`,
+			fresh && `${s(fresh, "book has", "books have")} no log, so ${fresh === 1 ? "it gets" : "each gets"} a new one.`,
+			asks && `${s(asks, "book", "books")} could be more than one log; you'll be asked which.`].filter(Boolean).join(" ") +
+		"\n\nNew highlights and bookmarks go at the end of each log's “## Notes”. Nothing already in a log changes, and ones brought over before aren't added again, even if you've since edited or deleted them.")) return;
+	const today = isoDate(new Date());
+	const choose = (p, candidates) => new Promise((resolve) => openPalette({
+		placeholder: `Which log is “${p.book.title}”${p.book.authors.length ? " by " + p.book.authors.join(", ") : ""}?`,
+		items: [
+			...candidates.map((path) => ({ label: name(path), detail: folderOf(path), run: () => resolve(path) })),
+			{ label: "Make a new log", detail: "", run: () => resolve("new") },
+			{ label: "Skip this book", detail: "", run: () => resolve(null) },
+		],
+		onCancel: () => resolve(null),
+	}));
+	let updated = 0, created = 0, unchanged = 0, skipped = 0, items = 0;
+	const claimed = new Set(plan.filter((p) => p.path).map((p) => p.path));
+	for (const p of plan) {
+		let path = p.path;
+		if (p.how === "ask") {
+			path = await choose(p, p.candidates.filter((c) => !claimed.has(c)));
+			if (!path) { skipped++; continue; }
+		}
+		if (path && path !== "new" && notes.get(path) && !notes.get(path).deleted) {
+			claimed.add(path);
+			const cur = path === editor.path ? editor.text() : notes.get(path).text || "";
+			// Nothing new for a log that's already linked: left alone.
+			if (p.how === "linked" && !rn.applyNotes(cur, p.book, today).added) { unchanged++; continue; }
+			let added = 0;
+			await dataviewVault.write(path, (t) => { const r = rn.applyNotes(t, p.book, today); added = r.added; return r.text; });
+			items += added;
+			updated++;
+		} else {
+			const r = rn.newLog(sg.bookNote(rn.newLogBook(p.book, today), today), p.book, today);
+			await addNote(folder, noteFileName(p.book.title), r.text);
+			items += r.added;
+			created++;
+		}
+	}
+	renderTree();
+	scheduleSync();
+	toast(`From Reader: ${s(items, "new highlight or bookmark", "new highlights and bookmarks")} added. ${s(updated, "log", "logs")} updated, ${created} created, ${unchanged} with nothing new` + (skipped ? `, ${skipped} skipped` : "") + ".", 10000);
+	if (folderTab && shownFolder() === folder) renderFolderView(true);
 	folderTouched();
 }
 

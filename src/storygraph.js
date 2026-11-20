@@ -87,7 +87,7 @@ export function readExport(text) {
 // so "Batman: Year One" and "Batman: The Long Halloween" stay two books.
 export const titleKey = (t) => String(t || "").replace(/\s*\(\d{4}\)\s*$/, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 // The same without a subtitle: "Onyx Storm: Empyrean 3" -> "onyx storm".
-const shortKey = (t) => titleKey(String(t || "").replace(/\s*\(\d{4}\)\s*$/, "").split(/[:(]/)[0]);
+export const shortKey = (t) => titleKey(String(t || "").replace(/\s*\(\d{4}\)\s*$/, "").split(/[:(]/)[0]);
 
 const yamlList = (key, values) => (values.length ? [`${key}:`, ...values.map((v) => `  - ${JSON.stringify(v)}`)] : [`${key}: []`]);
 
