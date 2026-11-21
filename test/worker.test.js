@@ -174,3 +174,14 @@ test("POST /api/health sets the day's Apple Health lines, with WR1T3R_TOKEN or H
 	const bad = await worker.fetch(new Request("https://w/api/health", { method: "POST", body, headers: { Authorization: "Bearer nope" } }), e);
 	assert.equal(bad.status, 401);
 });
+
+test("POST /api/capture also takes CAPTURE_TOKEN, which opens nothing else", async () => {
+	const e = { WR1T3R_TOKEN: "t", CAPTURE_TOKEN: "c", VAULT: fakeBucket({}) };
+	const r = await worker.fetch(new Request("https://w/api/capture", { method: "POST", body: JSON.stringify({ text: "buy stamps" }), headers: { Authorization: "Bearer c" } }), e);
+	assert.equal(r.status, 200);
+	assert.match(new TextDecoder().decode(e.VAULT.map.get("content/Inbox.md").body), /- \[ \] .*buy stamps/);
+	const files = await worker.fetch(new Request("https://w/api/files", { headers: { Authorization: "Bearer c" } }), e);
+	assert.equal(files.status, 401);
+	const health = await worker.fetch(new Request("https://w/api/health", { method: "POST", body: "{}", headers: { Authorization: "Bearer c" } }), e);
+	assert.equal(health.status, 401);
+});

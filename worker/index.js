@@ -53,7 +53,8 @@
 //                                  an open task to the end of the Inbox note
 //                                  (CAPTURE_NOTE, default content/Inbox.md),
 //                                  stamped in TIMEZONE (default America/Chicago)
-//                                  -> {"path", "version"}
+//                                  -> {"path", "version"}. Also takes CAPTURE_TOKEN,
+//                                  a secret that opens only this route.
 //   POST   /api/health            JSON {date?, steps?, active_kcal?, sleep_min? | sleep_h?,
 //                                  weight?, weight_unit?} from an iPhone Shortcut -> sets
 //                                  the day's Apple Health lines in its health note (made
@@ -102,7 +103,8 @@ export default {
 		const url = new URL(request.url);
 		if (!url.pathname.startsWith("/api/")) return env.ASSETS ? env.ASSETS.fetch(request) : json({ error: "Not found" }, 404);
 		const health = url.pathname === "/api/health" && request.method === "POST";
-		if (!(await authorized(request, env.WR1T3R_TOKEN)) && !(health && (await authorized(request, env.HEALTH_TOKEN)))) return json({ error: "Unauthorized" }, 401);
+		const capturing = url.pathname === "/api/capture" && request.method === "POST";
+		if (!(await authorized(request, env.WR1T3R_TOKEN)) && !(health && (await authorized(request, env.HEALTH_TOKEN))) && !(capturing && (await authorized(request, env.CAPTURE_TOKEN)))) return json({ error: "Unauthorized" }, 401);
 		try {
 			if (url.pathname === "/api/fetch" && request.method === "GET") return await proxyFetch(url.searchParams.get("url"), env);
 			const feed = await feedApi(request, env, url);

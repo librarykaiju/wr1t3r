@@ -29,4 +29,11 @@
 		var size = Number(localStorage.getItem("wr1t3rFontSize"));
 		if (size >= 14 && size <= 30) root.style.setProperty("--editor-size", size + "px");
 	} catch (e) {}
+	// The browser's bars (and an iPhone home-screen app's status bar) in the
+	// theme's background as soon as the stylesheet is in, not only once the
+	// app has started (src/main.js applyTheme() keeps them in step after).
+	document.addEventListener("DOMContentLoaded", function () {
+		var bg = getComputedStyle(root).getPropertyValue("--bg").trim();
+		if (bg) document.querySelectorAll("meta[name=theme-color]").forEach(function (m) { m.content = bg; });
+	});
 })();
