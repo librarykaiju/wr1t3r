@@ -8,7 +8,8 @@ async function cacheShell() {
 	const res = await fetch("/", { cache: "no-store" });
 	if (!res.ok) return;
 	const html = await res.clone().text();
-	const assets = [...html.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((m) => m[1]);
+	// Not the launch screens: iOS keeps its own copy of the one it uses.
+	const assets = [...html.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((m) => m[1]).filter((a) => !a.startsWith("/splash/"));
 	await cache.put("/", res);
 	let missed = false;
 	await Promise.all([...assets, SANDBOX].map((a) => cache.add(a).catch(() => { missed = true; })));

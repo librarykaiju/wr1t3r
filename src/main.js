@@ -5794,8 +5794,10 @@ function applyTheme() {
 		b.setAttribute("aria-pressed", String(!oneMode && b.dataset.theme === mode));
 		b.disabled = oneMode;
 	});
-	const meta = document.querySelector("meta[name=theme-color]");
-	if (meta) meta.content = getComputedStyle(root).getPropertyValue("--bg").trim();
+	// index.html has a light and a dark one for the first draw; once a theme
+	// is applied both follow it.
+	const bg = getComputedStyle(root).getPropertyValue("--bg").trim();
+	for (const meta of document.querySelectorAll("meta[name=theme-color]")) meta.content = bg;
 }
 
 // The editor's font (Settings > Appearance), per device.
@@ -8086,14 +8088,25 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
 // opened (src/stale.js): offer a reload, since a home-screen app has no button
 // for it. Callers still get the error.
 let staleShown = false;
-window.addEventListener("vite:preloadError", async () => {
+async function offerUpdate(text, ms) {
 	if (staleShown || !(await newerBuild())) return;
 	staleShown = true;
 	const msg = document.createElement("span");
 	const reload = Object.assign(document.createElement("button"), { type: "button", textContent: "Reload" });
 	reload.addEventListener("click", () => location.reload());
-	msg.append("wr1t3r was updated since this page was opened. Reload to finish loading it. ", reload);
-	toast(msg, 60000, "Update ready");
+	msg.append(text + " ", reload);
+	toast(msg, ms, "Update ready");
+}
+window.addEventListener("vite:preloadError", () => offerUpdate("wr1t3r was updated since this page was opened. Reload to finish loading it.", 60000));
+
+// The same check, unasked: coming back to wr1t3r (an iPhone can keep a
+// home-screen app's page for days), at most every 30 minutes. Notes are
+// already saved on this device, so reloading loses nothing.
+let lastUpdateLook = Date.now();
+document.addEventListener("visibilitychange", () => {
+	if (document.visibilityState !== "visible" || !navigator.onLine || Date.now() - lastUpdateLook < 30 * 60000) return;
+	lastUpdateLook = Date.now();
+	offerUpdate("A new version of wr1t3r is ready.", 15000);
 });
 
 if (isGoogleReturn(location.href)) {

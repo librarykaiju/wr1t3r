@@ -170,7 +170,9 @@ Anything captured lands as an open task at the end of `content/Inbox.md` (change
 
 - **In wr1t3r:** "Capture to the Inbox" and "Record a voice memo" in the command palette (pin either to Home). A voice memo goes into the open note at the cursor, or to the Inbox when no note is open.
 - **Android:** install wr1t3r to the home screen, then pick it in any app's Share menu.
-- **iPhone:** web apps can't join the Share menu, so make an Apple Shortcut: turn on "Show in Share Sheet" (accepts URLs and text), then add **Get Contents of URL** with URL `https://<your wr1t3r>/api/capture`, Method POST, header `Authorization: Bearer <your token>`, Request Body JSON with `text` set to Shortcut Input. Sharing to the Shortcut sends it to the Inbox.
+- **iPhone:** web apps can't join the Share menu, so make an Apple Shortcut: turn on "Show in Share Sheet" (accepts URLs and text), then add **Get Contents of URL** with URL `https://<your wr1t3r>/api/capture`, Method POST, header `Authorization: Bearer <your capture token>`, Request Body JSON with `text` set to Shortcut Input. Sharing to the Shortcut sends it to the Inbox.
+- **iPhone, without sharing anything:** a second Shortcut that starts with **Ask for Input** (Text) and sends that to `/api/capture` the same way captures a thought in two taps. Put it on the Action Button (Settings › Action Button › Shortcut), Back Tap (Settings › Accessibility › Touch › Back Tap), a Lock Screen widget or Control Center, and wr1t3r doesn't need to open at all.
+- **The capture token:** a Shortcut lives on the phone, so give it its own token instead of the main one: `npx wrangler secret put CAPTURE_TOKEN` with another long random string. It opens `POST /api/capture` and nothing else. The main token still works there too.
 
 ## Apple Health
 
