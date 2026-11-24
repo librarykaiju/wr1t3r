@@ -130,17 +130,19 @@
 	--f1: #d20f39; --f2: #fe640b; --f3: #df8e1d; --f4: #40a02b; --f5: #04a5e5; --f6: #1e66f5; --f7: #8839ef;
 	color-scheme: light;
 }
-/* Kanagawa (github.com/rebelot/kanagawa.nvim): Wave, and Lotus for light. */
+/* Kanagawa (github.com/rebelot/kanagawa.nvim): Wave, and Lotus for light.
+   Highlights are amber, not the palette's gray winterYellow (Wave) or its
+   pale lotusYellow4 (Lotus), which barely showed on their backgrounds. */
 :root[data-theme=kanagawa] {
 	--bg: #1f1f28; --fg: #dcd7ba; --muted: #c8c093; --line: #363646; --card: #2a2a37; --sel: #223249;
-	--accent: #7e9cd8; --bad: #e46876; --hl: #49443c;
+	--accent: #7e9cd8; --bad: #e46876; --hl: #665424;
 	--panel: #16161d; --mark: #54546d; --code-bg: #2a2a37;
 	--f1: #e46876; --f2: #ffa066; --f3: #e6c384; --f4: #98bb6c; --f5: #7aa89f; --f6: #7e9cd8; --f7: #957fb8;
 	color-scheme: dark;
 }
 :root[data-theme=kanagawa-lotus] {
 	--bg: #f2ecbc; --fg: #545464; --muted: #716e61; --line: #dcd5ac; --card: #f2ecbc; --sel: #c9cbd1;
-	--accent: #4d699b; --bad: #c84053; --hl: #f9d791;
+	--accent: #4d699b; --bad: #c84053; --hl: #f0c45c;
 	--panel: #e5ddb0; --mark: #a09cac; --code-bg: #e7dba0;
 	--f1: #c84053; --f2: #cc6d00; --f3: #77713f; --f4: #6f894e; --f5: #597b75; --f6: #4d699b; --f7: #624c83;
 	color-scheme: light;
