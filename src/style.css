@@ -736,6 +736,8 @@ main:not(.has-note) #panes { display: none; }
    it and the arrow keys skipped lines. */
 :is(#editor, #refView) .md-image { padding: 0.4em 0 0.8em; }
 :is(#editor, #refView) .md-image img { display: block; max-width: 100%; height: auto; border-radius: 6px; }
+:is(#editor, #refView) .md-mixtape iframe { display: block; width: 100%; max-width: 760px; aspect-ratio: 16 / 7.5; min-height: 300px; border: 0; }
+@media (max-width: 600px) { :is(#editor, #refView) .md-mixtape iframe { aspect-ratio: 5 / 7; } }
 :is(#editor, #refView) .md-image-note { font-family: var(--sans, sans-serif); font-size: 0.8em; color: var(--mark); border: 1px dashed var(--mark); border-radius: 6px; padding: 0.6em 0.8em; display: inline-block; }
 .md-inline-note { font-size: 0.9em !important; }
 .md-blockid { color: var(--mark); font-family: var(--mono); font-size: 0.75em; }

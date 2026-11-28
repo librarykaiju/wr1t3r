@@ -3,7 +3,7 @@
 // the background and whenever the connection comes back.
 
 import { createEditor } from "./editor.js";
-import { personalCss } from "./personal.js";
+import { personalCss, PERSONAL } from "./personal.js";
 import { setupKeyboardBar } from "./kbbar.js";
 import { readLog, looksLikeLogs, stampFinished, glance } from "./mediastats.js";
 import { drawStats as drawLogStats } from "./mediastatsview.js";
@@ -3359,6 +3359,7 @@ setSlashExtras(() => [
 	{ label: "Log food", detail: "to the day's health note", keywords: "food eat meal nutrition calories usda", run: () => logFood() },
 	{ label: "Board", detail: "grid, gallery, list or kanban of notes", keywords: "base view table database properties filter", run: () => insertBoard() },
 	{ label: "List", detail: "a checklist card: tasks, shopping, wishlist…", keywords: "checklist shopping wishlist tasks todo crit", run: () => insertList() },
+	...(PERSONAL ? [{ label: "Mixtape", detail: "the site's tape deck player", keywords: "mixtape tape deck cassette music audio video player embed youtube soundcloud vimeo plex mp3", run: () => insertMixtape() }] : []),
 	...vaultTemplates().map((t) => ({
 		label: t.name, detail: "template", keywords: "template " + t.name.toLowerCase(),
 		run: () => insertTemplateAt(t),
@@ -3783,6 +3784,26 @@ function insertBoard() {
 	view.focus();
 }
 
+// "Insert mixtape player" (personal build): brandonj.ink's tape deck
+// shortcode at the cursor, on its own line. The site plays YouTube, YouTube
+// Music, SoundCloud, Vimeo, Plex and plain audio/video file links in it;
+// the title and artist label a bare file.
+function insertMixtape() {
+	const view = editor.view;
+	if (!view || !editor.path || view.state.readOnly) return toast("Open a note first.");
+	const url = (prompt("Link to play (YouTube, SoundCloud, Vimeo, Plex, or an mp3/mp4 file):") || "").trim();
+	if (!url) return;
+	const title = (prompt("Title (optional):") || "").trim();
+	const artist = title ? (prompt("Artist (optional):") || "").trim() : "";
+	const q = (v) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+	const args = [url, ...(title ? [title] : []), ...(artist ? [artist] : [])].map(q).join(", ");
+	const { state } = view, head = state.selection.main.head, line = state.doc.lineAt(head);
+	const at = line.text.trim() ? line.to : line.from;
+	const text = `${line.text.trim() ? "\n\n" : ""}{% mixtape ${args} %}\n`;
+	view.dispatch({ changes: { from: at, to: at, insert: text }, selection: { anchor: at + text.length }, scrollIntoView: true, userEvent: "input" });
+	view.focus();
+}
+
 // Every command, for the palette and the hotkeys. editor: runs on the open
 // note's editor (and only while it has the cursor, from a hotkey).
 function allCommands() {
@@ -3815,6 +3836,7 @@ function allCommands() {
 		["Write this year's review", () => writeReview("year"), "yearly annual review reflect journal recap year in review"],
 		["Insert board", insertBoard, "grid gallery kanban list table view properties filter database base", true],
 		["Insert list", insertList, "checklist shopping wishlist tasks todo crit list card", true],
+		...(PERSONAL ? [["Insert mixtape player", insertMixtape, "mixtape tape deck cassette music audio video player embed shortcode youtube soundcloud vimeo plex mp3", true]] : []),
 		["Add calendar events to the timeline", pullTimeline, "pull today's events daily agenda schedule"],
 		["Import calendar file (.ics)", importIcs, "ics ical icalendar import calendar events outlook apple google school"],
 		["Search notes", searchNotes, "find sidebar"],

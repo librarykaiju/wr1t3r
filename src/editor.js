@@ -36,6 +36,10 @@ import { tableGrid } from "./tablegrid.js";
 import { tableCalc } from "./tablecalc.js";
 import { calloutFolds } from "./callouts.js";
 import { webImages } from "./images.js";
+import { mixtapeField } from "./mixtape.js";
+// The personal build's extras (see src/personal.js, which this can't import
+// because tests load the editor in Node): brandonj.ink's mixtape player.
+const personalEditor = import.meta.env?.VITE_DROPBOX_ONLY ? [] : [mixtapeField()];
 import { diagrams } from "./diagrams.js";
 import { prettyProperties } from "./pretty.js";
 import { embeds, embedLook } from "./embeds.js";
@@ -157,6 +161,7 @@ export function createEditor(parent, { onChange, onUpdate, onLink, vault }) {
 		tableGrid,
 		calloutFolds,
 		webImages,
+		...personalEditor,
 		diagrams,
 		prettyProperties,
 		livePreview,
